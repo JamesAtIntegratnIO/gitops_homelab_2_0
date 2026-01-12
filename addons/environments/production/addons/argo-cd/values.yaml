@@ -1,0 +1,71 @@
+addPrometheusAnnotations: true
+server:
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 60
+    
+  service:
+    annotations:
+      metallb.universe.tf/address-pool: default
+  ingress:
+    enabled: false
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    tls: true
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+controller:
+  metrics:
+    enabled: true
+    applicationLabels:
+      enabled: true
+    serviceMonitor:
+      enabled: true
+dex:
+  enabled: true
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+repoServer:
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 60
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+applicationSet:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+notifications:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+redis:
+  enabled: true
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+configs:
+  cm:
+    kustomize.buildOptions: |
+      --enable-helm
+  params:
+    server.insecure: true

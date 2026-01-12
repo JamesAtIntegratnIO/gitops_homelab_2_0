@@ -1,8 +1,8 @@
 argocd:
-  enabled: false
+  enabled: true
   chartName: argo-cd
   namespace: argocd
-  releaseName: argocd
+  releaseName: argo-cd
   defaultVersion: "7.7.8"
   chartRepository: "https://argoproj.github.io/argo-helm"
   selector:
@@ -51,7 +51,7 @@ ack-eks:
     serviceAccount:
       name: '{{.metadata.annotations.ack_eks_service_account}}'
 ack-acm:
-  enabled: true
+  enabled: false
   enableAckPodIdentity: true
   namespace: ack-system
   chartName: acm-chart
@@ -91,7 +91,7 @@ route53-chart:
       annotations:
         eks.amazonaws.com/role-arn: '{{default "" (index .metadata.annotations "ack_route53_controller_role_arn")}}'
 external-secrets:
-  enabled: true
+  enabled: false
   enableAckPodIdentity: false
   namespace: external-secrets
   chartName: external-secrets
@@ -114,7 +114,7 @@ external-secrets:
       annotations:
         eks.amazonaws.com/role-arn: '{{default "" (index .metadata.annotations "external_secrets_iam_role_arn")}}'
 aws-load-balancer-controller:
-  enabled: true
+  enabled: false
   enableAckPodIdentity: true
   namespace: kube-system
   defaultVersion: "1.8.4"
@@ -218,7 +218,7 @@ kro-resource-groups:
         operator: In
         values: ['true']
 external-dns:
-  enabled: false
+  enabled: true
   releaseName: external-dns
   namespace: '{{.metadata.annotations.external_dns_namespace}}'
   chartName: external-dns
