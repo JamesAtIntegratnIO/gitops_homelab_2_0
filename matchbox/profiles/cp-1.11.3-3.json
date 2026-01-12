@@ -1,0 +1,22 @@
+{
+    "id": "cp-1.11.3-3",
+    "name": "cp-1.11.3-3",
+    "boot": {
+        "kernel": "/assets/talos/1.11.3/amd64/vmlinuz",
+        "initrd": [
+            "/assets/talos/1.11.3/amd64/initramfs.xz"
+        ],
+        "args": [
+            "initrd=initramfs.xz",
+            "init_on_alloc=1",
+            "init_on_free=1",
+            "slab_nomerge",
+            "pti=on",
+            "console=tty0",
+            "console=ttyS0",
+            "printk.devkmsg=on",
+            "talos.platform=metal",
+            "talos.config=http://10.0.112.2/assets/talos/1.11.3/controlplane3.yaml"
+        ]
+    }
+}

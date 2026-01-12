@@ -1,0 +1,320 @@
+# Kratix Helm Chart Values
+# This file contains custom values for the Kratix deployment
+
+# Container image configuration
+image: syntasso/kratix-platform:latest
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Node placement configuration
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Additional Kratix resources (GitStateStores, Destinations, etc.)
+additionalResources:
+  # Job to set up Kratix credentials from Gitea
+  - apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: kratix-gitea-credentials-setup
+      namespace: kratix-platform-system
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app: kratix-gitea-credentials-setup
+        spec:
+          serviceAccountName: kratix-gitea-credentials-setup
+          restartPolicy: OnFailure
+          initContainers:
+          - name: wait-for-gitea
+            image: alpine/k8s:1.31.0
+            resources:
+              limits:
+                cpu: 200m
+                memory: 128Mi
+              requests:
+                cpu: 50m
+                memory: 64Mi
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for Gitea to be ready..."
+              # Wait for Gitea service to be available
+              until curl -s "http://my-gitea-http.gitea.svc.cluster.local:3000/api/v1/version" > /dev/null; do
+                echo "Waiting for Gitea API to be ready..."
+                sleep 10
+              done
+              
+              echo "Waiting for gitea-credential secret to have all required fields..."
+              # Wait for the username, password, and token fields to be available
+              until kubectl get secret gitea-credential -n gitea -o jsonpath='{.data.username}' | base64 -d > /dev/null 2>&1 && \
+                    kubectl get secret gitea-credential -n gitea -o jsonpath='{.data.password}' | base64 -d > /dev/null 2>&1 && \
+                    kubectl get secret gitea-credential -n gitea -o jsonpath='{.data.token}' | base64 -d > /dev/null 2>&1; do
+                echo "Waiting for gitea-credential fields to be available..."
+                sleep 10
+              done
+              
+              echo "Gitea is ready and all credentials are available!"
+          containers:
+          - name: setup-credentials
+            image: alpine/k8s:1.31.0
+            resources:
+              limits:
+                cpu: 200m
+                memory: 128Mi
+              requests:
+                cpu: 50m
+                memory: 64Mi
+            env:
+            - name: GITEA_URL
+              value: "http://my-gitea-http.gitea.svc.cluster.local:3000"
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Setting up Kratix GitStateStore credentials..."
+              
+              # Install curl for API calls
+              apk add --no-cache curl
+              
+              # Extract Gitea admin credentials (these are already created by idpbuilder)
+              echo "Extracting existing Gitea admin credentials..."
+              ADMIN_USER=$(kubectl get secret gitea-credential -n gitea -o jsonpath='{.data.username}' | base64 -d)
+              ADMIN_PASSWORD=$(kubectl get secret gitea-credential -n gitea -o jsonpath='{.data.password}' | base64 -d)
+              ADMIN_TOKEN=$(kubectl get secret gitea-credential -n gitea -o jsonpath='{.data.token}' | base64 -d)
+              
+              echo "Using admin user: $ADMIN_USER"
+              
+              # Check if kratix user already exists and delete if so (for clean setup)
+              echo "Checking if kratix user exists..."
+              USER_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+                -H "Authorization: token ${ADMIN_TOKEN}" \
+                "${GITEA_URL}/api/v1/users/kratix")
+              
+              if [ "$USER_CHECK" = "200" ]; then
+                echo "Kratix user exists, deleting for clean setup..."
+                curl -s -X DELETE \
+                  -H "Authorization: token ${ADMIN_TOKEN}" \
+                  "${GITEA_URL}/api/v1/admin/users/kratix"
+                sleep 2
+              fi
+              
+              # Create kratix user (non-admin)
+              echo "Creating kratix platform user..."
+              KRATIX_PASSWORD="KratixPlatform2024!"
+              
+              CREATE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+                -H "Authorization: token ${ADMIN_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"username\": \"kratix\",
+                  \"email\": \"kratix@platform.local\",
+                  \"full_name\": \"Kratix Platform User\",
+                  \"password\": \"${KRATIX_PASSWORD}\",
+                  \"must_change_password\": false,
+                  \"send_notify\": false,
+                  \"restricted\": false,
+                  \"visibility\": \"public\"
+                }" \
+                "${GITEA_URL}/api/v1/admin/users")
+              
+              CREATE_STATUS=$(echo "$CREATE_RESPONSE" | tail -n1)
+              if [ "$CREATE_STATUS" != "201" ]; then
+                echo "WARNING: User creation returned status $CREATE_STATUS"
+                echo "Response: $(echo "$CREATE_RESPONSE" | head -n -1)"
+              else
+                echo "Kratix user created successfully"
+              fi
+              
+              # Test kratix user login to ensure credentials work
+              echo "Testing kratix user credentials..."
+              TEST_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+                -u "kratix:${KRATIX_PASSWORD}" \
+                "${GITEA_URL}/api/v1/user")
+              
+              if [ "$TEST_RESPONSE" != "200" ]; then
+                echo "ERROR: Kratix user credentials test failed with status $TEST_RESPONSE"
+                exit 1
+              fi
+              
+              echo "Kratix user credentials verified"
+              
+              # Create access token for kratix user (authenticated as kratix user)
+              echo "Creating access token for kratix user..."
+              TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+                -u "kratix:${KRATIX_PASSWORD}" \
+                -H "Content-Type: application/json" \
+                -d '{
+                  "name": "kratix-platform-token",
+                  "scopes": ["write:repository", "read:repository", "read:organization"]
+                }' \
+                "${GITEA_URL}/api/v1/users/kratix/tokens")
+              
+              TOKEN_STATUS=$(echo "$TOKEN_RESPONSE" | tail -n1)
+              TOKEN_BODY=$(echo "$TOKEN_RESPONSE" | head -n -1)
+              
+              if [ "$TOKEN_STATUS" != "201" ]; then
+                echo "ERROR: Token creation failed with status $TOKEN_STATUS"
+                echo "Response: $TOKEN_BODY"
+                exit 1
+              fi
+              
+              # Extract token from JSON response
+              KRATIX_TOKEN=$(echo "$TOKEN_BODY" | grep -o '"sha1":"[^"]*"' | cut -d'"' -f4)
+              
+              if [ -z "$KRATIX_TOKEN" ]; then
+                echo "ERROR: Could not extract token from response"
+                echo "Response: $TOKEN_BODY"
+                exit 1
+              fi
+              
+              echo "Token created successfully"
+              
+              # Create platform repository if it doesn't exist
+              echo "Ensuring platform repository exists..."
+              REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+                -H "Authorization: token ${ADMIN_TOKEN}" \
+                "${GITEA_URL}/api/v1/repos/${ADMIN_USER}/platform")
+              
+              if [ "$REPO_CHECK" != "200" ]; then
+                echo "Creating platform repository..."
+                REPO_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+                  -H "Authorization: token ${ADMIN_TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d '{
+                    "name": "platform",
+                    "description": "Kratix Platform GitOps State Store",
+                    "private": false,
+                    "auto_init": true,
+                    "default_branch": "main"
+                  }' \
+                  "${GITEA_URL}/api/v1/user/repos")
+                
+                REPO_STATUS=$(echo "$REPO_RESPONSE" | tail -n1)
+                if [ "$REPO_STATUS" = "201" ]; then
+                  echo "Platform repository created"
+                else
+                  echo "Repository creation status: $REPO_STATUS"
+                fi
+              else
+                echo "Platform repository already exists"
+              fi
+              
+              # Add kratix user as collaborator with write access
+              echo "Adding kratix as collaborator to platform repository..."
+              COLLAB_RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT \
+                -H "Authorization: token ${ADMIN_TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d '{"permission": "write"}' \
+                "${GITEA_URL}/api/v1/repos/${ADMIN_USER}/platform/collaborators/kratix")
+              
+              COLLAB_STATUS=$(echo "$COLLAB_RESPONSE" | tail -n1)
+              if [ "$COLLAB_STATUS" = "204" ] || [ "$COLLAB_STATUS" = "201" ]; then
+                echo "Kratix added as collaborator successfully"
+              else
+                echo "Collaborator status: $COLLAB_STATUS"
+              fi
+              
+              # Create git-credentials secret for Kratix GitStateStore
+              echo "Creating git-credentials secret..."
+              kubectl create secret generic git-credentials \
+                --from-literal=username="kratix" \
+                --from-literal=password="${KRATIX_PASSWORD}" \
+                --from-literal=token="${KRATIX_TOKEN}" \
+                --namespace=kratix-platform-system \
+                --dry-run=client -o yaml | kubectl apply -f -
+              
+              echo ""
+              echo "=== Kratix Credentials Setup Complete ==="
+              echo "✓ Kratix user: kratix"
+              echo "✓ Platform repo: ${ADMIN_USER}/platform"
+              echo "✓ Access: write to platform repo, read to others"
+              echo "✓ Secret: git-credentials in kratix-platform-system"
+              echo "✓ Auth method: token (kratix user self-generated)"
+              echo "=========================================="
+
+  # ServiceAccount for the credentials setup job
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: kratix-gitea-credentials-setup
+      namespace: kratix-platform-system
+
+  # ClusterRole for the credentials setup job
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: kratix-gitea-credentials-setup
+    rules:
+    - apiGroups: [""]
+      resources: ["secrets"]
+      verbs: ["get", "list", "create", "update", "patch"]
+    - apiGroups: [""]
+      resources: ["secrets"]
+      resourceNames: ["gitea-credential"]
+      verbs: ["get"]
+
+  # ClusterRoleBinding for the credentials setup job
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: kratix-gitea-credentials-setup
+    subjects:
+    - kind: ServiceAccount
+      name: kratix-gitea-credentials-setup
+      namespace: kratix-platform-system
+    roleRef:
+      kind: ClusterRole
+      name: kratix-gitea-credentials-setup
+      apiGroup: rbac.authorization.k8s.io
+
+  # Example GitStateStore for Gitea integration
+  - kind: GitStateStore
+    apiVersion: platform.kratix.io/v1alpha1
+    metadata:
+      name: default
+      namespace: kratix-platform-system
+    spec:
+      secretRef:
+        name: git-credentials
+        namespace: kratix-platform-system
+      url: http://my-gitea-http.gitea.svc.cluster.local:3000/giteaAdmin/platform
+      branch: main
+
+  # Destination for vCluster tenant provisioning (PR/branch-based)
+  - apiVersion: platform.kratix.io/v1alpha1
+    kind: Destination
+    metadata:
+      name: vcluster-tenants
+      namespace: kratix-platform-system
+      labels:
+        environment: dev
+        workload-type: vcluster-tenant
+        tenant-scope: pr-branch
+        platform.kratix.io/cluster: local-dev
+        kratix.io/cluster-type: worker
+    spec:
+      stateStoreRef:
+        name: default
+        kind: GitStateStore
+      path: tenants/vclusters
+
+# Legacy state store configuration (deprecated, use additionalResources instead)
+stateStores: []
+
+# Legacy destinations configuration (deprecated, use additionalResources instead)
+destinations: []

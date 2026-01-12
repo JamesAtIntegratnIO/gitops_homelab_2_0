@@ -1,0 +1,5 @@
+# Backend configuration for Postgres
+# Copy this file to backend.hcl and configure with your environment values
+# Usage: tofu init -backend-config=backend.hcl
+
+conn_str = "postgres://192.168.10.245/terraform_lenovo_cluster"

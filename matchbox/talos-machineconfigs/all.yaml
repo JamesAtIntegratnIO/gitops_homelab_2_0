@@ -1,0 +1,9 @@
+machine:
+  install:
+    wipe: true
+    disk: /dev/disk/by-label/TALOS_INSTALL
+    extraKernelArgs:
+      - talos.platform=metal
+      - reboot=k
+  certSANs:
+    - 10.0.4.100

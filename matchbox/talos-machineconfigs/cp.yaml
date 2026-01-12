@@ -1,0 +1,11 @@
+machine:
+  network:
+    interfaces:
+    - deviceSelector:
+        physical: true
+      addresses:
+        - 10.0.4.101/9
+      vip:
+        ip: 10.0.4.100
+cluster:
+  allowSchedulingOnControlPlanes: true

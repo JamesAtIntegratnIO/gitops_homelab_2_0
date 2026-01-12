@@ -1,0 +1,98 @@
+argocd:
+  enabled: true
+  chartName: argo-cd
+  namespace: argocd
+  releaseName: argocd
+  defaultVersion: "7.7.8"
+  chartRepository: "https://argoproj.github.io/argo-helm"
+  selector:
+    matchExpressions:
+      - key: enable_argocd
+        operator: In
+        values: ['true']
+  valuesObject:
+    global:
+      domain: "cnoe.localtest.me"
+    server:
+      service:
+        type: ClusterIP
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        hosts:
+          - "{{.metadata.annotations.cluster_domain}}"
+        paths:
+          - /argocd
+        tls:
+          - secretName: argocd-server-tls
+            hosts:
+              - "{{.metadata.annotations.cluster_domain}}"
+    configs:
+      repositories:
+        tensure-platform:
+          url: https://cnoe.localtest.me:8443/gitea/giteaAdmin/tensure-dev-platform.git
+          type: git
+          insecure: true
+
+cert-manager:
+  enabled: true
+  namespace: cert-manager
+  defaultVersion: "1.16.2"
+  chartRepository: "https://charts.jetstack.io"
+  selector:
+    matchExpressions:
+      - key: enable_cert_manager
+        operator: In
+        values: ['true']
+  valuesObject:
+    crds:
+      enabled: true
+    global:
+      leaderElection:
+        namespace: cert-manager
+
+ingress-nginx:
+  enabled: true
+  namespace: ingress-nginx
+  defaultVersion: "4.11.3"
+  chartRepository: "https://kubernetes.github.io/ingress-nginx"
+  selector:
+    matchExpressions:
+      - key: enable_ingress_nginx
+        operator: In
+        values: ['true']
+  valuesObject:
+    controller:
+      service:
+        type: LoadBalancer
+      config:
+        use-forwarded-headers: "true"
+        compute-full-forwarded-for: "true"
+        use-proxy-protocol: "false"
+
+external-secrets:
+  enabled: true
+  namespace: external-secrets-system
+  defaultVersion: "0.10.5"
+  chartRepository: "https://charts.external-secrets.io"
+  selector:
+    matchExpressions:
+      - key: enable_external_secrets
+        operator: In
+        values: ['true']
+  valuesObject:
+    installCRDs: true
+
+metrics-server:
+  enabled: true
+  namespace: kube-system
+  defaultVersion: "3.11.0"
+  chartRepository: "https://kubernetes-sigs.github.io/metrics-server"
+  selector:
+    matchExpressions:
+      - key: enable_metrics_server
+        operator: In
+        values: ['true']
+  valuesObject:
+    args:
+      - --kubelet-insecure-tls

@@ -1,0 +1,536 @@
+# Grafana Config
+grafana:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - cnoe.localtest.me
+    path: /grafana
+  grafana.ini:
+    server:
+      root_url: https://cnoe.localtest.me:8443/grafana
+      serve_from_sub_path: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      argocd:
+        url: https://raw.githubusercontent.com/gitops-bridge-dev/kubecon-2025-eu-argocon/refs/heads/main/platform/addons/clusters/in-cluster/addons/kube-prometheus-stack/dashboards/argocd.json
+      argocd-sync-windows:
+        url: https://raw.githubusercontent.com/gitops-bridge-dev/kubecon-2025-eu-argocon/refs/heads/main/platform/addons/clusters/in-cluster/addons/kube-prometheus-stack/dashboards/argocd-sync-windows.json
+
+# Prometheus Config
+prometheus:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - cnoe.localtest.me
+    paths:
+    - /prometheus
+  prometheusSpec:
+    externalUrl: https://cnoe.localtest.me:8443/prometheus
+    routePrefix: /prometheus
+kubeControllerManager:
+  serviceMonitor:
+    insecureSkipVerify: true
+kubeScheduler:
+  serviceMonitor:
+    insecureSkipVerify: true
+kubeStateMetrics:
+  enabled: true
+
+kube-state-metrics:
+  prometheus:
+    monitor:
+      # NOTE:This is so short for demo purposes only
+      interval: 15s
+  rbac:
+    extraRules:
+    - apiGroups:
+      - argoproj.io
+      resources:
+      - applications
+      - applicationsets
+      - appprojects
+      verbs:
+      - get
+      - list
+      - watch
+
+  customResourceState:
+    enabled: true
+    config:
+      spec:
+        resources:
+          - groupVersionKind:
+              group: argoproj.io
+              kind: Application
+              version: '*'
+            labelsFromPath:
+              name:
+                - metadata
+                - name
+              namespace:
+                - metadata
+                - namespace
+            metricNamePrefix: argocd_application
+            metrics:
+              - each:
+                  gauge:
+                    path:
+                      - status
+                      - operationState
+                    valueFrom:
+                      - startedAt
+                  type: Gauge
+                help: Timestamp the last sync started at
+                name: sync_start_time
+              - each:
+                  gauge:
+                    path:
+                      - status
+                      - operationState
+                    valueFrom:
+                      - finishedAt
+                  type: Gauge
+                help: Timestamp the last sync ended at
+                name: sync_end_time
+              - each:
+                  info:
+                    labelsFromPath:
+                      phase:
+                        - status
+                        - operationState
+                        - phase
+                  type: Info
+                help: Current operation phase (only if the operation is in progress)
+                name: sync_phase
+              - each:
+                  info:
+                    labelsFromPath:
+                      version:
+                        - metadata
+                        - annotations
+                        - version
+                  type: Info
+                help: The version of the chart defined in the ApplicationSet
+                name: chart_version_info
+          - groupVersionKind:
+              group: argoproj.io
+              kind: AppProject
+              version: '*'
+            labelsFromPath:
+              name:
+                - metadata
+                - name
+              namespace:
+                - metadata
+                - namespace
+            metricNamePrefix: argocd_appproject
+            metrics:
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '0'
+                      application_name_raw:
+                        - applications
+                        - '0'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_0
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '1'
+                      application_name_raw:
+                        - applications
+                        - '1'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_1
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '2'
+                      application_name_raw:
+                        - applications
+                        - '2'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_2
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '3'
+                      application_name_raw:
+                        - applications
+                        - '3'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_3
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '4'
+                      application_name_raw:
+                        - applications
+                        - '4'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_4
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '5'
+                      application_name_raw:
+                        - applications
+                        - '5'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_5
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '6'
+                      application_name_raw:
+                        - applications
+                        - '6'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_6
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '7'
+                      application_name_raw:
+                        - applications
+                        - '7'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_7
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '8'
+                      application_name_raw:
+                        - applications
+                        - '8'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_8
+              - each:
+                  info:
+                    labelsFromPath:
+                      cluster_name_raw:
+                        - clusters
+                        - '9'
+                      application_name_raw:
+                        - applications
+                        - '9'
+                      kind:
+                        - kind
+                      schedule:
+                        - schedule
+                      duration:
+                        - duration
+                    path:
+                      - spec
+                      - syncWindows
+                  type: Info
+                help: Argo CD syncWindows
+                name: sync_windows_raw_9
+
+extraManifests:
+- apiVersion: monitoring.coreos.com/v1
+  kind: PrometheusRule
+  metadata:
+    labels:
+      release: kube-prometheus-stack
+    name: argocd-application-health-recording-rules
+  spec:
+    groups:
+    - name: argocd-application-health-recording.rules
+      interval: 15s
+      rules:
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_0{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_1{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_2{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_3{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_4{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_5{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_6{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_7{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_8{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_9{application_name_raw!~"list index out of range.*", application_name_raw!=""}, "application", "$1", "application_name_raw", "[\\*]?([a-zA-Z0-9-_]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (cluster_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_0{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_1{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_2{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_3{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_4{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_5{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_6{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_7{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_8{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: max(label_replace(label_replace(argocd_appproject_sync_windows_raw_9{cluster_name_raw!~"list index out of range.*", cluster_name_raw!=""}, "cluster", "$1", "cluster_name_raw", "[\\*]?([a-zA-Z0-9-_:/.]*)[\\*]?"), "project", "$1", "name", "(.*)")) without (application_name_raw)
+        record: argocd_appproject_sync_windows
+      - expr: count(label_replace(label_replace(argocd_app_info, "cluster", "$1", "dest_server", "(.*)"), "application", "$1", "name", "(.*)")) without (pod, container, endpoint, instance, job, service) * on (name, namespace) group_left (phase) argocd_application_sync_phase
+        record: argocd_app_info:detailed
+      - expr: argocd_appproject_sync_windows{kind="deny", schedule="* * * * *"}
+        record: argocd_appproject_sync_windows:deny
+        labels:
+          type: always
+      - expr: argocd_appproject_sync_windows{kind="deny", schedule!="* * * * *"}
+        record: argocd_appproject_sync_windows:deny
+        labels:
+          type: scheduled
+      # In reality, we should use at least 3600 seconds (1 hour) as the timeout, but we use 180 seconds for the sake of the demo
+      - expr: sum(((argocd_application_sync_start_time unless argocd_application_sync_end_time) and ((argocd_application_sync_start_time + 180) <= time())) * on(name) group_right(customresource_group, customresource_kind, customresource_version) (argocd_app_info:detailed)) without (pod, container, prometheus, prometheus_cluster, prometheus_replica, service, instance, job, endpoint, customresource_group, customresource_kind, customresource_version) unless on(cluster) argocd_appproject_sync_windows:deny{type="always"} unless on(application) argocd_appproject_sync_windows:deny{type="always"}
+        record: argocd_application_long_running_sync
+      - expr: ((count(argocd_app_info:detailed{health_status!~"Healthy|Progressing"}) by (name, project, application, cluster, sync_status, health_status, phase, autosync_enabled, dest_namespace, environment, dest_server) or count(argocd_app_info:detailed{sync_status!="Synced"}) by (name, project, application, cluster, sync_status, health_status, phase, autosync_enabled, dest_namespace, environment, dest_server))) unless on(cluster) argocd_appproject_sync_windows:deny{type="always"} unless on(application) argocd_appproject_sync_windows:deny{type="always"}
+        record: argocd_application_out_of_sync
+- apiVersion: monitoring.coreos.com/v1
+  kind: ServiceMonitor
+  metadata:
+    labels:
+      release: kube-prometheus-stack
+    name: argocd-application-controller
+    namespace: argocd
+  spec:
+    endpoints:
+    - honorLabels: false
+      interval: 30s
+      path: /metrics
+      port: metrics
+    namespaceSelector:
+      matchNames:
+      - argocd
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: argocd-metrics
+- apiVersion: monitoring.coreos.com/v1
+  kind: ServiceMonitor
+  metadata:
+    labels:
+      release: kube-prometheus-stack
+    name: argocd-server
+    namespace: argocd
+  spec:
+    jobLabel: app.kubernetes.io/name
+    podTargetLabels:
+    - app.kubernetes.io/name
+    endpoints:
+    - honorLabels: false
+      interval: 30s
+      path: /metrics
+      port: metrics
+    namespaceSelector:
+      matchNames:
+      - argocd
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: argocd-server-metrics
+- apiVersion: monitoring.coreos.com/v1
+  kind: ServiceMonitor
+  metadata:
+    labels:
+      release: kube-prometheus-stack
+    name: argocd-applicationset-controller
+    namespace: argocd
+  spec:
+    endpoints:
+    - honorLabels: false
+      interval: 30s
+      path: /metrics
+      port: metrics
+    namespaceSelector:
+      matchNames:
+      - argocd
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: argocd-applicationset-controller
+- apiVersion: monitoring.coreos.com/v1
+  kind: ServiceMonitor
+  metadata:
+    labels:
+      release: kube-prometheus-stack
+    name: argocd-dex-server
+    namespace: argocd
+  spec:
+    endpoints:
+    - honorLabels: false
+      interval: 30s
+      path: /metrics
+      port: metrics
+    namespaceSelector:
+      matchNames:
+      - argocd
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: argocd-dex-server
+- apiVersion: monitoring.coreos.com/v1
+  kind: ServiceMonitor
+  metadata:
+    labels:
+      release: kube-prometheus-stack
+    name: argocd-notifications-controller-metrics
+    namespace: argocd
+  spec:
+    endpoints:
+    - honorLabels: false
+      interval: 30s
+      path: /metrics
+      port: metrics
+    namespaceSelector:
+      matchNames:
+      - argocd
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: argocd-notifications-controller-metrics
+- apiVersion: monitoring.coreos.com/v1
+  kind: ServiceMonitor
+  metadata:
+    labels:
+      release: kube-prometheus-stack
+    name: argocd-repo-server
+    namespace: argocd
+  spec:
+    endpoints:
+    - honorLabels: false
+      interval: 30s
+      path: /metrics
+      port: metrics
+    namespaceSelector:
+      matchNames:
+      - argocd
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: argocd-repo-server

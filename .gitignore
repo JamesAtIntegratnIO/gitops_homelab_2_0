@@ -1,0 +1,24 @@
+matchbox/assets/talos/*/*.yaml
+matchbox/assets/talos/*/talosconfig
+**/initramfs.xz
+**/vmlinuz
+**/kubeconfig
+
+**/dockerconfig.json
+
+secrets.env
+
+# Terraform
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+**/crash.log
+**/crash.*.log
+**/.terraformrc
+**/terraform.rc
+**/override.tf
+**/override.tf.json
+**/*_override.tf
+**/*_override.tf.json
+**/backend.hcl
