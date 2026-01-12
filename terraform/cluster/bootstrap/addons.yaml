@@ -20,14 +20,19 @@ spec:
         automated:
           prune: true
           selfHeal: true
-      source:
-        repoURL: '{{metadata.annotations.addons_repo_url}}'
-        path: '{{metadata.annotations.addons_repo_basepath}}{{metadata.annotations.addons_repo_path}}'
-        targetRevision: '{{metadata.annotations.addons_repo_revision}}'
-        helm:
-          valuesObject:
-            repoURLGit: '{{metadata.annotations.addons_repo_url}}'
-            appsetPrefix: "in-cluster-"
-          valueFiles:
-            - ../../clusters/in-cluster/common.yaml
-            - ../../clusters/in-cluster/addons.yaml
+      sources:
+        - repoURL: '{{metadata.annotations.addons_repo_url}}'
+          targetRevision: '{{metadata.annotations.addons_repo_revision}}'
+          ref: values
+        - repoURL: '{{metadata.annotations.addons_repo_url}}'
+          path: '{{metadata.annotations.addons_repo_basepath}}{{metadata.annotations.addons_repo_path}}'
+          targetRevision: '{{metadata.annotations.addons_repo_revision}}'
+          helm:
+            ignoreMissingValueFiles: true
+            valuesObject:
+              repoURLGit: '{{metadata.annotations.addons_repo_url}}'
+              appsetPrefix: "in-cluster-"
+            valueFiles:
+              - $values/addons/default/addons/common.yaml
+              - $values/addons/default/addons/addons.yaml
+              - '$values/addons/clusters/{{name}}/addons.yaml'
