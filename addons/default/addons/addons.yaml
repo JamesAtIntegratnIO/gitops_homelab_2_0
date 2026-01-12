@@ -108,7 +108,7 @@ external-secrets:
         operator: In
         values: ['true']
   valuesObject:
-    installCRDs:  '{{default toBool(true) toBool((index .metadata.labels "use_external_secrets"))}}'
+    installCRDs: true
     serviceAccount:
       name: "external-secrets-sa"
       annotations:

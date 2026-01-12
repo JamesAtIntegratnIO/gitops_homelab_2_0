@@ -35,4 +35,4 @@ spec:
             valueFiles:
               - $values/addons/default/addons/common.yaml
               - $values/addons/default/addons/addons.yaml
-              - '$values/addons/clusters/{{name}}/addons.yaml'
+              - '$values/addons/clusters/{{metadata.labels.cluster_name}}/addons.yaml'

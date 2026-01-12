@@ -12,7 +12,7 @@ Template to generate additional resources configuration
 - repoURL: {{ $values.repoURLGit | squote }}
   targetRevision: {{ $values.repoURLGitRevision | squote }}
   path: {{- if eq $additionalResourcesType "manifests" }}
-    '{{ $values.repoURLGitBasePath }}{{ if $values.useValuesFilePrefix }}{{ $values.valuesFilePrefix }}{{ end }}clusters/{{`{{.nameNormalized}}`}}/{{ $chartConfig.additionalResources.manifestPath }}'
+    '{{ trimSuffix "/" $values.repoURLGitBasePath }}/{{ if $values.useValuesFilePrefix }}{{ $values.valuesFilePrefix }}{{ end }}clusters/{{`{{.nameNormalized}}`}}/{{ $chartConfig.additionalResources.manifestPath }}'
   {{- else }}
     {{ $chartConfig.additionalResources.path | squote }}
   {{- end}}

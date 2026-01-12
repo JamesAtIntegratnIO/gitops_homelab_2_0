@@ -1,8 +1,3 @@
-apiVersion: metallb.io/v1beta1
-kind: IPAddressPool
-metadata:
-  name: default
-  namespace: metallb-system
-spec:
-  addresses:
-    - 10.0.4.200-10.0.4.253
+---
+# Deprecated: per-cluster MetalLB pools now live at:
+# addons/clusters/<cluster>/addons/metallb-pool/values.yaml
