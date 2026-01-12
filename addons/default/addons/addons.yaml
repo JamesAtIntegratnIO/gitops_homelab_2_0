@@ -323,6 +323,13 @@ metallb-config:
         values: ['true']
   syncPolicy:
     automated: {}
+    retry:
+      limit: 30
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
