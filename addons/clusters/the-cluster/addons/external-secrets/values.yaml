@@ -1,0 +1,22 @@
+# Cluster-specific External Secrets Operator configuration for "the-cluster"
+#
+# We define the ClusterSecretStore used by ExternalSecret resources in this repo.
+# Note: the installed CRDs are `external-secrets.io/v1beta1`, not `v1`.
+
+extraObjects:
+  - apiVersion: external-secrets.io/v1beta1
+    kind: ClusterSecretStore
+    metadata:
+      name: onepassword-store
+    spec:
+      provider:
+        onepassword:
+          connectHost: https://connect.integratn.tech
+          vaults:
+            homelab: "1"
+          auth:
+            secretRef:
+              connectTokenSecretRef:
+                name: eso-onepassword-token
+                namespace: external-secrets
+                key: token
