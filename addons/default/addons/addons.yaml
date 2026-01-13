@@ -333,3 +333,74 @@ metallb-config:
       - CreateNamespace=true
       - ServerSideApply=true
       - SkipDryRunOnMissingResource=true
+
+gateway-api-crds:
+  enabled: true
+  type: manifest
+  namespace: kube-system
+  defaultVersion: v1.4.0
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "0"
+  selector:
+    matchExpressions:
+      - key: enable_gateway_api_crds
+        operator: In
+        values: ['true']
+  generatorValues:
+    gatewayAPIRevision: v1.4.0
+  environments:
+    - selector:
+        environment: dev
+      matchExpressions:
+        - key: enable_gateway_api_crds
+          operator: In
+          values: ['true']
+      values:
+        gatewayAPIRevision: v1.4.0
+    - selector:
+        environment: stage
+      matchExpressions:
+        - key: enable_gateway_api_crds
+          operator: In
+          values: ['true']
+      values:
+        gatewayAPIRevision: v1.4.0
+    - selector:
+        environment: prod
+      matchExpressions:
+        - key: enable_gateway_api_crds
+          operator: In
+          values: ['true']
+      values:
+        gatewayAPIRevision: v1.4.0
+  manifestSource:
+    repoURL: https://github.com/kubernetes-sigs/gateway-api.git
+    path: config/crd/standard
+    directory:
+      recurse: true
+    targetRevisionFromValue: gatewayAPIRevision
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+
+nginx-gateway-fabric:
+  enabled: true
+  namespace: nginx-gateway
+  releaseName: nginx-gateway-fabric
+  chartName: nginx-gateway-fabric
+  chartRepository: oci://ghcr.io/nginx/charts
+  defaultVersion: "1.5.0"
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "10"
+  selector:
+    matchExpressions:
+      - key: enable_nginx_gateway_fabric
+        operator: In
+        values: ['true']
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
