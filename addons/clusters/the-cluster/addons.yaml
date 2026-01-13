@@ -3,3 +3,15 @@ argocd:
     type: manifests
     path: clusters
     manifestPath: addons/argocd-routes
+
+nginx-gateway-fabric:
+  additionalResources:
+    type: manifests
+    path: clusters
+    manifestPath: addons/nginx-gateway-certs
+
+external-dns:
+  additionalResources:
+    type: manifests
+    path: clusters
+    manifestPath: addons/external-dns-resources

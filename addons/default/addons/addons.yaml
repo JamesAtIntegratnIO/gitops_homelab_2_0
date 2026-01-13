@@ -229,6 +229,34 @@ external-dns:
       - key: enable_external_dns
         operator: In
         values: ['true']
+
+cert-manager:
+  enabled: true
+  releaseName: cert-manager
+  namespace: '{{.metadata.annotations.cert_manager_namespace}}'
+  chartName: cert-manager
+  chartRepository: https://charts.jetstack.io
+  defaultVersion: "v1.16.2"
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "-1"
+  selector:
+    matchExpressions:
+      - key: enable_cert_manager
+        operator: In
+        values: ['true']
+  valuesObject:
+    crds:
+      enabled: true
+    clusterResourceNamespace: '{{.metadata.annotations.cert_manager_namespace}}'
+    global:
+      leaderElection:
+        namespace: '{{.metadata.annotations.cert_manager_namespace}}'
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
 kratix:
   enabled: true
   namespace: kratix-platform-system
