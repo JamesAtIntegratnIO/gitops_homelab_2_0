@@ -49,6 +49,10 @@ module "cloudflare" {
 module "argocd" {
   source = "git::https://github.com/jamesAtIntegratnIO/terraform-helm-gitops-bridge.git?ref=homelab"
 
+  argocd = {
+    chart_version = "9.0.3"
+  }
+
   cluster = {
     cluster_name = var.cluster_name
     environment  = "prod"
