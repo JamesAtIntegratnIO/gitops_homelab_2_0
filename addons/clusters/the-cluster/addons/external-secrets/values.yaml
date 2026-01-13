@@ -13,7 +13,7 @@ extraObjects:
         onepassword:
           connectHost: https://connect.integratn.tech
           vaults:
-            homelab: "1"
+            homelab: 1
           auth:
             secretRef:
               connectTokenSecretRef:
