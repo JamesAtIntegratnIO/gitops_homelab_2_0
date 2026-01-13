@@ -91,7 +91,7 @@ route53-chart:
       annotations:
         eks.amazonaws.com/role-arn: '{{default "" (index .metadata.annotations "ack_route53_controller_role_arn")}}'
 external-secrets:
-  enabled: false
+  enabled: true
   enableAckPodIdentity: false
   namespace: external-secrets
   chartName: external-secrets
