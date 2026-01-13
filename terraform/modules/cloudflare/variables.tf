@@ -7,7 +7,7 @@ variable "cloudflare_records" {
   description = "A map of Cloudflare records to create"
   type = map(object({
     name    = string
-    content   = string
+    content = string
     type    = string
     ttl     = number
     proxied = bool

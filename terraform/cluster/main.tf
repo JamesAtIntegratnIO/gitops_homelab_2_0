@@ -34,6 +34,8 @@ locals {
     enable_cluster_api_operator            = true
     enable_external_secrets                = true
     enable_headlamp                        = true
+    enable_gateway_api_crds                = true
+    enable_nginx_gateway_fabric            = true
   }
 
 }
