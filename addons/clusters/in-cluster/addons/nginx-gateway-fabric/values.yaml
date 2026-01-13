@@ -1,0 +1,4 @@
+nginx:
+  service:
+    loadBalancerIP: 10.0.4.205
+    externalTrafficPolicy: Local
