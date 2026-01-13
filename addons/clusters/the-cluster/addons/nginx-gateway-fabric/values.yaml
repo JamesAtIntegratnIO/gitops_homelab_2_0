@@ -1,0 +1,37 @@
+nginx:
+  service:
+    loadBalancerIP: 10.0.4.205
+    externalTrafficPolicy: Local
+
+gateways:
+  - name: nginx-gateway
+    namespace: nginx-gateway
+    labels:
+      app: nginx-gateway-fabric
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    spec:
+      gatewayClassName: nginx
+      addresses:
+        - type: IPAddress
+          value: 10.0.4.205
+      listeners:
+        - name: http
+          port: 80
+          protocol: HTTP
+          hostname: "*.integratn.tech"
+          allowedRoutes:
+            namespaces:
+              from: All
+        - name: https
+          port: 443
+          protocol: HTTPS
+          hostname: "*.integratn.tech"
+          tls:
+            mode: Terminate
+            certificateRefs:
+              - kind: Secret
+                name: wildcard-integratn-tech-tls
+          allowedRoutes:
+            namespaces:
+              from: All
