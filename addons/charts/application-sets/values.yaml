@@ -1,3 +1,16 @@
+# application-sets chart values
+#
+# This chart renders one Argo CD ApplicationSet per addon entry (any top-level key
+# whose value is a map and contains `enabled`).
+#
+# Newer capabilities documented below:
+# - Addon-level `generatorValues`: injects extra fields into the cluster generator `.values.*`
+# - Addon-level `environments`: enables a merge generator and allows per-environment overrides
+#   - `environments[].matchExpressions`: supports selector matchExpressions
+#   - `environments[].values`: inject additional generator values (e.g. revisions)
+# - Addon `type: manifest` + `manifestSource` for non-Helm git sources
+#   - `manifestSource.targetRevisionFromValue`: renders `targetRevision: '{{.values.<key>}}'`
+#
 syncPolicy:
   automated:
     selfHeal: false
@@ -27,3 +40,72 @@ valuesFilePrefix: '{{.metadata.labels.tenant}}/'
 ackPodIdentity:
   path: "charts/pod-identity"
 #appsetPrefix: "appset-"
+
+# ------------------------------------------------------------------------------
+# Examples (disabled)
+# ------------------------------------------------------------------------------
+
+# Example Helm addon (normal behavior)
+example-helm-addon:
+  enabled: false
+  namespace: kube-system
+  # These fields become `.values.addonChartRepository`, `.values.addonChartVersion`, etc
+  chartRepository: https://kubernetes-sigs.github.io/metrics-server/
+  chartName: metrics-server
+  defaultVersion: 3.12.2
+  # Optional: additional selector labels to AND with the global selector.
+  selectorMatchLabels:
+    enable_metrics_server: "true"
+  # Optional: full selector fragment (supports matchExpressions, etc) if `useSelectors: true`.
+  selector:
+    matchExpressions:
+      - key: enable_metrics_server
+        operator: In
+        values: ['true']
+
+# Example Manifest addon (git source, not Helm)
+example-manifest-addon:
+  enabled: false
+  type: manifest
+  namespace: kube-system
+  # Strongly recommended when goTemplateOptions includes missingkey=error:
+  # the template uses `.values.addonChartVersion` for labels.
+  defaultVersion: v1.4.0
+  selector:
+    matchExpressions:
+      - key: enable_gateway_api_crds
+        operator: In
+        values: ['true']
+
+  # Extra generator values available as `.values.*` inside the Application template.
+  generatorValues:
+    gatewayAPIRevision: v1.4.0
+
+  # Optional: per-environment overrides.
+  # When `environments:` is set, the chart emits a merge generator using `mergeKeys: [server]`.
+  environments:
+    - selector:
+        environment: dev
+      matchExpressions:
+        - key: enable_gateway_api_crds
+          operator: In
+          values: ['true']
+      values:
+        gatewayAPIRevision: v1.4.0
+    - selector:
+        environment: prod
+      matchExpressions:
+        - key: enable_gateway_api_crds
+          operator: In
+          values: ['true']
+      values:
+        gatewayAPIRevision: v1.4.0
+
+  manifestSource:
+    repoURL: https://github.com/kubernetes-sigs/gateway-api.git
+    path: config/crd/standard
+    directory:
+      recurse: true
+    # Renders targetRevision using a generator value key:
+    # targetRevision: '{{.values.gatewayAPIRevision}}'
+    targetRevisionFromValue: gatewayAPIRevision

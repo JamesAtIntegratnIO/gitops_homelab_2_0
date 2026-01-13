@@ -14,6 +14,32 @@
 {{- $globalSelectors  := .Values.globalSelectors   -}}
 {{- $appsetPrefix := .Values.appsetPrefix -}}
 
+{{/*
+application-sets: addon schema (high-level)
+
+Any top-level values entry that is a map and contains an `enabled` key is treated
+as an addon definition and will render to a single ApplicationSet when enabled.
+
+Common addon keys:
+  - enabled: true|false
+  - namespace: destination namespace for the rendered Applications
+  - chartRepository/chartNamespace/chartName/defaultVersion: Helm chart source fields
+  - selectorMatchLabels: additional matchLabels ANDed into the base cluster generator
+  - selector: optional selector fragment (e.g. matchExpressions) appended when useSelectors=true
+
+Newer capabilities:
+  - generatorValues: map injected into the base cluster generator `.values.*`
+  - environments: list of environment-specific generators
+      - When set, we emit a merge generator (mergeKeys: [server]) so per-environment
+        generators can override `.values` for the same cluster (same `server`).
+      - environments[].matchExpressions is supported.
+      - environments[].values injects additional generator values beyond addonChartVersion.
+  - type: manifest + manifestSource: render an additional non-Helm git source.
+      - manifestSource.targetRevisionFromValue renders a goTemplate expression:
+        targetRevision: '{{.values.<key>}}'
+        Ensure that key exists via generatorValues and/or environments[].values.
+*/}}
+
 {{- range $chartName, $chartConfig := .Values }}
 {{- if and (kindIs "map" $chartConfig) (hasKey $chartConfig "enabled") }}
 {{- if eq (toString $chartConfig.enabled) "true" }}
@@ -53,6 +79,11 @@ spec:
   {{- else }}
   generators:
   {{- if $chartConfig.environments }}
+    {{/*
+    When environments are configured, wrap the base cluster generator plus the
+    per-environment generators in a merge generator so `.values` can be overridden
+    per-environment for the same cluster (keyed by cluster server).
+    */}}
     - merge:
         mergeKeys: [server]
         generators:
@@ -85,6 +116,10 @@ spec:
                 {{- else }}
                 chart: {{ $chartConfig.chartName | default $nameNormalize | quote }}
                 {{- end }}
+                {{- if $chartConfig.generatorValues }}
+                {{/* Additional generator values available to the app template as `.values.*` */}}
+                {{- toYaml $chartConfig.generatorValues | nindent 16 }}
+                {{- end }}
               {{- end }}
           {{- if $chartConfig.environments }}
           {{- range $chartConfig.environments }}
@@ -92,8 +127,17 @@ spec:
               selector:
                 matchLabels:
                 {{- toYaml .selector | nindent 18 }}
+                {{- if .matchExpressions }}
+                {{/* Supports matchExpressions for per-environment selectors */}}
+                matchExpressions:
+                {{- toYaml .matchExpressions | nindent 18 }}
+                {{- end }}
               values:
                 addonChartVersion: {{ .chartVersion | default $chartConfig.defaultVersion | quote }}
+                {{- if .values }}
+                {{/* Inject any extra per-environment generator values */}}
+                {{- toYaml .values | nindent 16 }}
+                {{- end }}
           {{- end }}
           {{- end }}
           {{- end }}
@@ -131,7 +175,22 @@ spec:
           "valueFiles" $valueFiles
           "chartConfig" $chartConfig "values" $values ) | nindent 6 }}
         {{- end }}
-        {{- if $chartConfig.path }}
+        {{- if and (eq (default "" $chartConfig.type) "manifest") $chartConfig.manifestSource }}
+      - repoURL: {{ $chartConfig.manifestSource.repoURL | squote }}
+        {{- if $chartConfig.manifestSource.targetRevisionFromValue }}
+        {{/* Renders targetRevision via a generator value key, e.g. '{{.values.gatewayAPIRevision}}' */}}
+        targetRevision: '{{`{{.values.`}}{{ $chartConfig.manifestSource.targetRevisionFromValue }}{{`}}`}}'
+        {{- else if $chartConfig.manifestSource.targetRevision }}
+        targetRevision: {{ $chartConfig.manifestSource.targetRevision | squote }}
+        {{- end }}
+        {{- if $chartConfig.manifestSource.path }}
+        path: {{ $chartConfig.manifestSource.path | squote }}
+        {{- end }}
+        {{- if $chartConfig.manifestSource.directory }}
+        directory:
+        {{- toYaml $chartConfig.manifestSource.directory | nindent 10 }}
+        {{- end }}
+        {{- else if $chartConfig.path }}
       - repoURL: {{ $repoURLGit | squote }}
         path: {{$chartConfig.path | squote }}
         targetRevision: {{ $repoURLGitRevision | squote }}
