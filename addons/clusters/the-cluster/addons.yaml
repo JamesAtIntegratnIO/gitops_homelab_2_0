@@ -1,1 +1,5 @@
-{}
+argocd:
+  additionalResources:
+    type: manifests
+    path: clusters
+    manifestPath: addons/argocd-routes
