@@ -390,8 +390,8 @@ nginx-gateway-fabric:
   namespace: nginx-gateway
   releaseName: nginx-gateway-fabric
   chartName: nginx-gateway-fabric
-  chartRepository: oci://ghcr.io/nginx/charts
-  defaultVersion: "1.5.0"
+  chartRepository: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
+  defaultVersion: "2.2.2"
   annotationsApp:
     argocd.argoproj.io/sync-wave: "10"
   selector:
