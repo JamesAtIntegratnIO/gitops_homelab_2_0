@@ -29,7 +29,6 @@ txtOwnerId: the-cluster
 txtPrefix: the-cluster-
 
 extraArgs:
-  - --gateway-name=nginx-gateway
   - --cloudflare-proxied=false
 
 resources:
