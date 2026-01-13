@@ -218,7 +218,7 @@ external-dns:
   namespace: '{{.metadata.annotations.external_dns_namespace}}'
   chartName: external-dns
   chartRepository: https://kubernetes-sigs.github.io/external-dns
-  defaultVersion: "1.14.5"
+  defaultVersion: "1.19.0"
   selector:
     matchExpressions:
       - key: enable_external_dns
