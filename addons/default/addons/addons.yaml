@@ -2,7 +2,7 @@ argocd:
   enabled: true
   chartName: argo-cd
   namespace: argocd
-  releaseName: argo-cd
+  releaseName: argocd
   defaultVersion: "7.7.8"
   chartRepository: "https://argoproj.github.io/argo-helm"
   selector:
