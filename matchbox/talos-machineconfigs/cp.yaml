@@ -1,4 +1,7 @@
 machine:
+  kubelet:
+    extraArgs:
+      node-labels: "!node.kubernetes.io/exclude-from-external-load-balancers"
   network:
     interfaces:
     - deviceSelector:

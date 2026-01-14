@@ -9,6 +9,7 @@ spec:
   ipAddressPools:
     - default
   nodeSelectors:
-    - matchLabels:
-        node-role.kubernetes.io/control-plane: ""
+    - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: Exists
 
