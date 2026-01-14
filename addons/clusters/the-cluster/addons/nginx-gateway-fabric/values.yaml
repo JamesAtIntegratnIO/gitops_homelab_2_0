@@ -32,7 +32,8 @@ gateways:
           tls:
             mode: Terminate
             certificateRefs:
-              - kind: Secret
+              - group: ""
+                kind: Secret
                 name: wildcard-integratn-tech-tls
           allowedRoutes:
             namespaces:
