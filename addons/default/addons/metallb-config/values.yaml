@@ -5,3 +5,7 @@ metadata:
   name: default
   namespace: metallb-system
 
+spec:
+  ipAddressPools:
+    - default
+
