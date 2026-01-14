@@ -4,6 +4,7 @@ global:
 configs:
   params:
     server.insecure: true
+    server.url: https://argocd.cluster.integratn.tech
 
 server:
   service:
