@@ -10,6 +10,8 @@ gateways:
       app: nginx-gateway-fabric
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt-prod
+      argocd.argoproj.io/compare-options: IgnoreExtraneous
+      argocd.argoproj.io/sync-options: Prune=false
     spec:
       gatewayClassName: nginx
       addresses:
