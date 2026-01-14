@@ -1,8 +1,11 @@
 global:
   domain: argocd.cluster.integratn.tech
 
+configs:
+  params:
+    server.insecure: true
+
 server:
-  insecure: true
   service:
     annotations:
       metallb.universe.tf/loadBalancerIPs: 10.0.4.201
