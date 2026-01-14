@@ -1,13 +1,14 @@
 argocd:
-  additionalResources:
-    type: manifests
-    path: clusters
-    manifestPath: addons/argo-cd
   ignoreDifferences:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       jqPathExpressions:
         - .status
+        - .metadata.managedFields
+        - .metadata.resourceVersion
+        - .metadata.generation
+        - .metadata.uid
+        - .metadata.creationTimestamp
 
 nginx-gateway-fabric:
   additionalResources:
@@ -19,6 +20,20 @@ nginx-gateway-fabric:
       kind: Gateway
       jqPathExpressions:
         - .status
+        - .metadata.managedFields
+        - .metadata.resourceVersion
+        - .metadata.generation
+        - .metadata.uid
+        - .metadata.creationTimestamp
+    - group: gateway.networking.k8s.io
+      kind: ReferenceGrant
+      jqPathExpressions:
+        - .status
+        - .metadata.managedFields
+        - .metadata.resourceVersion
+        - .metadata.generation
+        - .metadata.uid
+        - .metadata.creationTimestamp
 
 external-dns:
   additionalResources:
