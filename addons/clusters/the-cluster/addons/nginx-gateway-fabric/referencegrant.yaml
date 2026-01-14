@@ -3,6 +3,9 @@ kind: ReferenceGrant
 metadata:
   name: allow-httproutes-from-all
   namespace: nginx-gateway
+  annotations:
+    argocd.argoproj.io/compare-options: IgnoreExtraneous
+    argocd.argoproj.io/sync-options: Prune=false
 spec:
   from:
     - group: gateway.networking.k8s.io
