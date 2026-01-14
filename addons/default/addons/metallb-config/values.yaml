@@ -8,4 +8,7 @@ metadata:
 spec:
   ipAddressPools:
     - default
+  nodeSelectors:
+    - matchLabels:
+        node-role.kubernetes.io/control-plane: ""
 
