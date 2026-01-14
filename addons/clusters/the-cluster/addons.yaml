@@ -4,11 +4,12 @@ argocd:
       kind: HTTPRoute
       jqPathExpressions:
         - .status
-        - .metadata.managedFields
-        - .metadata.resourceVersion
-        - .metadata.generation
-        - .metadata.uid
-        - .metadata.creationTimestamp
+      jsonPointers:
+        - /spec/rules/0/backendRefs/0/group
+        - /spec/rules/0/backendRefs/0/kind
+        - /spec/rules/0/backendRefs/0/weight
+        - /spec/parentRefs/0/group
+        - /spec/parentRefs/0/kind
 
 nginx-gateway-fabric:
   additionalResources:
@@ -20,20 +21,10 @@ nginx-gateway-fabric:
       kind: Gateway
       jqPathExpressions:
         - .status
-        - .metadata.managedFields
-        - .metadata.resourceVersion
-        - .metadata.generation
-        - .metadata.uid
-        - .metadata.creationTimestamp
     - group: gateway.networking.k8s.io
       kind: ReferenceGrant
       jqPathExpressions:
         - .status
-        - .metadata.managedFields
-        - .metadata.resourceVersion
-        - .metadata.generation
-        - .metadata.uid
-        - .metadata.creationTimestamp
 
 external-dns:
   additionalResources:
