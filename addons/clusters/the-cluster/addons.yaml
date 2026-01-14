@@ -2,7 +2,7 @@ argocd:
   additionalResources:
     type: manifests
     path: clusters
-    manifestPath: addons/argocd-routes
+    manifestPath: addons/argo-cd
   ignoreDifferences:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
@@ -13,7 +13,7 @@ nginx-gateway-fabric:
   additionalResources:
     type: manifests
     path: clusters
-    manifestPath: addons/nginx-gateway-certs
+    manifestPath: addons/nginx-gateway-fabric
   ignoreDifferences:
     - group: gateway.networking.k8s.io
       kind: Gateway

@@ -1,0 +1,15 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-httproutes-from-all
+  namespace: nginx-gateway
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: "*"
+  to:
+    - group: ""
+      kind: Service
+    - group: gateway.networking.k8s.io
+      kind: Gateway
