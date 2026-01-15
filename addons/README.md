@@ -20,8 +20,10 @@ If you’re new to Argo CD + ApplicationSets: the big idea is “declare addons 
   - `common.yaml`: overrides for the `application-sets` chart (global selectors, repo base path, etc).
   - `addons.yaml`: the list of addons and how to install them.
   - `addons/<addon-name>/values.yaml`: per-addon Helm values for that cluster.
-- `default/addons/<addon-name>/values.yaml`
-  - defaults shared by all clusters.
+- `default/addons/addons.yaml`
+  - default addon list (used by all clusters unless overridden).
+  - `default/addons/<addon-name>/values.yaml`
+    - defaults shared by all clusters.
 - `environments/<env-name>/...`
   - optional environment-level structure used by some setups (your chart currently uses `clusters/<environment>/addons/...`, not `environments/...`).
 

@@ -57,7 +57,7 @@ module "argocd" {
 
   cluster = {
     cluster_name = var.cluster_name
-    environment  = "prod"
+    environment  = "production"
     metadata     = local.addons_metadata
 
     addons = local.addons
