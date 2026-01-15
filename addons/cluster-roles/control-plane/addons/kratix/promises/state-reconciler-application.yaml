@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kratix-state-reconciler
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jamesatintegratnio/kratix-platform-state
+    targetRevision: main
+    path: clusters/the-cluster
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kratix-platform-system
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
