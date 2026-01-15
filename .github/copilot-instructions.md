@@ -79,6 +79,30 @@
 - Verify file paths exist before referencing them
 - Test changes incrementally rather than big-bang deployments
 
+## Troubleshooting Practices
+- **Start with observation**: Gather symptoms before proposing solutions
+- **Check the obvious first**: Is it synced? Are pods running? Are there events?
+- **Work systematically**: Start broad (cluster level) and narrow down (pod level)
+- **Use logs effectively**: Check application logs, ArgoCD sync logs, Kubernetes events
+- **Verify assumptions**: Don't assume - check actual state vs expected state
+- **Consider timing**: Did this break after a recent change? Check git history
+- **Resource constraints**: Check if resource limits, quotas, or capacity issues exist
+- **Network issues**: Verify connectivity, DNS resolution, service endpoints
+- **Permissions**: Check RBAC, service accounts, and access controls
+
+## Nix Development Environment
+- **Always use nix develop**: Run `nix develop` as the first command in a new shell session
+- **Avoid nix-shell -p**: Don't prefix every command with `nix-shell -p package`
+- **Environment setup**: Once in `nix develop`, all tools are available without prefixes
+- **Shell persistence**: The nix develop shell maintains state across commands
+- **Flake.nix awareness**: Check `flake.nix` to understand available packages and configurations
+- **Example workflow**:
+  ```bash
+  nix develop  # First command in new shell
+  kubectl get pods  # Now use tools directly
+  tofu plan  # No need for nix-shell -p
+  ```
+
 ## Communication Style
 - Be direct and concise
 - Explain technical decisions clearly
