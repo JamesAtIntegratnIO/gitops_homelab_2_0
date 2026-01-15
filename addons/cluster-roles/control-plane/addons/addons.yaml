@@ -19,6 +19,7 @@ kratix-promises:
   enabled: true
   type: manifest
   namespace: default
+  defaultVersion: "main"
   selector:
     matchExpressions:
       - key: enable_kratix
