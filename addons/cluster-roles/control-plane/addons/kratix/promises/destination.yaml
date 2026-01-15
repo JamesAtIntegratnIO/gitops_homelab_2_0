@@ -3,13 +3,13 @@ kind: Destination
 metadata:
   name: the-cluster
   namespace: kratix-platform-system
+  labels:
+    environment: production
+    cluster-role: control-plane
+    capability.vcluster: "true"
 spec:
   stateStoreRef:
     name: default
     kind: GitStateStore
   path: the-cluster
   strictMatchLabels: false
-  labels:
-    environment: production
-    cluster-role: control-plane
-    capability.vcluster: "true"
