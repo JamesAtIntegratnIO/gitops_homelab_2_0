@@ -7,35 +7,36 @@
   },
   "terminal.integrated.defaultProfile.linux": "nix-shell",
   "chat.tools.terminal.autoApprove": {
-  // Deny all commands by default - require explicit approval for everything
-  "/.*/": false,
+    // Deny all commands by default - require explicit approval for everything
+    "/.*/": false,
 
-  // Allow safe read-only commands
-  "^kubectl get .*": true,
-  "^kubectl describe .*": true,
-  "^kubectl logs .*": true,
-  "^git status$": true,
-  "^git diff.*": true,
-  "^git log.*": true,
-  "^ls .*": true,
-  "^cat .*": true,
-  "^grep .*": true,
-  "^helm template .*": true,
-  "^helm show .*": true,
-  "^talosctl version$": true,
-  "^talosctl get .*": true,
+    // Allow safe read-only commands
+    "^kubectl get .*": true,
+    "^kubectl describe .*": true,
+    "^kubectl logs .*": true,
+    "^git status$": true,
+    "^git diff.*": true,
+    "^git log.*": true,
+    "^ls .*": true,
+    "^cat .*": true,
+    "^grep .*": true,
+    "^helm template .*": true,
+    "^helm show .*": true,
+    "^talosctl version$": true,
+    "^talosctl get .*": true,
 
-  // Explicitly deny all destructive operations
-  ".*kubectl delete.*": false,
-  ".*kubectl patch.*": false,
-  ".*rm .*": false,
-  ".*git push.*": false,
-  ".*git reset.*": false,
-  ".*tofu apply.*": false,
-  ".*terraform apply.*": false,
-  ".*talosctl apply-config.*": false,
-  ".*helm upgrade.*": false,
-  ".*helm install.*": false,
-  ".*helm uninstall.*": false
-}
+    // Explicitly deny all destructive operations
+    ".*kubectl delete.*": false,
+    ".*kubectl patch.*": false,
+    ".*rm .*": false,
+    ".*rm -rf.*": false,
+    ".*git push.*": false,
+    ".*git reset.*": false,
+    ".*tofu apply.*": false,
+    ".*terraform apply.*": false,
+    ".*talosctl apply-config.*": false,
+    ".*helm upgrade.*": false,
+    ".*helm install.*": false,
+    ".*helm uninstall.*": false
+  }
 }

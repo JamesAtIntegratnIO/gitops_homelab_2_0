@@ -14,3 +14,28 @@ kratix:
       selfHeal: true
       allowEmpty: true
       prune: true
+
+kratix-promises:
+  enabled: true
+  namespace: default
+  source:
+    repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+    targetRevision: main
+    path: promises
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  selector:
+    matchExpressions:
+      - key: enable_kratix
+        operator: In
+        values: ['true']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false
+  info:
+    - name: Description
+      value: Automatically installs all Kratix Promises from the promises/ directory

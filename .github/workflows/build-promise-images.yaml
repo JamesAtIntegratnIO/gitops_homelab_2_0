@@ -1,0 +1,122 @@
+name: Build Promise Pipeline Images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'promises/*/pipelines/**'
+  pull_request:
+    paths:
+      - 'promises/*/pipelines/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: jamesatintegratnio
+
+jobs:
+  detect-changes:
+    name: Detect Changed Promises
+    runs-on: ubuntu-latest
+    outputs:
+      promises: ${{ steps.detect.outputs.promises }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed promises
+        id: detect
+        run: |
+          set -e
+          
+          # Get list of changed files
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          else
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          fi
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Extract promise names from changed pipeline files
+          PROMISES=$(echo "$CHANGED_FILES" | grep -E '^promises/[^/]+/pipelines/' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          
+          echo "Detected promises: $PROMISES"
+          echo "promises=$PROMISES" >> $GITHUB_OUTPUT
+
+  build-and-push:
+    name: Build ${{ matrix.promise }}
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.promises != '[]'
+    strategy:
+      matrix:
+        promise: ${{ fromJson(needs.detect-changes.outputs.promises) }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for Dockerfile
+        id: check-dockerfile
+        run: |
+          if [ -f "promises/${{ matrix.promise }}/pipelines/Dockerfile" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  No Dockerfile found for promise: ${{ matrix.promise }}"
+          fi
+
+      - name: Log in to GitHub Container Registry
+        if: steps.check-dockerfile.outputs.exists == 'true' && github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        if: steps.check-dockerfile.outputs.exists == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.promise }}-promise-pipeline
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+
+      - name: Set up Docker Buildx
+        if: steps.check-dockerfile.outputs.exists == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        if: steps.check-dockerfile.outputs.exists == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: promises/${{ matrix.promise }}/pipelines
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        if: steps.check-dockerfile.outputs.exists == 'true'
+        run: |
+          echo "## Built Promise Pipeline Image" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Promise:** ${{ matrix.promise }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.promise }}-promise-pipeline" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tags" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

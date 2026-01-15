@@ -3,14 +3,14 @@ name: Validate Kratix Promises
 on:
   pull_request:
     paths:
-      - 'addons/**/kratix/promises/**/*.yaml'
-      - 'addons/**/kratix/promises/**/*.yml'
+      - 'promises/**/*.yaml'
+      - 'promises/**/*.yml'
   push:
     branches:
       - main
     paths:
-      - 'addons/**/kratix/promises/**/*.yaml'
-      - 'addons/**/kratix/promises/**/*.yml'
+      - 'promises/**/*.yaml'
+      - 'promises/**/*.yml'
 
 jobs:
   validate-secrets:
@@ -35,7 +35,7 @@ jobs:
                 FOUND_SECRETS=1
               fi
             fi
-          done < <(find addons -path "*/kratix/promises/*.yaml" -o -path "*/kratix/promises/*.yml")
+          done < <(find promises -name "*.yaml" -o -name "*.yml")
           
           if [ $FOUND_SECRETS -eq 1 ]; then
             echo ""
@@ -65,7 +65,7 @@ jobs:
                 FOUND_ERRORS=1
               fi
             fi
-          done < <(find addons -path "*/kratix/promises/*.yaml" -o -path "*/kratix/promises/*.yml")
+          done < <(find promises -name "*.yaml" -o -name "*.yml")
           
           if [ $FOUND_ERRORS -eq 1 ]; then
             echo "🚨 YAML validation failed"

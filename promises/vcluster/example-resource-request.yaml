@@ -1,0 +1,16 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VCluster
+metadata:
+  name: dev-team-cluster
+  namespace: vcluster-dev-team
+spec:
+  name: dev-team
+  k8sVersion: "1.34"
+  isolationMode: standard
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
