@@ -1,3 +1,0 @@
----
-# Deprecated: per-cluster MetalLB pools now live at:
-# addons/clusters/<cluster>/addons/metallb-pool/values.yaml
