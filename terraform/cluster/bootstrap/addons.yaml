@@ -35,6 +35,6 @@ spec:
             valueFiles:
               - '$values/addons/environments/{{metadata.labels.environment}}/addons/addons.yaml'
               - '$values/addons/environments/{{metadata.labels.environment}}/addons/common.yaml'
-              - '$values/addons/environments/{{metadata.labels.cluster_role}}/addons/addons.yaml'
-              - '$values/addons/environments/{{metadata.labels.cluster_role}}/addons/common.yaml'
+              - '$values/addons/cluster-roles/{{metadata.labels.cluster_role}}/addons/addons.yaml'
+              - '$values/addons/cluster-roles/{{metadata.labels.cluster_role}}/addons/common.yaml'
               - '$values/addons/clusters/{{metadata.labels.cluster_name}}/addons.yaml'
