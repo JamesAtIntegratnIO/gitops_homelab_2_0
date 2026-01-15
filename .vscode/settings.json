@@ -6,55 +6,69 @@
     }
   },
   "terminal.integrated.defaultProfile.linux": "nix-shell",
+
+  // Make your rules be the ONLY rules (otherwise defaults can surprise you)
+  "chat.tools.terminal.ignoreDefaultAutoApproveRules": true,
+
+  // Ensure auto-approve is governed by the rules below (not globally disabled/enabled elsewhere)
+  "chat.tools.terminal.enableAutoApprove": true,
+
   "chat.tools.terminal.autoApprove": {
-    // Explicitly deny all destructive operations FIRST (before any allows)
-    ".*kubectl delete.*": false,
-    ".*kubectl patch.*": false,
-    ".*kubectl apply.*": false,
-    ".*kubectl create.*": false,
-    ".*kubectl edit.*": false,
-    ".*rm .*": false,
-    ".*git push.*": false,
-    ".*git reset.*": false,
-    ".*git rebase.*": false,
-    ".*git merge.*": false,
-    ".*tofu apply.*": false,
-    ".*terraform apply.*": false,
-    ".*talosctl apply-config.*": false,
-    ".*talosctl upgrade.*": false,
-    ".*helm upgrade.*": false,
-    ".*helm install.*": false,
-    ".*helm uninstall.*": false,
-    ".*docker.*": false,
-    ".*podman.*": false,
-    
-    // Allow safe read-only commands
-    "^kubectl get .*": true,
-    "^kubectl describe .*": true,
-    "^kubectl logs .*": true,
-    "^kubectl explain .*": true,
-    "^kubectl api-resources.*": true,
-    "^kubectl version.*": true,
-    "^git status$": true,
-    "^git diff.*": true,
-    "^git log.*": true,
-    "^git show.*": true,
-    "^git branch.*": true,
-    "^ls .*": true,
-    "^cat .*": true,
-    "^grep .*": true,
-    "^find .*": true,
-    "^wc .*": true,
-    "^head .*": true,
-    "^tail .*": true,
-    "^helm template .*": true,
-    "^helm show .*": true,
-    "^helm list.*": true,
-    "^talosctl version$": true,
-    "^talosctl get .*": true,
-    "^talosctl list.*": true,
-    
-    // Deny everything else by default
-    "/.*/": false
+    // ------------------------------------------------------------
+    // DENY BY DEFAULT: everything requires approval unless allowlisted
+    // ------------------------------------------------------------
+    "/.*/": { "approve": false, "matchCommandLine": true },
+
+    // ------------------------------------------------------------
+    // HARD DENY (still "requires approval", but we make it explicit)
+    // Also blocks common chaining so "safe; dangerous" doesn't slip through
+    // ------------------------------------------------------------
+    "/[;&|`]/": { "approve": false, "matchCommandLine": true },
+    "/\\b(sudo|doas)\\b/": { "approve": false, "matchCommandLine": true },
+
+    "/\\bkubectl\\s+(delete|apply|patch|create|edit|replace|rollout|scale|drain|cordon|uncordon)\\b/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
+
+    "/\\bgit\\s+(push|reset|rebase|merge|commit|tag|revert|cherry-pick)\\b/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
+
+    "/\\b(terraform|tofu)\\s+apply\\b/": { "approve": false, "matchCommandLine": true },
+    "/\\btalosctl\\s+(apply-config|upgrade)\\b/": { "approve": false, "matchCommandLine": true },
+    "/\\bhelm\\s+(install|upgrade|uninstall)\\b/": { "approve": false, "matchCommandLine": true },
+
+    "/\\b(rm|rmdir)\\b/": { "approve": false, "matchCommandLine": true },
+    "/\\b(docker|podman)\\b/": { "approve": false, "matchCommandLine": true },
+
+    // ------------------------------------------------------------
+    // ALLOWLIST: safe read-only commands auto-approved
+    // ------------------------------------------------------------
+    "/^kubectl\\s+(get|describe|logs|explain|api-resources|version)\\b.*$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+
+    "/^git\\s+(status|diff|log|show|branch)\\b.*$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+
+    "/^(ls|cat|grep|find|wc|head|tail)\\b.*$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+
+    "/^helm\\s+(template|show|list)\\b.*$/": {
+      "approve": true,
+      "matchCommandLine": true
+    },
+
+    "/^talosctl\\s+(version|get|list)\\b.*$/": {
+      "approve": true,
+      "matchCommandLine": true
+    }
   }
 }

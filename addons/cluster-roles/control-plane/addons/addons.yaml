@@ -40,3 +40,29 @@ kratix-promises:
   info:
     - name: Description
       value: Automatically installs all Kratix Promises from the promises/ directory
+
+platform-vclusters:
+  enabled: true
+  type: manifest
+  namespace: default
+  defaultVersion: "main"
+  selector:
+    matchExpressions:
+      - key: enable_kratix
+        operator: In
+        values: ['true']
+  manifestSource:
+    repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+    targetRevision: main
+    path: platform/vclusters
+    directory:
+      recurse: true
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+  info:
+    - name: Description
+      value: Kratix ResourceRequests for vCluster provisioning
