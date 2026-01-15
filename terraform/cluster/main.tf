@@ -36,6 +36,8 @@ locals {
     enable_headlamp                        = true
     enable_gateway_api_crds                = true
     enable_nginx_gateway_fabric            = true
+    enable_kratix                          = true
+    cluster_role                           = "control-plane"
   }
 
 }

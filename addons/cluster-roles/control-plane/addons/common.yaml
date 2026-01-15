@@ -1,9 +1,9 @@
 useValuesFilePrefix: false
 repoURLGitRevision: HEAD
 repoURLGitBasePath: "addons"
-# only deploy apps to the control-plane environment
+# only deploy apps to clusters with control-plane role
 globalSelectors:
-  environment: "control-plane"
+  cluster_role: "control-plane"
 syncPolicy:
   automated:
     selfHeal: true
