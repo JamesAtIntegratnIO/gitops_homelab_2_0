@@ -93,14 +93,20 @@
 ## Nix Development Environment
 - **Always use nix develop**: Run `nix develop` as the first command in a new shell session
 - **Avoid nix-shell -p**: Don't prefix every command with `nix-shell -p package`
+- **Avoid nix develop -c**: Don't use `nix develop --command` for every command (slow)
 - **Environment setup**: Once in `nix develop`, all tools are available without prefixes
 - **Shell persistence**: The nix develop shell maintains state across commands
 - **Flake.nix awareness**: Check `flake.nix` to understand available packages and configurations
+- **Workflow**:
+  1. Check if already in nix environment (check `$IN_NIX_SHELL` or try a tool)
+  2. If not in nix shell and a tool is missing, ask the user to run `nix develop` first
+  3. Once user is in nix shell, run all subsequent commands normally without nix prefixes
 - **Example workflow**:
   ```bash
-  nix develop  # First command in new shell
-  kubectl get pods  # Now use tools directly
-  tofu plan  # No need for nix-shell -p
+  # User manually runs: nix develop
+  # Then you run commands in that shell:
+  kubectl get pods
+  tofu plan
   ```
 
 ## Communication Style
