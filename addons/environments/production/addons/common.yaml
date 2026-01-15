@@ -10,4 +10,4 @@ syncPolicy:
     allowEmpty: true
     prune: true
 syncPolicyAppSet:
-    preserveResourcesOnDeletion: false
+    preserveResourcesOnDeletion: true
