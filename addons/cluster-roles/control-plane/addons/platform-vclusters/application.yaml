@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-vclusters
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: platform-vclusters
+    app.kubernetes.io/component: platform
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+    targetRevision: main
+    path: platform/vclusters
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+  info:
+    - name: Description
+      value: Kratix ResourceRequests for vCluster provisioning

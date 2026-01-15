@@ -1,0 +1,16 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VCluster
+metadata:
+  name: test-cluster
+  namespace: vcluster-test
+spec:
+  name: test
+  k8sVersion: "1.34"
+  isolationMode: standard
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
