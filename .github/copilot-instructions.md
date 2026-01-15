@@ -91,22 +91,17 @@
 - **Permissions**: Check RBAC, service accounts, and access controls
 
 ## Nix Development Environment
-- **Always use nix develop**: Run `nix develop` as the first command in a new shell session
-- **Avoid nix-shell -p**: Don't prefix every command with `nix-shell -p package`
-- **Avoid nix develop -c**: Don't use `nix develop --command` for every command (slow)
-- **Environment setup**: Once in `nix develop`, all tools are available without prefixes
-- **Shell persistence**: The nix develop shell maintains state across commands
+- **VSCode terminal auto-loads nix**: Terminal is configured via `.vscode/settings.json` to automatically start in nix develop
+- **Run commands directly**: All nix-provided tools (kubectl, tofu, etc.) are immediately available
+- **No prefixes needed**: Never use `nix-shell -p`, `nix develop -c`, or similar wrappers
 - **Flake.nix awareness**: Check `flake.nix` to understand available packages and configurations
-- **Workflow**:
-  1. Check if already in nix environment (check `$IN_NIX_SHELL` or try a tool)
-  2. If not in nix shell and a tool is missing, ask the user to run `nix develop` first
-  3. Once user is in nix shell, run all subsequent commands normally without nix prefixes
+- **Just works**: Simply run commands as if tools are installed globally
 - **Example workflow**:
   ```bash
-  # User manually runs: nix develop
-  # Then you run commands in that shell:
+  # Terminal automatically in nix environment
   kubectl get pods
   tofu plan
+  talosctl version
   ```
 
 ## Communication Style
