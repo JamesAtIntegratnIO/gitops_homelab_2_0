@@ -1,0 +1,15 @@
+apiVersion: platform.kratix.io/v1alpha1
+kind: Destination
+metadata:
+  name: the-cluster
+  namespace: kratix-platform-system
+spec:
+  stateStoreRef:
+    name: default
+    kind: GitStateStore
+  path: the-cluster
+  strictMatchLabels: false
+  labels:
+    environment: production
+    cluster-role: control-plane
+    capability.vcluster: "true"

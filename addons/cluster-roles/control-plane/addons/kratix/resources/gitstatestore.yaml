@@ -1,0 +1,13 @@
+apiVersion: platform.kratix.io/v1alpha1
+kind: GitStateStore
+metadata:
+  name: default
+  namespace: kratix-platform-system
+spec:
+  authMethod: githubApp
+  secretRef:
+    name: kratix-github-credentials
+    namespace: kratix-platform-system
+  url: https://github.com/jamesatintegratnio/kratix-platform-state
+  branch: main
+  path: clusters
