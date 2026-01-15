@@ -2,27 +2,61 @@
 
 # Additional Kratix resources
 additionalResources:
-  # GitStateStore for GitHub
+  # ExternalSecret for GitHub App authentication
+  - apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: kratix-github-credentials
+      namespace: kratix-platform-system
+    spec:
+      secretStoreRef:
+        name: onepassword-connect
+        kind: ClusterSecretStore
+      target:
+        name: kratix-github-credentials
+        creationPolicy: Owner
+      data:
+        - secretKey: appID
+          remoteRef:
+            key: kratix-gitops-statestore
+            property: AppID
+        - secretKey: installationID
+          remoteRef:
+            key: kratix-gitops-statestore
+            property: InstallID
+        - secretKey: privateKey
+          remoteRef:
+            key: kratix-gitops-statestore
+            property: PrivateKey
+
+  # GitStateStore for kratix-platform-state repository
   - apiVersion: platform.kratix.io/v1alpha1
     kind: GitStateStore
     metadata:
       name: default
       namespace: kratix-platform-system
     spec:
-      authMethod: token
+      authMethod: githubApp
       secretRef:
         name: kratix-github-credentials
         namespace: kratix-platform-system
-      url: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+      url: https://github.com/jamesatintegratnio/kratix-platform-state
       branch: main
-      path: kratix-state
-  
-  # Secret for GitHub authentication (placeholder - update with actual token)
-  - apiVersion: v1
-    kind: Secret
+      path: clusters
+
+  # Destination for the-cluster
+  - apiVersion: platform.kratix.io/v1alpha1
+    kind: Destination
     metadata:
-      name: kratix-github-credentials
+      name: the-cluster
       namespace: kratix-platform-system
-    type: Opaque
-    stringData:
-      token: "REPLACE_WITH_GITHUB_TOKEN"
+    spec:
+      stateStoreRef:
+        name: default
+        kind: GitStateStore
+      path: the-cluster
+      strictMatchLabels: false
+      labels:
+        environment: production
+        cluster-role: control-plane
+        capability.vcluster: "true"

@@ -1,0 +1,75 @@
+name: Validate Kratix Promises
+
+on:
+  pull_request:
+    paths:
+      - 'addons/**/kratix/promises/**/*.yaml'
+      - 'addons/**/kratix/promises/**/*.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'addons/**/kratix/promises/**/*.yaml'
+      - 'addons/**/kratix/promises/**/*.yml'
+
+jobs:
+  validate-secrets:
+    name: Block Secrets in Promises
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Scan for forbidden Secret resources
+        run: |
+          set -e
+          echo "Scanning promise files for forbidden 'kind: Secret' resources..."
+          
+          FOUND_SECRETS=0
+          
+          # Find all YAML files in promise directories
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              if grep -q "^kind: Secret$" "$file"; then
+                echo "❌ ERROR: Found forbidden 'kind: Secret' in: $file"
+                FOUND_SECRETS=1
+              fi
+            fi
+          done < <(find addons -path "*/kratix/promises/*.yaml" -o -path "*/kratix/promises/*.yml")
+          
+          if [ $FOUND_SECRETS -eq 1 ]; then
+            echo ""
+            echo "🚨 VALIDATION FAILED"
+            echo "The kratix-platform-state repository is PUBLIC."
+            echo "Promises must use ExternalSecret resources referencing 1Password."
+            echo "See .github/copilot-instructions.md for safe patterns."
+            exit 1
+          fi
+          
+          echo "✅ Validation passed - no secrets detected in promises"
+
+      - name: Validate YAML syntax
+        run: |
+          echo "Validating YAML syntax..."
+          
+          # Install yq for YAML validation
+          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+          
+          FOUND_ERRORS=0
+          
+          while IFS= read -r file; do
+            if [ -f "$file" ]; then
+              if ! yq eval '.' "$file" > /dev/null 2>&1; then
+                echo "❌ Invalid YAML syntax in: $file"
+                FOUND_ERRORS=1
+              fi
+            fi
+          done < <(find addons -path "*/kratix/promises/*.yaml" -o -path "*/kratix/promises/*.yml")
+          
+          if [ $FOUND_ERRORS -eq 1 ]; then
+            echo "🚨 YAML validation failed"
+            exit 1
+          fi
+          
+          echo "✅ All YAML files are valid"

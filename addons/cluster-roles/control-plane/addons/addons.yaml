@@ -14,3 +14,42 @@ kratix:
       selfHeal: true
       allowEmpty: true
       prune: true
+
+kratix-promises:
+  enabled: true
+  namespace: kratix-platform-system
+  type: manifest
+  path: addons/cluster-roles/control-plane/addons/kratix/promises
+  selector:
+    matchExpressions:
+      - key: enable_kratix
+        operator: In
+        values: ['true']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      allowEmpty: true
+      prune: true
+
+kratix-state-reconciler:
+  enabled: true
+  namespace: kratix-platform-system
+  type: application
+  selector:
+    matchExpressions:
+      - key: enable_kratix
+        operator: In
+        values: ['true']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      allowEmpty: true
+      prune: true
+  application:
+    destination:
+      namespace: kratix-platform-system
+    source:
+      repoURL: https://github.com/jamesatintegratnio/kratix-platform-state
+      targetRevision: main
+      path: clusters/the-cluster
+    project: default

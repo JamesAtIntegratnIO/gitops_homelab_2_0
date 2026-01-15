@@ -66,6 +66,97 @@
 - Keep commits atomic and well-described
 - Tag or branch before major changes
 
+## Kratix Promise Development
+**CRITICAL: The kratix-platform-state repository is PUBLIC for homelab demonstration purposes.**
+
+### Secret Management Rules (Non-Negotiable)
+- **NEVER generate `kind: Secret` resources in Promise pipelines** - not even operator-generated secrets
+- **ALWAYS use `ExternalSecret` resources** that reference 1Password via ClusterSecretStore
+- **ALL credentials must live in 1Password** - API keys, passwords, tokens, certificates, TLS keys
+- Pre-commit hooks and CI will block any `kind: Secret` in promise directories
+
+### Safe Pattern (REQUIRED)
+```yaml
+# Promise pipeline outputs this to state repo
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: my-app-credentials
+  namespace: my-app
+spec:
+  secretStoreRef:
+    name: onepassword-connect
+    kind: ClusterSecretStore
+  target:
+    name: my-app-credentials
+  data:
+    - secretKey: password
+      remoteRef:
+        key: my-app-vault-item  # Lives in 1Password
+        property: password
+    - secretKey: api-token
+      remoteRef:
+        key: my-app-vault-item
+        property: api-token
+```
+
+### Unsafe Pattern (FORBIDDEN - Will be blocked by validation)
+```yaml
+# ❌ NEVER DO THIS - Exposes secrets in public git repo
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-app-credentials
+  namespace: my-app
+type: Opaque
+data:
+  password: bXlzZWNyZXRwYXNzd29yZA==
+  api-token: dG9rZW4xMjM0NTY=
+```
+
+### Promise Best Practices
+- **Naming**: Use descriptive promise names (`postgres-instance`, `vcluster-dev`, not `db`, `cluster`)
+- **Namespacing**: Always specify target namespace in pipeline outputs, never assume `default`
+- **Dependencies**: Document required platform capabilities (cert-manager, external-dns, etc.)
+- **Idempotency**: Pipeline must handle re-runs safely (use `kubectl apply`, not `create`)
+- **Resource Limits**: Always set resource requests/limits for workloads
+- **Labels**: Add consistent labels (kratix.io/promise-name, app.kubernetes.io/managed-by: kratix)
+- **Testing**: Test promises with sample ResourceRequests before committing
+- **Cleanup**: Implement delete pipelines to clean up resources when requests are deleted
+
+### Automated Validation
+- **Pre-commit hook**: Scans promise directories for forbidden `kind: Secret` patterns
+- **CI workflow**: GitHub Actions validates all promise changes in PRs
+- **No bypasses**: Secret validation cannot be disabled - by design
+
+### Multi-Cluster Architecture
+**Adding Worker Clusters (Future):**
+1. Label worker cluster secret in ArgoCD with appropriate labels
+2. Create new Destination in kratix values pointing to worker cluster
+3. Match Destination labels to promise scheduling requirements
+4. Worker nodes need `kratix.io/work-cluster: "true"` label
+5. State repo path structure: `clusters/<cluster-name>/` per cluster
+
+**Workload Scheduling:**
+- Control-plane clusters: `cluster-role: control-plane`, `capability.vcluster: true`
+- Worker clusters: `cluster-role: worker`, workload-specific capability labels
+- Promises use `destinationSelectors` to target appropriate clusters
+
+### Monitoring (Future Implementation)
+**Kratix Observability Requirements:**
+- Prometheus metrics for promise fulfillment latency and success rate
+- Alerting on GitStateStore connection failures and sync delays
+- Dashboard showing active ResourceRequests and pipeline execution status
+- Log aggregation for promise pipeline outputs and failures
+- State repo commit rate and ArgoCD sync lag tracking
+- Resource utilization metrics for workload clusters
+
+**Integration Points:**
+- Use kube-prometheus-stack ServiceMonitor for Kratix metrics
+- Configure PrometheusRule for critical promise failures
+- Grafana dashboard in addons/cluster-roles/control-plane/addons/kube-prometheus-stack/dashboards/
+- Consider adding OpenTelemetry for distributed tracing across promise pipelines
+
 ## Kubernetes Safety Rules
 - Check resource dependencies before deletion
 - Verify namespace before operations (production vs staging vs development)

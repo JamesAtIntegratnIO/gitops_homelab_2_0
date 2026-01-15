@@ -1,0 +1,12 @@
+# Promise definitions directory
+
+This directory contains Kratix promise definitions that extend the platform.
+
+Promises are automatically deployed by the kratix-promises ApplicationSet.
+
+## Security Requirements
+
+ALL promise pipelines MUST use ExternalSecret resources for credentials.
+NEVER create plain Secret objects - the pre-commit hook will block them.
+
+See `.github/copilot-instructions.md` for safe patterns.
