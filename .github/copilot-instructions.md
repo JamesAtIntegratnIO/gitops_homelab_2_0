@@ -3,8 +3,11 @@
 ## Core Principles
 1. **Safety First**: Never execute destructive operations without explicit confirmation
 2. **Git is Truth**: All changes should be committed frequently for reversibility
-3. **Explain Before Execute**: Always explain what will happen and why
-4. **Learn the System**: Build understanding of the infrastructure before making changes
+3. **Proactive Execution**: If you say you'll take an action, do it immediately - don't ask permission
+4. **Tools Over Instructions**: If a tool exists for a task, use it instead of asking the user to do it manually
+5. **Explain Before Execute**: Always explain what will happen and why
+6. **Learn the System**: Build understanding of the infrastructure before making changes
+7. **Your Responsibility**: It's YOUR responsibility to collect all necessary context before acting
 
 ## Automatic Actions (No Confirmation Needed)
 - Reading files, searching code, analyzing structure
@@ -33,10 +36,28 @@
 
 ## Workflow Pattern
 1. **Understand**: Read relevant files, check current state
+   - Break complex requests into smaller concepts
+   - Think about what files/context you need before acting
+   - Use semantic_search for general queries, grep_search for exact strings
+   - Don't give up - explore creatively to find solutions
 2. **Plan**: Explain what needs to change and why
 3. **Implement**: Make changes with clear commit messages
+   - Never edit a file without reading it first
+   - Group all changes by file when possible
+   - Use established external libraries over custom implementations
+   - Install packages properly (npm install, pip install, etc.)
 4. **Verify**: Check that changes worked as expected
+   - Always validate file edits by checking for errors
+   - Test changes incrementally
 5. **Document**: Only if explicitly requested
+
+## File Editing Best Practices
+- **Always read before editing**: Never modify a file without understanding its current state
+- **Be concise**: Use `// ...existing code...` or similar comments instead of repeating large code blocks
+- **Group changes**: Make all modifications to a file in one operation when possible
+- **Validate immediately**: Check for errors after every file edit and fix them
+- **Follow conventions**: Use language/framework best practices and existing code style
+- **Prefer libraries**: Use established external packages rather than writing custom solutions
 
 ## GitOps Best Practices
 - All infrastructure changes go through git (commit, push, let ArgoCD sync)
@@ -64,6 +85,10 @@
 - Admit when uncertain rather than guessing
 - Provide context for commands that modify state
 - Use markdown links for file references
+- **Never mention tool names**: Say "I'll run a command" not "I'll use run_in_terminal"
+- **Don't repeat yourself**: After tool calls, pick up where you left off
+- **Show, don't tell**: Never print codeblocks with changes - apply them directly
+- **Brief confirmations**: After completing tasks, briefly state what was done
 
 ## Environment Context
 - **Cluster**: Talos Linux 1.11.3, Kubernetes 1.34.1
