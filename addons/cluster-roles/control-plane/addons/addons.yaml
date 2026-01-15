@@ -17,19 +17,19 @@ kratix:
 
 kratix-promises:
   enabled: true
+  type: manifest
   namespace: default
-  source:
-    repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
-    targetRevision: main
-    path: promises
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: default
   selector:
     matchExpressions:
       - key: enable_kratix
         operator: In
         values: ['true']
+  manifestSource:
+    repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+    targetRevision: main
+    path: promises
+    directory:
+      recurse: true
   syncPolicy:
     automated:
       selfHeal: true
