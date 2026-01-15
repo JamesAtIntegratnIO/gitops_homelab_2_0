@@ -1,0 +1,28 @@
+# Kratix Values for control-plane clusters
+
+# Additional Kratix resources
+additionalResources:
+  # GitStateStore for GitHub
+  - apiVersion: platform.kratix.io/v1alpha1
+    kind: GitStateStore
+    metadata:
+      name: default
+      namespace: kratix-platform-system
+    spec:
+      authMethod: token
+      secretRef:
+        name: kratix-github-credentials
+        namespace: kratix-platform-system
+      url: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+      branch: main
+      path: kratix-state
+  
+  # Secret for GitHub authentication (placeholder - update with actual token)
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: kratix-github-credentials
+      namespace: kratix-platform-system
+    type: Opaque
+    stringData:
+      token: "REPLACE_WITH_GITHUB_TOKEN"
