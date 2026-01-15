@@ -1,0 +1,16 @@
+kratix:
+  enabled: true
+  namespace: kratix-platform-system
+  chartName: kratix
+  chartRepository: https://syntasso.github.io/helm-charts
+  defaultVersion: "0.0.1"
+  selector:
+    matchExpressions:
+      - key: enable_kratix
+        operator: In
+        values: ['true']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      allowEmpty: true
+      prune: true
