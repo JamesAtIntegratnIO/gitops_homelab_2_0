@@ -2,6 +2,7 @@ kratix:
   enabled: true
   namespace: kratix-platform-system
   chartName: kratix
+  project: platform
   chartRepository: https://syntasso.github.io/helm-charts
   defaultVersion: "0.0.1"
   selector:
@@ -19,6 +20,7 @@ kratix-promises:
   enabled: true
   type: manifest
   namespace: default
+  project: platform
   defaultVersion: "main"
   selector:
     matchExpressions:
@@ -45,6 +47,7 @@ platform-vclusters:
   enabled: true
   type: manifest
   namespace: platform-requests
+  project: platform
   defaultVersion: "main"
   selector:
     matchExpressions:

@@ -3,6 +3,7 @@ argocd:
   chartName: argo-cd
   namespace: argocd
   releaseName: argo-cd
+  project: platform
   defaultVersion: "9.0.3"
   chartRepository: "https://argoproj.github.io/argo-helm"
   selector:
@@ -10,6 +11,18 @@ argocd:
       - key: enable_argocd
         operator: In
         values: ['true']
+argocd-projects:
+  enabled: true
+  type: manifest
+  namespace: argocd
+  path: addons/environments/production/addons/argocd-projects
+  selector:
+    matchExpressions:
+      - key: enable_argocd
+        operator: In
+        values: ['true']
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "-2"
 iam-chart:
   enabled: false
   enableAckPodIdentity: false 
@@ -95,6 +108,7 @@ external-secrets:
   enableAckPodIdentity: false
   namespace: external-secrets
   chartName: external-secrets
+  project: platform-services
   defaultVersion: "0.10.3"
   chartRepository: "https://charts.external-secrets.io"
   selector:
@@ -137,6 +151,7 @@ aws-load-balancer-controller:
 metrics-server:
   enabled: false
   namespace: kube-system
+  project: platform-services
   defaultVersion: "3.11.0"
   chartRepository: "https://kubernetes-sigs.github.io/metrics-server"
   selector:
@@ -193,6 +208,7 @@ nfs-subdir-external-provisioner:
   enabled: true
   namespace: '{{.metadata.annotations.nfs_subdir_external_provisioner_namespace}}'
   chartName: nfs-subdir-external-provisioner
+  project: platform-services
   chartRepository: https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
   defaultVersion: "4.0.18"
   valuesObject:
@@ -248,6 +264,7 @@ external-dns:
   releaseName: external-dns
   namespace: '{{.metadata.annotations.external_dns_namespace}}'
   chartName: external-dns
+  project: platform-services
   chartRepository: https://kubernetes-sigs.github.io/external-dns
   defaultVersion: "1.19.0"
   selector:
@@ -261,6 +278,7 @@ cert-manager:
   releaseName: cert-manager
   namespace: '{{.metadata.annotations.cert_manager_namespace}}'
   chartName: cert-manager
+  project: platform-services
   chartRepository: https://charts.jetstack.io
   defaultVersion: "v1.16.2"
   annotationsApp:
@@ -287,6 +305,7 @@ kratix:
   enabled: true
   namespace: kratix-platform-system
   chartName: kratix
+  project: platform
   chartRepository: https://syntasso.github.io/helm-charts
   defaultVersion: "0.0.1"
   selector:
@@ -315,6 +334,7 @@ metallb:
   enabled: true
   namespace: metallb-system
   releaseName: metallb
+  project: platform-services
   defaultVersion: "0.14.5"
   chartRepository: "https://metallb.github.io/metallb"
   additionalResources:
@@ -367,6 +387,7 @@ metallb-config:
   enabled: true
   type: manifest
   namespace: metallb-system
+  project: platform-services
   path: addons/environments/production/addons/metallb-config
   annotationsApp:
     argocd.argoproj.io/sync-wave: "10"
@@ -392,6 +413,7 @@ gateway-api-crds:
   enabled: true
   type: manifest
   namespace: kube-system
+  project: platform-services
   defaultVersion: v1.4.0
   annotationsApp:
     argocd.argoproj.io/sync-wave: "0"
@@ -419,6 +441,7 @@ nginx-gateway-fabric:
   namespace: nginx-gateway
   releaseName: nginx-gateway-fabric
   chartName: nginx-gateway-fabric
+  project: platform-services
   chartRepository: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
   defaultVersion: "2.2.2"
   annotationsApp:
