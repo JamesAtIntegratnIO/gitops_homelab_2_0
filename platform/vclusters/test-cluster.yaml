@@ -2,9 +2,10 @@ apiVersion: platform.integratn.tech/v1alpha1
 kind: VCluster
 metadata:
   name: test-cluster
-  namespace: vcluster-test
+  namespace: platform-requests
 spec:
   name: test
+  targetNamespace: vcluster-test
   k8sVersion: "1.34"
   isolationMode: standard
   resources:

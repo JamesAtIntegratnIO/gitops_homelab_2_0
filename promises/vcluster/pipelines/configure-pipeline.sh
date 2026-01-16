@@ -10,13 +10,20 @@ MEMORY_REQUEST=$(yq eval '.spec.resources.requests.memory // "512Mi"' /kratix/in
 CPU_LIMIT=$(yq eval '.spec.resources.limits.cpu // "1000m"' /kratix/input/object.yaml)
 MEMORY_LIMIT=$(yq eval '.spec.resources.limits.memory // "1Gi"' /kratix/input/object.yaml)
 
-# Get namespace from ResourceRequest
-NAMESPACE=$(yq eval '.metadata.namespace' /kratix/input/object.yaml)
+# Get namespaces from ResourceRequest
+REQUEST_NAMESPACE=$(yq eval '.metadata.namespace' /kratix/input/object.yaml)
+NAMESPACE=$(yq eval '.spec.targetNamespace // ""' /kratix/input/object.yaml)
+
+if [ -z "${NAMESPACE}" ] || [ "${NAMESPACE}" = "null" ]; then
+  NAMESPACE="${REQUEST_NAMESPACE}"
+fi
 
 # Generate 1Password item name for kubeconfig
 ONEPASSWORD_ITEM="vcluster-${NAME}-kubeconfig"
 
 echo "Generating vcluster resources for: ${NAME}"
+echo "Request namespace: ${REQUEST_NAMESPACE}"
+echo "Target namespace: ${NAMESPACE}"
 
 # Create namespace for vcluster
 cat > /kratix/output/namespace.yaml <<EOF

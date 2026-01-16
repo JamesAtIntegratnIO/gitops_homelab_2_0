@@ -44,7 +44,7 @@ kratix-promises:
 platform-vclusters:
   enabled: true
   type: manifest
-  namespace: default
+  namespace: platform-requests
   defaultVersion: "main"
   selector:
     matchExpressions:
