@@ -45,6 +45,11 @@ spec:
                       description: Namespace where the vcluster will be deployed
                       pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
                       maxLength: 63
+                    projectName:
+                      type: string
+                      description: ArgoCD project name for the vcluster application
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
                     k8sVersion:
                       type: string
                       description: Kubernetes version for the virtual cluster

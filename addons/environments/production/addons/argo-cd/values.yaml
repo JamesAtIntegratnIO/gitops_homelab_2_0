@@ -67,5 +67,13 @@ configs:
   cm:
     kustomize.buildOptions: |
       --enable-helm
+    globalProjects: |
+      - projectName: appteam-global
+        labelSelector:
+          matchExpressions:
+            - key: argocd.argoproj.io/project-group
+              operator: In
+              values:
+                - appteam
   params:
     server.insecure: true

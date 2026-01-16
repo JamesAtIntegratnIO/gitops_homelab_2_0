@@ -9,6 +9,7 @@ CPU_REQUEST=$(yq eval '.spec.resources.requests.cpu // "200m"' /kratix/input/obj
 MEMORY_REQUEST=$(yq eval '.spec.resources.requests.memory // "512Mi"' /kratix/input/object.yaml)
 CPU_LIMIT=$(yq eval '.spec.resources.limits.cpu // "1000m"' /kratix/input/object.yaml)
 MEMORY_LIMIT=$(yq eval '.spec.resources.limits.memory // "1Gi"' /kratix/input/object.yaml)
+PROJECT_NAME=$(yq eval '.spec.projectName // ""' /kratix/input/object.yaml)
 
 # Get namespaces from ResourceRequest
 REQUEST_NAMESPACE=$(yq eval '.metadata.namespace' /kratix/input/object.yaml)
@@ -18,12 +19,17 @@ if [ -z "${NAMESPACE}" ] || [ "${NAMESPACE}" = "null" ]; then
   NAMESPACE="${REQUEST_NAMESPACE}"
 fi
 
+if [ -z "${PROJECT_NAME}" ] || [ "${PROJECT_NAME}" = "null" ]; then
+  PROJECT_NAME="vcluster-${NAME}"
+fi
+
 # Generate 1Password item name for kubeconfig
 ONEPASSWORD_ITEM="vcluster-${NAME}-kubeconfig"
 
 echo "Generating vcluster resources for: ${NAME}"
 echo "Request namespace: ${REQUEST_NAMESPACE}"
 echo "Target namespace: ${NAMESPACE}"
+echo "ArgoCD project: ${PROJECT_NAME}"
 
 # Create namespace for vcluster
 cat > /kratix/output/namespace.yaml <<EOF
@@ -34,6 +40,33 @@ metadata:
   labels:
     app: vcluster
     instance: ${NAME}
+EOF
+
+# Create ArgoCD Project for the vcluster
+cat > /kratix/output/argocd-project.yaml <<EOF
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ${PROJECT_NAME}
+  namespace: argocd
+  labels:
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: vcluster
+    kratix.io/resource-request: ${NAME}
+    argocd.argoproj.io/project-group: appteam
+spec:
+  description: VCluster project for ${NAME}
+  sourceRepos:
+    - https://charts.loft.sh
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: ${NAMESPACE}
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
 EOF
 
 # Create Helm values ConfigMap
@@ -75,7 +108,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: platform
+  project: ${PROJECT_NAME}
   source:
     repoURL: https://charts.loft.sh
     chart: vcluster
