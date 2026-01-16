@@ -336,7 +336,7 @@ metallb-config:
   enabled: true
   type: manifest
   namespace: metallb-system
-  path: addons/default/addons/metallb-config
+  path: addons/environments/production/addons/metallb-config
   annotationsApp:
     argocd.argoproj.io/sync-wave: "10"
   selector:
