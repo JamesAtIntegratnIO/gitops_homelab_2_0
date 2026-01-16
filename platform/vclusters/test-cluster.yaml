@@ -4,7 +4,7 @@ metadata:
   name: test-cluster
   namespace: platform-requests
   annotations:
-    platform.integratn.tech/refresh: "2026-01-15T17:22:00Z"
+    platform.integratn.tech/refresh: "2026-01-15T17:28:00Z"
 spec:
   name: test
   targetNamespace: vcluster-test
