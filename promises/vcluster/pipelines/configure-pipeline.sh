@@ -49,6 +49,8 @@ kind: AppProject
 metadata:
   name: ${PROJECT_NAME}
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
   labels:
     app.kubernetes.io/managed-by: kratix
     kratix.io/promise-name: vcluster
@@ -90,9 +92,6 @@ data:
             memory: "${MEMORY_REQUEST}"
           limits:
             cpu: "${CPU_LIMIT}"
-                volumeMounts:
-                  - name: sync-data
-                    mountPath: /shared
             memory: "${MEMORY_LIMIT}"
     
     sync:
@@ -102,17 +101,14 @@ data:
 EOF
 
 # Create ArgoCD Application for vcluster
-                    echo "Writing kubeconfig to shared volume..."
-                    kubectl get secret vc-vcluster-${NAME} -n ${NAMESPACE} -o jsonpath='{.data.config}' | base64 -d > /shared/kubeconfig
 cat > /kratix/output/argocd-application.yaml <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-                volumeMounts:
-                  - name: sync-data
-                    mountPath: /shared
   name: vcluster-${NAME}
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -120,8 +116,6 @@ spec:
   source:
     repoURL: https://charts.loft.sh
     chart: vcluster
-                    echo "Writing token to shared volume..."
-                    kubectl get secret vcluster-${NAME}-onepassword-token -n ${NAMESPACE} -o jsonpath='{.data.token}' | base64 -d > /shared/token
     targetRevision: 0.30.4
     helm:
       valuesObject:
@@ -129,25 +123,32 @@ spec:
           distro:
             k8s:
               enabled: true
+              version: "${K8S_VERSION}"
+          statefulSet:
+            resources:
+              requests:
+                cpu: "${CPU_REQUEST}"
                 memory: "${MEMORY_REQUEST}"
               limits:
                 cpu: "${CPU_LIMIT}"
                 memory: "${MEMORY_LIMIT}"
         
         sync:
-                volumeMounts:
-                  - name: sync-data
-                    mountPath: /shared
           toHost:
             pods:
               enabled: true
   destination:
     server: https://kubernetes.default.svc
+    namespace: ${NAMESPACE}
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
       - CreateNamespace=true
 EOF
-                    KUBECONFIG_CONTENT=$(cat /shared/kubeconfig)
-                    OP_CONNECT_TOKEN=$(cat /shared/token)
-                    export OP_CONNECT_TOKEN
+
+# Create Job to sync kubeconfig to 1Password after vcluster is ready
 cat > /kratix/output/kubeconfig-sync-job.yaml <<EOF
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
@@ -218,10 +219,16 @@ spec:
     spec:
       serviceAccountName: vcluster-${NAME}-kubeconfig-sync
       restartPolicy: OnFailure
+      volumes:
+        - name: sync-data
+          emptyDir: {}
       initContainers:
         # Wait for vcluster kubeconfig secret to be created
         - name: wait-for-kubeconfig
           image: bitnami/kubectl:latest
+          volumeMounts:
+            - name: sync-data
+              mountPath: /shared
           command:
             - /bin/bash
             - -c
@@ -231,20 +238,9 @@ spec:
                 echo "Secret not found, waiting..."
                 sleep 10
               done
+              echo "Writing kubeconfig to shared volume..."
+              kubectl get secret vc-vcluster-${NAME} -n ${NAMESPACE} -o jsonpath='{.data.config}' | base64 -d > /shared/kubeconfig
               echo "Secret found!"
-        # Wait for 1Password token secret to be synced
-        - name: wait-for-token
-          image: bitnami/kubectl:latest
-          command:
-            - /bin/bash
-            - -c
-            - |
-              echo "Waiting for 1Password Connect token secret..."
-              until kubectl get secret vcluster-${NAME}-onepassword-token -n ${NAMESPACE} 2>/dev/null; do
-                echo "Token secret not found, waiting..."
-                sleep 10
-              done
-              echo "Token secret ready!"
       containers:
         - name: sync-to-onepassword
           image: 1password/op:2
@@ -262,38 +258,29 @@ spec:
               value: "${NAME}"
             - name: OP_ITEM_NAME
               value: "${ONEPASSWORD_ITEM}"
+          volumeMounts:
+            - name: sync-data
+              mountPath: /shared
           command:
             - /bin/sh
             - -c
             - |
               set -e
-              if ! command -v kubectl >/dev/null 2>&1; then
-                apt-get update
-                apt-get install -y --no-install-recommends ca-certificates curl
-                curl -fsSL -o /usr/local/bin/kubectl https://dl.k8s.io/release/v1.34.3/bin/linux/amd64/kubectl
-                chmod +x /usr/local/bin/kubectl
-              fi
-              
-              # Get kubeconfig from vcluster secret
-              KUBECONFIG_B64=\$(kubectl get secret vc-vcluster-\${VCLUSTER_NAME} -n \${NAMESPACE} -o jsonpath='{.data.config}')
-              KUBECONFIG_CONTENT=\$(echo "\$KUBECONFIG_B64" | base64 -d)
+              KUBECONFIG_CONTENT=$(cat /shared/kubeconfig)
               
               # Create or update 1Password item
-              echo "Syncing kubeconfig to 1Password item: \${OP_ITEM_NAME}"
+              echo "Syncing kubeconfig to 1Password item: ${OP_ITEM_NAME}"
               
               # Check if item exists
-              if op item get "\${OP_ITEM_NAME}" --vault "homelab" 2>/dev/null; then
+              if op item get "${OP_ITEM_NAME}" --vault "homelab" 2>/dev/null; then
                 echo "Item exists, updating..."
-                op item edit "\${OP_ITEM_NAME}" --vault "homelab" kubeconfig="\${KUBECONFIG_CONTENT}"
+                op item edit "${OP_ITEM_NAME}" --vault "homelab" kubeconfig="${KUBECONFIG_CONTENT}"
               else
                 echo "Item does not exist, creating..."
-                op item create --category=SecureNote --title="\${OP_ITEM_NAME}" --vault="homelab" kubeconfig="\${KUBECONFIG_CONTENT}"
+                op item create --category=SecureNote --title="${OP_ITEM_NAME}" --vault="homelab" kubeconfig="${KUBECONFIG_CONTENT}"
               fi
               
               echo "Kubeconfig synced successfully to 1Password"
-      volumes:
-        - name: sync-data
-          emptyDir: {}
 EOF
 
 # Create ExternalSecret to reference the kubeconfig from 1Password
