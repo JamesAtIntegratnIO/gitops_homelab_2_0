@@ -243,7 +243,7 @@ spec:
               echo "Secret found!"
       containers:
         - name: sync-to-onepassword
-          image: 1password/op:2
+          image: alpine:3.19
           env:
             - name: OP_CONNECT_HOST
               value: "https://connect.integratn.tech"
@@ -266,11 +266,8 @@ spec:
             - -c
             - |
               set -e
+              apk add --no-cache ca-certificates curl jq
               KUBECONFIG_CONTENT=\$(cat /shared/kubeconfig)
-              if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
-                apt-get update
-                apt-get install -y --no-install-recommends ca-certificates curl jq
-              fi
 
               VAULT_NAME="homelab"
               API_BASE="\${OP_CONNECT_HOST%/}/v1"
