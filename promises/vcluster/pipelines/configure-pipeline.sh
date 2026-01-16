@@ -168,6 +168,10 @@ spec:
       remoteRef:
         key: onepassword-access-token
         property: credential
+    - secretKey: vault
+      remoteRef:
+        key: onepassword-access-token
+        property: vault
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -252,6 +256,11 @@ spec:
                 secretKeyRef:
                   name: vcluster-${NAME}-onepassword-token
                   key: token
+            - name: OP_VAULT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: vcluster-${NAME}-onepassword-token
+                  key: vault
             - name: NAMESPACE
               value: "${NAMESPACE}"
             - name: VCLUSTER_NAME
@@ -275,7 +284,10 @@ spec:
 
               echo "Syncing kubeconfig to 1Password item via Connect API: \${OP_ITEM_NAME}"
 
-              VAULT_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults" | jq -r --arg name "\${VAULT_NAME}" '.[] | select(.name==\$name) | .id' | head -n1)
+              VAULT_ID="\${OP_VAULT_ID:-}"
+              if [ -z "\${VAULT_ID}" ]; then
+                VAULT_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults" | jq -r --arg name "\${VAULT_NAME}" '.[] | select(.name==\$name) | .id' | head -n1)
+              fi
               if [ -z "\${VAULT_ID}" ]; then
                 echo "Vault not found: \${VAULT_NAME}"
                 exit 1

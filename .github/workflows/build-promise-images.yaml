@@ -50,8 +50,11 @@ jobs:
             else
               if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
                 CHANGED_FILES=$(git diff --name-only --root ${{ github.sha }})
-              else
+              elif git cat-file -e ${{ github.event.before }}^{commit} 2>/dev/null; then
                 CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+              else
+                # Fallback when the before commit is not available (e.g. force-push)
+                CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
               fi
             fi
 
