@@ -266,18 +266,18 @@ spec:
             - -c
             - |
               set -e
-              KUBECONFIG_CONTENT=$(cat /shared/kubeconfig)
+              KUBECONFIG_CONTENT=\$(cat /shared/kubeconfig)
               
               # Create or update 1Password item
-              echo "Syncing kubeconfig to 1Password item: ${OP_ITEM_NAME}"
+              echo "Syncing kubeconfig to 1Password item: \${OP_ITEM_NAME}"
               
               # Check if item exists
-              if op item get "${OP_ITEM_NAME}" --vault "homelab" 2>/dev/null; then
+              if op item get "\${OP_ITEM_NAME}" --vault "homelab" 2>/dev/null; then
                 echo "Item exists, updating..."
-                op item edit "${OP_ITEM_NAME}" --vault "homelab" kubeconfig="${KUBECONFIG_CONTENT}"
+                op item edit "\${OP_ITEM_NAME}" --vault "homelab" kubeconfig="\${KUBECONFIG_CONTENT}"
               else
                 echo "Item does not exist, creating..."
-                op item create --category=SecureNote --title="${OP_ITEM_NAME}" --vault="homelab" kubeconfig="${KUBECONFIG_CONTENT}"
+                op item create --category=SecureNote --title="\${OP_ITEM_NAME}" --vault="homelab" kubeconfig="\${KUBECONFIG_CONTENT}"
               fi
               
               echo "Kubeconfig synced successfully to 1Password"
