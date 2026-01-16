@@ -59,10 +59,6 @@ data:
             cpu: "${CPU_LIMIT}"
             memory: "${MEMORY_LIMIT}"
     
-    isolation:
-      enabled: $([ "$ISOLATION_MODE" = "strict" ] && echo "true" || echo "false")
-      podSecurityStandard: $([ "$ISOLATION_MODE" = "strict" ] && echo "\"restricted\"" || echo "\"baseline\"")
-    
     sync:
       toHost:
         pods:
@@ -99,10 +95,6 @@ spec:
               limits:
                 cpu: "${CPU_LIMIT}"
                 memory: "${MEMORY_LIMIT}"
-        
-        isolation:
-          enabled: $([ "$ISOLATION_MODE" = "strict" ] && echo "true" || echo "false")
-          podSecurityStandard: $([ "$ISOLATION_MODE" = "strict" ] && echo "\"restricted\"" || echo "\"baseline\"")
         
         sync:
           toHost:
