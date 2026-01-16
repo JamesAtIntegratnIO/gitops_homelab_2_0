@@ -3,6 +3,8 @@ kind: VCluster
 metadata:
   name: test-cluster
   namespace: platform-requests
+  annotations:
+    platform.integratn.tech/refresh: "2026-01-15T17:12:00Z"
 spec:
   name: test
   targetNamespace: vcluster-test
