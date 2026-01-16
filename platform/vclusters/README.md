@@ -5,8 +5,9 @@ This directory contains Kratix ResourceRequests for provisioning virtual cluster
 ## How it works
 
 1. Add a VCluster ResourceRequest YAML file to this directory
-2. ArgoCD automatically applies it via the `platform-vclusters` Application in the `platform-requests` namespace
-3. Kratix Promise pipeline provisions the vCluster into the `spec.targetNamespace`
+2. ArgoCD creates the `platform-requests` namespace from `00-namespace.yaml`
+3. ArgoCD applies requests via the `platform-vclusters` Application
+4. Kratix Promise pipeline provisions the vCluster into the `spec.targetNamespace`
 4. Pipeline syncs kubeconfig to 1Password (vault: homelab, item: `vcluster-<name>-kubeconfig`)
 5. Register the vCluster in ArgoCD as a deployment target (see addons/clusters/vcluster-<name>/)
 

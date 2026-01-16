@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-requests
+  labels:
+    app.kubernetes.io/name: platform-requests
+    app.kubernetes.io/part-of: platform
