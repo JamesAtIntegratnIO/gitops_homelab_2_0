@@ -294,7 +294,7 @@ spec:
               fi
 
               ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items" | jq -r --arg title "\${OP_ITEM_NAME}" '.[] | select(.title==\$title) | .id' | head -n1)
-              ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg kubeconfig "\${KUBECONFIG_CONTENT}" '{title:\$title,category:"API_CREDENTIAL",fields:[{label:"kubeconfig",type:"CONCEALED",value:\$kubeconfig}]}')
+              ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",fields:[{label:"notesPlain",type:"STRING",purpose:"NOTES",value:\$notes}]}')
 
               if [ -n "\${ITEM_ID}" ]; then
                 echo "Item exists, replacing..."
