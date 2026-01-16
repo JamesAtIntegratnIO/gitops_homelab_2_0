@@ -146,7 +146,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: ["vc-${NAME}"]
+    resourceNames: ["vc-vcluster-${NAME}"]
     verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -191,7 +191,7 @@ spec:
             - -c
             - |
               echo "Waiting for vcluster kubeconfig secret vc-${NAME}..."
-              until kubectl get secret vc-${NAME} -n ${NAMESPACE} 2>/dev/null; do
+              until kubectl get secret vc-vcluster-${NAME} -n ${NAMESPACE} 2>/dev/null; do
                 echo "Secret not found, waiting..."
                 sleep 10
               done
@@ -233,7 +233,7 @@ spec:
               set -e
               
               # Get kubeconfig from vcluster secret
-              KUBECONFIG_B64=\$(kubectl get secret vc-\${VCLUSTER_NAME} -n \${NAMESPACE} -o jsonpath='{.data.config}')
+              KUBECONFIG_B64=\$(kubectl get secret vc-vcluster-\${VCLUSTER_NAME} -n \${NAMESPACE} -o jsonpath='{.data.config}')
               KUBECONFIG_CONTENT=\$(echo "\$KUBECONFIG_B64" | base64 -d)
               
               # Create or update 1Password item
