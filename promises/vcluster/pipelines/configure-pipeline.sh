@@ -275,15 +275,21 @@ spec:
 
               echo "Syncing kubeconfig to 1Password item via Connect API: \${OP_ITEM_NAME}"
 
-              ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_NAME}/items" | jq -r --arg title "\${OP_ITEM_NAME}" '.[] | select(.title==\$title) | .id' | head -n1)
-              ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg kubeconfig "\${KUBECONFIG_CONTENT}" '{title:\$title,category:"SECURE_NOTE",fields:[{label:"kubeconfig",type:"CONCEALED",value:\$kubeconfig}]}')
+              VAULT_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults" | jq -r --arg name "\${VAULT_NAME}" '.[] | select(.name==\$name) | .id' | head -n1)
+              if [ -z "\${VAULT_ID}" ]; then
+                echo "Vault not found: \${VAULT_NAME}"
+                exit 1
+              fi
+
+              ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items" | jq -r --arg title "\${OP_ITEM_NAME}" '.[] | select(.title==\$title) | .id' | head -n1)
+              ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg kubeconfig "\${KUBECONFIG_CONTENT}" '{title:\$title,category:"API_CREDENTIAL",fields:[{label:"kubeconfig",type:"CONCEALED",value:\$kubeconfig}]}')
 
               if [ -n "\${ITEM_ID}" ]; then
                 echo "Item exists, replacing..."
-                curl -fsS -X PUT -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_NAME}/items/\${ITEM_ID}" -d "\${ITEM_PAYLOAD}" >/dev/null
+                curl -fsS -X PUT -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items/\${ITEM_ID}" -d "\${ITEM_PAYLOAD}" >/dev/null
               else
                 echo "Item not found, creating..."
-                curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_NAME}/items" -d "\${ITEM_PAYLOAD}" >/dev/null
+                curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items" -d "\${ITEM_PAYLOAD}" >/dev/null
               fi
 
               echo "Kubeconfig synced successfully to 1Password"
