@@ -146,7 +146,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: ["vc-vcluster-${NAME}"]
+    resourceNames: ["vc-vcluster-${NAME}", "vcluster-${NAME}-onepassword-token"]
     verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
