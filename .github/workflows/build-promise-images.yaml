@@ -9,7 +9,12 @@ on:
   pull_request:
     paths:
       - 'promises/*/pipelines/**'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      promise:
+        description: "Promise name to build (optional; build all if empty)"
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -32,22 +37,30 @@ jobs:
         run: |
           set -e
           
-          # Get list of changed files
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
-          else
-            if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
-              CHANGED_FILES=$(git diff --name-only --root ${{ github.sha }})
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ inputs.promise }}" ]; then
+              PROMISES=$(printf "%s\n" "${{ inputs.promise }}" | jq -R -s -c 'split("\n") | map(select(length > 0))')
             else
-              CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+              PROMISES=$(find promises -mindepth 3 -maxdepth 3 -type f -path 'promises/*/pipelines/Dockerfile' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
             fi
+          else
+            # Get list of changed files
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+            else
+              if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+                CHANGED_FILES=$(git diff --name-only --root ${{ github.sha }})
+              else
+                CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+              fi
+            fi
+
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+
+            # Extract promise names from changed pipeline files
+            PROMISES=$(echo "$CHANGED_FILES" | grep -E '^promises/[^/]+/pipelines/' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
           fi
-          
-          echo "Changed files:"
-          echo "$CHANGED_FILES"
-          
-          # Extract promise names from changed pipeline files
-          PROMISES=$(echo "$CHANGED_FILES" | grep -E '^promises/[^/]+/pipelines/' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
           
           echo "Detected promises: $PROMISES"
           echo "promises=$PROMISES" >> $GITHUB_OUTPUT
