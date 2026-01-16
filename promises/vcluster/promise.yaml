@@ -94,21 +94,21 @@ spec:
           kind: Pipeline
           metadata:
             name: resource-configure
-            namespace: default
+            namespace: platform-requests
           spec:
             containers:
               - name: generate-vcluster-resources
-                image: ghcr.io/jamesatintegratnio/vcluster-promise-pipeline:latest
+                image: ghcr.io/jamesatintegratnio/vcluster-promise-pipeline:main
                 imagePullPolicy: Always
       delete:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
           metadata:
             name: resource-delete
-            namespace: default
+            namespace: platform-requests
           spec:
             containers:
               - name: delete-vcluster-resources
-                image: ghcr.io/jamesatintegratnio/vcluster-promise-pipeline:latest
+                image: ghcr.io/jamesatintegratnio/vcluster-promise-pipeline:main
                 imagePullPolicy: Always
                 command: ["/scripts/delete-pipeline.sh"]
