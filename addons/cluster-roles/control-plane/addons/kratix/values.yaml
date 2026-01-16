@@ -81,6 +81,8 @@ additionalResources:
         repoURL: https://github.com/jamesatintegratnio/kratix-platform-state
         targetRevision: main
         path: clusters/the-cluster
+        directory:
+          recurse: true
       destination:
         server: https://kubernetes.default.svc
         namespace: kratix-platform-system
