@@ -267,19 +267,28 @@ spec:
             - |
               set -e
               KUBECONFIG_CONTENT=\$(cat /shared/kubeconfig)
-              
-              # Create or update 1Password item
-              echo "Syncing kubeconfig to 1Password item: \${OP_ITEM_NAME}"
-              
-              # Check if item exists
-              if op item get "\${OP_ITEM_NAME}" --vault "homelab" 2>/dev/null; then
-                echo "Item exists, updating..."
-                op item edit "\${OP_ITEM_NAME}" --vault "homelab" kubeconfig="\${KUBECONFIG_CONTENT}"
-              else
-                echo "Item does not exist, creating..."
-                op item create --category=SecureNote --title="\${OP_ITEM_NAME}" --vault="homelab" kubeconfig="\${KUBECONFIG_CONTENT}"
+              if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+                apt-get update
+                apt-get install -y --no-install-recommends ca-certificates curl jq
               fi
-              
+
+              VAULT_NAME="homelab"
+              API_BASE="\${OP_CONNECT_HOST%/}/v1"
+              AUTH_HEADER="Authorization: Bearer \${OP_CONNECT_TOKEN}"
+
+              echo "Syncing kubeconfig to 1Password item via Connect API: \${OP_ITEM_NAME}"
+
+              ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_NAME}/items" | jq -r --arg title "\${OP_ITEM_NAME}" '.[] | select(.title==\$title) | .id' | head -n1)
+              ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg kubeconfig "\${KUBECONFIG_CONTENT}" '{title:\$title,category:"SECURE_NOTE",fields:[{label:"kubeconfig",type:"CONCEALED",value:\$kubeconfig}]}')
+
+              if [ -n "\${ITEM_ID}" ]; then
+                echo "Item exists, replacing..."
+                curl -fsS -X PUT -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_NAME}/items/\${ITEM_ID}" -d "\${ITEM_PAYLOAD}" >/dev/null
+              else
+                echo "Item not found, creating..."
+                curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_NAME}/items" -d "\${ITEM_PAYLOAD}" >/dev/null
+              fi
+
               echo "Kubeconfig synced successfully to 1Password"
 EOF
 
