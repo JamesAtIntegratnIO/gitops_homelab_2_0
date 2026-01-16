@@ -129,8 +129,8 @@ spec:
   data:
     - secretKey: token
       remoteRef:
-        key: onepassword-connect
-        property: token
+        key: onepassword-access-token
+        property: credential
 ---
 apiVersion: v1
 kind: ServiceAccount
