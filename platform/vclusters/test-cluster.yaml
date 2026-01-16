@@ -1,19 +1,19 @@
-# apiVersion: platform.integratn.tech/v1alpha1
-# kind: VCluster
-# metadata:
-#   name: test-cluster
-#   namespace: platform-requests
-#   annotations:
-#     platform.integratn.tech/refresh: "2026-01-15T17:28:00Z"
-# spec:
-#   name: test
-#   targetNamespace: vcluster-test
-#   k8sVersion: "v1.34.3"
-#   isolationMode: standard
-#   resources:
-#     requests:
-#       cpu: "200m"
-#       memory: "512Mi"
-#     limits:
-#       cpu: "1000m"
-#       memory: "1Gi"
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VCluster
+metadata:
+  name: test-cluster
+  namespace: platform-requests
+  annotations:
+    platform.integratn.tech/refresh: "2026-01-15T17:28:00Z"
+spec:
+  name: test
+  targetNamespace: vcluster-test
+  k8sVersion: "v1.34.3"
+  isolationMode: standard
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
