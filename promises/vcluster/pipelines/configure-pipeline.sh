@@ -90,6 +90,9 @@ data:
             memory: "${MEMORY_REQUEST}"
           limits:
             cpu: "${CPU_LIMIT}"
+                volumeMounts:
+                  - name: sync-data
+                    mountPath: /shared
             memory: "${MEMORY_LIMIT}"
     
     sync:
@@ -99,10 +102,15 @@ data:
 EOF
 
 # Create ArgoCD Application for vcluster
+                    echo "Writing kubeconfig to shared volume..."
+                    kubectl get secret vc-vcluster-${NAME} -n ${NAMESPACE} -o jsonpath='{.data.config}' | base64 -d > /shared/kubeconfig
 cat > /kratix/output/argocd-application.yaml <<EOF
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
+                volumeMounts:
+                  - name: sync-data
+                    mountPath: /shared
   name: vcluster-${NAME}
   namespace: argocd
   finalizers:
@@ -112,6 +120,8 @@ spec:
   source:
     repoURL: https://charts.loft.sh
     chart: vcluster
+                    echo "Writing token to shared volume..."
+                    kubectl get secret vcluster-${NAME}-onepassword-token -n ${NAMESPACE} -o jsonpath='{.data.token}' | base64 -d > /shared/token
     targetRevision: 0.30.4
     helm:
       valuesObject:
@@ -119,32 +129,25 @@ spec:
           distro:
             k8s:
               enabled: true
-              version: "${K8S_VERSION}"
-          statefulSet:
-            resources:
-              requests:
-                cpu: "${CPU_REQUEST}"
                 memory: "${MEMORY_REQUEST}"
               limits:
                 cpu: "${CPU_LIMIT}"
                 memory: "${MEMORY_LIMIT}"
         
         sync:
+                volumeMounts:
+                  - name: sync-data
+                    mountPath: /shared
           toHost:
             pods:
               enabled: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: ${NAMESPACE}
-  syncPolicy:
-    automated:
-      selfHeal: true
-      prune: true
-    syncOptions:
       - CreateNamespace=true
 EOF
-
-# Create Job to sync kubeconfig to 1Password after vcluster is ready
+                    KUBECONFIG_CONTENT=$(cat /shared/kubeconfig)
+                    OP_CONNECT_TOKEN=$(cat /shared/token)
+                    export OP_CONNECT_TOKEN
 cat > /kratix/output/kubeconfig-sync-job.yaml <<EOF
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
@@ -264,6 +267,12 @@ spec:
             - -c
             - |
               set -e
+              if ! command -v kubectl >/dev/null 2>&1; then
+                apt-get update
+                apt-get install -y --no-install-recommends ca-certificates curl
+                curl -fsSL -o /usr/local/bin/kubectl https://dl.k8s.io/release/v1.34.3/bin/linux/amd64/kubectl
+                chmod +x /usr/local/bin/kubectl
+              fi
               
               # Get kubeconfig from vcluster secret
               KUBECONFIG_B64=\$(kubectl get secret vc-vcluster-\${VCLUSTER_NAME} -n \${NAMESPACE} -o jsonpath='{.data.config}')
@@ -282,6 +291,9 @@ spec:
               fi
               
               echo "Kubeconfig synced successfully to 1Password"
+      volumes:
+        - name: sync-data
+          emptyDir: {}
 EOF
 
 # Create ExternalSecret to reference the kubeconfig from 1Password
