@@ -195,6 +195,12 @@ nfs-subdir-external-provisioner:
   chartName: nfs-subdir-external-provisioner
   chartRepository: https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
   defaultVersion: "4.0.18"
+  valuesObject:
+    storageClass:
+      create: false
+    nfs:
+      server: 10.0.0.12
+      path: /mnt/user/kube_storage
   selector:
     matchExpressions:
       - key: akuity.io/argo-cd-cluster-name

@@ -8,7 +8,7 @@ metadata:
 spec:
   name: test
   targetNamespace: vcluster-test
-  k8sVersion: "1.34"
+  k8sVersion: "v1.34.3"
   isolationMode: standard
   resources:
     requests:

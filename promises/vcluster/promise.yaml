@@ -48,8 +48,9 @@ spec:
                     k8sVersion:
                       type: string
                       description: Kubernetes version for the virtual cluster
-                      default: "1.34"
+                      default: "v1.34.3"
                       enum:
+                        - "v1.34.3"
                         - "1.34"
                         - "1.33"
                         - "1.32"

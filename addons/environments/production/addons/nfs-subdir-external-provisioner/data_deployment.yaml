@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-nfs-client-provisioner
+  labels:
+    app: data-nfs-client-provisioner
+  # replace with namespace where provisioner is deployed
+  namespace: nfs-provisioner
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: data-nfs-client-provisioner
+  template:
+    metadata:
+      labels:
+        app: data-nfs-client-provisioner
+    spec:
+      serviceAccountName: nfs-subdir-external-provisioner
+      containers:
+        - name: data-nfs-client-provisioner
+          image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
+          volumeMounts:
+            - name: nfs-client-root
+              mountPath: /persistentvolumes
+          env:
+            - name: PROVISIONER_NAME
+              value: k8s-sigs.io/data-nfs-subdir-external-provisioner
+            - name: NFS_SERVER
+              value: 10.0.0.12
+            - name: NFS_PATH
+              value: /mnt/user/data
+          resources:
+            requests:
+              cpu: 25m
+              memory: 263M
+            limits:
+              cpu: 937m
+              memory: 980M
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            server: 10.0.0.12
+            path: /mnt/user/data
