@@ -118,6 +118,7 @@ spec:
     chart: vcluster
     targetRevision: 0.30.4
     helm:
+      releaseName: ${NAME}
       valuesObject:
         controlPlane:
           distro:
