@@ -22,3 +22,7 @@ secrets.env
 **/*_override.tf
 **/*_override.tf.json
 **/backend.hcl
+# Node.js files for MCP server
+package.json
+package-lock.json
+node_modules/

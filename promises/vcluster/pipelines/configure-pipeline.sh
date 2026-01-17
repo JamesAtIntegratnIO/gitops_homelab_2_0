@@ -280,8 +280,9 @@ spec:
 
               VAULT_NAME="homelab"
               OP_CONNECT_HOST_CLEAN="\$(printf '%s' "\${OP_CONNECT_HOST}" | tr -d '\r\n')"
+              OP_CONNECT_TOKEN_CLEAN="\$(printf '%s' "\${OP_CONNECT_TOKEN}" | tr -d '\r\n')"
               API_BASE="\${OP_CONNECT_HOST_CLEAN%/}/v1"
-              AUTH_HEADER="Authorization: Bearer \${OP_CONNECT_TOKEN}"
+              AUTH_HEADER="Authorization: Bearer \${OP_CONNECT_TOKEN_CLEAN}"
 
               echo "Syncing kubeconfig to 1Password item via Connect API: \${OP_ITEM_NAME}"
 
@@ -297,13 +298,14 @@ spec:
               fi
 
               ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items" | jq -r --arg title "\${OP_ITEM_NAME}" '.[] | select(.title==\$title) | .id' | head -n1)
-              ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",fields:[{label:"notesPlain",type:"STRING",purpose:"NOTES",value:\$notes}]}')
 
               if [ -n "\${ITEM_ID}" ]; then
                 echo "Item exists, replacing..."
+                ITEM_PAYLOAD=\$(jq -n --arg id "\${ITEM_ID}" --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{id:\$id,title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",fields:[{label:"notesPlain",type:"STRING",purpose:"NOTES",value:\$notes}]}')
                 curl -fsS -X PUT -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items/\${ITEM_ID}" -d "\${ITEM_PAYLOAD}" >/dev/null
               else
                 echo "Item not found, creating..."
+                ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",fields:[{label:"notesPlain",type:"STRING",purpose:"NOTES",value:\$notes}]}')
                 curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items" -d "\${ITEM_PAYLOAD}" >/dev/null
               fi
 

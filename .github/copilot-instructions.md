@@ -31,7 +31,6 @@
 - `rm -rf /` or similar destructive patterns
 - Deleting entire namespaces without explicit "delete namespace X" request
 - Modifying critical system namespaces (kube-system, kube-public) without discussion
-- Removing finalizers without understanding the stuck resource
 - Pushing secrets or credentials to git
 
 ## Workflow Pattern

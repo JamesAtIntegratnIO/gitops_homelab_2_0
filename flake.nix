@@ -126,6 +126,7 @@
               yq
               minio-client
               clusterctl
+              nodejs_22
 
               # Custom tools
               scaleDownNamespace

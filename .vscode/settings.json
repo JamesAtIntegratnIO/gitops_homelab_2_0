@@ -13,62 +13,122 @@
   // Ensure auto-approve is governed by the rules below (not globally disabled/enabled elsewhere)
   "chat.tools.terminal.enableAutoApprove": true,
 
+  // MCP tool approval settings
+  "chat.tools.mcp.ignoreDefaultAutoApproveRules": true,
+  "chat.tools.mcp.enableAutoApprove": true,
+
+  "chat.tools.mcp.autoApprove": {
+    // DENY: Dangerous Kubernetes operations
+    "mcp_kubernetes_pods_exec": { "approve": false },
+    "mcp_kubernetes_resources_create_or_update": { "approve": false },
+    "mcp_kubernetes_resources_delete": { "approve": false },
+    "mcp_kubernetes_resources_scale": { "approve": false },
+    "mcp_kubernetes_pods_delete": { "approve": false },
+    "mcp_kubernetes_nodes_log": { "approve": true },
+    
+    // DENY: GitHub write operations
+    "mcp_github_create_issue": { "approve": false },
+    "mcp_github_update_issue": { "approve": false },
+    "mcp_github_create_pull_request": { "approve": false },
+    "mcp_github_merge_pull_request": { "approve": false },
+    "mcp_github_push_files": { "approve": false },
+    "mcp_github_create_or_update_file": { "approve": false },
+    "mcp_github_create_branch": { "approve": false },
+    "mcp_github_create_repository": { "approve": false },
+    "mcp_github_fork_repository": { "approve": false },
+    "mcp_github_update_pull_request_branch": { "approve": false },
+    
+    // ALLOW: Safe read-only Kubernetes operations
+    "mcp_kubernetes_pods_list": { "approve": true },
+    "mcp_kubernetes_pods_list_in_namespace": { "approve": true },
+    "mcp_kubernetes_pods_get": { "approve": true },
+    "mcp_kubernetes_pods_log": { "approve": true },
+    "mcp_kubernetes_configuration_view": { "approve": true },
+    "mcp_kubernetes_configuration_contexts_list": { "approve": true },
+    
+    // ALLOW: Safe read-only GitHub operations
+    "mcp_github_get_file_contents": { "approve": true },
+    "mcp_github_search_repositories": { "approve": true },
+    "mcp_github_search_code": { "approve": true },
+    "mcp_github_search_issues": { "approve": true },
+    "mcp_github_get_issue": { "approve": true },
+    "mcp_github_list_issues": { "approve": true },
+    "mcp_github_get_pull_request": { "approve": true },
+    "mcp_github_list_pull_requests": { "approve": true },
+    "mcp_github_list_commits": { "approve": true },
+    
+    // ALLOW: Memory operations (safe - stores context)
+    "mcp_memory_create_entities": { "approve": true },
+    "mcp_memory_create_relations": { "approve": true },
+    "mcp_memory_add_observations": { "approve": true },
+    "mcp_memory_delete_entities": { "approve": true },
+    "mcp_memory_delete_observations": { "approve": true },
+    "mcp_memory_delete_relations": { "approve": true },
+    "mcp_memory_read_graph": { "approve": true },
+    "mcp_memory_search_nodes": { "approve": true },
+    "mcp_memory_open_nodes": { "approve": true },
+    
+    // ALLOW: Sequential Thinking operations (safe - reasoning tool)
+    "mcp_sequential_thinking": { "approve": true }
+  },
+
   "chat.tools.terminal.autoApprove": {
-    // ------------------------------------------------------------
-    // DENY BY DEFAULT: everything requires approval unless allowlisted
-    // ------------------------------------------------------------
-    "/.*/": { "approve": false, "matchCommandLine": true },
-
-    // ------------------------------------------------------------
-    // HARD DENY (still "requires approval", but we make it explicit)
-    // Also blocks common chaining so "safe; dangerous" doesn't slip through
-    // ------------------------------------------------------------
-    "/[;&|`]/": { "approve": false, "matchCommandLine": true },
-    "/\\b(sudo|doas)\\b/": { "approve": false, "matchCommandLine": true },
-
+    "/[;&|`]/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
+    "/\\b(sudo|doas)\\b/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
     "/\\bkubectl\\s+(delete|apply|patch|create|edit|replace|rollout|scale|drain|cordon|uncordon)\\b/": {
       "approve": false,
       "matchCommandLine": true
     },
-
     "/\\bgit\\s+(push|reset|rebase|merge|commit|tag|revert|cherry-pick)\\b/": {
       "approve": false,
       "matchCommandLine": true
     },
-
-    "/\\b(terraform|tofu)\\s+apply\\b/": { "approve": false, "matchCommandLine": true },
-    "/\\btalosctl\\s+(apply-config|upgrade)\\b/": { "approve": false, "matchCommandLine": true },
-    "/\\bhelm\\s+(install|upgrade|uninstall)\\b/": { "approve": false, "matchCommandLine": true },
-
-    "/\\b(rm|rmdir)\\b/": { "approve": false, "matchCommandLine": true },
-    "/\\b(docker|podman)\\b/": { "approve": false, "matchCommandLine": true },
-
-    // ------------------------------------------------------------
-    // ALLOWLIST: safe read-only commands auto-approved
-    // ------------------------------------------------------------
+    "/\\b(terraform|tofu)\\s+apply\\b/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
+    "/\\btalosctl\\s+(apply-config|upgrade)\\b/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
+    "/\\bhelm\\s+(install|upgrade|uninstall)\\b/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
+    "/\\b(rm|rmdir)\\b/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
+    "/\\b(docker|podman)\\b/": {
+      "approve": false,
+      "matchCommandLine": true
+    },
     "/^kubectl\\s+(get|describe|logs|explain|api-resources|version)\\b.*$/": {
       "approve": true,
       "matchCommandLine": true
     },
-
     "/^git\\s+(status|diff|log|show|branch)\\b.*$/": {
       "approve": true,
       "matchCommandLine": true
     },
-
     "/^(ls|cat|grep|find|wc|head|tail)\\b.*$/": {
       "approve": true,
       "matchCommandLine": true
     },
-
     "/^helm\\s+(template|show|list)\\b.*$/": {
       "approve": true,
       "matchCommandLine": true
     },
-
     "/^talosctl\\s+(version|get|list)\\b.*$/": {
       "approve": true,
       "matchCommandLine": true
-    }
+    },
+    "git -C /home/boboysdadda/projects/gitops_homelab_2_0": true
   }
 }

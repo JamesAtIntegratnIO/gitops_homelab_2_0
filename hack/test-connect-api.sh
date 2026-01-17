@@ -20,14 +20,27 @@ EOF
 )"
 
 ITEM_ID=$(curl -fsS -H "$AUTH_HEADER" "$API_BASE/vaults/$OP_VAULT_ID/items" | jq -r --arg title "$OP_ITEM_NAME" '.[] | select(.title==$title) | .id' | head -n1)
-ITEM_PAYLOAD=$(jq -n --arg title "$OP_ITEM_NAME" --arg vault "$OP_VAULT_ID" --arg notes "$KUBECONFIG_CONTENT" '{title:$title,vault:{id:$vault},category:"SECURE_NOTE",fields:[{label:"notesPlain",type:"STRING",purpose:"NOTES",value:$notes}]}')
 
 if [ -n "$ITEM_ID" ]; then
   echo "Item exists, replacing..."
-  curl -fsS -X PUT -H "$AUTH_HEADER" -H "Content-Type: application/json" "$API_BASE/vaults/$OP_VAULT_ID/items/$ITEM_ID" -d "$ITEM_PAYLOAD" >/dev/null
+  ITEM_PAYLOAD=$(jq -n --arg id "$ITEM_ID" --arg title "$OP_ITEM_NAME" --arg vault "$OP_VAULT_ID" --arg notes "$KUBECONFIG_CONTENT" '{id:$id,title:$title,vault:{id:$vault},category:"SECURE_NOTE",fields:[{label:"notesPlain",type:"STRING",purpose:"NOTES",value:$notes}]}')
+  RESPONSE=$(curl -sS -w "\n%{http_code}" -X PUT -H "$AUTH_HEADER" -H "Content-Type: application/json" "$API_BASE/vaults/$OP_VAULT_ID/items/$ITEM_ID" -d "$ITEM_PAYLOAD")
 else
   echo "Item not found, creating..."
-  ITEM_ID=$(curl -fsS -X POST -H "$AUTH_HEADER" -H "Content-Type: application/json" "$API_BASE/vaults/$OP_VAULT_ID/items" -d "$ITEM_PAYLOAD" | jq -r '.id')
+  ITEM_PAYLOAD=$(jq -n --arg title "$OP_ITEM_NAME" --arg vault "$OP_VAULT_ID" --arg notes "$KUBECONFIG_CONTENT" '{title:$title,vault:{id:$vault},category:"SECURE_NOTE",fields:[{label:"notesPlain",type:"STRING",purpose:"NOTES",value:$notes}]}')
+  RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST -H "$AUTH_HEADER" -H "Content-Type: application/json" "$API_BASE/vaults/$OP_VAULT_ID/items" -d "$ITEM_PAYLOAD")
+fi
+
+HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+if [ "$HTTP_STATUS" -ge 400 ]; then
+  echo "Request failed with status $HTTP_STATUS"
+  echo "$BODY"
+  exit 1
+fi
+
+if [ -z "$ITEM_ID" ]; then
+  ITEM_ID=$(echo "$BODY" | jq -r '.id')
 fi
 
 echo "Success"

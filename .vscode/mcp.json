@@ -1,0 +1,59 @@
+{
+	"servers": {
+		"kubernetes": {
+			"command": "nix",
+			"args": [
+				"develop",
+				"/home/boboysdadda/projects/gitops_homelab_2_0",
+				"-c",
+				"node",
+				"/home/boboysdadda/projects/gitops_homelab_2_0/node_modules/kubernetes-mcp-server/bin/index.js"
+			],
+			"type": "stdio"
+		},
+		"github": {
+			"command": "nix",
+			"args": [
+				"develop",
+				"/home/boboysdadda/projects/gitops_homelab_2_0",
+				"-c",
+				"node",
+				"/home/boboysdadda/projects/gitops_homelab_2_0/node_modules/@modelcontextprotocol/server-github/dist/index.js"
+			],
+			"type": "stdio",
+			"env": {
+				"GITHUB_PERSONAL_ACCESS_TOKEN": "${input:githubToken}"
+			}
+		},
+		"memory": {
+			"command": "nix",
+			"args": [
+				"develop",
+				"/home/boboysdadda/projects/gitops_homelab_2_0",
+				"-c",
+				"node",
+				"/home/boboysdadda/projects/gitops_homelab_2_0/node_modules/@modelcontextprotocol/server-memory/dist/index.js"
+			],
+			"type": "stdio"
+		},
+		"sequential-thinking": {
+			"command": "nix",
+			"args": [
+				"develop",
+				"/home/boboysdadda/projects/gitops_homelab_2_0",
+				"-c",
+				"node",
+				"/home/boboysdadda/projects/gitops_homelab_2_0/node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js"
+			],
+			"type": "stdio"
+		}
+	},
+	"inputs": [
+		{
+			"id": "githubToken",
+			"type": "promptString",
+			"description": "GitHub Personal Access Token",
+			"password": true
+		}
+	]
+}
