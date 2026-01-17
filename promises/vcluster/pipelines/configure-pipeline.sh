@@ -279,18 +279,18 @@ spec:
               KUBECONFIG_CONTENT=\$(cat /shared/kubeconfig)
 
               VAULT_NAME="homelab"
-              OP_CONNECT_HOST_CLEAN="$(printf '%s' "${OP_CONNECT_HOST}" | tr -d '\r\n')"
-              API_BASE="${OP_CONNECT_HOST_CLEAN%/}/v1"
-              AUTH_HEADER="Authorization: Bearer ${OP_CONNECT_TOKEN}"
+              OP_CONNECT_HOST_CLEAN="\$(printf '%s' "\${OP_CONNECT_HOST}" | tr -d '\r\n')"
+              API_BASE="\${OP_CONNECT_HOST_CLEAN%/}/v1"
+              AUTH_HEADER="Authorization: Bearer \${OP_CONNECT_TOKEN}"
 
               echo "Syncing kubeconfig to 1Password item via Connect API: \${OP_ITEM_NAME}"
 
-              VAULT_ID="${OP_VAULT_ID:-}"
-              VAULT_ID="$(printf '%s' "${VAULT_ID}" | tr -d '\r\n')"
+              VAULT_ID="\${OP_VAULT_ID:-}"
+              VAULT_ID="\$(printf '%s' "\${VAULT_ID}" | tr -d '\r\n')"
               if [ -z "\${VAULT_ID}" ]; then
                 VAULT_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults" | jq -r --arg name "\${VAULT_NAME}" '.[] | select(.name==\$name) | .id' | head -n1)
               fi
-              VAULT_ID="$(printf '%s' "${VAULT_ID}" | tr -d '\r\n')"
+              VAULT_ID="\$(printf '%s' "\${VAULT_ID}" | tr -d '\r\n')"
               if [ -z "\${VAULT_ID}" ]; then
                 echo "Vault not found: \${VAULT_NAME}"
                 exit 1
