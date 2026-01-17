@@ -10,7 +10,7 @@ MEMORY_REQUEST=$(yq eval '.spec.resources.requests.memory // "512Mi"' /kratix/in
 CPU_LIMIT=$(yq eval '.spec.resources.limits.cpu // "1000m"' /kratix/input/object.yaml)
 MEMORY_LIMIT=$(yq eval '.spec.resources.limits.memory // "1Gi"' /kratix/input/object.yaml)
 PROJECT_NAME=$(yq eval '.spec.projectName // ""' /kratix/input/object.yaml)
-PERSISTENCE_ENABLED=$(yq eval '.spec.persistence.enabled // true' /kratix/input/object.yaml)
+PERSISTENCE_ENABLED=$(yq eval 'if .spec.persistence.enabled == null then true else .spec.persistence.enabled end' /kratix/input/object.yaml)
 PERSISTENCE_SIZE=$(yq eval '.spec.persistence.size // "5Gi"' /kratix/input/object.yaml)
 PERSISTENCE_STORAGE_CLASS=$(yq eval '.spec.persistence.storageClass // ""' /kratix/input/object.yaml)
 
