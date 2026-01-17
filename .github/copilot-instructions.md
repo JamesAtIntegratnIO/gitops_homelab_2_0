@@ -205,6 +205,13 @@ data:
 - **Show, don't tell**: Never print codeblocks with changes - apply them directly
 - **Brief confirmations**: After completing tasks, briefly state what was done
 
+## Tooling Preference
+- Prefer MCP tools for Kubernetes whenever available (pods, logs, list/get resources, exec when explicitly requested).
+- Prefer MCP tools for GitHub operations (search, issues/PRs, file fetch/push) over terminal git or curl.
+- Prefer MCP Memory tools for tracking context, entities, and decisions instead of ad-hoc notes.
+- Prefer MCP Sequential Thinking for complex multi-step reasoning or uncertain investigations.
+- Use terminal commands only when MCP does not support the needed action.
+
 ## Environment Context
 - **Cluster**: Talos Linux 1.11.3, Kubernetes 1.34.1
 - **GitOps**: ArgoCD with ApplicationSets pattern
