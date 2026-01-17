@@ -15,3 +15,7 @@ spec:
     limits:
       cpu: "1000m"
       memory: "1Gi"
+  persistence:
+    enabled: true
+    size: "5Gi"
+    storageClass: config-nfs-client

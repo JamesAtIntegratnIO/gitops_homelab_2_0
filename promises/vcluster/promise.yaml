@@ -87,6 +87,19 @@ spec:
                             memory:
                               type: string
                               default: "1Gi"
+                    persistence:
+                      type: object
+                      description: Control plane persistence settings
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: true
+                        size:
+                          type: string
+                          default: "5Gi"
+                        storageClass:
+                          type: string
+                          description: Storage class for the vcluster control plane data volume
                 status:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true

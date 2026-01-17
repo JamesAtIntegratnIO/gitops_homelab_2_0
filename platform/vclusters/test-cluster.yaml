@@ -5,7 +5,7 @@ metadata:
   name: test-cluster
   namespace: platform-requests
   annotations:
-    platform.integratn.tech/refresh: "2026-01-17T19:45:00Z"
+    platform.integratn.tech/refresh: "2026-01-17T20:00:00Z"
 spec:
 
   name: test
@@ -19,3 +19,5 @@ spec:
     limits:
       cpu: "1000m"
       memory: "1Gi"
+  persistence:
+    enabled: false

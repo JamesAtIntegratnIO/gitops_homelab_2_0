@@ -8,6 +8,7 @@ This Promise provides virtual Kubernetes clusters using [vcluster](https://www.v
 - **Multiple K8s versions**: Support for Kubernetes 1.32, 1.33, and 1.34
 - **Isolation modes**: Choose between standard and strict isolation
 - **Resource control**: Configure CPU and memory requests/limits per vcluster
+- **Persistence control**: Configure storage class, size, or disable persistence
 - **GitOps integration**: Uses ArgoCD Application for declarative management
 - **Secure kubeconfig storage**: Automatically syncs kubeconfig to 1Password via External Secrets Operator
 - **External access**: kubeconfig available in 1Password for external access and backup
@@ -42,6 +43,10 @@ spec:
     limits:
       cpu: "1000m"
       memory: "1Gi"
+  persistence:
+    enabled: true
+    size: "5Gi"
+    storageClass: config-nfs-client
 ```
 
 ## Access the vcluster
