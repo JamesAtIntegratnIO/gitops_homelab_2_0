@@ -21,3 +21,4 @@ spec:
       memory: "1Gi"
   persistence:
     enabled: false
+    size: "1Gi"

@@ -37,8 +37,8 @@ echo "ArgoCD project: ${PROJECT_NAME}"
 PERSISTENCE_STORAGE_CLASS_CM_LINE=""
 PERSISTENCE_STORAGE_CLASS_APP_LINE=""
 if [ -n "${PERSISTENCE_STORAGE_CLASS}" ] && [ "${PERSISTENCE_STORAGE_CLASS}" != "null" ]; then
-  PERSISTENCE_STORAGE_CLASS_CM_LINE="          storageClass: \"${PERSISTENCE_STORAGE_CLASS}\""
-  PERSISTENCE_STORAGE_CLASS_APP_LINE="              storageClass: \"${PERSISTENCE_STORAGE_CLASS}\""
+  PERSISTENCE_STORAGE_CLASS_CM_LINE="            storageClass: \"${PERSISTENCE_STORAGE_CLASS}\""
+  PERSISTENCE_STORAGE_CLASS_APP_LINE="                storageClass: \"${PERSISTENCE_STORAGE_CLASS}\""
 fi
 
 # Create namespace for vcluster
@@ -97,8 +97,9 @@ data:
           version: "${K8S_VERSION}"
       statefulSet:
         persistence:
-          enabled: ${PERSISTENCE_ENABLED}
-          size: "${PERSISTENCE_SIZE}"
+          volumeClaim:
+            enabled: ${PERSISTENCE_ENABLED}
+            size: "${PERSISTENCE_SIZE}"
 ${PERSISTENCE_STORAGE_CLASS_CM_LINE}
         resources:
           requests:
@@ -141,8 +142,9 @@ spec:
               version: "${K8S_VERSION}"
           statefulSet:
             persistence:
-              enabled: ${PERSISTENCE_ENABLED}
-              size: "${PERSISTENCE_SIZE}"
+              volumeClaim:
+                enabled: ${PERSISTENCE_ENABLED}
+                size: "${PERSISTENCE_SIZE}"
 ${PERSISTENCE_STORAGE_CLASS_APP_LINE}
             resources:
               requests:
