@@ -32,6 +32,7 @@ metadata:
   namespace: my-team
 spec:
   name: my-cluster
+  targetNamespace: my-team
   k8sVersion: "1.34"
   isolationMode: standard
   resources:
@@ -72,7 +73,7 @@ The Promise includes two pipelines:
 1. ResourceRequest creates ArgoCD Application
 2. ArgoCD deploys vcluster via Helm
 3. vcluster generates kubeconfig in secret `vc-<name>`
-4. Sync Job reads kubeconfig and pushes to 1Password (vault: kubernetes)
+4. Sync Job reads kubeconfig and pushes to 1Password (vault: homelab)
 5. ExternalSecret pulls kubeconfig from 1Password for external reference
 6. Kubeconfig available both in-cluster and in 1Password
 
@@ -98,5 +99,5 @@ docker push ghcr.io/jamesatintegratnio/vcluster-promise-pipeline:v0.1.0
 
 - 1Password Connect deployed and configured
 - External Secrets Operator with ClusterSecretStore `onepassword-store`
-- 1Password vault named `kubernetes` (or update vault name in pipeline)
+- 1Password vault named `homelab` (or update vault name in pipeline)
 - Secret `onepassword-connect-token` in `external-secrets` namespace

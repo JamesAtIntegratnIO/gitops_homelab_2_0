@@ -33,7 +33,6 @@ spec:
                   type: object
                   required:
                     - name
-                    - targetNamespace
                   properties:
                     name:
                       type: string

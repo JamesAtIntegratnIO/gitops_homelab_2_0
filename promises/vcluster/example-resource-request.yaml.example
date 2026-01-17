@@ -5,6 +5,7 @@ metadata:
   namespace: vcluster-dev-team
 spec:
   name: dev-team
+  targetNamespace: vcluster-dev-team
   k8sVersion: "1.34"
   isolationMode: standard
   resources:
