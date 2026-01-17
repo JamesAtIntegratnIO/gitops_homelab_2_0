@@ -212,6 +212,11 @@ data:
 - Prefer MCP Sequential Thinking for complex multi-step reasoning or uncertain investigations.
 - Use terminal commands only when MCP does not support the needed action.
 
+## Tooling Enforcement (Required)
+- For any task with 3+ steps, uncertainty, or state changes, run MCP Sequential Thinking before taking action and refresh it after major new facts.
+- After resolving a significant thread or making a key decision, write a Memory observation for future context.
+- If a preferred MCP tool is unavailable, explicitly note the fallback and proceed with a minimal manual checklist.
+
 ## Environment Context
 - **Cluster**: Talos Linux 1.11.3, Kubernetes 1.34.1
 - **GitOps**: ArgoCD with ApplicationSets pattern
