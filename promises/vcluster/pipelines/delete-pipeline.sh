@@ -68,7 +68,7 @@ spec:
               VAULT_ID="\${OP_VAULT_ID:-}"
               VAULT_ID="\$(printf '%s' "\${VAULT_ID}" | tr -d '\r\n')"
               if [ -z "\${VAULT_ID}" ]; then
-                VAULT_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults" | jq -r --arg name "\${VAULT_NAME}" '.[] | select(.name==$name) | .id' | head -n1)
+                VAULT_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults" | jq -r --arg name "\${VAULT_NAME}" '.[] | select(.name==\$name) | .id' | head -n1)
               fi
               VAULT_ID="\$(printf '%s' "\${VAULT_ID}" | tr -d '\r\n')"
               if [ -z "\${VAULT_ID}" ]; then
@@ -76,7 +76,7 @@ spec:
                 exit 1
               fi
 
-              ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items" | jq -r --arg title "\${OP_ITEM_NAME}" '.[] | select(.title==$title) | .id' | head -n1)
+              ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items" | jq -r --arg title "\${OP_ITEM_NAME}" '.[] | select(.title==\$title) | .id' | head -n1)
               if [ -n "\${ITEM_ID}" ]; then
                 echo "Deleting 1Password item \${OP_ITEM_NAME} (\${ITEM_ID})"
                 curl -fsS -X DELETE -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items/\${ITEM_ID}" >/dev/null
