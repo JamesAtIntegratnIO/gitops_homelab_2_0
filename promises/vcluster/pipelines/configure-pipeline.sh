@@ -187,7 +187,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: ["vc-vcluster-${NAME}", "vcluster-${NAME}-onepassword-token"]
+    resourceNames: ["vc-${NAME}", "vcluster-${NAME}-onepassword-token"]
     verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -238,12 +238,12 @@ spec:
             - -c
             - |
               echo "Waiting for vcluster kubeconfig secret vc-${NAME}..."
-              until kubectl get secret vc-vcluster-${NAME} -n ${NAMESPACE} 2>/dev/null; do
+              until kubectl get secret vc-${NAME} -n ${NAMESPACE} 2>/dev/null; do
                 echo "Secret not found, waiting..."
                 sleep 10
               done
               echo "Writing kubeconfig to shared volume..."
-              kubectl get secret vc-vcluster-${NAME} -n ${NAMESPACE} -o jsonpath='{.data.config}' | base64 -d > /shared/kubeconfig
+              kubectl get secret vc-${NAME} -n ${NAMESPACE} -o jsonpath='{.data.config}' | base64 -d > /shared/kubeconfig
               echo "Secret found!"
       containers:
         - name: sync-to-onepassword
