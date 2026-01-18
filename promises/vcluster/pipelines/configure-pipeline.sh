@@ -496,10 +496,10 @@ spec:
               set -e
               apk add --no-cache ca-certificates curl jq
 
-              if [ -n "${HOSTNAME}" ]; then
-                SERVER_URL="https://${HOSTNAME}:${API_PORT}"
-                echo "Rewriting kubeconfig server to ${SERVER_URL}"
-                awk -v new_server="${SERVER_URL}" '
+              if [ -n "\${HOSTNAME}" ]; then
+                SERVER_URL="https://\${HOSTNAME}:\${API_PORT}"
+                echo "Rewriting kubeconfig server to \${SERVER_URL}"
+                awk -v new_server="\${SERVER_URL}" '
                   !done && $1=="server:" {print "    server: " new_server; done=1; next}
                   {print}
                 ' /shared/kubeconfig > /shared/kubeconfig.rewritten
