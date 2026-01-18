@@ -23,6 +23,7 @@ PERSISTENCE_SIZE_RAW=$(yq eval '.spec.persistence.size' /kratix/input/object.yam
 PERSISTENCE_STORAGE_CLASS=$(yq eval '.spec.persistence.storageClass // ""' /kratix/input/object.yaml)
 CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.certManager.clusterIssuerSelectorLabels' /kratix/input/object.yaml)
 EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.externalSecrets.clusterStoreSelectorLabels' /kratix/input/object.yaml)
+RECONCILE_AT_RAW=$(yq eval '.metadata.annotations."platform.integratn.tech/reconcile-at" // ""' /kratix/input/object.yaml)
 
 is_valid_ipv4() {
   local ip=$1
@@ -112,6 +113,13 @@ echo "ArgoCD project: ${PROJECT_NAME}"
 
 if [ -z "${API_PORT}" ] || [ "${API_PORT}" = "null" ]; then
   API_PORT=8443
+fi
+
+RECONCILE_TOKEN=$(echo "${RECONCILE_AT_RAW}" | tr -cd '0-9')
+if [ -n "${RECONCILE_TOKEN}" ]; then
+  KUBECONFIG_SYNC_JOB_NAME="vcluster-${NAME}-kubeconfig-sync-${RECONCILE_TOKEN}"
+else
+  KUBECONFIG_SYNC_JOB_NAME="vcluster-${NAME}-kubeconfig-sync"
 fi
 
 EXTERNAL_SERVER_URL=""
@@ -483,7 +491,7 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: vcluster-${NAME}-kubeconfig-sync
+  name: ${KUBECONFIG_SYNC_JOB_NAME}
   namespace: ${NAMESPACE}
   labels:
     app: vcluster
