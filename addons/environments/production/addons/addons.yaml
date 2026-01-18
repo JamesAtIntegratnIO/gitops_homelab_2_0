@@ -122,6 +122,25 @@ external-secrets:
       name: "external-secrets-sa"
       annotations:
         eks.amazonaws.com/role-arn: '{{default "" (index .metadata.annotations "external_secrets_iam_role_arn")}}'
+    extraObjects:
+      - apiVersion: external-secrets.io/v1beta1
+        kind: ClusterSecretStore
+        metadata:
+          name: onepassword-store
+          labels:
+            integratn.tech/cluster-secret-store: onepassword-store
+        spec:
+          provider:
+            onepassword:
+              connectHost: https://connect.integratn.tech
+              vaults:
+                homelab: 1
+              auth:
+                secretRef:
+                  connectTokenSecretRef:
+                    name: eso-onepassword-token
+                    namespace: external-secrets
+                    key: token
 aws-load-balancer-controller:
   enabled: false
   enableAckPodIdentity: true
