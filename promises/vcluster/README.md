@@ -93,9 +93,10 @@ The Promise includes two pipelines:
 1. ResourceRequest creates ArgoCD Application
 2. ArgoCD deploys vcluster via Helm
 3. vcluster generates kubeconfig in secret `vc-<name>`
-4. Sync Job reads kubeconfig and pushes to 1Password (vault: homelab)
-5. ExternalSecret pulls kubeconfig from 1Password for external reference
-6. Kubeconfig available both in-cluster and in 1Password
+4. Sync Job rewrites kubeconfig server to `https://<hostname>:<apiPort>` when hostname is set
+5. Sync Job pushes kubeconfig to 1Password (vault: homelab)
+6. ExternalSecret pulls kubeconfig from 1Password for external reference
+7. Kubeconfig available both in-cluster and in 1Password
 
 ## Building the Pipeline Image
 

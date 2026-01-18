@@ -25,3 +25,9 @@ spec:
   hostname: dev-team.integratn.tech
   subnet: 10.0.6.0/24
   apiPort: 8443
+  # vip defaults to .100 within the subnet
+  helmOverrides:
+    controlPlane:
+      coredns:
+        deployment:
+          replicas: 2

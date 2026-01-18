@@ -7,6 +7,17 @@ spec:
   name: prod-test
   targetNamespace: vcluster-prod-test
   preset: prod
+  hostname: prod-test.integratn.tech
+  subnet: 10.0.7.0/24
+  apiPort: 8443apiVersion: platform.integratn.tech/v1alpha1
+kind: VCluster
+metadata:
+  name: prod-test
+  namespace: platform-requests
+spec:
+  name: prod-test
+  targetNamespace: vcluster-prod-test
+  preset: prod
   k8sVersion: "v1.34.3"
   hostname: prod-test.integratn.tech
   subnet: 10.0.7.0/24
