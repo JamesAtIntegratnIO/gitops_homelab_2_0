@@ -500,7 +500,7 @@ spec:
                 SERVER_URL="https://\${HOSTNAME}:\${API_PORT}"
                 echo "Rewriting kubeconfig server to \${SERVER_URL}"
                 awk -v new_server="\${SERVER_URL}" '
-                  !done && $1=="server:" {print "    server: " new_server; done=1; next}
+                  !done && \$1=="server:" {print "    server: " new_server; done=1; next}
                   {print}
                 ' /shared/kubeconfig > /shared/kubeconfig.rewritten
                 mv /shared/kubeconfig.rewritten /shared/kubeconfig
