@@ -9,6 +9,7 @@ spec:
   name: prod-test
   targetNamespace: vcluster-prod-test
   preset: prod
+  replicas: 1
   coredns:
     replicas: 1
   k8sVersion: "v1.34.3"

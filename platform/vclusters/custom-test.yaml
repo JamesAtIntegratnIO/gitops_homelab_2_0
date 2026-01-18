@@ -11,7 +11,7 @@ spec:
   preset: dev
   coredns:
     replicas: 1
-  replicas: 2
+  replicas: 1
   k8sVersion: "v1.34.3"
   resources:
     requests:
