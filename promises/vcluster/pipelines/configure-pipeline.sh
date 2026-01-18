@@ -350,7 +350,7 @@ ${EXTERNAL_SECRETS_CLUSTER_STORE_LABELS}
         clusterIssuers:
           enabled: true
           selector:
-            matchLabels:
+            labels:
 ${CERT_MANAGER_CLUSTER_ISSUER_LABELS}
 
 telemetry:
