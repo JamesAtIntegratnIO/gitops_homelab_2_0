@@ -1,3 +1,4 @@
+---
 apiVersion: platform.integratn.tech/v1alpha1
 kind: VCluster
 metadata:
