@@ -3,19 +3,93 @@ set -euo pipefail
 
 # Read values from ResourceRequest
 NAME=$(yq eval '.spec.name' /kratix/input/object.yaml)
-K8S_VERSION=$(yq eval '.spec.k8sVersion // "1.34"' /kratix/input/object.yaml)
+K8S_VERSION=$(yq eval '.spec.k8sVersion // "v1.34.3"' /kratix/input/object.yaml)
 ISOLATION_MODE=$(yq eval '.spec.isolationMode // "standard"' /kratix/input/object.yaml)
+PRESET=$(yq eval '.spec.preset // "dev"' /kratix/input/object.yaml)
+REPLICAS_OVERRIDE=$(yq eval '.spec.replicas' /kratix/input/object.yaml)
+COREDNS_REPLICAS_OVERRIDE=$(yq eval '.spec.coredns.replicas' /kratix/input/object.yaml)
 CPU_REQUEST=$(yq eval '.spec.resources.requests.cpu // "200m"' /kratix/input/object.yaml)
 MEMORY_REQUEST=$(yq eval '.spec.resources.requests.memory // "512Mi"' /kratix/input/object.yaml)
 CPU_LIMIT=$(yq eval '.spec.resources.limits.cpu // "1000m"' /kratix/input/object.yaml)
 MEMORY_LIMIT=$(yq eval '.spec.resources.limits.memory // "1Gi"' /kratix/input/object.yaml)
 PROJECT_NAME=$(yq eval '.spec.projectName // ""' /kratix/input/object.yaml)
+CLUSTER_DOMAIN=$(yq eval '.spec.networking.clusterDomain // "cluster.local"' /kratix/input/object.yaml)
+HOSTNAME=$(yq eval '.spec.hostname // ""' /kratix/input/object.yaml)
+SUBNET=$(yq eval '.spec.subnet // ""' /kratix/input/object.yaml)
+VIP=$(yq eval '.spec.vip // ""' /kratix/input/object.yaml)
+API_PORT=$(yq eval '.spec.apiPort // 8443' /kratix/input/object.yaml)
 PERSISTENCE_ENABLED=$(yq eval '.spec.persistence.enabled' /kratix/input/object.yaml)
 if [ -z "${PERSISTENCE_ENABLED}" ] || [ "${PERSISTENCE_ENABLED}" = "null" ]; then
   PERSISTENCE_ENABLED=true
 fi
 PERSISTENCE_SIZE=$(yq eval '.spec.persistence.size // "5Gi"' /kratix/input/object.yaml)
 PERSISTENCE_STORAGE_CLASS=$(yq eval '.spec.persistence.storageClass // ""' /kratix/input/object.yaml)
+
+is_valid_ipv4() {
+  local ip=$1
+  IFS=. read -r o1 o2 o3 o4 <<<"${ip}"
+  for octet in "${o1}" "${o2}" "${o3}" "${o4}"; do
+    if ! [[ "${octet}" =~ ^[0-9]+$ ]] || [ "${octet}" -gt 255 ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+ip_to_int() {
+  IFS=. read -r o1 o2 o3 o4 <<<"$1"
+  echo $(( (o1 << 24) + (o2 << 16) + (o3 << 8) + o4 ))
+}
+
+int_to_ip() {
+  local ip_int=$1
+  echo "$(( (ip_int >> 24) & 255 )).$(( (ip_int >> 16) & 255 )).$(( (ip_int >> 8) & 255 )).$(( ip_int & 255 ))"
+}
+
+ip_in_cidr() {
+  local ip=$1
+  local cidr=$2
+  local cidr_ip prefix mask ip_int cidr_int
+
+  IFS=/ read -r cidr_ip prefix <<<"${cidr}"
+  if [ -z "${cidr_ip}" ] || [ -z "${prefix}" ] || ! [[ "${prefix}" =~ ^[0-9]+$ ]] || [ "${prefix}" -gt 32 ]; then
+    return 1
+  fi
+  if ! is_valid_ipv4 "${ip}" || ! is_valid_ipv4 "${cidr_ip}"; then
+    return 1
+  fi
+
+  ip_int=$(ip_to_int "${ip}")
+  cidr_int=$(ip_to_int "${cidr_ip}")
+  mask=$(( 0xFFFFFFFF << (32 - prefix) & 0xFFFFFFFF ))
+  if [ $(( ip_int & mask )) -ne $(( cidr_int & mask )) ]; then
+    return 1
+  fi
+
+  return 0
+}
+
+default_vip_from_cidr() {
+  local cidr=$1
+  local offset=$2
+  local cidr_ip prefix mask network_int host_count vip_int
+
+  IFS=/ read -r cidr_ip prefix <<<"${cidr}"
+  if [ -z "${cidr_ip}" ] || [ -z "${prefix}" ]; then
+    return 1
+  fi
+  if ! is_valid_ipv4 "${cidr_ip}"; then
+    return 1
+  fi
+  mask=$(( 0xFFFFFFFF << (32 - prefix) & 0xFFFFFFFF ))
+  network_int=$(( $(ip_to_int "${cidr_ip}") & mask ))
+  host_count=$(( 1 << (32 - prefix) ))
+  if [ "${offset}" -ge "${host_count}" ]; then
+    return 1
+  fi
+  vip_int=$(( network_int + offset ))
+  int_to_ip "${vip_int}"
+}
 
 # Get namespaces from ResourceRequest
 REQUEST_NAMESPACE=$(yq eval '.metadata.namespace' /kratix/input/object.yaml)
@@ -36,6 +110,65 @@ echo "Generating vcluster resources for: ${NAME}"
 echo "Request namespace: ${REQUEST_NAMESPACE}"
 echo "Target namespace: ${NAMESPACE}"
 echo "ArgoCD project: ${PROJECT_NAME}"
+
+if [ -z "${API_PORT}" ] || [ "${API_PORT}" = "null" ]; then
+  API_PORT=8443
+fi
+
+if [ -n "${REPLICAS_OVERRIDE}" ] && [ "${REPLICAS_OVERRIDE}" != "null" ]; then
+  REPLICAS=${REPLICAS_OVERRIDE}
+else
+  if [ "${PRESET}" = "prod" ]; then
+    REPLICAS=3
+  else
+    REPLICAS=1
+  fi
+fi
+
+if [ -n "${COREDNS_REPLICAS_OVERRIDE}" ] && [ "${COREDNS_REPLICAS_OVERRIDE}" != "null" ]; then
+  COREDNS_REPLICAS=${COREDNS_REPLICAS_OVERRIDE}
+else
+  if [ "${PRESET}" = "prod" ]; then
+    COREDNS_REPLICAS=2
+  else
+    COREDNS_REPLICAS=1
+  fi
+fi
+
+SERVICE_VALUES=""
+if [ -n "${HOSTNAME}" ] || [ -n "${SUBNET}" ] || [ -n "${VIP}" ]; then
+  if [ -z "${HOSTNAME}" ] || [ "${HOSTNAME}" = "null" ] || [ -z "${SUBNET}" ] || [ "${SUBNET}" = "null" ]; then
+    echo "hostname and subnet are required when exposing a VIP"
+    exit 1
+  fi
+  if [ -z "${VIP}" ] || [ "${VIP}" = "null" ]; then
+    VIP=$(default_vip_from_cidr "${SUBNET}" 100)
+  fi
+  if [ -z "${VIP}" ]; then
+    echo "Failed to compute default VIP from subnet ${SUBNET}"
+    exit 1
+  fi
+  if ! ip_in_cidr "${VIP}" "${SUBNET}"; then
+    echo "VIP ${VIP} is not within subnet ${SUBNET}"
+    exit 1
+  fi
+
+  SERVICE_VALUES=$(cat <<EOF
+  service:
+    enabled: true
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: "${HOSTNAME}"
+    spec:
+      type: LoadBalancer
+      loadBalancerIP: "${VIP}"
+      ports:
+        - name: https
+          port: ${API_PORT}
+          targetPort: 8443
+          protocol: TCP
+EOF
+)
+fi
 
 PERSISTENCE_STORAGE_CLASS_CM_LINE=""
 PERSISTENCE_STORAGE_CLASS_APP_LINE=""
@@ -84,6 +217,52 @@ spec:
       kind: '*'
 EOF
 
+VALUES_BASE_FILE="/tmp/vcluster-values-base.yaml"
+VALUES_OVERRIDES_FILE="/tmp/vcluster-values-overrides.yaml"
+VALUES_MERGED_FILE="/tmp/vcluster-values-merged.yaml"
+
+cat > "${VALUES_BASE_FILE}" <<EOF
+controlPlane:
+  distro:
+    k8s:
+      enabled: true
+      version: "${K8S_VERSION}"
+  statefulSet:
+    highAvailability:
+      replicas: ${REPLICAS}
+    persistence:
+      volumeClaim:
+        enabled: ${PERSISTENCE_ENABLED}
+        size: "${PERSISTENCE_SIZE}"
+${PERSISTENCE_STORAGE_CLASS_CM_LINE}
+    resources:
+      requests:
+        cpu: "${CPU_REQUEST}"
+        memory: "${MEMORY_REQUEST}"
+      limits:
+        cpu: "${CPU_LIMIT}"
+        memory: "${MEMORY_LIMIT}"
+  coredns:
+    deployment:
+      replicas: ${COREDNS_REPLICAS}
+${SERVICE_VALUES}
+
+networking:
+  advanced:
+    clusterDomain: "${CLUSTER_DOMAIN}"
+
+sync:
+  toHost:
+    pods:
+      enabled: true
+EOF
+
+yq eval '.spec.helmOverrides // {}' /kratix/input/object.yaml > "${VALUES_OVERRIDES_FILE}"
+yq eval-all 'select(fileIndex==0) * select(fileIndex==1)' "${VALUES_BASE_FILE}" "${VALUES_OVERRIDES_FILE}" > "${VALUES_MERGED_FILE}"
+
+VALUES_CONFIGMAP=$(sed 's/^/    /' "${VALUES_MERGED_FILE}")
+VALUES_OBJECT=$(sed 's/^/        /' "${VALUES_MERGED_FILE}")
+
 # Create Helm values ConfigMap
 cat > /kratix/output/helm-values.yaml <<EOF
 apiVersion: v1
@@ -93,29 +272,7 @@ metadata:
   namespace: ${NAMESPACE}
 data:
   values.yaml: |
-    controlPlane:
-      distro:
-        k8s:
-          enabled: true
-          version: "${K8S_VERSION}"
-      statefulSet:
-        persistence:
-          volumeClaim:
-            enabled: ${PERSISTENCE_ENABLED}
-            size: "${PERSISTENCE_SIZE}"
-${PERSISTENCE_STORAGE_CLASS_CM_LINE}
-        resources:
-          requests:
-            cpu: "${CPU_REQUEST}"
-            memory: "${MEMORY_REQUEST}"
-          limits:
-            cpu: "${CPU_LIMIT}"
-            memory: "${MEMORY_LIMIT}"
-    
-    sync:
-      toHost:
-        pods:
-          enabled: true
+${VALUES_CONFIGMAP}
 EOF
 
 # Create ArgoCD Application for vcluster
@@ -138,29 +295,7 @@ spec:
     helm:
       releaseName: ${NAME}
       valuesObject:
-        controlPlane:
-          distro:
-            k8s:
-              enabled: true
-              version: "${K8S_VERSION}"
-          statefulSet:
-            persistence:
-              volumeClaim:
-                enabled: ${PERSISTENCE_ENABLED}
-                size: "${PERSISTENCE_SIZE}"
-${PERSISTENCE_STORAGE_CLASS_APP_LINE}
-            resources:
-              requests:
-                cpu: "${CPU_REQUEST}"
-                memory: "${MEMORY_REQUEST}"
-              limits:
-                cpu: "${CPU_LIMIT}"
-                memory: "${MEMORY_LIMIT}"
-        
-        sync:
-          toHost:
-            pods:
-              enabled: true
+${VALUES_OBJECT}
   destination:
     server: https://kubernetes.default.svc
     namespace: ${NAMESPACE}
@@ -289,6 +424,10 @@ spec:
               value: "${NAMESPACE}"
             - name: VCLUSTER_NAME
               value: "${NAME}"
+            - name: HOSTNAME
+              value: "${HOSTNAME}"
+            - name: API_PORT
+              value: "${API_PORT}"
             - name: OP_ITEM_NAME
               value: "${ONEPASSWORD_ITEM}"
           volumeMounts:
@@ -300,7 +439,18 @@ spec:
             - |
               set -e
               apk add --no-cache ca-certificates curl jq
-              KUBECONFIG_CONTENT=\$(cat /shared/kubeconfig)
+
+              if [ -n "${HOSTNAME}" ]; then
+                SERVER_URL="https://${HOSTNAME}:${API_PORT}"
+                echo "Rewriting kubeconfig server to ${SERVER_URL}"
+                awk -v new_server="${SERVER_URL}" '
+                  !done && $1=="server:" {print "    server: " new_server; done=1; next}
+                  {print}
+                ' /shared/kubeconfig > /shared/kubeconfig.rewritten
+                mv /shared/kubeconfig.rewritten /shared/kubeconfig
+              fi
+
+              KUBECONFIG_CONTENT=$(cat /shared/kubeconfig)
 
               VAULT_NAME="homelab"
               OP_CONNECT_HOST_CLEAN="\$(printf '%s' "\${OP_CONNECT_HOST}" | tr -d '\r\n')"

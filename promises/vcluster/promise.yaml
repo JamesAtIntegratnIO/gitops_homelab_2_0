@@ -58,6 +58,17 @@ spec:
                         - "1.34"
                         - "1.33"
                         - "1.32"
+                    preset:
+                      type: string
+                      description: Base sizing preset for the vcluster
+                      default: dev
+                      enum:
+                        - dev
+                        - prod
+                    replicas:
+                      type: integer
+                      description: Override replica count for the vcluster control plane
+                      minimum: 1
                     isolationMode:
                       type: string
                       description: Workload isolation mode
@@ -100,6 +111,44 @@ spec:
                         storageClass:
                           type: string
                           description: Storage class for the vcluster control plane data volume
+                    coredns:
+                      type: object
+                      description: CoreDNS settings for the virtual cluster
+                      properties:
+                        replicas:
+                          type: integer
+                          minimum: 1
+                          default: 1
+                    networking:
+                      type: object
+                      description: Networking settings for the virtual cluster
+                      properties:
+                        clusterDomain:
+                          type: string
+                          default: "cluster.local"
+                    hostname:
+                      type: string
+                      description: DNS hostname for the vcluster API endpoint
+                      pattern: '^([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)+[a-z]{2,}$'
+                      maxLength: 253
+                    subnet:
+                      type: string
+                      description: CIDR subnet for VIP allocation
+                      pattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}\/(\d|[12]\d|3[0-2])$'
+                    vip:
+                      type: string
+                      description: VIP for the vcluster API (defaults to .100 in subnet)
+                      pattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
+                    apiPort:
+                      type: integer
+                      description: API port exposed by the vcluster service
+                      default: 8443
+                      minimum: 1
+                      maximum: 65535
+                    helmOverrides:
+                      type: object
+                      description: Additional Helm values to override
+                      x-kubernetes-preserve-unknown-fields: true
                 status:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true

@@ -6,6 +6,7 @@ metadata:
 spec:
   name: dev-team
   targetNamespace: vcluster-dev-team
+  preset: dev
   k8sVersion: "1.34"
   isolationMode: standard
   resources:
@@ -19,3 +20,8 @@ spec:
     enabled: true
     size: "5Gi"
     storageClass: config-nfs-client
+  networking:
+    clusterDomain: cluster.local
+  hostname: dev-team.integratn.tech
+  subnet: 10.0.6.0/24
+  apiPort: 8443

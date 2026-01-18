@@ -9,6 +9,8 @@ This Promise provides virtual Kubernetes clusters using [vcluster](https://www.v
 - **Isolation modes**: Choose between standard and strict isolation
 - **Resource control**: Configure CPU and memory requests/limits per vcluster
 - **Persistence control**: Configure storage class, size, or disable persistence
+- **Sizing presets**: dev/prod defaults with full override support
+- **Direct access**: Per-vcluster LoadBalancer VIP and DNS hostname
 - **GitOps integration**: Uses ArgoCD Application for declarative management
 - **Secure kubeconfig storage**: Automatically syncs kubeconfig to 1Password via External Secrets Operator
 - **External access**: kubeconfig available in 1Password for external access and backup
@@ -34,6 +36,7 @@ metadata:
 spec:
   name: my-cluster
   targetNamespace: my-team
+  preset: dev
   k8sVersion: "1.34"
   isolationMode: standard
   resources:
@@ -47,6 +50,18 @@ spec:
     enabled: true
     size: "5Gi"
     storageClass: config-nfs-client
+  networking:
+    clusterDomain: cluster.local
+  hostname: my-cluster.integratn.tech
+  subnet: 10.0.6.0/24
+  apiPort: 8443
+  # vip defaults to .100 within the subnet
+  # Optional: override any Helm values
+  helmOverrides:
+    controlPlane:
+      coredns:
+        deployment:
+          replicas: 2
 ```
 
 ## Access the vcluster

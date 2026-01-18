@@ -1,0 +1,27 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VCluster
+metadata:
+  name: custom-test
+  namespace: platform-requests
+spec:
+  name: custom-test
+  targetNamespace: vcluster-custom-test
+  preset: dev
+  replicas: 2
+  k8sVersion: "v1.34.3"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+  persistence:
+    enabled: false
+  hostname: custom-test.integratn.tech
+  subnet: 10.0.8.0/24
+  helmOverrides:
+    controlPlane:
+      coredns:
+        deployment:
+          replicas: 2
