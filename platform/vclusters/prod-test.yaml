@@ -1,31 +1,29 @@
-# apiVersion: platform.integratn.tech/v1alpha1
-# kind: VCluster
-# metadata:
-#   name: prod-test
-#   namespace: platform-requests
-#   annotations:
-#     platform.integratn.tech/reconcile-at: "2026-01-18T20:05:00Z"
-# spec:
-#   name: prod-test
-#   targetNamespace: vcluster-prod-test
-#   preset: prod
-#   coredns:
-#     replicas: 1
-#   replicas: 1
-#   k8sVersion: "v1.34.3"
-#   resources:
-#     requests:
-#       cpu: "500m"
-#       memory: "1Gi"
-#     limits:
-#       cpu: "2"
-#       memory: "2Gi"
-#   persistence:
-#     enabled: false
-#   networking:
-#     clusterDomain: "cluster.local"
-#   hostname: prod-test.integratn.tech
-#   subnet: 10.0.9.0/24
-#   apiPort: 443
-#   helmOverrides:
-#     networking: {}
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VCluster
+metadata:
+	name: prod-test
+	namespace: platform-requests
+spec:
+	name: prod-test
+	targetNamespace: vcluster-prod-test
+	preset: prod
+	coredns:
+		replicas: 1
+	replicas: 1
+	k8sVersion: "v1.34.3"
+	resources:
+		requests:
+			cpu: "500m"
+			memory: "1Gi"
+		limits:
+			cpu: "2"
+			memory: "2Gi"
+	persistence:
+		enabled: false
+	networking:
+		clusterDomain: "cluster.local"
+	hostname: prod-test.integratn.tech
+	subnet: 10.0.9.0/24
+	apiPort: 443
+	helmOverrides:
+		networking: {}
