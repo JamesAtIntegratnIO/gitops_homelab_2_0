@@ -114,6 +114,8 @@ if [ -z "${API_PORT}" ] || [ "${API_PORT}" = "null" ]; then
   API_PORT=8443
 fi
 
+EXTERNAL_SERVER_URL=""
+
 if [ -z "${PRESET}" ] || [ "${PRESET}" = "null" ]; then
   PRESET=dev
 fi
@@ -243,6 +245,12 @@ if [ -n "${HOSTNAME}" ] || [ -n "${SUBNET}" ] || [ -n "${VIP}" ]; then
           protocol: TCP
 EOF
 )
+
+  if [ -n "${HOSTNAME}" ] && [ "${HOSTNAME}" != "null" ]; then
+    EXTERNAL_SERVER_URL="https://${HOSTNAME}:${API_PORT}"
+  elif [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
+    EXTERNAL_SERVER_URL="https://${VIP}:${API_PORT}"
+  fi
 fi
 
 PERSISTENCE_STORAGE_CLASS_CM_LINE=""
@@ -537,6 +545,8 @@ spec:
               value: "${HOSTNAME}"
             - name: API_PORT
               value: "${API_PORT}"
+            - name: SERVER_URL
+              value: "${EXTERNAL_SERVER_URL}"
             - name: OP_ITEM_NAME
               value: "${ONEPASSWORD_ITEM}"
           volumeMounts:
@@ -549,8 +559,7 @@ spec:
               set -e
               apk add --no-cache ca-certificates curl jq
 
-              if [ -n "\${HOSTNAME}" ]; then
-                SERVER_URL="https://\${HOSTNAME}:\${API_PORT}"
+              if [ -n "\${SERVER_URL}" ]; then
                 echo "Rewriting kubeconfig server to \${SERVER_URL}"
                 awk -v new_server="\${SERVER_URL}" '
                   !done && \$1=="server:" {print "    server: " new_server; done=1; next}
