@@ -14,3 +14,4 @@ spec:
   k8sVersion: "v1.34.3"
   hostname: dev-test.integratn.tech
   subnet: 10.0.6.0/24
+  apiPort: 443
