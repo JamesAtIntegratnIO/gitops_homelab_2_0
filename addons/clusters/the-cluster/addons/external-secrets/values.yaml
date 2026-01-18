@@ -8,6 +8,8 @@ extraObjects:
     kind: ClusterSecretStore
     metadata:
       name: onepassword-store
+      labels:
+        integratn.tech/cluster-secret-store: onepassword-store
     spec:
       provider:
         onepassword:

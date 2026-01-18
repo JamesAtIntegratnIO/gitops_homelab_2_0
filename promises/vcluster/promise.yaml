@@ -126,6 +126,30 @@ spec:
                         clusterDomain:
                           type: string
                           default: "cluster.local"
+                    integrations:
+                      type: object
+                      description: Integrations settings for syncing host resources into vcluster
+                      properties:
+                        certManager:
+                          type: object
+                          properties:
+                            clusterIssuerSelectorLabels:
+                              type: object
+                              description: Label selector for ClusterIssuers to sync from host
+                              additionalProperties:
+                                type: string
+                              default:
+                                integratn.tech/cluster-issuer: letsencrypt-prod
+                        externalSecrets:
+                          type: object
+                          properties:
+                            clusterStoreSelectorLabels:
+                              type: object
+                              description: Label selector for ClusterSecretStores to sync from host
+                              additionalProperties:
+                                type: string
+                              default:
+                                integratn.tech/cluster-secret-store: onepassword-store
                     hostname:
                       type: string
                       description: DNS hostname for the vcluster API endpoint

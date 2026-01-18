@@ -43,14 +43,23 @@ spec:
     clusterDomain: cluster.local
   hostname: my-cluster.integratn.tech
   subnet: 10.0.6.0/24
+  coredns:
+    replicas: 2
+  integrations:
+    certManager:
+      clusterIssuerSelectorLabels:
+        integratn.tech/cluster-issuer: letsencrypt-prod
+    externalSecrets:
+      clusterStoreSelectorLabels:
+        integratn.tech/cluster-secret-store: onepassword-store
   # apiPort defaults to 8443
   # vip defaults to .100 within the subnet (and is validated)
   # Optional: override any Helm values
-  helmOverrides:
-    controlPlane:
-      coredns:
-        deployment:
-          replicas: 2
+  # helmOverrides:
+  #   controlPlane:
+  #     coredns:
+  #       deployment:
+  #         replicas: 2
 ```
 
 ## Access the vcluster

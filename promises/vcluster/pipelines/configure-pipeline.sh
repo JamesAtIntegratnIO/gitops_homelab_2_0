@@ -21,6 +21,8 @@ API_PORT=$(yq eval '.spec.apiPort // 8443' /kratix/input/object.yaml)
 PERSISTENCE_ENABLED_RAW=$(yq eval '.spec.persistence.enabled' /kratix/input/object.yaml)
 PERSISTENCE_SIZE_RAW=$(yq eval '.spec.persistence.size' /kratix/input/object.yaml)
 PERSISTENCE_STORAGE_CLASS=$(yq eval '.spec.persistence.storageClass // ""' /kratix/input/object.yaml)
+CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.certManager.clusterIssuerSelectorLabels' /kratix/input/object.yaml)
+EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.externalSecrets.clusterStoreSelectorLabels' /kratix/input/object.yaml)
 
 is_valid_ipv4() {
   local ip=$1
@@ -179,6 +181,23 @@ else
   PERSISTENCE_SIZE=${PERSISTENCE_SIZE_RAW}
 fi
 
+if [ -z "${CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW}" ] || [ "${CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW}" = "null" ] || [ "${CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW}" = "{}" ]; then
+  CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW=$(cat <<EOF
+integratn.tech/cluster-issuer: letsencrypt-prod
+EOF
+)
+fi
+
+if [ -z "${EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW}" ] || [ "${EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW}" = "null" ] || [ "${EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW}" = "{}" ]; then
+  EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW=$(cat <<EOF
+integratn.tech/cluster-secret-store: onepassword-store
+EOF
+)
+fi
+
+CERT_MANAGER_CLUSTER_ISSUER_LABELS=$(echo "${CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW}" | sed 's/^/              /')
+EXTERNAL_SECRETS_CLUSTER_STORE_LABELS=$(echo "${EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW}" | sed 's/^/              /')
+
 if [ -n "${REPLICAS_OVERRIDE}" ] && [ "${REPLICAS_OVERRIDE}" != "null" ]; then
   REPLICAS=${REPLICAS_OVERRIDE}
 else
@@ -286,6 +305,8 @@ controlPlane:
   statefulSet:
     highAvailability:
       replicas: ${REPLICAS}
+    image:
+      repository: "loft-sh/vcluster-oss"
     persistence:
       volumeClaim:
         enabled: ${PERSISTENCE_ENABLED}
@@ -299,9 +320,41 @@ ${PERSISTENCE_STORAGE_CLASS_CM_LINE}
         cpu: "${CPU_LIMIT}"
         memory: "${MEMORY_LIMIT}"
   coredns:
+    enabled: true
     deployment:
       replicas: ${COREDNS_REPLICAS}
 ${SERVICE_VALUES}
+
+deploy:
+  metallb:
+    enabled: true
+
+integrations:
+  externalSecrets:
+    enabled: true
+    webhook:
+      enabled: true
+    sync:
+      fromHost:
+        clusterStores:
+          enabled: true
+          selector:
+            labels:
+${EXTERNAL_SECRETS_CLUSTER_STORE_LABELS}
+  metricsServer:
+    enabled: true
+  certManager:
+    enabled: true
+    sync:
+      fromHost:
+        clusterIssuers:
+          enabled: true
+          selector:
+            labels:
+${CERT_MANAGER_CLUSTER_ISSUER_LABELS}
+
+telemetry:
+  enabled: false
 
 networking:
   advanced:

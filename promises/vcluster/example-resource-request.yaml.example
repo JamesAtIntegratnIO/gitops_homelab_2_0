@@ -13,11 +13,20 @@ spec:
     clusterDomain: cluster.local
   hostname: dev-team.integratn.tech
   subnet: 10.0.6.0/24
+  coredns:
+    replicas: 2
+  integrations:
+    certManager:
+      clusterIssuerSelectorLabels:
+        integratn.tech/cluster-issuer: letsencrypt-prod
+    externalSecrets:
+      clusterStoreSelectorLabels:
+        integratn.tech/cluster-secret-store: onepassword-store
   # apiPort defaults to 8443
   # vip defaults to .100 within the subnet
   # Optional overrides (any Helm values are allowed)
-  helmOverrides:
-    controlPlane:
-      coredns:
-        deployment:
-          replicas: 2
+  # helmOverrides:
+  #   controlPlane:
+  #     coredns:
+  #       deployment:
+  #         replicas: 2

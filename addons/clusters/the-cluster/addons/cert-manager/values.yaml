@@ -43,6 +43,8 @@ extraObjects:
     kind: ClusterIssuer
     metadata:
       name: letsencrypt-prod
+      labels:
+        integratn.tech/cluster-issuer: letsencrypt-prod
     spec:
       acme:
         server: https://acme-v02.api.letsencrypt.org/directory
