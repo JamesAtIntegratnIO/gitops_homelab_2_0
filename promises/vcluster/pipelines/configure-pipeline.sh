@@ -593,11 +593,11 @@ spec:
 
               if [ -n "\${ITEM_ID}" ]; then
                 echo "Item exists, replacing..."
-                ITEM_PAYLOAD=\$(jq -n --arg id "\${ITEM_ID}" --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{id:\$id,title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",fields:[{label:"notesPlain",type:"STRING",purpose:"NOTES",value:\$notes}]}')
+                ITEM_PAYLOAD=\$(jq -n --arg id "\${ITEM_ID}" --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{id:\$id,title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes}')
                 curl -fsS -X PUT -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items/\${ITEM_ID}" -d "\${ITEM_PAYLOAD}" >/dev/null
               else
                 echo "Item not found, creating..."
-                ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",fields:[{label:"notesPlain",type:"STRING",purpose:"NOTES",value:\$notes}]}')
+                ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes}')
                 curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items" -d "\${ITEM_PAYLOAD}" >/dev/null
               fi
 
