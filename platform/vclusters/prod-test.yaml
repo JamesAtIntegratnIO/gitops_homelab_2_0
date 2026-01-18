@@ -3,6 +3,8 @@ kind: VCluster
 metadata:
   name: prod-test
   namespace: platform-requests
+  annotations:
+    platform.integratn.tech/reconcile-at: "2026-01-18T03:07:00Z"
 spec:
   name: prod-test
   targetNamespace: vcluster-prod-test
