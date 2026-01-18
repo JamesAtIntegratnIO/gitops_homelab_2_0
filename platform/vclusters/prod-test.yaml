@@ -9,6 +9,8 @@ spec:
   name: prod-test
   targetNamespace: vcluster-prod-test
   preset: prod
+  coredns:
+    replicas: 1
   k8sVersion: "v1.34.3"
   hostname: prod-test.integratn.tech
   subnet: 10.0.7.0/24

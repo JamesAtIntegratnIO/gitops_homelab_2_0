@@ -9,6 +9,8 @@ spec:
   name: custom-test
   targetNamespace: vcluster-custom-test
   preset: dev
+  coredns:
+    replicas: 1
   replicas: 2
   k8sVersion: "v1.34.3"
   resources:
