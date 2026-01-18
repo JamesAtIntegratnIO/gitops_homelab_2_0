@@ -339,7 +339,7 @@ integrations:
         clusterStores:
           enabled: true
           selector:
-            labels:
+            matchLabels:
 ${EXTERNAL_SECRETS_CLUSTER_STORE_LABELS}
   metricsServer:
     enabled: true
@@ -350,7 +350,7 @@ ${EXTERNAL_SECRETS_CLUSTER_STORE_LABELS}
         clusterIssuers:
           enabled: true
           selector:
-            labels:
+            matchLabels:
 ${CERT_MANAGER_CLUSTER_ISSUER_LABELS}
 
 telemetry:
