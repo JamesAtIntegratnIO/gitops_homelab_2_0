@@ -8,21 +8,18 @@ ISOLATION_MODE=$(yq eval '.spec.isolationMode // "standard"' /kratix/input/objec
 PRESET=$(yq eval '.spec.preset // "dev"' /kratix/input/object.yaml)
 REPLICAS_OVERRIDE=$(yq eval '.spec.replicas' /kratix/input/object.yaml)
 COREDNS_REPLICAS_OVERRIDE=$(yq eval '.spec.coredns.replicas' /kratix/input/object.yaml)
-CPU_REQUEST=$(yq eval '.spec.resources.requests.cpu // "200m"' /kratix/input/object.yaml)
-MEMORY_REQUEST=$(yq eval '.spec.resources.requests.memory // "512Mi"' /kratix/input/object.yaml)
-CPU_LIMIT=$(yq eval '.spec.resources.limits.cpu // "1000m"' /kratix/input/object.yaml)
-MEMORY_LIMIT=$(yq eval '.spec.resources.limits.memory // "1Gi"' /kratix/input/object.yaml)
+CPU_REQUEST_RAW=$(yq eval '.spec.resources.requests.cpu' /kratix/input/object.yaml)
+MEMORY_REQUEST_RAW=$(yq eval '.spec.resources.requests.memory' /kratix/input/object.yaml)
+CPU_LIMIT_RAW=$(yq eval '.spec.resources.limits.cpu' /kratix/input/object.yaml)
+MEMORY_LIMIT_RAW=$(yq eval '.spec.resources.limits.memory' /kratix/input/object.yaml)
 PROJECT_NAME=$(yq eval '.spec.projectName // ""' /kratix/input/object.yaml)
 CLUSTER_DOMAIN=$(yq eval '.spec.networking.clusterDomain // "cluster.local"' /kratix/input/object.yaml)
 HOSTNAME=$(yq eval '.spec.hostname // ""' /kratix/input/object.yaml)
 SUBNET=$(yq eval '.spec.subnet // ""' /kratix/input/object.yaml)
 VIP=$(yq eval '.spec.vip // ""' /kratix/input/object.yaml)
 API_PORT=$(yq eval '.spec.apiPort // 8443' /kratix/input/object.yaml)
-PERSISTENCE_ENABLED=$(yq eval '.spec.persistence.enabled' /kratix/input/object.yaml)
-if [ -z "${PERSISTENCE_ENABLED}" ] || [ "${PERSISTENCE_ENABLED}" = "null" ]; then
-  PERSISTENCE_ENABLED=true
-fi
-PERSISTENCE_SIZE=$(yq eval '.spec.persistence.size // "5Gi"' /kratix/input/object.yaml)
+PERSISTENCE_ENABLED_RAW=$(yq eval '.spec.persistence.enabled' /kratix/input/object.yaml)
+PERSISTENCE_SIZE_RAW=$(yq eval '.spec.persistence.size' /kratix/input/object.yaml)
 PERSISTENCE_STORAGE_CLASS=$(yq eval '.spec.persistence.storageClass // ""' /kratix/input/object.yaml)
 
 is_valid_ipv4() {
@@ -115,24 +112,83 @@ if [ -z "${API_PORT}" ] || [ "${API_PORT}" = "null" ]; then
   API_PORT=8443
 fi
 
+if [ -z "${PRESET}" ] || [ "${PRESET}" = "null" ]; then
+  PRESET=dev
+fi
+
+case "${PRESET}" in
+  dev)
+    PRESET_CPU_REQUEST="200m"
+    PRESET_MEMORY_REQUEST="512Mi"
+    PRESET_CPU_LIMIT="1000m"
+    PRESET_MEMORY_LIMIT="1Gi"
+    PRESET_PERSISTENCE_ENABLED=false
+    PRESET_PERSISTENCE_SIZE="5Gi"
+    PRESET_COREDNS_REPLICAS=1
+    PRESET_REPLICAS=1
+    ;;
+  prod)
+    PRESET_CPU_REQUEST="500m"
+    PRESET_MEMORY_REQUEST="1Gi"
+    PRESET_CPU_LIMIT="2"
+    PRESET_MEMORY_LIMIT="2Gi"
+    PRESET_PERSISTENCE_ENABLED=true
+    PRESET_PERSISTENCE_SIZE="10Gi"
+    PRESET_COREDNS_REPLICAS=2
+    PRESET_REPLICAS=3
+    ;;
+  *)
+    echo "Invalid preset: ${PRESET}. Allowed: dev, prod"
+    exit 1
+    ;;
+esac
+
+if [ -z "${CPU_REQUEST_RAW}" ] || [ "${CPU_REQUEST_RAW}" = "null" ]; then
+  CPU_REQUEST=${PRESET_CPU_REQUEST}
+else
+  CPU_REQUEST=${CPU_REQUEST_RAW}
+fi
+
+if [ -z "${MEMORY_REQUEST_RAW}" ] || [ "${MEMORY_REQUEST_RAW}" = "null" ]; then
+  MEMORY_REQUEST=${PRESET_MEMORY_REQUEST}
+else
+  MEMORY_REQUEST=${MEMORY_REQUEST_RAW}
+fi
+
+if [ -z "${CPU_LIMIT_RAW}" ] || [ "${CPU_LIMIT_RAW}" = "null" ]; then
+  CPU_LIMIT=${PRESET_CPU_LIMIT}
+else
+  CPU_LIMIT=${CPU_LIMIT_RAW}
+fi
+
+if [ -z "${MEMORY_LIMIT_RAW}" ] || [ "${MEMORY_LIMIT_RAW}" = "null" ]; then
+  MEMORY_LIMIT=${PRESET_MEMORY_LIMIT}
+else
+  MEMORY_LIMIT=${MEMORY_LIMIT_RAW}
+fi
+
+if [ -z "${PERSISTENCE_ENABLED_RAW}" ] || [ "${PERSISTENCE_ENABLED_RAW}" = "null" ]; then
+  PERSISTENCE_ENABLED=${PRESET_PERSISTENCE_ENABLED}
+else
+  PERSISTENCE_ENABLED=${PERSISTENCE_ENABLED_RAW}
+fi
+
+if [ -z "${PERSISTENCE_SIZE_RAW}" ] || [ "${PERSISTENCE_SIZE_RAW}" = "null" ]; then
+  PERSISTENCE_SIZE=${PRESET_PERSISTENCE_SIZE}
+else
+  PERSISTENCE_SIZE=${PERSISTENCE_SIZE_RAW}
+fi
+
 if [ -n "${REPLICAS_OVERRIDE}" ] && [ "${REPLICAS_OVERRIDE}" != "null" ]; then
   REPLICAS=${REPLICAS_OVERRIDE}
 else
-  if [ "${PRESET}" = "prod" ]; then
-    REPLICAS=3
-  else
-    REPLICAS=1
-  fi
+  REPLICAS=${PRESET_REPLICAS}
 fi
 
 if [ -n "${COREDNS_REPLICAS_OVERRIDE}" ] && [ "${COREDNS_REPLICAS_OVERRIDE}" != "null" ]; then
   COREDNS_REPLICAS=${COREDNS_REPLICAS_OVERRIDE}
 else
-  if [ "${PRESET}" = "prod" ]; then
-    COREDNS_REPLICAS=2
-  else
-    COREDNS_REPLICAS=1
-  fi
+  COREDNS_REPLICAS=${PRESET_COREDNS_REPLICAS}
 fi
 
 SERVICE_VALUES=""

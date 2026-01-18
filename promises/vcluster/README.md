@@ -37,25 +37,14 @@ spec:
   name: my-cluster
   targetNamespace: my-team
   preset: dev
-  k8sVersion: "1.34"
+  k8sVersion: "v1.34.3"
   isolationMode: standard
-  resources:
-    requests:
-      cpu: "200m"
-      memory: "512Mi"
-    limits:
-      cpu: "1000m"
-      memory: "1Gi"
-  persistence:
-    enabled: true
-    size: "5Gi"
-    storageClass: config-nfs-client
   networking:
     clusterDomain: cluster.local
   hostname: my-cluster.integratn.tech
   subnet: 10.0.6.0/24
-  apiPort: 8443
-  # vip defaults to .100 within the subnet
+  # apiPort defaults to 8443
+  # vip defaults to .100 within the subnet (and is validated)
   # Optional: override any Helm values
   helmOverrides:
     controlPlane:

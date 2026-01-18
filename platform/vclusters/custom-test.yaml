@@ -8,37 +8,6 @@ spec:
   targetNamespace: vcluster-custom-test
   preset: dev
   replicas: 2
-  resources:
-    requests:
-      cpu: "300m"
-      memory: "768Mi"
-    limits:
-      cpu: "1500m"
-      memory: "1536Mi"
-  persistence:
-    enabled: true
-    size: "10Gi"
-  coredns:
-    replicas: 2
-  networking:
-    clusterDomain: "cluster.local"
-  hostname: custom-test.integratn.tech
-  subnet: 10.0.8.0/24
-  apiPort: 8443
-  helmOverrides:
-    sync:
-      toHost:
-        services:
-          enabled: trueapiVersion: platform.integratn.tech/v1alpha1
-kind: VCluster
-metadata:
-  name: custom-test
-  namespace: platform-requests
-spec:
-  name: custom-test
-  targetNamespace: vcluster-custom-test
-  preset: dev
-  replicas: 2
   k8sVersion: "v1.34.3"
   resources:
     requests:
@@ -49,10 +18,13 @@ spec:
       memory: "2Gi"
   persistence:
     enabled: false
+  networking:
+    clusterDomain: "cluster.local"
   hostname: custom-test.integratn.tech
   subnet: 10.0.8.0/24
+  apiPort: 8443
   helmOverrides:
-    controlPlane:
-      coredns:
-        deployment:
-          replicas: 2
+    sync:
+      toHost:
+        services:
+          enabled: true
