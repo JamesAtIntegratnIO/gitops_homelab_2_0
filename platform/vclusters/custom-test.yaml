@@ -28,7 +28,7 @@ spec:
   subnet: 10.0.8.0/24
   apiPort: 443
   helmOverrides:
-      platformReconcileAt: "2026-01-18T19:40:00Z"
+    platformReconcileAt: "2026-01-18T19:40:00Z"
     controlPlane: {}
     networking: {}
     sync:
