@@ -30,13 +30,13 @@ spec:
   helmOverrides:
     experimental:
       deploy:
-        vcluster:
+        host:
           manifests: |
             apiVersion: v1
             kind: ConfigMap
             metadata:
               name: coredns
-              namespace: kube-system
+              namespace: vcluster-custom-test
             data:
               Corefile: |-
                 .:1053 {
@@ -64,6 +64,12 @@ spec:
                 import /etc/coredns/custom/*.server
               NodeHosts: ""
     sync:
+      fromHost:
+        configMaps:
+          enabled: true
+          mappings:
+            byName:
+              "vcluster-custom-test/coredns": "kube-system/coredns"
       toHost:
         services:
           enabled: true
