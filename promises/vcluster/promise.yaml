@@ -150,24 +150,24 @@ spec:
                                 type: string
                               default:
                                 integratn.tech/cluster-secret-store: onepassword-store
-                      argocd:
-                        type: object
-                        description: ArgoCD cluster registration settings
-                        properties:
-                          environment:
-                            type: string
-                            description: Environment label used for ArgoCD cluster secret selectors
-                            default: development
-                          clusterLabels:
-                            type: object
-                            description: Additional labels applied to the ArgoCD cluster secret
-                            additionalProperties:
+                        argocd:
+                          type: object
+                          description: ArgoCD cluster registration settings
+                          properties:
+                            environment:
                               type: string
-                          clusterAnnotations:
-                            type: object
-                            description: Additional annotations applied to the ArgoCD cluster secret
-                            additionalProperties:
-                              type: string
+                              description: Environment label used for ArgoCD cluster secret selectors
+                              default: development
+                            clusterLabels:
+                              type: object
+                              description: Additional labels applied to the ArgoCD cluster secret
+                              additionalProperties:
+                                type: string
+                            clusterAnnotations:
+                              type: object
+                              description: Additional annotations applied to the ArgoCD cluster secret
+                              additionalProperties:
+                                type: string
                     hostname:
                       type: string
                       description: DNS hostname for the vcluster API endpoint
