@@ -471,6 +471,7 @@ sync:
 
 rbac:
   clusterRole:
+    enabled: true
     extraRules:
       - apiGroups: [""]
         resources: ["secrets"]
