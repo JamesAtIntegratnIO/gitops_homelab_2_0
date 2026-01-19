@@ -23,6 +23,20 @@ argocd-projects:
         values: ['true']
   annotationsApp:
     argocd.argoproj.io/sync-wave: "-2"
+  syncPolicy:
+    automated:
+      selfHeal: false
+      allowEmpty: true
+      prune: true
+    retry:
+      limit: -1
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 10m
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
 iam-chart:
   enabled: false
   enableAckPodIdentity: false 
@@ -468,6 +482,11 @@ vcluster-coredns-config:
     syncOptions:
       - CreateNamespace=true
       - SkipDryRunOnMissingResource=true
+  ignoreDifferences:
+    - kind: ConfigMap
+      name: coredns
+      jsonPointers:
+        - /data/NodeHosts
 
 gateway-api-crds:
   enabled: true
