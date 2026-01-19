@@ -577,6 +577,11 @@ spec:
               fi
 
               KUBECONFIG_CONTENT=$(cat /shared/kubeconfig)
+              KUBECONFIG_BYTES=$(printf '%s' "${KUBECONFIG_CONTENT}" | wc -c | tr -d ' ')
+              if [ "${KUBECONFIG_BYTES}" -eq 0 ]; then
+                echo "Kubeconfig content is empty; aborting sync"
+                exit 1
+              fi
 
               VAULT_NAME="homelab"
               OP_CONNECT_HOST_CLEAN="\$(printf '%s' "\${OP_CONNECT_HOST}" | tr -d '\r\n')"
@@ -606,8 +611,18 @@ spec:
               else
                 echo "Item not found, creating..."
                 ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{title:\$title,vault:{id:\$vault},category:"API_CREDENTIAL",notesPlain:\$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:\$notes}]}')
-                curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items" -d "\${ITEM_PAYLOAD}" >/dev/null
+                ITEM_ID=\$(curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items" -d "\${ITEM_PAYLOAD}" | jq -r '.id')
+                if [ -z "\${ITEM_ID}" ] || [ "\${ITEM_ID}" = "null" ]; then
+                  echo "Failed to create item in 1Password"
+                  exit 1
+                fi
               fi
+
+              ITEM_JSON=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items/\${ITEM_ID}")
+              NOTES_LEN=\$(echo "\${ITEM_JSON}" | jq -r '.notesPlain // "" | length')
+              FIELD_LEN=\$(echo "\${ITEM_JSON}" | jq -r '.fields[]? | select(.label=="kubeconfig") | .value | length' | head -n1)
+              FIELD_LEN=\${FIELD_LEN:-0}
+              echo "1Password item lengths: notesPlain=\${NOTES_LEN} kubeconfigField=\${FIELD_LEN}"
 
               echo "Kubeconfig synced successfully to 1Password"
 EOF
