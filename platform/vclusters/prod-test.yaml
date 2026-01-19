@@ -14,6 +14,8 @@ spec:
     argocd:
       environment: development
       clusterLabels: {}
+      clusterAnnotations:
+        reconcile-token: "20260119154500"
   preset: prod
   coredns:
     replicas: 1
