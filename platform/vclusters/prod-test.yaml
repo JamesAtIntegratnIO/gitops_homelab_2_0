@@ -28,4 +28,9 @@ spec:
 	vip: 10.0.4.212
 	apiPort: 443
 	helmOverrides:
+		controlPlane:
+			proxy:
+				extraSANs:
+					- prod-test.integratn.tech
+					- 10.0.4.212
 		networking: {}

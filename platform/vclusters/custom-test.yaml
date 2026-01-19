@@ -28,7 +28,11 @@ spec:
 	vip: 10.0.4.211
 	apiPort: 443
 	helmOverrides:
-		controlPlane: {}
+		controlPlane:
+			proxy:
+				extraSANs:
+					- custom-test.integratn.tech
+					- 10.0.4.211
 		networking: {}
 		sync:
 			toHost:
