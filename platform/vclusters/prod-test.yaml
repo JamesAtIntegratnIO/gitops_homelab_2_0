@@ -3,7 +3,7 @@ apiVersion: platform.integratn.tech/v1alpha1
 kind: VCluster
 metadata:
   annotations:
-    platform.integratn.tech/reconcile-at: "2026-01-19T16:50:00Z"
+    platform.integratn.tech/reconcile-at: "2026-01-19T17:05:00Z"
   name: prod-test
   namespace: platform-requests
 spec:
@@ -20,7 +20,7 @@ spec:
         enable_external_secrets: "true"
         enable_metrics_server: "true"
       clusterAnnotations:
-        reconcile-token: "20260119165000"
+        reconcile-token: "20260119170500"
   preset: prod
   coredns:
     replicas: 1
