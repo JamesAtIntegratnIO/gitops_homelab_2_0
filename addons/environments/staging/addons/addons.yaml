@@ -141,6 +141,20 @@ external-secrets:
                     name: eso-onepassword-token
                     namespace: external-secrets
                     key: token
+  syncPolicy:
+    automated:
+      selfHeal: false
+      allowEmpty: true
+      prune: true
+    retry:
+      limit: -1
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 10m
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
   ignoreDifferences:
     - kind: Secret
       name: external-secrets-webhook
