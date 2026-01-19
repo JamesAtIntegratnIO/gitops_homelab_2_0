@@ -23,6 +23,9 @@ PERSISTENCE_SIZE_RAW=$(yq eval '.spec.persistence.size' /kratix/input/object.yam
 PERSISTENCE_STORAGE_CLASS=$(yq eval '.spec.persistence.storageClass // ""' /kratix/input/object.yaml)
 CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.certManager.clusterIssuerSelectorLabels' /kratix/input/object.yaml)
 EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.externalSecrets.clusterStoreSelectorLabels' /kratix/input/object.yaml)
+ARGOCD_ENVIRONMENT_RAW=$(yq eval '.spec.argocd.environment // ""' /kratix/input/object.yaml)
+ARGOCD_CLUSTER_LABELS_RAW=$(yq eval -o=yaml '.spec.argocd.clusterLabels' /kratix/input/object.yaml)
+ARGOCD_CLUSTER_ANNOTATIONS_RAW=$(yq eval -o=yaml '.spec.argocd.clusterAnnotations' /kratix/input/object.yaml)
 RECONCILE_AT_RAW=$(yq eval '.metadata.annotations."platform.integratn.tech/reconcile-at" // ""' /kratix/input/object.yaml)
 
 is_valid_ipv4() {
@@ -127,6 +130,58 @@ EXTERNAL_SERVER_URL=""
 if [ -z "${PRESET}" ] || [ "${PRESET}" = "null" ]; then
   PRESET=dev
 fi
+
+if [ -n "${ARGOCD_ENVIRONMENT_RAW}" ] && [ "${ARGOCD_ENVIRONMENT_RAW}" != "null" ]; then
+  ARGOCD_ENVIRONMENT="${ARGOCD_ENVIRONMENT_RAW}"
+else
+  if [ "${PRESET}" = "prod" ]; then
+    ARGOCD_ENVIRONMENT="production"
+  else
+    ARGOCD_ENVIRONMENT="development"
+  fi
+fi
+
+if [ -z "${ARGOCD_CLUSTER_LABELS_RAW}" ] || [ "${ARGOCD_CLUSTER_LABELS_RAW}" = "null" ] || [ "${ARGOCD_CLUSTER_LABELS_RAW}" = "{}" ]; then
+  ARGOCD_CLUSTER_LABELS_RAW=""
+fi
+
+if [ -z "${ARGOCD_CLUSTER_ANNOTATIONS_RAW}" ] || [ "${ARGOCD_CLUSTER_ANNOTATIONS_RAW}" = "null" ] || [ "${ARGOCD_CLUSTER_ANNOTATIONS_RAW}" = "{}" ]; then
+  ARGOCD_CLUSTER_ANNOTATIONS_RAW=""
+fi
+
+ARGOCD_CLUSTER_LABELS_BASE=$(cat <<EOF
+argocd.argoproj.io/secret-type: cluster
+cluster_name: ${NAME}
+cluster_role: vcluster
+environment: ${ARGOCD_ENVIRONMENT}
+EOF
+)
+
+ARGOCD_CLUSTER_ANNOTATIONS_BASE=$(cat <<EOF
+addons_repo_url: https://github.com/jamesatintegratnio/gitops_homelab_2_0
+addons_repo_revision: main
+addons_repo_basepath: addons/
+addons_repo_path: charts/application-sets
+managed-by: argocd.argoproj.io
+cluster_name: ${NAME}
+environment: ${ARGOCD_ENVIRONMENT}
+EOF
+)
+
+if [ -n "${ARGOCD_CLUSTER_LABELS_RAW}" ]; then
+  ARGOCD_CLUSTER_LABELS=$(printf "%s\n%s" "${ARGOCD_CLUSTER_LABELS_BASE}" "${ARGOCD_CLUSTER_LABELS_RAW}")
+else
+  ARGOCD_CLUSTER_LABELS="${ARGOCD_CLUSTER_LABELS_BASE}"
+fi
+
+if [ -n "${ARGOCD_CLUSTER_ANNOTATIONS_RAW}" ]; then
+  ARGOCD_CLUSTER_ANNOTATIONS=$(printf "%s\n%s" "${ARGOCD_CLUSTER_ANNOTATIONS_BASE}" "${ARGOCD_CLUSTER_ANNOTATIONS_RAW}")
+else
+  ARGOCD_CLUSTER_ANNOTATIONS="${ARGOCD_CLUSTER_ANNOTATIONS_BASE}"
+fi
+
+ARGOCD_CLUSTER_LABELS_INDENTED=$(echo "${ARGOCD_CLUSTER_LABELS}" | sed 's/^/          /')
+ARGOCD_CLUSTER_ANNOTATIONS_INDENTED=$(echo "${ARGOCD_CLUSTER_ANNOTATIONS}" | sed 's/^/          /')
 
 case "${PRESET}" in
   dev)
@@ -590,7 +645,7 @@ spec:
             - -c
             - |
               set -e
-              apk add --no-cache ca-certificates curl jq
+              apk add --no-cache ca-certificates curl jq yq
 
               if [ -n "\${SERVER_URL}" ]; then
                 echo "Rewriting kubeconfig server to \${SERVER_URL}"
@@ -599,6 +654,28 @@ spec:
                   {print}
                 ' /shared/kubeconfig > /shared/kubeconfig.rewritten
                 mv /shared/kubeconfig.rewritten /shared/kubeconfig
+              fi
+
+              ARGOCD_CLUSTER_NAME="vcluster-\${VCLUSTER_NAME}"
+              KUBECONFIG_SERVER=\$(yq -r '.clusters[0].cluster.server // ""' /shared/kubeconfig)
+              KUBECONFIG_CA_DATA=\$(yq -r '.clusters[0].cluster."certificate-authority-data" // ""' /shared/kubeconfig)
+              KUBECONFIG_CERT_DATA=\$(yq -r '.users[0].user."client-certificate-data" // ""' /shared/kubeconfig)
+              KUBECONFIG_KEY_DATA=\$(yq -r '.users[0].user."client-key-data" // ""' /shared/kubeconfig)
+              KUBECONFIG_TOKEN=\$(yq -r '.users[0].user.token // ""' /shared/kubeconfig)
+
+              if [ -z "\${KUBECONFIG_SERVER}" ]; then
+                echo "Failed to extract server from kubeconfig"
+                exit 1
+              fi
+
+              if [ -n "\${KUBECONFIG_TOKEN}" ]; then
+                ARGOCD_CONFIG_JSON=\$(jq -n --arg token "\${KUBECONFIG_TOKEN}" --arg ca "\${KUBECONFIG_CA_DATA}" '{bearerToken:$token,tlsClientConfig:{insecure:false,caData:$ca}}')
+              else
+                if [ -z "\${KUBECONFIG_CERT_DATA}" ] || [ -z "\${KUBECONFIG_KEY_DATA}" ]; then
+                  echo "Failed to extract client cert/key from kubeconfig"
+                  exit 1
+                fi
+                ARGOCD_CONFIG_JSON=\$(jq -n --arg ca "\${KUBECONFIG_CA_DATA}" --arg cert "\${KUBECONFIG_CERT_DATA}" --arg key "\${KUBECONFIG_KEY_DATA}" '{tlsClientConfig:{insecure:false,caData:$ca,certData:$cert,keyData:$key}}')
               fi
 
               KUBECONFIG_CONTENT=\$(cat /shared/kubeconfig)
@@ -631,11 +708,11 @@ spec:
 
               if [ -n "\${ITEM_ID}" ]; then
                 echo "Item exists, replacing..."
-                ITEM_PAYLOAD=\$(jq -n --arg id "\${ITEM_ID}" --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{id:\$id,title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:\$notes}]}')
+                ITEM_PAYLOAD=\$(jq -n --arg id "\${ITEM_ID}" --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" --arg argocdName "\${ARGOCD_CLUSTER_NAME}" --arg argocdServer "\${KUBECONFIG_SERVER}" --arg argocdConfig "\${ARGOCD_CONFIG_JSON}" '{id:\$id,title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:\$notes},{label:"argocd-name",type:"STRING",value:\$argocdName},{label:"argocd-server",type:"STRING",value:\$argocdServer},{label:"argocd-config",type:"CONCEALED",value:\$argocdConfig}]}')
                 curl -fsS -X PUT -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items/\${ITEM_ID}" -d "\${ITEM_PAYLOAD}" >/dev/null
               else
                 echo "Item not found, creating..."
-                ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" '{title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:\$notes}]}')
+                ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" --arg argocdName "\${ARGOCD_CLUSTER_NAME}" --arg argocdServer "\${KUBECONFIG_SERVER}" --arg argocdConfig "\${ARGOCD_CONFIG_JSON}" '{title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:\$notes},{label:"argocd-name",type:"STRING",value:\$argocdName},{label:"argocd-server",type:"STRING",value:\$argocdServer},{label:"argocd-config",type:"CONCEALED",value:\$argocdConfig}]}')
                 ITEM_ID=\$(curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items" -d "\${ITEM_PAYLOAD}" | jq -r '.id')
                 if [ -z "\${ITEM_ID}" ] || [ "\${ITEM_ID}" = "null" ]; then
                   echo "Failed to create item in 1Password"
@@ -675,6 +752,46 @@ spec:
       remoteRef:
         key: ${ONEPASSWORD_ITEM}
         property: kubeconfig
+EOF
+
+# Create ExternalSecret to register vcluster as an ArgoCD cluster
+cat > /kratix/output/argocd-cluster-secret.yaml <<EOF
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: vcluster-${NAME}-argocd-cluster
+  namespace: argocd
+  labels:
+    app: vcluster
+    instance: ${NAME}
+spec:
+  refreshInterval: 5m
+  secretStoreRef:
+    name: onepassword-store
+    kind: ClusterSecretStore
+  target:
+    name: vcluster-${NAME}
+    creationPolicy: Owner
+    template:
+      metadata:
+        labels:
+${ARGOCD_CLUSTER_LABELS_INDENTED}
+        annotations:
+${ARGOCD_CLUSTER_ANNOTATIONS_INDENTED}
+      type: Opaque
+  data:
+    - secretKey: name
+      remoteRef:
+        key: ${ONEPASSWORD_ITEM}
+        property: argocd-name
+    - secretKey: server
+      remoteRef:
+        key: ${ONEPASSWORD_ITEM}
+        property: argocd-server
+    - secretKey: config
+      remoteRef:
+        key: ${ONEPASSWORD_ITEM}
+        property: argocd-config
 EOF
 
 echo "Resources generated successfully for vcluster: ${NAME}"
