@@ -1,0 +1,2 @@
+# Ignore non-Kubernetes artifacts
+vcluster/pipelines/vcluster.values.schema.json
