@@ -56,6 +56,14 @@
     "mcp_github_get_pull_request": { "approve": true },
     "mcp_github_list_pull_requests": { "approve": true },
     "mcp_github_list_commits": { "approve": true },
+
+    // ALLOW: GitHub Actions operations
+    "mcp_github_actions_list_workflows": { "approve": true },
+    "mcp_github_actions_get_workflow": { "approve": true },
+    "mcp_github_actions_list_workflow_runs": { "approve": true },
+    "mcp_github_actions_get_workflow_run": { "approve": true },
+    "mcp_github_actions_download_workflow_run_logs": { "approve": true },
+    "mcp_github_actions_create_workflow_dispatch": { "approve": true },
     
     // ALLOW: Memory operations (safe - stores context)
     "mcp_memory_create_entities": { "approve": true },
@@ -129,6 +137,9 @@
       "approve": true,
       "matchCommandLine": true
     },
-    "git -C /home/boboysdadda/projects/gitops_homelab_2_0": true
+    "git -C /home/boboysdadda/projects/gitops_homelab_2_0": true,
+    "sleep": true,
+    "kubectl -n argocd": true,
+    "argocd": true
   }
 }

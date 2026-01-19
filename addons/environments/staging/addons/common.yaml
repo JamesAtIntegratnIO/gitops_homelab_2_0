@@ -3,7 +3,7 @@ repoURLGitRevision: HEAD
 repoURLGitBasePath: "addons"
 # only deploy apps to the control-plane environment
 globalSelectors:
-  environment: "production"
+  environment: "staging"
 syncPolicy:
   automated:
     selfHeal: false

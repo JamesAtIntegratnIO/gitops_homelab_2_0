@@ -1,0 +1,94 @@
+# Kratix Values for production environment
+
+# Disable default BucketStateStore
+stateStores: []
+
+# Disable default destinations
+destinations: []
+
+# Additional resources for Kratix platform setup
+additionalResources:
+  # ExternalSecret to pull GitHub App credentials from 1Password
+  - apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: kratix-github-credentials
+      namespace: kratix-platform-system
+    spec:
+      secretStoreRef:
+        name: onepassword-store
+        kind: ClusterSecretStore
+      target:
+        name: kratix-github-credentials
+        creationPolicy: Owner
+      data:
+        - secretKey: appID
+          remoteRef:
+            key: kratix-gitops-statestore
+            property: AppID
+        - secretKey: installationID
+          remoteRef:
+            key: kratix-gitops-statestore
+            property: InstallID
+        - secretKey: privateKey
+          remoteRef:
+            key: kratix-gitops-statestore
+            property: PrivateKey
+  
+  # GitStateStore pointing to kratix-platform-state repository
+  - apiVersion: platform.kratix.io/v1alpha1
+    kind: GitStateStore
+    metadata:
+      name: default
+      namespace: kratix-platform-system
+    spec:
+      authMethod: githubApp
+      secretRef:
+        name: kratix-github-credentials
+        namespace: kratix-platform-system
+      url: https://github.com/jamesatintegratnio/kratix-platform-state
+      branch: main
+      path: clusters
+  
+  # Destination for the-cluster workload scheduling
+  - apiVersion: platform.kratix.io/v1alpha1
+    kind: Destination
+    metadata:
+      name: the-cluster
+      namespace: kratix-platform-system
+      labels:
+        environment: production
+        cluster-role: control-plane
+        capability.vcluster: "true"
+    spec:
+      stateStoreRef:
+        name: default
+        kind: GitStateStore
+      path: the-cluster
+      strictMatchLabels: false
+  
+  # ArgoCD Application to reconcile state from kratix-platform-state repo
+  - apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: kratix-state-reconciler
+      namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: platform
+      source:
+        repoURL: https://github.com/jamesatintegratnio/kratix-platform-state
+        targetRevision: main
+        path: clusters/the-cluster
+        directory:
+          recurse: true
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: kratix-platform-system
+      syncPolicy:
+        automated:
+          selfHeal: true
+          prune: true
+        syncOptions:
+          - CreateNamespace=true

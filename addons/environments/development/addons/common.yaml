@@ -1,7 +1,7 @@
 useValuesFilePrefix: false
 repoURLGitRevision: HEAD
 repoURLGitBasePath: "addons"
-# only deploy apps to development environment clusters
+# only deploy apps to the control-plane environment
 globalSelectors:
   environment: "development"
 syncPolicy:
@@ -10,4 +10,4 @@ syncPolicy:
     allowEmpty: true
     prune: true
 syncPolicyAppSet:
-  preserveResourcesOnDeletion: true
+    preserveResourcesOnDeletion: true

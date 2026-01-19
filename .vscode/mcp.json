@@ -12,17 +12,11 @@
 			"type": "stdio"
 		},
 		"github": {
-			"command": "nix",
-			"args": [
-				"develop",
-				"/home/boboysdadda/projects/gitops_homelab_2_0",
-				"-c",
-				"node",
-				"/home/boboysdadda/projects/gitops_homelab_2_0/node_modules/@modelcontextprotocol/server-github/dist/index.js"
-			],
-			"type": "stdio",
-			"env": {
-				"GITHUB_PERSONAL_ACCESS_TOKEN": "${input:githubToken}"
+			"type": "http",
+			"url": "https://api.githubcopilot.com/mcp/",
+			"headers": {
+				"Authorization": "Bearer ${input:github_token}",
+				"X-MCP-Toolsets": "context,issues,pull_requests,repos,users,actions"
 			}
 		},
 		"memory": {
@@ -50,7 +44,7 @@
 	},
 	"inputs": [
 		{
-			"id": "githubToken",
+			"id": "github_token",
 			"type": "promptString",
 			"description": "GitHub Personal Access Token",
 			"password": true
