@@ -420,6 +420,23 @@ ${PERSISTENCE_STORAGE_CLASS_CM_LINE}
     enabled: true
     deployment:
       replicas: ${COREDNS_REPLICAS}
+    overwriteConfig: |
+      .:1053 {
+        errors
+        health
+        ready
+        kubernetes ${CLUSTER_DOMAIN} in-addr.arpa ip6.arpa {
+          pods insecure
+          fallthrough in-addr.arpa ip6.arpa
+          ttl 30
+        }
+        prometheus 0.0.0.0:9153
+        forward . /etc/resolv.conf
+        cache 30
+        loop
+        reload
+        loadbalance
+      }
 ${PROXY_EXTRA_SANS_VALUES}
 ${SERVICE_VALUES}
 
