@@ -13,6 +13,7 @@ spec:
   integrations:
     argocd:
       environment: development
+      clusterLabels: {}
   preset: dev
   coredns:
     replicas: 1
