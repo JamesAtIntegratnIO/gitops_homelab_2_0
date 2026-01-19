@@ -462,6 +462,12 @@ sync:
   toHost:
     pods:
       enabled: true
+  fromHost:
+    secrets:
+      enabled: true
+      mappings:
+        byName:
+          "external-secrets/eso-onepassword-token": "external-secrets/eso-onepassword-token"
 EOF
 
 yq eval '.spec.helmOverrides // {}' /kratix/input/object.yaml > "${VALUES_OVERRIDES_FILE}"
