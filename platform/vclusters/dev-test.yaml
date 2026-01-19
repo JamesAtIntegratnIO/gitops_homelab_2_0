@@ -10,6 +10,9 @@ spec:
   name: dev-test
   projectName: vcluster-dev-test
   targetNamespace: vcluster-dev-test
+  integrations:
+    argocd:
+      environment: development
   preset: dev
   coredns:
     replicas: 1
