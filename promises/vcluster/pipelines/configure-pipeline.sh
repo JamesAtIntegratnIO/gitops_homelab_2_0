@@ -669,13 +669,13 @@ spec:
               fi
 
               if [ -n "\${KUBECONFIG_TOKEN}" ]; then
-                ARGOCD_CONFIG_JSON=\$(jq -n --arg token "\${KUBECONFIG_TOKEN}" --arg ca "\${KUBECONFIG_CA_DATA}" '{bearerToken:$token,tlsClientConfig:{insecure:false,caData:$ca}}')
+                ARGOCD_CONFIG_JSON=\$(jq -n --arg token "\${KUBECONFIG_TOKEN}" --arg ca "\${KUBECONFIG_CA_DATA}" '{bearerToken:\$token,tlsClientConfig:{insecure:false,caData:\$ca}}')
               else
                 if [ -z "\${KUBECONFIG_CERT_DATA}" ] || [ -z "\${KUBECONFIG_KEY_DATA}" ]; then
                   echo "Failed to extract client cert/key from kubeconfig"
                   exit 1
                 fi
-                ARGOCD_CONFIG_JSON=\$(jq -n --arg ca "\${KUBECONFIG_CA_DATA}" --arg cert "\${KUBECONFIG_CERT_DATA}" --arg key "\${KUBECONFIG_KEY_DATA}" '{tlsClientConfig:{insecure:false,caData:$ca,certData:$cert,keyData:$key}}')
+                ARGOCD_CONFIG_JSON=\$(jq -n --arg ca "\${KUBECONFIG_CA_DATA}" --arg cert "\${KUBECONFIG_CERT_DATA}" --arg key "\${KUBECONFIG_KEY_DATA}" '{tlsClientConfig:{insecure:false,caData:\$ca,certData:\$cert,keyData:\$key}}')
               fi
 
               KUBECONFIG_CONTENT=\$(cat /shared/kubeconfig)
