@@ -8,6 +8,7 @@ metadata:
   namespace: platform-requests
 spec:
   name: dev-test
+  projectName: vcluster-dev-test
   targetNamespace: vcluster-dev-test
   preset: dev
   coredns:

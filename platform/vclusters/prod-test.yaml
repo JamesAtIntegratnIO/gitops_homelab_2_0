@@ -8,6 +8,7 @@ metadata:
   namespace: platform-requests
 spec:
   name: prod-test
+  projectName: vcluster-prod-test
   targetNamespace: vcluster-prod-test
   preset: prod
   coredns:
