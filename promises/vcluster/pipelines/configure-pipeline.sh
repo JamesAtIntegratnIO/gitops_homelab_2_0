@@ -360,6 +360,37 @@ metadata:
     instance: ${NAME}
 EOF
 
+# Create CoreDNS configmap in host namespace for vcluster DNS
+cat > /kratix/output/coredns-configmap.yaml <<EOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-x-kube-system-x-${NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    app: vcluster
+    instance: ${NAME}
+data:
+  Corefile: |
+    .:1053 {
+      errors
+      health
+      ready
+      kubernetes ${CLUSTER_DOMAIN} in-addr.arpa ip6.arpa {
+        pods insecure
+        fallthrough in-addr.arpa ip6.arpa
+        ttl 30
+      }
+      prometheus 0.0.0.0:9153
+      forward . /etc/resolv.conf
+      cache 30
+      loop
+      reload
+      loadbalance
+    }
+  NodeHosts: ""
+EOF
+
 # Create ArgoCD Project for the vcluster
 cat > /kratix/output/argocd-project.yaml <<EOF
 apiVersion: argoproj.io/v1alpha1
