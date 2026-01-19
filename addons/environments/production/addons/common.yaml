@@ -1,9 +1,6 @@
 useValuesFilePrefix: false
 repoURLGitRevision: HEAD
 repoURLGitBasePath: "addons"
-# only deploy apps to the control-plane environment
-globalSelectors:
-  environment: "production"
 syncPolicy:
   automated:
     selfHeal: false
