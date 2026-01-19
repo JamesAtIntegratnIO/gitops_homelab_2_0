@@ -118,6 +118,16 @@ external-secrets:
         values: ['true']
   valuesObject:
     installCRDs: true
+  ignoreDifferences:
+    - kind: Secret
+      name: external-secrets-webhook
+      jsonPointers:
+        - /data
+    - kind: Service
+      name: external-secrets-webhook
+      jsonPointers:
+        - /spec/clusterIP
+        - /spec/clusterIPs
     serviceAccount:
       name: "external-secrets-sa"
       annotations:
