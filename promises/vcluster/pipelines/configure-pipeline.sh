@@ -468,6 +468,15 @@ sync:
       mappings:
         byName:
           "external-secrets/eso-onepassword-token": "external-secrets/eso-onepassword-token"
+
+rbac:
+  clusterRole:
+    extraRules:
+      - apiGroups: [""]
+        resources: ["secrets"]
+        verbs: ["get", "list", "watch"]
+        resourceNames:
+          - "eso-onepassword-token"
 EOF
 
 yq eval '.spec.helmOverrides // {}' /kratix/input/object.yaml > "${VALUES_OVERRIDES_FILE}"
