@@ -2,35 +2,35 @@
 apiVersion: platform.integratn.tech/v1alpha1
 kind: VCluster
 metadata:
-	name: custom-test
-	namespace: platform-requests
+  name: custom-test
+  namespace: platform-requests
 spec:
-	name: custom-test
-	targetNamespace: vcluster-custom-test
-	preset: dev
-	coredns:
-		replicas: 1
-	replicas: 1
-	k8sVersion: "v1.34.3"
-	resources:
-		requests:
-			cpu: "500m"
-			memory: "1Gi"
-		limits:
-			cpu: "2"
-			memory: "2Gi"
-	persistence:
-		enabled: false
-	networking:
-		clusterDomain: "cluster.local"
-	hostname: custom-test.integratn.tech
-	subnet: 10.0.4.0/24
-	vip: 10.0.4.211
-	apiPort: 443
-	helmOverrides:
-		controlPlane: {}
-		networking: {}
-		sync:
-			toHost:
-				services:
-					enabled: true
+  name: custom-test
+  targetNamespace: vcluster-custom-test
+  preset: dev
+  coredns:
+    replicas: 1
+  replicas: 1
+  k8sVersion: "v1.34.3"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+  persistence:
+    enabled: false
+  networking:
+    clusterDomain: "cluster.local"
+  hostname: custom-test.integratn.tech
+  subnet: 10.0.4.0/24
+  vip: 10.0.4.211
+  apiPort: 443
+  helmOverrides:
+    controlPlane: {}
+    networking: {}
+    sync:
+      toHost:
+        services:
+          enabled: true
