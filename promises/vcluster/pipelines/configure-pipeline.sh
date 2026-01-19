@@ -163,6 +163,9 @@ addons_repo_revision: main
 addons_repo_basepath: addons/
 addons_repo_path: charts/application-sets
 managed-by: argocd.argoproj.io
+cert_manager_namespace: cert-manager
+external_dns_namespace: external-dns
+nfs_subdir_external_provisioner_namespace: nfs-provisioner
 cluster_name: ${NAME}
 environment: ${ARGOCD_ENVIRONMENT}
 EOF
