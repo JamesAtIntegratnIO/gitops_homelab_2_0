@@ -2,6 +2,8 @@
 apiVersion: platform.integratn.tech/v1alpha1
 kind: VCluster
 metadata:
+  annotations:
+    platform.integratn.tech/reconcile-at: "2026-01-19T05:40:00Z"
   name: prod-test
   namespace: platform-requests
 spec:
