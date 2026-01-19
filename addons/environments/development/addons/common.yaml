@@ -1,0 +1,13 @@
+useValuesFilePrefix: false
+repoURLGitRevision: HEAD
+repoURLGitBasePath: "addons"
+# only deploy apps to development environment clusters
+globalSelectors:
+  environment: "development"
+syncPolicy:
+  automated:
+    selfHeal: false
+    allowEmpty: true
+    prune: true
+syncPolicyAppSet:
+  preserveResourcesOnDeletion: true
