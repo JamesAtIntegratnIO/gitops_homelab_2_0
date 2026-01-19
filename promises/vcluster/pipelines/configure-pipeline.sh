@@ -152,7 +152,7 @@ fi
 ARGOCD_CLUSTER_LABELS_BASE=$(cat <<EOF
 argocd.argoproj.io/secret-type: cluster
 cluster_name: ${NAME}
-cluster_role: vcluster
+cluster_role: worker
 environment: ${ARGOCD_ENVIRONMENT}
 EOF
 )
