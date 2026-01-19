@@ -26,6 +26,7 @@ EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.
 ARGOCD_ENVIRONMENT_RAW=$(yq eval '.spec.integrations.argocd.environment // ""' /kratix/input/object.yaml)
 ARGOCD_CLUSTER_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.argocd.clusterLabels' /kratix/input/object.yaml)
 ARGOCD_CLUSTER_ANNOTATIONS_RAW=$(yq eval -o=yaml '.spec.integrations.argocd.clusterAnnotations' /kratix/input/object.yaml)
+ARGOCD_ENABLE_ADDONS_RAW=$(yq eval -o=json '.spec.integrations.argocd.enableAddons // []' /kratix/input/object.yaml)
 RECONCILE_AT_RAW=$(yq eval '.metadata.annotations."platform.integratn.tech/reconcile-at" // ""' /kratix/input/object.yaml)
 
 is_valid_ipv4() {
@@ -149,6 +150,16 @@ if [ -z "${ARGOCD_CLUSTER_ANNOTATIONS_RAW}" ] || [ "${ARGOCD_CLUSTER_ANNOTATIONS
   ARGOCD_CLUSTER_ANNOTATIONS_RAW=""
 fi
 
+ARGOCD_ENABLE_LABELS=""
+if [ -n "${ARGOCD_ENABLE_ADDONS_RAW}" ] && [ "${ARGOCD_ENABLE_ADDONS_RAW}" != "null" ] && [ "${ARGOCD_ENABLE_ADDONS_RAW}" != "[]" ]; then
+  while IFS= read -r addon; do
+    if [ -n "${addon}" ]; then
+      addon_key=$(printf '%s' "${addon}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')
+      ARGOCD_ENABLE_LABELS="${ARGOCD_ENABLE_LABELS}enable_${addon_key}: \"true\"\n"
+    fi
+  done < <(echo "${ARGOCD_ENABLE_ADDONS_RAW}" | yq -r '.[]')
+fi
+
 ARGOCD_CLUSTER_LABELS_BASE=$(cat <<EOF
 argocd.argoproj.io/secret-type: cluster
 cluster_name: ${NAME}
@@ -168,10 +179,12 @@ environment: ${ARGOCD_ENVIRONMENT}
 EOF
 )
 
+ARGOCD_CLUSTER_LABELS="${ARGOCD_CLUSTER_LABELS_BASE}"
+if [ -n "${ARGOCD_ENABLE_LABELS}" ]; then
+  ARGOCD_CLUSTER_LABELS=$(printf "%s\n%b" "${ARGOCD_CLUSTER_LABELS}" "${ARGOCD_ENABLE_LABELS}")
+fi
 if [ -n "${ARGOCD_CLUSTER_LABELS_RAW}" ]; then
-  ARGOCD_CLUSTER_LABELS=$(printf "%s\n%s" "${ARGOCD_CLUSTER_LABELS_BASE}" "${ARGOCD_CLUSTER_LABELS_RAW}")
-else
-  ARGOCD_CLUSTER_LABELS="${ARGOCD_CLUSTER_LABELS_BASE}"
+  ARGOCD_CLUSTER_LABELS=$(printf "%s\n%s" "${ARGOCD_CLUSTER_LABELS}" "${ARGOCD_CLUSTER_LABELS_RAW}")
 fi
 
 if [ -n "${ARGOCD_CLUSTER_ANNOTATIONS_RAW}" ]; then

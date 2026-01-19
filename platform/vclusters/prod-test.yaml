@@ -13,6 +13,12 @@ spec:
   integrations:
     argocd:
       environment: development
+      enableAddons:
+        - argocd
+        - cert-manager
+        - ingress-nginx
+        - external-secrets
+        - metrics-server
       clusterLabels: {}
       clusterAnnotations:
         reconcile-token: "20260119154500"

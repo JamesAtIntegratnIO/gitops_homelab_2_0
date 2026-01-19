@@ -7,10 +7,13 @@ spec:
   syncPolicy:
     preserveResourcesOnDeletion: true
   generators:
-    - clusters: {}
+    - clusters:
+        selector:
+          matchLabels:
+            cluster_role: control-plane
   template:
     metadata:
-      name: 'bootstrap-addons'
+      name: 'bootstrap-addons-{{name}}'
     spec:
       project: default
       destination:

@@ -158,6 +158,11 @@ spec:
                               type: string
                               description: Environment label used for ArgoCD cluster secret selectors
                               default: development
+                            enableAddons:
+                              type: array
+                              description: Addon names to enable on the vcluster (adds enable_<addon> labels)
+                              items:
+                                type: string
                             clusterLabels:
                               type: object
                               description: Additional labels applied to the ArgoCD cluster secret
