@@ -261,6 +261,30 @@ EOF
   fi
 fi
 
+PROXY_EXTRA_SANS_VALUES=""
+if [ -n "${HOSTNAME}" ] && [ "${HOSTNAME}" != "null" ]; then
+  PROXY_EXTRA_SANS_VALUES=$(cat <<EOF
+  proxy:
+    extraSANs:
+      - "${HOSTNAME}"
+EOF
+)
+  if [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
+    PROXY_EXTRA_SANS_VALUES=$(cat <<EOF
+${PROXY_EXTRA_SANS_VALUES}
+      - "${VIP}"
+EOF
+)
+  fi
+elif [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
+  PROXY_EXTRA_SANS_VALUES=$(cat <<EOF
+  proxy:
+    extraSANs:
+      - "${VIP}"
+EOF
+)
+fi
+
 PERSISTENCE_STORAGE_CLASS_CM_LINE=""
 PERSISTENCE_STORAGE_CLASS_APP_LINE=""
 if [ -n "${PERSISTENCE_STORAGE_CLASS}" ] && [ "${PERSISTENCE_STORAGE_CLASS}" != "null" ]; then
@@ -339,6 +363,7 @@ ${PERSISTENCE_STORAGE_CLASS_CM_LINE}
     enabled: true
     deployment:
       replicas: ${COREDNS_REPLICAS}
+${PROXY_EXTRA_SANS_VALUES}
 ${SERVICE_VALUES}
 
 deploy:
