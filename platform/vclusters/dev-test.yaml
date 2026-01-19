@@ -12,7 +12,7 @@ spec:
   targetNamespace: vcluster-dev-test
   integrations:
     argocd:
-      environment: development
+      environment: production
       clusterLabels:
         enable_argocd: "true"
         enable_cert_manager: "true"
