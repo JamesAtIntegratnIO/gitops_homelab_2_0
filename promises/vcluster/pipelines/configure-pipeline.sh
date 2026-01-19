@@ -23,9 +23,9 @@ PERSISTENCE_SIZE_RAW=$(yq eval '.spec.persistence.size' /kratix/input/object.yam
 PERSISTENCE_STORAGE_CLASS=$(yq eval '.spec.persistence.storageClass // ""' /kratix/input/object.yaml)
 CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.certManager.clusterIssuerSelectorLabels' /kratix/input/object.yaml)
 EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.externalSecrets.clusterStoreSelectorLabels' /kratix/input/object.yaml)
-ARGOCD_ENVIRONMENT_RAW=$(yq eval '.spec.argocd.environment // ""' /kratix/input/object.yaml)
-ARGOCD_CLUSTER_LABELS_RAW=$(yq eval -o=yaml '.spec.argocd.clusterLabels' /kratix/input/object.yaml)
-ARGOCD_CLUSTER_ANNOTATIONS_RAW=$(yq eval -o=yaml '.spec.argocd.clusterAnnotations' /kratix/input/object.yaml)
+ARGOCD_ENVIRONMENT_RAW=$(yq eval '.spec.integrations.argocd.environment // ""' /kratix/input/object.yaml)
+ARGOCD_CLUSTER_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.argocd.clusterLabels' /kratix/input/object.yaml)
+ARGOCD_CLUSTER_ANNOTATIONS_RAW=$(yq eval -o=yaml '.spec.integrations.argocd.clusterAnnotations' /kratix/input/object.yaml)
 RECONCILE_AT_RAW=$(yq eval '.metadata.annotations."platform.integratn.tech/reconcile-at" // ""' /kratix/input/object.yaml)
 
 is_valid_ipv4() {
