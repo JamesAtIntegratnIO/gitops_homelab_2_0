@@ -649,7 +649,7 @@ spec:
     - secretKey: kubeconfig
       remoteRef:
         key: ${ONEPASSWORD_ITEM}
-        property: notesPlain
+        property: kubeconfig
 EOF
 
 echo "Resources generated successfully for vcluster: ${NAME}"
