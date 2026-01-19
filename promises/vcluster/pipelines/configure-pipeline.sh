@@ -576,9 +576,9 @@ spec:
                 mv /shared/kubeconfig.rewritten /shared/kubeconfig
               fi
 
-              KUBECONFIG_CONTENT=$(cat /shared/kubeconfig)
-              KUBECONFIG_BYTES=$(printf '%s' "${KUBECONFIG_CONTENT}" | wc -c | tr -d ' ')
-              if [ "${KUBECONFIG_BYTES}" -eq 0 ]; then
+              KUBECONFIG_CONTENT=\$(cat /shared/kubeconfig)
+              KUBECONFIG_BYTES=\$(printf '%s' "\${KUBECONFIG_CONTENT}" | wc -c | tr -d ' ')
+              if [ "\${KUBECONFIG_BYTES}" -eq 0 ]; then
                 echo "Kubeconfig content is empty; aborting sync"
                 exit 1
               fi
