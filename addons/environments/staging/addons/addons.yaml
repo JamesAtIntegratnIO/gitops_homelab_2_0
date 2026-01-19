@@ -118,16 +118,6 @@ external-secrets:
         values: ['true']
   valuesObject:
     installCRDs: true
-  ignoreDifferences:
-    - kind: Secret
-      name: external-secrets-webhook
-      jsonPointers:
-        - /data
-    - kind: Service
-      name: external-secrets-webhook
-      jsonPointers:
-        - /spec/clusterIP
-        - /spec/clusterIPs
     serviceAccount:
       name: "external-secrets-sa"
       annotations:
@@ -151,6 +141,16 @@ external-secrets:
                     name: eso-onepassword-token
                     namespace: external-secrets
                     key: token
+  ignoreDifferences:
+    - kind: Secret
+      name: external-secrets-webhook
+      jsonPointers:
+        - /data
+    - kind: Service
+      name: external-secrets-webhook
+      jsonPointers:
+        - /spec/clusterIP
+        - /spec/clusterIPs
 aws-load-balancer-controller:
   enabled: false
   enableAckPodIdentity: true
