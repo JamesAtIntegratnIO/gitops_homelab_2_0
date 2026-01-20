@@ -92,3 +92,9 @@ additionalResources:
           prune: true
         syncOptions:
           - CreateNamespace=true
+      ignoreDifferences:
+        - kind: ConfigMap
+          name: coredns-x-kube-system-x-test
+          namespace: vcluster-test
+          jsonPointers:
+            - /data/NodeHosts
