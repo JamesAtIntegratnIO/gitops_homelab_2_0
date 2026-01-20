@@ -23,6 +23,7 @@ PERSISTENCE_STORAGE_CLASS=$(yq eval '.spec.vcluster.persistence.storageClass // 
 CLUSTER_DOMAIN=$(yq eval '.spec.vcluster.networking.clusterDomain // "cluster.local"' "${INPUT_FILE}")
 
 HOSTNAME=$(yq eval '.spec.exposure.hostname // ""' "${INPUT_FILE}")
+BASE_DOMAIN=$(yq eval '.metadata.annotations."platform.integratn.tech/base-domain" // "integratn.tech"' "${INPUT_FILE}")
 SUBNET=$(yq eval '.spec.exposure.subnet // ""' "${INPUT_FILE}")
 VIP=$(yq eval '.spec.exposure.vip // ""' "${INPUT_FILE}")
 API_PORT=$(yq eval '.spec.exposure.apiPort // 8443' "${INPUT_FILE}")
@@ -126,6 +127,10 @@ else
 fi
 
 EXTERNAL_SERVER_URL=""
+
+if [ -z "${HOSTNAME}" ] || [ "${HOSTNAME}" = "null" ]; then
+  HOSTNAME="${NAME}.${BASE_DOMAIN}"
+fi
 
 if [ -z "${PRESET}" ] || [ "${PRESET}" = "null" ]; then
   PRESET=dev
@@ -278,11 +283,7 @@ else
 fi
 
 SERVICE_VALUES=""
-if [ -n "${HOSTNAME}" ] || [ -n "${SUBNET}" ] || [ -n "${VIP}" ]; then
-  if [ -z "${HOSTNAME}" ] || [ "${HOSTNAME}" = "null" ] || [ -z "${SUBNET}" ] || [ "${SUBNET}" = "null" ]; then
-    echo "hostname and subnet are required when exposing a VIP"
-    exit 1
-  fi
+if [ -n "${SUBNET}" ] && [ "${SUBNET}" != "null" ]; then
   if [ -z "${VIP}" ] || [ "${VIP}" = "null" ]; then
     VIP=$(default_vip_from_cidr "${SUBNET}" 100)
   fi
@@ -294,15 +295,21 @@ if [ -n "${HOSTNAME}" ] || [ -n "${SUBNET}" ] || [ -n "${VIP}" ]; then
     echo "VIP ${VIP} is not within subnet ${SUBNET}"
     exit 1
   fi
+fi
 
-  SERVICE_VALUES=$(cat <<EOF
+SERVICE_LOADBALANCER_IP_LINE=""
+if [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
+  SERVICE_LOADBALANCER_IP_LINE="      loadBalancerIP: \"${VIP}\""
+fi
+
+SERVICE_VALUES=$(cat <<EOF
   service:
     enabled: true
     annotations:
       external-dns.alpha.kubernetes.io/hostname: "${HOSTNAME}"
     spec:
       type: LoadBalancer
-      loadBalancerIP: "${VIP}"
+${SERVICE_LOADBALANCER_IP_LINE}
       ports:
         - name: https
           port: ${API_PORT}
@@ -311,11 +318,10 @@ if [ -n "${HOSTNAME}" ] || [ -n "${SUBNET}" ] || [ -n "${VIP}" ]; then
 EOF
 )
 
-  if [ -n "${HOSTNAME}" ] && [ "${HOSTNAME}" != "null" ]; then
-    EXTERNAL_SERVER_URL="https://${HOSTNAME}:${API_PORT}"
-  elif [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
-    EXTERNAL_SERVER_URL="https://${VIP}:${API_PORT}"
-  fi
+if [ -n "${HOSTNAME}" ] && [ "${HOSTNAME}" != "null" ]; then
+  EXTERNAL_SERVER_URL="https://${HOSTNAME}:${API_PORT}"
+elif [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
+  EXTERNAL_SERVER_URL="https://${VIP}:${API_PORT}"
 fi
 
 PROXY_EXTRA_SANS_VALUES=""
