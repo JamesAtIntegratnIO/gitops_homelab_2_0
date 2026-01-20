@@ -6,9 +6,10 @@ RUN apk add --no-cache bash yq curl kubectl
 # Copy pipeline scripts
 COPY pipelines/configure-pipeline.sh /scripts/configure-pipeline.sh
 COPY pipelines/delete-pipeline.sh /scripts/delete-pipeline.sh
+COPY pipelines/lib/ /scripts/lib/
 
 # Make scripts executable
-RUN chmod +x /scripts/*.sh
+RUN chmod +x /scripts/*.sh /scripts/lib/*.sh
 
 # Default to configure pipeline
 CMD ["/scripts/configure-pipeline.sh"]
