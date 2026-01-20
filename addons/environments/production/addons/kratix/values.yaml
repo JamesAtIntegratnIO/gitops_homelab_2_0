@@ -102,4 +102,5 @@ additionalResources:
           name: vcluster-test-kubeconfig-sync
           namespace: vcluster-test
           jsonPointers:
+            - /spec
             - /status
