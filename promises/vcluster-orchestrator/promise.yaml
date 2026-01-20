@@ -264,7 +264,7 @@ spec:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
           metadata:
-            name: vcluster-orchestrator-configure
+            name: vco
             namespace: platform-requests
           spec:
             containers:
@@ -275,7 +275,7 @@ spec:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
           metadata:
-            name: vcluster-orchestrator-delete
+            name: vcod
             namespace: platform-requests
           spec:
             containers:

@@ -100,7 +100,7 @@ spec:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
           metadata:
-            name: argocd-application-configure
+            name: aa-cfg
             namespace: platform-requests
           spec:
             containers:
@@ -111,7 +111,7 @@ spec:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
           metadata:
-            name: argocd-application-delete
+            name: aa-del
             namespace: platform-requests
           spec:
             containers:

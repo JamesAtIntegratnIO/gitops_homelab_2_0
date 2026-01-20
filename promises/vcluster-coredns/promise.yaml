@@ -52,7 +52,7 @@ spec:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
           metadata:
-            name: vcluster-coredns-configure
+            name: vcdns
             namespace: platform-requests
           spec:
             containers:
@@ -63,7 +63,7 @@ spec:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
           metadata:
-            name: vcluster-coredns-delete
+            name: vcdnsd
             namespace: platform-requests
           spec:
             containers:

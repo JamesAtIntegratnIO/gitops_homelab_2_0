@@ -52,7 +52,7 @@ spec:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
           metadata:
-            name: vcluster-kubeconfig-external-secret-configure
+            name: vkes
             namespace: platform-requests
           spec:
             containers:
@@ -63,7 +63,7 @@ spec:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
           metadata:
-            name: vcluster-kubeconfig-external-secret-delete
+            name: vkesd
             namespace: platform-requests
           spec:
             containers:
