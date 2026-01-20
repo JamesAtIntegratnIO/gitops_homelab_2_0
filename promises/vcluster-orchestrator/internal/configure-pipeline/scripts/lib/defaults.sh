@@ -9,7 +9,7 @@ if [ -z "${PROJECT_NAME}" ] || [ "${PROJECT_NAME}" = "null" ]; then
 fi
 
 if [ -z "${API_PORT}" ] || [ "${API_PORT}" = "null" ]; then
-  API_PORT=8443
+  API_PORT=443
 fi
 
 RECONCILE_TOKEN=$(echo "${RECONCILE_AT_RAW}" | tr -cd '0-9')

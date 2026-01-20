@@ -25,7 +25,7 @@ HOSTNAME=$(yq eval '.spec.exposure.hostname // ""' "${INPUT_FILE}")
 BASE_DOMAIN=$(yq eval '.metadata.annotations."platform.integratn.tech/base-domain" // "integratn.tech"' "${INPUT_FILE}")
 SUBNET=$(yq eval '.spec.exposure.subnet // ""' "${INPUT_FILE}")
 VIP=$(yq eval '.spec.exposure.vip // ""' "${INPUT_FILE}")
-API_PORT=$(yq eval '.spec.exposure.apiPort // 8443' "${INPUT_FILE}")
+API_PORT=$(yq eval '.spec.exposure.apiPort // 443' "${INPUT_FILE}")
 
 CERT_MANAGER_CLUSTER_ISSUER_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.certManager.clusterIssuerSelectorLabels' "${INPUT_FILE}")
 EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.externalSecrets.clusterStoreSelectorLabels' "${INPUT_FILE}")
