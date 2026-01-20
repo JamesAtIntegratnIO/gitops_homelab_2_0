@@ -36,7 +36,8 @@ build_blocks() {
   if [ "${FINALIZERS_LENGTH}" -eq 0 ]; then
     FINALIZERS_BLOCK=""
   else
-    FINALIZERS_BLOCK=$(printf "  finalizers:\n%s\n" "$(sed 's/^/  - /' "${FINALIZERS_FILE}")")
+    FINALIZERS_ITEMS=$(yq eval '.[]' "${FINALIZERS_FILE}")
+    FINALIZERS_BLOCK=$(printf "  finalizers:\n%s\n" "$(printf '%s\n' "${FINALIZERS_ITEMS}" | sed 's/^/  - /')")
   fi
 
   if [ "${VALUES_OBJECT_LENGTH}" -eq 0 ]; then
