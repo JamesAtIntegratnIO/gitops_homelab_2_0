@@ -15,6 +15,7 @@ MEMORY_LIMIT_RAW=$(yq eval '.spec.resources.limits.memory' /kratix/input/object.
 PROJECT_NAME=$(yq eval '.spec.projectName // ""' /kratix/input/object.yaml)
 CLUSTER_DOMAIN=$(yq eval '.spec.networking.clusterDomain // "cluster.local"' /kratix/input/object.yaml)
 HOSTNAME=$(yq eval '.spec.hostname // ""' /kratix/input/object.yaml)
+BASE_DOMAIN=$(yq eval '.metadata.annotations."platform.integratn.tech/base-domain" // "integratn.tech"' /kratix/input/object.yaml)
 SUBNET=$(yq eval '.spec.subnet // ""' /kratix/input/object.yaml)
 VIP=$(yq eval '.spec.vip // ""' /kratix/input/object.yaml)
 API_PORT=$(yq eval '.spec.apiPort // 8443' /kratix/input/object.yaml)
@@ -126,6 +127,10 @@ else
 fi
 
 EXTERNAL_SERVER_URL=""
+
+if [ -z "${HOSTNAME}" ] || [ "${HOSTNAME}" = "null" ]; then
+  HOSTNAME="${NAME}.${BASE_DOMAIN}"
+fi
 
 if [ -z "${PRESET}" ] || [ "${PRESET}" = "null" ]; then
   PRESET=dev
@@ -278,11 +283,7 @@ else
 fi
 
 SERVICE_VALUES=""
-if [ -n "${HOSTNAME}" ] || [ -n "${SUBNET}" ] || [ -n "${VIP}" ]; then
-  if [ -z "${HOSTNAME}" ] || [ "${HOSTNAME}" = "null" ] || [ -z "${SUBNET}" ] || [ "${SUBNET}" = "null" ]; then
-    echo "hostname and subnet are required when exposing a VIP"
-    exit 1
-  fi
+if [ -n "${SUBNET}" ] && [ "${SUBNET}" != "null" ]; then
   if [ -z "${VIP}" ] || [ "${VIP}" = "null" ]; then
     VIP=$(default_vip_from_cidr "${SUBNET}" 100)
   fi
@@ -294,15 +295,21 @@ if [ -n "${HOSTNAME}" ] || [ -n "${SUBNET}" ] || [ -n "${VIP}" ]; then
     echo "VIP ${VIP} is not within subnet ${SUBNET}"
     exit 1
   fi
+fi
 
-  SERVICE_VALUES=$(cat <<EOF
+SERVICE_LOADBALANCER_IP_LINE=""
+if [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
+  SERVICE_LOADBALANCER_IP_LINE="      loadBalancerIP: \"${VIP}\""
+fi
+
+SERVICE_VALUES=$(cat <<EOF
   service:
     enabled: true
     annotations:
       external-dns.alpha.kubernetes.io/hostname: "${HOSTNAME}"
     spec:
       type: LoadBalancer
-      loadBalancerIP: "${VIP}"
+${SERVICE_LOADBALANCER_IP_LINE}
       ports:
         - name: https
           port: ${API_PORT}
@@ -311,11 +318,10 @@ if [ -n "${HOSTNAME}" ] || [ -n "${SUBNET}" ] || [ -n "${VIP}" ]; then
 EOF
 )
 
-  if [ -n "${HOSTNAME}" ] && [ "${HOSTNAME}" != "null" ]; then
-    EXTERNAL_SERVER_URL="https://${HOSTNAME}:${API_PORT}"
-  elif [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
-    EXTERNAL_SERVER_URL="https://${VIP}:${API_PORT}"
-  fi
+if [ -n "${HOSTNAME}" ] && [ "${HOSTNAME}" != "null" ]; then
+  EXTERNAL_SERVER_URL="https://${HOSTNAME}:${API_PORT}"
+elif [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
+  EXTERNAL_SERVER_URL="https://${VIP}:${API_PORT}"
 fi
 
 PROXY_EXTRA_SANS_VALUES=""
