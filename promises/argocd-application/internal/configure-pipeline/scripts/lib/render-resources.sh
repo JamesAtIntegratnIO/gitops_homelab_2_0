@@ -36,7 +36,7 @@ build_blocks() {
   if [ "${FINALIZERS_LENGTH}" -eq 0 ]; then
     FINALIZERS_BLOCK=""
   else
-    FINALIZERS_ITEMS=$(yq eval '.[]' "${FINALIZERS_FILE}")
+    FINALIZERS_ITEMS=$(yq eval -r '.[]' "${FINALIZERS_FILE}")
     FINALIZERS_BLOCK=$(printf "  finalizers:\n%s\n" "$(printf '%s\n' "${FINALIZERS_ITEMS}" | sed 's/^/  - /')")
   fi
 
@@ -64,7 +64,8 @@ metadata:
 ${ANNOTATIONS}
   labels:
 ${LABELS}
-${FINALIZERS_BLOCK}spec:
+${FINALIZERS_BLOCK}
+spec:
   project: ${PROJECT}
   source:
     repoURL: ${REPO_URL}
