@@ -1,0 +1,9 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VClusterCoredns
+metadata:
+  name: dev-team
+  namespace: vcluster-dev-team
+spec:
+  name: dev-team
+  targetNamespace: vcluster-dev-team
+  clusterDomain: cluster.local

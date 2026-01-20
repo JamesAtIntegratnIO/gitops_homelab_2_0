@@ -1,0 +1,285 @@
+apiVersion: platform.kratix.io/v1alpha1
+kind: Promise
+metadata:
+  name: vcluster-orchestrator
+  labels:
+    kratix.io/promise-type: platform
+spec:
+  destinationSelectors:
+    - matchLabels:
+        capability.vcluster: "true"
+
+  api:
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: vclusterorchestrators.platform.integratn.tech
+    spec:
+      group: platform.integratn.tech
+      scope: Namespaced
+      names:
+        plural: vclusterorchestrators
+        singular: vclusterorchestrator
+        kind: VClusterOrchestrator
+      versions:
+        - name: v1alpha1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required:
+                    - name
+                    - targetNamespace
+                    - projectName
+                    - vcluster
+                    - integrations
+                    - argocdApplication
+                  properties:
+                    name:
+                      type: string
+                      description: Name of the vcluster instance
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    targetNamespace:
+                      type: string
+                      description: Namespace where the vcluster will be deployed
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    projectName:
+                      type: string
+                      description: ArgoCD project name for the vcluster application
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    vcluster:
+                      type: object
+                      required:
+                        - preset
+                      properties:
+                        k8sVersion:
+                          type: string
+                          description: Kubernetes version for the virtual cluster
+                          default: "v1.34.3"
+                          enum:
+                            - "v1.34.3"
+                            - "1.34"
+                            - "1.33"
+                            - "1.32"
+                        preset:
+                          type: string
+                          description: Base sizing preset for the vcluster
+                          default: dev
+                          enum:
+                            - dev
+                            - prod
+                        replicas:
+                          type: integer
+                          description: Override replica count for the vcluster control plane
+                          minimum: 1
+                        isolationMode:
+                          type: string
+                          description: Workload isolation mode
+                          default: "standard"
+                          enum:
+                            - "standard"
+                            - "strict"
+                        resources:
+                          type: object
+                          description: Resource requests and limits for the vcluster control plane
+                          properties:
+                            requests:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                  default: "200m"
+                                memory:
+                                  type: string
+                                  default: "512Mi"
+                            limits:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                  default: "1000m"
+                                memory:
+                                  type: string
+                                  default: "1Gi"
+                        persistence:
+                          type: object
+                          description: Control plane persistence settings
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: true
+                            size:
+                              type: string
+                              default: "5Gi"
+                            storageClass:
+                              type: string
+                              description: Storage class for the vcluster control plane data volume
+                        coredns:
+                          type: object
+                          description: CoreDNS settings for the virtual cluster
+                          properties:
+                            replicas:
+                              type: integer
+                              minimum: 1
+                              default: 1
+                        networking:
+                          type: object
+                          description: Networking settings for the virtual cluster
+                          properties:
+                            clusterDomain:
+                              type: string
+                              default: "cluster.local"
+                        helmOverrides:
+                          type: object
+                          description: Additional Helm values to override
+                          x-kubernetes-preserve-unknown-fields: true
+                    exposure:
+                      type: object
+                      description: Load balancer exposure settings for the vcluster API
+                      properties:
+                        hostname:
+                          type: string
+                          description: DNS hostname for the vcluster API endpoint
+                          pattern: '^([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)+[a-z]{2,}$'
+                          maxLength: 253
+                        subnet:
+                          type: string
+                          description: CIDR subnet for VIP allocation
+                          pattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}\/(\d|[12]\d|3[0-2])$'
+                        vip:
+                          type: string
+                          description: VIP for the vcluster API (defaults to .100 in subnet)
+                          pattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
+                        apiPort:
+                          type: integer
+                          description: API port exposed by the vcluster service
+                          default: 8443
+                          minimum: 1
+                          maximum: 65535
+                    integrations:
+                      type: object
+                      required:
+                        - certManager
+                        - externalSecrets
+                        - argocd
+                      description: Integrations settings for syncing host resources into vcluster
+                      properties:
+                        certManager:
+                          type: object
+                          required:
+                            - clusterIssuerSelectorLabels
+                          properties:
+                            clusterIssuerSelectorLabels:
+                              type: object
+                              description: Label selector for ClusterIssuers to sync from host
+                              additionalProperties:
+                                type: string
+                              default:
+                                integratn.tech/cluster-issuer: letsencrypt-prod
+                        externalSecrets:
+                          type: object
+                          required:
+                            - clusterStoreSelectorLabels
+                          properties:
+                            clusterStoreSelectorLabels:
+                              type: object
+                              description: Label selector for ClusterSecretStores to sync from host
+                              additionalProperties:
+                                type: string
+                              default:
+                                integratn.tech/cluster-secret-store: onepassword-store
+                        argocd:
+                          type: object
+                          required:
+                            - environment
+                          description: ArgoCD cluster registration settings
+                          properties:
+                            environment:
+                              type: string
+                              description: Environment label used for ArgoCD cluster secret selectors
+                              default: development
+                            clusterLabels:
+                              type: object
+                              description: Additional labels applied to the ArgoCD cluster secret
+                              additionalProperties:
+                                type: string
+                            clusterAnnotations:
+                              type: object
+                              description: Additional annotations applied to the ArgoCD cluster secret
+                              additionalProperties:
+                                type: string
+                    argocdApplication:
+                      type: object
+                      required:
+                        - repoURL
+                        - chart
+                        - targetRevision
+                      description: ArgoCD Application settings for the vcluster Helm deployment
+                      properties:
+                        repoURL:
+                          type: string
+                          default: https://charts.loft.sh
+                        chart:
+                          type: string
+                          default: vcluster
+                        targetRevision:
+                          type: string
+                          default: 0.30.4
+                        destinationServer:
+                          type: string
+                          default: https://kubernetes.default.svc
+                        syncPolicy:
+                          type: object
+                          description: ArgoCD sync policy settings
+                          properties:
+                            automated:
+                              type: object
+                              properties:
+                                selfHeal:
+                                  type: boolean
+                                  default: true
+                                prune:
+                                  type: boolean
+                                  default: true
+                            syncOptions:
+                              type: array
+                              items:
+                                type: string
+                              default:
+                                - CreateNamespace=true
+                status:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+
+  workflows:
+    resource:
+      configure:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: vcluster-orchestrator-configure
+            namespace: platform-requests
+          spec:
+            containers:
+              - name: render
+                image: ghcr.io/jamesatintegratnio/vcluster-orchestrator-promise-pipeline:main
+                imagePullPolicy: Always
+      delete:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: vcluster-orchestrator-delete
+            namespace: platform-requests
+          spec:
+            containers:
+              - name: delete
+                image: ghcr.io/jamesatintegratnio/vcluster-orchestrator-promise-pipeline:main
+                imagePullPolicy: Always
+                command: ["/scripts/delete-pipeline.sh"]

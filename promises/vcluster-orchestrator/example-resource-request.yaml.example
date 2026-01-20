@@ -1,0 +1,34 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VClusterOrchestrator
+metadata:
+  name: dev-team-cluster
+  namespace: vcluster-dev-team
+spec:
+  name: dev-team
+  targetNamespace: vcluster-dev-team
+  projectName: vcluster-dev-team
+  vcluster:
+    preset: dev
+    k8sVersion: "v1.34.3"
+    isolationMode: standard
+    networking:
+      clusterDomain: cluster.local
+    coredns:
+      replicas: 2
+    helmOverrides: {}
+  exposure:
+    hostname: dev-team.integratn.tech
+    subnet: 10.0.6.0/24
+  integrations:
+    certManager:
+      clusterIssuerSelectorLabels:
+        integratn.tech/cluster-issuer: letsencrypt-prod
+    externalSecrets:
+      clusterStoreSelectorLabels:
+        integratn.tech/cluster-secret-store: onepassword-store
+    argocd:
+      environment: development
+  argocdApplication:
+    repoURL: https://charts.loft.sh
+    chart: vcluster
+    targetRevision: 0.30.4

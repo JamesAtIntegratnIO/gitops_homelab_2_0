@@ -1,6 +1,6 @@
 ---
 apiVersion: platform.integratn.tech/v1alpha1
-kind: VCluster
+kind: VClusterOrchestrator
 metadata:
   annotations:
     platform.integratn.tech/reconcile-at: "2026-01-19T21:30:00Z"
@@ -10,7 +10,29 @@ spec:
   name: dev-test
   projectName: vcluster-dev-test
   targetNamespace: vcluster-dev-test
+  vcluster:
+    preset: dev
+    k8sVersion: "v1.34.3"
+    coredns:
+      replicas: 1
+    helmOverrides:
+      controlPlane:
+        proxy:
+          extraSANs:
+            - dev-test.integratn.tech
+            - 10.0.4.210
+  exposure:
+    hostname: dev-test.integratn.tech
+    subnet: 10.0.4.0/24
+    vip: 10.0.4.210
+    apiPort: 443
   integrations:
+    certManager:
+      clusterIssuerSelectorLabels:
+        integratn.tech/cluster-issuer: letsencrypt-prod
+    externalSecrets:
+      clusterStoreSelectorLabels:
+        integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production
       clusterLabels:
@@ -21,17 +43,7 @@ spec:
         enable_metrics_server: "true"
       clusterAnnotations:
         reconcile-token: "20260119213000"
-  preset: dev
-  coredns:
-    replicas: 1
-  k8sVersion: "v1.34.3"
-  hostname: dev-test.integratn.tech
-  subnet: 10.0.4.0/24
-  vip: 10.0.4.210
-  apiPort: 443
-  helmOverrides:
-    controlPlane:
-      proxy:
-        extraSANs:
-          - dev-test.integratn.tech
-          - 10.0.4.210
+  argocdApplication:
+    repoURL: https://charts.loft.sh
+    chart: vcluster
+    targetRevision: 0.30.4

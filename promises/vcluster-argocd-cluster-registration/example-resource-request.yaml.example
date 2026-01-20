@@ -1,0 +1,25 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VClusterArgoCDClusterRegistration
+metadata:
+  name: dev-team
+  namespace: vcluster-dev-team
+spec:
+  name: dev-team
+  argocdNamespace: argocd
+  onepasswordItem: vcluster-dev-team-kubeconfig
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+    cluster_name: dev-team
+    cluster_role: worker
+    environment: development
+  annotations:
+    addons_repo_url: https://github.com/jamesatintegratnio/gitops_homelab_2_0
+    addons_repo_revision: main
+    addons_repo_basepath: addons/
+    addons_repo_path: charts/application-sets
+    managed-by: argocd.argoproj.io
+    cert_manager_namespace: cert-manager
+    external_dns_namespace: external-dns
+    nfs_subdir_external_provisioner_namespace: nfs-provisioner
+    cluster_name: dev-team
+    environment: development

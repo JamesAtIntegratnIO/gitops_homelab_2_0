@@ -1,0 +1,13 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VClusterKubeconfigSync
+metadata:
+  name: dev-team
+  namespace: vcluster-dev-team
+spec:
+  name: dev-team
+  targetNamespace: vcluster-dev-team
+  kubeconfigSyncJobName: vcluster-dev-team-kubeconfig-sync
+  onepasswordItem: vcluster-dev-team-kubeconfig
+  hostname: dev-team.integratn.tech
+  apiPort: 8443
+  serverUrl: https://dev-team.integratn.tech:8443

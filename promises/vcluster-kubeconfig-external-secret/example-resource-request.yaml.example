@@ -1,0 +1,9 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VClusterKubeconfigExternalSecret
+metadata:
+  name: dev-team
+  namespace: vcluster-dev-team
+spec:
+  name: dev-team
+  targetNamespace: vcluster-dev-team
+  onepasswordItem: vcluster-dev-team-kubeconfig

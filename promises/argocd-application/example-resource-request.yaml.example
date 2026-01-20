@@ -1,0 +1,31 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: ArgoCDApplication
+metadata:
+  name: vcluster-dev-team
+  namespace: vcluster-dev-team
+spec:
+  name: vcluster-dev-team
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  project: vcluster-dev-team
+  source:
+    repoURL: https://charts.loft.sh
+    chart: vcluster
+    targetRevision: 0.30.4
+    helm:
+      releaseName: dev-team
+      valuesObject:
+        telemetry:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vcluster-dev-team
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

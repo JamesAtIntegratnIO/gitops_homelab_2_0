@@ -1,6 +1,6 @@
 ---
 apiVersion: platform.integratn.tech/v1alpha1
-kind: VCluster
+kind: VClusterOrchestrator
 metadata:
   annotations:
     platform.integratn.tech/reconcile-at: "2026-01-19T21:30:00Z"
@@ -10,7 +10,42 @@ spec:
   name: prod-test
   projectName: vcluster-prod-test
   targetNamespace: vcluster-prod-test
+  vcluster:
+    preset: prod
+    k8sVersion: "v1.34.3"
+    replicas: 1
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+    persistence:
+      enabled: false
+    networking:
+      clusterDomain: "cluster.local"
+    coredns:
+      replicas: 1
+    helmOverrides:
+      controlPlane:
+        proxy:
+          extraSANs:
+            - prod-test.integratn.tech
+            - 10.0.4.212
+      networking: {}
+  exposure:
+    hostname: prod-test.integratn.tech
+    subnet: 10.0.4.0/24
+    vip: 10.0.4.212
+    apiPort: 443
   integrations:
+    certManager:
+      clusterIssuerSelectorLabels:
+        integratn.tech/cluster-issuer: letsencrypt-prod
+    externalSecrets:
+      clusterStoreSelectorLabels:
+        integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production
       clusterLabels:
@@ -21,30 +56,7 @@ spec:
         enable_metrics_server: "true"
       clusterAnnotations:
         reconcile-token: "20260119213000"
-  preset: prod
-  coredns:
-    replicas: 1
-  replicas: 1
-  k8sVersion: "v1.34.3"
-  resources:
-    requests:
-      cpu: "500m"
-      memory: "1Gi"
-    limits:
-      cpu: "2"
-      memory: "2Gi"
-  persistence:
-    enabled: false
-  networking:
-    clusterDomain: "cluster.local"
-  hostname: prod-test.integratn.tech
-  subnet: 10.0.4.0/24
-  vip: 10.0.4.212
-  apiPort: 443
-  helmOverrides:
-    controlPlane:
-      proxy:
-        extraSANs:
-          - prod-test.integratn.tech
-          - 10.0.4.212
-    networking: {}
+  argocdApplication:
+    repoURL: https://charts.loft.sh
+    chart: vcluster
+    targetRevision: 0.30.4

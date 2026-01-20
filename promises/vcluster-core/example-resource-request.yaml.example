@@ -1,0 +1,11 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VClusterCore
+metadata:
+  name: dev-team
+  namespace: vcluster-dev-team
+spec:
+  name: dev-team
+  targetNamespace: vcluster-dev-team
+  valuesYaml: |
+    telemetry:
+      enabled: false

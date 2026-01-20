@@ -1,0 +1,82 @@
+apiVersion: platform.kratix.io/v1alpha1
+kind: Promise
+metadata:
+  name: vcluster-kubeconfig-sync
+  labels:
+    kratix.io/promise-type: platform
+spec:
+  destinationSelectors:
+    - matchLabels:
+        capability.vcluster: "true"
+
+  api:
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: vclusterkubeconfigsync.platform.integratn.tech
+    spec:
+      group: platform.integratn.tech
+      scope: Namespaced
+      names:
+        plural: vclusterkubeconfigsync
+        singular: vclusterkubeconfigsync
+        kind: VClusterKubeconfigSync
+      versions:
+        - name: v1alpha1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required:
+                    - name
+                    - targetNamespace
+                    - kubeconfigSyncJobName
+                    - onepasswordItem
+                  properties:
+                    name:
+                      type: string
+                    targetNamespace:
+                      type: string
+                    kubeconfigSyncJobName:
+                      type: string
+                    onepasswordItem:
+                      type: string
+                    hostname:
+                      type: string
+                    apiPort:
+                      type: integer
+                    serverUrl:
+                      type: string
+                status:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+
+  workflows:
+    resource:
+      configure:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: vcluster-kubeconfig-sync-configure
+            namespace: platform-requests
+          spec:
+            containers:
+              - name: render
+                image: ghcr.io/jamesatintegratnio/vcluster-kubeconfig-sync-promise-pipeline:main
+                imagePullPolicy: Always
+      delete:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: vcluster-kubeconfig-sync-delete
+            namespace: platform-requests
+          spec:
+            containers:
+              - name: delete
+                image: ghcr.io/jamesatintegratnio/vcluster-kubeconfig-sync-promise-pipeline:main
+                imagePullPolicy: Always
+                command: ["/scripts/delete-pipeline.sh"]
