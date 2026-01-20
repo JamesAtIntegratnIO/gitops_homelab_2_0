@@ -1,38 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INPUT_FILE="/kratix/input/object.yaml"
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-NAME=$(yq eval '.spec.name' "${INPUT_FILE}")
-TARGET_NAMESPACE=$(yq eval '.spec.targetNamespace' "${INPUT_FILE}")
-CLUSTER_DOMAIN=$(yq eval '.spec.clusterDomain' "${INPUT_FILE}")
+source "${SCRIPT_DIR}/lib/read-inputs.sh"
+source "${SCRIPT_DIR}/lib/render-resources.sh"
 
-cat > /kratix/output/coredns-configmap.yaml <<EOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: coredns-x-kube-system-x-${NAME}
-  namespace: ${TARGET_NAMESPACE}
-  labels:
-    app: vcluster
-    instance: ${NAME}
-data:
-  Corefile: |
-    .:1053 {
-      errors
-      health
-      ready
-      kubernetes ${CLUSTER_DOMAIN} in-addr.arpa ip6.arpa {
-        pods insecure
-        fallthrough in-addr.arpa ip6.arpa
-        ttl 30
-      }
-      prometheus 0.0.0.0:9153
-      forward . /etc/resolv.conf
-      cache 30
-      loop
-      reload
-      loadbalance
-    }
-  NodeHosts: ""
-EOF
+render_all_resources
