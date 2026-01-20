@@ -47,9 +47,9 @@ build_blocks() {
   fi
 
   if [ "${SYNC_POLICY_LENGTH}" -eq 0 ]; then
-    SYNC_POLICY="  {}"
+    SYNC_POLICY="    {}"
   else
-    SYNC_POLICY=$(sed 's/^/  /' "${SYNC_POLICY_FILE}")
+    SYNC_POLICY=$(sed 's/^/    /' "${SYNC_POLICY_FILE}")
   fi
 }
 
