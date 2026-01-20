@@ -302,6 +302,8 @@ if [ -n "${VIP}" ] && [ "${VIP}" != "null" ]; then
   SERVICE_LOADBALANCER_IP_LINE="      loadBalancerIP: \"${VIP}\""
 fi
 
+echo "Configuring LoadBalancer service for ${HOSTNAME}"
+
 SERVICE_VALUES=$(cat <<EOF
   service:
     enabled: true
