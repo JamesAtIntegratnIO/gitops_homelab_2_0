@@ -1,0 +1,24 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VCluster
+metadata:
+  name: test-cluster-2
+  namespace: platform-requests
+  annotations:
+    platform.integratn.tech/refresh: "2026-01-20T18:00:00Z"
+spec:
+  name: test2
+  targetNamespace: vcluster-test-2
+  projectName: vcluster-test-2
+  k8sVersion: "v1.34.3"
+  isolationMode: standard
+  apiPort: 8443
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  persistence:
+    enabled: false
+    size: "3Gi"
