@@ -98,3 +98,8 @@ additionalResources:
           namespace: vcluster-test
           jsonPointers:
             - /data/NodeHosts
+        - kind: Job
+          name: vcluster-test-kubeconfig-sync
+          namespace: vcluster-test
+          jsonPointers:
+            - /status
