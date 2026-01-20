@@ -4,8 +4,8 @@ FROM alpine:3.19
 RUN apk add --no-cache bash yq curl kubectl
 
 # Copy pipeline scripts
-COPY configure-pipeline.sh /scripts/configure-pipeline.sh
-COPY delete-pipeline.sh /scripts/delete-pipeline.sh
+COPY pipelines/configure-pipeline.sh /scripts/configure-pipeline.sh
+COPY pipelines/delete-pipeline.sh /scripts/delete-pipeline.sh
 
 # Make scripts executable
 RUN chmod +x /scripts/*.sh
