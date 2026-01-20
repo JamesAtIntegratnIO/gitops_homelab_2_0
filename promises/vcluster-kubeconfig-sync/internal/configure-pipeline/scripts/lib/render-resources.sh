@@ -134,9 +134,9 @@ spec:
               set -e
               apk add --no-cache ca-certificates curl jq yq
 
-              if [ -n "${SERVER_URL}" ]; then
-                echo "Rewriting kubeconfig server to ${SERVER_URL}"
-                awk -v new_server="${SERVER_URL}" '
+              if [ -n "\${SERVER_URL}" ]; then
+                echo "Rewriting kubeconfig server to \${SERVER_URL}"
+                awk -v new_server="\${SERVER_URL}" '
                   !done && \$1=="server:" {print "    server: " new_server; done=1; next}
                   {print}
                 ' /shared/kubeconfig > /shared/kubeconfig.rewritten
@@ -144,74 +144,74 @@ spec:
               fi
 
               ARGOCD_CLUSTER_NAME="vcluster-${NAME}"
-              KUBECONFIG_SERVER=$(yq -r '.clusters[0].cluster.server // ""' /shared/kubeconfig)
-              KUBECONFIG_CA_DATA=$(yq -r '.clusters[0].cluster."certificate-authority-data" // ""' /shared/kubeconfig)
-              KUBECONFIG_CERT_DATA=$(yq -r '.users[0].user."client-certificate-data" // ""' /shared/kubeconfig)
-              KUBECONFIG_KEY_DATA=$(yq -r '.users[0].user."client-key-data" // ""' /shared/kubeconfig)
-              KUBECONFIG_TOKEN=$(yq -r '.users[0].user.token // ""' /shared/kubeconfig)
+              KUBECONFIG_SERVER=\$(yq -r '.clusters[0].cluster.server // ""' /shared/kubeconfig)
+              KUBECONFIG_CA_DATA=\$(yq -r '.clusters[0].cluster."certificate-authority-data" // ""' /shared/kubeconfig)
+              KUBECONFIG_CERT_DATA=\$(yq -r '.users[0].user."client-certificate-data" // ""' /shared/kubeconfig)
+              KUBECONFIG_KEY_DATA=\$(yq -r '.users[0].user."client-key-data" // ""' /shared/kubeconfig)
+              KUBECONFIG_TOKEN=\$(yq -r '.users[0].user.token // ""' /shared/kubeconfig)
 
-              if [ -z "${KUBECONFIG_SERVER}" ]; then
+              if [ -z "\${KUBECONFIG_SERVER}" ]; then
                 echo "Failed to extract server from kubeconfig"
                 exit 1
               fi
 
-              if [ -n "${KUBECONFIG_TOKEN}" ]; then
-                ARGOCD_CONFIG_JSON=$(jq -n --arg token "${KUBECONFIG_TOKEN}" --arg ca "${KUBECONFIG_CA_DATA}" '{bearerToken:$token,tlsClientConfig:{insecure:false,caData:$ca}}')
+              if [ -n "\${KUBECONFIG_TOKEN}" ]; then
+                ARGOCD_CONFIG_JSON=\$(jq -n --arg token "\${KUBECONFIG_TOKEN}" --arg ca "\${KUBECONFIG_CA_DATA}" '{bearerToken:$token,tlsClientConfig:{insecure:false,caData:$ca}}')
               else
-                if [ -z "${KUBECONFIG_CERT_DATA}" ] || [ -z "${KUBECONFIG_KEY_DATA}" ]; then
+                if [ -z "\${KUBECONFIG_CERT_DATA}" ] || [ -z "\${KUBECONFIG_KEY_DATA}" ]; then
                   echo "Failed to extract client cert/key from kubeconfig"
                   exit 1
                 fi
-                ARGOCD_CONFIG_JSON=$(jq -n --arg ca "${KUBECONFIG_CA_DATA}" --arg cert "${KUBECONFIG_CERT_DATA}" --arg key "${KUBECONFIG_KEY_DATA}" '{tlsClientConfig:{insecure:false,caData:$ca,certData:$cert,keyData:$key}}')
+                ARGOCD_CONFIG_JSON=\$(jq -n --arg ca "\${KUBECONFIG_CA_DATA}" --arg cert "\${KUBECONFIG_CERT_DATA}" --arg key "\${KUBECONFIG_KEY_DATA}" '{tlsClientConfig:{insecure:false,caData:$ca,certData:$cert,keyData:$key}}')
               fi
 
-              KUBECONFIG_CONTENT=$(cat /shared/kubeconfig)
-              KUBECONFIG_BYTES=$(printf '%s' "${KUBECONFIG_CONTENT}" | wc -c | tr -d ' ')
-              if [ "${KUBECONFIG_BYTES}" -eq 0 ]; then
+              KUBECONFIG_CONTENT=\$(cat /shared/kubeconfig)
+              KUBECONFIG_BYTES=\$(printf '%s' "\${KUBECONFIG_CONTENT}" | wc -c | tr -d ' ')
+              if [ "\${KUBECONFIG_BYTES}" -eq 0 ]; then
                 echo "Kubeconfig content is empty; aborting sync"
                 exit 1
               fi
 
               VAULT_NAME="homelab"
-              OP_CONNECT_HOST_CLEAN="$(printf '%s' "${OP_CONNECT_HOST}" | tr -d '\r\n')"
-              OP_CONNECT_TOKEN_CLEAN="$(printf '%s' "${OP_CONNECT_TOKEN}" | tr -d '\r\n')"
-              API_BASE="${OP_CONNECT_HOST_CLEAN%/}/v1"
-              AUTH_HEADER="Authorization: Bearer ${OP_CONNECT_TOKEN_CLEAN}"
+              OP_CONNECT_HOST_CLEAN="\$(printf '%s' "\${OP_CONNECT_HOST}" | tr -d '\r\n')"
+              OP_CONNECT_TOKEN_CLEAN="\$(printf '%s' "\${OP_CONNECT_TOKEN}" | tr -d '\r\n')"
+              API_BASE="\${OP_CONNECT_HOST_CLEAN%/}/v1"
+              AUTH_HEADER="Authorization: Bearer \${OP_CONNECT_TOKEN_CLEAN}"
 
-              echo "Syncing kubeconfig to 1Password item via Connect API: ${ONEPASSWORD_ITEM}"
+              echo "Syncing kubeconfig to 1Password item via Connect API: \${ONEPASSWORD_ITEM}"
 
-              VAULT_ID="${OP_VAULT_ID:-}"
-              VAULT_ID="$(printf '%s' "${VAULT_ID}" | tr -d '\r\n')"
-              if [ -z "${VAULT_ID}" ]; then
-                VAULT_ID=$(curl -fsS -H "${AUTH_HEADER}" "${API_BASE}/vaults" | jq -r --arg name "${VAULT_NAME}" '.[] | select(.name==$name) | .id' | head -n1)
+              VAULT_ID="\${OP_VAULT_ID:-}"
+              VAULT_ID="\$(printf '%s' "\${VAULT_ID}" | tr -d '\r\n')"
+              if [ -z "\${VAULT_ID}" ]; then
+                VAULT_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults" | jq -r --arg name "\${VAULT_NAME}" '.[] | select(.name==$name) | .id' | head -n1)
               fi
-              VAULT_ID="$(printf '%s' "${VAULT_ID}" | tr -d '\r\n')"
-              if [ -z "${VAULT_ID}" ]; then
-                echo "Vault not found: ${VAULT_NAME}"
+              VAULT_ID="\$(printf '%s' "\${VAULT_ID}" | tr -d '\r\n')"
+              if [ -z "\${VAULT_ID}" ]; then
+                echo "Vault not found: \${VAULT_NAME}"
                 exit 1
               fi
 
-              ITEM_ID=$(curl -fsS -H "${AUTH_HEADER}" "${API_BASE}/vaults/${VAULT_ID}/items" | jq -r --arg title "${ONEPASSWORD_ITEM}" '.[] | select(.title==$title) | .id' | head -n1)
+              ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items" | jq -r --arg title "\${ONEPASSWORD_ITEM}" '.[] | select(.title==$title) | .id' | head -n1)
 
-              if [ -n "${ITEM_ID}" ]; then
+              if [ -n "\${ITEM_ID}" ]; then
                 echo "Item exists, replacing..."
-                ITEM_PAYLOAD=$(jq -n --arg id "${ITEM_ID}" --arg title "${ONEPASSWORD_ITEM}" --arg vault "${VAULT_ID}" --arg notes "${KUBECONFIG_CONTENT}" --arg argocdName "${ARGOCD_CLUSTER_NAME}" --arg argocdServer "${KUBECONFIG_SERVER}" --arg argocdConfig "${ARGOCD_CONFIG_JSON}" '{id:$id,title:$title,vault:{id:$vault},category:"SECURE_NOTE",notesPlain:$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:$notes},{label:"argocd-name",type:"STRING",value:$argocdName},{label:"argocd-server",type:"STRING",value:$argocdServer},{label:"argocd-config",type:"CONCEALED",value:$argocdConfig}]}')
-                curl -fsS -X PUT -H "${AUTH_HEADER}" -H "Content-Type: application/json" "${API_BASE}/vaults/${VAULT_ID}/items/${ITEM_ID}" -d "${ITEM_PAYLOAD}" >/dev/null
+                ITEM_PAYLOAD=\$(jq -n --arg id "\${ITEM_ID}" --arg title "\${ONEPASSWORD_ITEM}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" --arg argocdName "\${ARGOCD_CLUSTER_NAME}" --arg argocdServer "\${KUBECONFIG_SERVER}" --arg argocdConfig "\${ARGOCD_CONFIG_JSON}" '{id:$id,title:$title,vault:{id:$vault},category:"SECURE_NOTE",notesPlain:$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:$notes},{label:"argocd-name",type:"STRING",value:$argocdName},{label:"argocd-server",type:"STRING",value:$argocdServer},{label:"argocd-config",type:"CONCEALED",value:$argocdConfig}]}')
+                curl -fsS -X PUT -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items/\${ITEM_ID}" -d "\${ITEM_PAYLOAD}" >/dev/null
               else
                 echo "Item not found, creating..."
-                ITEM_PAYLOAD=$(jq -n --arg title "${ONEPASSWORD_ITEM}" --arg vault "${VAULT_ID}" --arg notes "${KUBECONFIG_CONTENT}" --arg argocdName "${ARGOCD_CLUSTER_NAME}" --arg argocdServer "${KUBECONFIG_SERVER}" --arg argocdConfig "${ARGOCD_CONFIG_JSON}" '{title:$title,vault:{id:$vault},category:"SECURE_NOTE",notesPlain:$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:$notes},{label:"argocd-name",type:"STRING",value:$argocdName},{label:"argocd-server",type:"STRING",value:$argocdServer},{label:"argocd-config",type:"CONCEALED",value:$argocdConfig}]}')
-                ITEM_ID=$(curl -fsS -X POST -H "${AUTH_HEADER}" -H "Content-Type: application/json" "${API_BASE}/vaults/${VAULT_ID}/items" -d "${ITEM_PAYLOAD}" | jq -r '.id')
-                if [ -z "${ITEM_ID}" ] || [ "${ITEM_ID}" = "null" ]; then
+                ITEM_PAYLOAD=\$(jq -n --arg title "\${ONEPASSWORD_ITEM}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" --arg argocdName "\${ARGOCD_CLUSTER_NAME}" --arg argocdServer "\${KUBECONFIG_SERVER}" --arg argocdConfig "\${ARGOCD_CONFIG_JSON}" '{title:$title,vault:{id:$vault},category:"SECURE_NOTE",notesPlain:$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:$notes},{label:"argocd-name",type:"STRING",value:$argocdName},{label:"argocd-server",type:"STRING",value:$argocdServer},{label:"argocd-config",type:"CONCEALED",value:$argocdConfig}]}')
+                ITEM_ID=\$(curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items" -d "\${ITEM_PAYLOAD}" | jq -r '.id')
+                if [ -z "\${ITEM_ID}" ] || [ "\${ITEM_ID}" = "null" ]; then
                   echo "Failed to create item in 1Password"
                   exit 1
                 fi
               fi
 
-              ITEM_JSON=$(curl -fsS -H "${AUTH_HEADER}" "${API_BASE}/vaults/${VAULT_ID}/items/${ITEM_ID}")
-              NOTES_LEN=$(echo "${ITEM_JSON}" | jq -r '.notesPlain // "" | length')
-              FIELD_LEN=$(echo "${ITEM_JSON}" | jq -r '.fields[]? | select(.label=="kubeconfig") | .value | length' | head -n1)
-              FIELD_LEN=${FIELD_LEN:-0}
-              echo "1Password item lengths: notesPlain=${NOTES_LEN} kubeconfigField=${FIELD_LEN}"
+              ITEM_JSON=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items/\${ITEM_ID}")
+              NOTES_LEN=\$(echo "\${ITEM_JSON}" | jq -r '.notesPlain // "" | length')
+              FIELD_LEN=\$(echo "\${ITEM_JSON}" | jq -r '.fields[]? | select(.label=="kubeconfig") | .value | length' | head -n1)
+              FIELD_LEN=\${FIELD_LEN:-0}
+              echo "1Password item lengths: notesPlain=\${NOTES_LEN} kubeconfigField=\${FIELD_LEN}"
 
               echo "Kubeconfig synced successfully to 1Password"
 EOF
