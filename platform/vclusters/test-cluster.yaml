@@ -8,6 +8,7 @@ metadata:
 spec:
   name: test
   targetNamespace: vcluster-test
+  projectName: vcluster-test
   k8sVersion: "v1.34.3"
   isolationMode: standard
   apiPort: 8443
