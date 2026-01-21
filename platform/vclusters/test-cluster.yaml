@@ -1,35 +1,35 @@
-apiVersion: platform.integratn.tech/v1alpha1
-kind: VClusterOrchestrator
-metadata:
-  name: test-cluster
-  namespace: platform-requests
-  annotations:
-    platform.integratn.tech/reconcile-at: "2026-01-20T21:05:00Z"
-spec:
-  name: test
-  targetNamespace: vcluster-test
-  projectName: vcluster-test
-  vcluster:
-    preset: dev
-    k8sVersion: "v1.34.3"
-    isolationMode: standard
-    networking:
-      clusterDomain: cluster.local
-    coredns:
-      replicas: 1
-  exposure:
-    hostname: test.integratn.tech
-    apiPort: 443
-  integrations:
-    certManager:
-      clusterIssuerSelectorLabels:
-        integratn.tech/cluster-issuer: letsencrypt-prod
-    externalSecrets:
-      clusterStoreSelectorLabels:
-        integratn.tech/cluster-secret-store: onepassword-store
-    argocd:
-      environment: development
-  argocdApplication:
-    repoURL: https://charts.loft.sh
-    chart: vcluster
-    targetRevision: 0.30.4
+# apiVersion: platform.integratn.tech/v1alpha1
+# kind: VClusterOrchestrator
+# metadata:
+#   name: test-cluster
+#   namespace: platform-requests
+#   annotations:
+#     platform.integratn.tech/reconcile-at: "2026-01-20T21:05:00Z"
+# spec:
+#   name: test
+#   targetNamespace: vcluster-test
+#   projectName: vcluster-test
+#   vcluster:
+#     preset: dev
+#     k8sVersion: "v1.34.3"
+#     isolationMode: standard
+#     networking:
+#       clusterDomain: cluster.local
+#     coredns:
+#       replicas: 1
+#   exposure:
+#     hostname: test.integratn.tech
+#     apiPort: 443
+#   integrations:
+#     certManager:
+#       clusterIssuerSelectorLabels:
+#         integratn.tech/cluster-issuer: letsencrypt-prod
+#     externalSecrets:
+#       clusterStoreSelectorLabels:
+#         integratn.tech/cluster-secret-store: onepassword-store
+#     argocd:
+#       environment: development
+#   argocdApplication:
+#     repoURL: https://charts.loft.sh
+#     chart: vcluster
+#     targetRevision: 0.30.4
