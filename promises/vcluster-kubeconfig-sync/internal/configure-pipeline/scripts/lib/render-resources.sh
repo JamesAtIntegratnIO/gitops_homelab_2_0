@@ -66,7 +66,6 @@ metadata:
     instance: ${NAME}
     component: kubeconfig-sync
 spec:
-  ttlSecondsAfterFinished: 300
   template:
     metadata:
       labels:
