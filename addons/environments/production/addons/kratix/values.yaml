@@ -117,6 +117,12 @@ additionalResources:
           namespace: vcluster-test-4
           jsonPointers:
             - /data/NodeHosts
+        - group: ""
+          kind: ConfigMap
+          name: coredns-x-kube-system-x-media
+          namespace: vcluster-media
+          jsonPointers:
+            - /data/NodeHosts
         - group: batch
           kind: Job
           jsonPointers:
