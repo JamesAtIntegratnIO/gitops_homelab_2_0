@@ -3,9 +3,23 @@ set -euo pipefail
 
 INPUT_FILE="/kratix/input/object.yaml"
 
+if [ ! -s "${INPUT_FILE}" ]; then
+  echo "Input file missing; skipping 1Password delete job."
+  echo "---" > /kratix/output/cleanup.yaml
+  exit 0
+fi
+
 NAME=$(yq eval '.spec.name' "${INPUT_FILE}")
 TARGET_NAMESPACE=$(yq eval '.spec.targetNamespace' "${INPUT_FILE}")
 ONEPASSWORD_ITEM=$(yq eval '.spec.onepasswordItem' "${INPUT_FILE}")
+
+if [ -z "${NAME}" ] || [ "${NAME}" = "null" ] || \
+   [ -z "${TARGET_NAMESPACE}" ] || [ "${TARGET_NAMESPACE}" = "null" ] || \
+   [ -z "${ONEPASSWORD_ITEM}" ] || [ "${ONEPASSWORD_ITEM}" = "null" ]; then
+  echo "Missing required fields; skipping 1Password delete job."
+  echo "---" > /kratix/output/cleanup.yaml
+  exit 0
+fi
 
 cat > /kratix/output/onepassword-delete-job.yaml <<EOF
 apiVersion: batch/v1
