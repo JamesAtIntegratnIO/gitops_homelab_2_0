@@ -20,6 +20,8 @@ PERSISTENCE_ENABLED_RAW=$(yq eval '.spec.vcluster.persistence.enabled' "${INPUT_
 PERSISTENCE_SIZE_RAW=$(yq eval '.spec.vcluster.persistence.size' "${INPUT_FILE}")
 PERSISTENCE_STORAGE_CLASS=$(yq eval '.spec.vcluster.persistence.storageClass // ""' "${INPUT_FILE}")
 CLUSTER_DOMAIN=$(yq eval '.spec.vcluster.networking.clusterDomain // "cluster.local"' "${INPUT_FILE}")
+BACKING_STORE_RAW=$(yq eval -o=yaml '.spec.vcluster.backingStore // {}' "${INPUT_FILE}")
+EXPORT_KUBECONFIG_RAW=$(yq eval -o=yaml '.spec.vcluster.exportKubeConfig // {}' "${INPUT_FILE}")
 
 HOSTNAME=$(yq eval '.spec.exposure.hostname // ""' "${INPUT_FILE}")
 BASE_DOMAIN=$(yq eval '.metadata.annotations."platform.integratn.tech/base-domain" // "integratn.tech"' "${INPUT_FILE}")

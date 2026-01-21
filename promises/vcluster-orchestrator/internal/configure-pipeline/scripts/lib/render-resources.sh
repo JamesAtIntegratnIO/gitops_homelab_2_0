@@ -79,6 +79,10 @@ build_persistence_storage_class_lines() {
 
 build_values_files() {
   VALUES_BASE_FILE="/tmp/vcluster-values-base.yaml"
+  VALUES_BACKING_STORE_FILE="/tmp/vcluster-values-backing-store.yaml"
+  VALUES_EXPORT_DEFAULT_FILE="/tmp/vcluster-values-export-default.yaml"
+  VALUES_EXPORT_OVERRIDE_FILE="/tmp/vcluster-values-export-override.yaml"
+  VALUES_EXPORT_MERGED_FILE="/tmp/vcluster-values-export.yaml"
   VALUES_OVERRIDES_FILE="/tmp/vcluster-values-overrides.yaml"
   VALUES_MERGED_FILE="/tmp/vcluster-values-merged.yaml"
 
@@ -188,8 +192,39 @@ rbac:
           - "eso-onepassword-token"
 EOF
 
+  BACKING_STORE_LENGTH=$(echo "${BACKING_STORE_RAW}" | yq eval 'length' -)
+  if [ "${BACKING_STORE_LENGTH}" -gt 0 ]; then
+    cat > "${VALUES_BACKING_STORE_FILE}" <<EOF
+controlPlane:
+  backingStore:
+$(echo "${BACKING_STORE_RAW}" | sed 's/^/    /')
+EOF
+  else
+    echo "{}" > "${VALUES_BACKING_STORE_FILE}"
+  fi
+
+  if [ -n "${EXTERNAL_SERVER_URL}" ]; then
+    cat > "${VALUES_EXPORT_DEFAULT_FILE}" <<EOF
+exportKubeConfig:
+  server: "${EXTERNAL_SERVER_URL}"
+EOF
+  else
+    echo "{}" > "${VALUES_EXPORT_DEFAULT_FILE}"
+  fi
+
+  EXPORT_KUBECONFIG_LENGTH=$(echo "${EXPORT_KUBECONFIG_RAW}" | yq eval 'length' -)
+  if [ "${EXPORT_KUBECONFIG_LENGTH}" -gt 0 ]; then
+    cat > "${VALUES_EXPORT_OVERRIDE_FILE}" <<EOF
+exportKubeConfig:
+$(echo "${EXPORT_KUBECONFIG_RAW}" | sed 's/^/  /')
+EOF
+  else
+    echo "{}" > "${VALUES_EXPORT_OVERRIDE_FILE}"
+  fi
+
+  yq eval-all 'select(fileIndex==0) * select(fileIndex==1)' "${VALUES_EXPORT_DEFAULT_FILE}" "${VALUES_EXPORT_OVERRIDE_FILE}" > "${VALUES_EXPORT_MERGED_FILE}"
   yq eval '.spec.vcluster.helmOverrides // {}' "${INPUT_FILE}" > "${VALUES_OVERRIDES_FILE}"
-  yq eval-all 'select(fileIndex==0) * select(fileIndex==1)' "${VALUES_BASE_FILE}" "${VALUES_OVERRIDES_FILE}" > "${VALUES_MERGED_FILE}"
+  yq eval-all 'select(fileIndex==0) * select(fileIndex==1) * select(fileIndex==2) * select(fileIndex==3)' "${VALUES_BASE_FILE}" "${VALUES_BACKING_STORE_FILE}" "${VALUES_EXPORT_MERGED_FILE}" "${VALUES_OVERRIDES_FILE}" > "${VALUES_MERGED_FILE}"
 
   VALUES_CONFIGMAP=$(sed 's/^/    /' "${VALUES_MERGED_FILE}")
   VALUES_OBJECT=$(sed 's/^/        /' "${VALUES_MERGED_FILE}")

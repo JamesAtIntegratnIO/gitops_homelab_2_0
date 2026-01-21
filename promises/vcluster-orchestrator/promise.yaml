@@ -136,6 +136,14 @@ spec:
                             clusterDomain:
                               type: string
                               default: "cluster.local"
+                        backingStore:
+                          type: object
+                          description: Backing store configuration for the virtual cluster control plane
+                          x-kubernetes-preserve-unknown-fields: true
+                        exportKubeConfig:
+                          type: object
+                          description: Kubeconfig export settings for the virtual cluster
+                          x-kubernetes-preserve-unknown-fields: true
                         helmOverrides:
                           type: object
                           description: Additional Helm values to override

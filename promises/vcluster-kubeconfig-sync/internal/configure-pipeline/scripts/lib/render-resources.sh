@@ -133,15 +133,6 @@ spec:
               set -e
               apk add --no-cache ca-certificates curl jq yq
 
-              if [ -n "\${SERVER_URL}" ]; then
-                echo "Rewriting kubeconfig server to \${SERVER_URL}"
-                awk -v new_server="\${SERVER_URL}" '
-                  !done && \$1=="server:" {print "    server: " new_server; done=1; next}
-                  {print}
-                ' /shared/kubeconfig > /shared/kubeconfig.rewritten
-                mv /shared/kubeconfig.rewritten /shared/kubeconfig
-              fi
-
               ARGOCD_CLUSTER_NAME="vcluster-${NAME}"
               KUBECONFIG_SERVER=\$(yq -r '.clusters[0].cluster.server // ""' /shared/kubeconfig)
               KUBECONFIG_CA_DATA=\$(yq -r '.clusters[0].cluster."certificate-authority-data" // ""' /shared/kubeconfig)

@@ -15,15 +15,15 @@ spec:
         memory: "2Gi"
       limits:
         memory: "2Gi"
-    helmOverrides:
-      controlPlane:
-        backingStore:
-          etcd:
-            deploy:
-              enabled: true
-              statefulSet:
-                highAvailability:
-                  replicas: 3
+    backingStore:
+      etcd:
+        deploy:
+          enabled: true
+          statefulSet:
+            highAvailability:
+              replicas: 3
+    exportKubeConfig:
+      server: https://media.integratn.tech:8443
   exposure:
     hostname: media.integratn.tech
   integrations:
