@@ -178,7 +178,7 @@ spec:
               API_BASE="\${OP_CONNECT_HOST_CLEAN%/}/v1"
               AUTH_HEADER="Authorization: Bearer \${OP_CONNECT_TOKEN_CLEAN}"
 
-              echo "Syncing kubeconfig to 1Password item via Connect API: \${ONEPASSWORD_ITEM}"
+              echo "Syncing kubeconfig to 1Password item via Connect API: \${OP_ITEM_NAME}"
 
               VAULT_ID="\${OP_VAULT_ID:-}"
               VAULT_ID="\$(printf '%s' "\${VAULT_ID}" | tr -d '\r\n')"
@@ -191,15 +191,15 @@ spec:
                 exit 1
               fi
 
-              ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items" | jq -r --arg title "\${ONEPASSWORD_ITEM}" '.[] | select(.title==\$title) | .id' | head -n1)
+              ITEM_ID=\$(curl -fsS -H "\${AUTH_HEADER}" "\${API_BASE}/vaults/\${VAULT_ID}/items" | jq -r --arg title "\${OP_ITEM_NAME}" '.[] | select(.title==\$title) | .id' | head -n1)
 
               if [ -n "\${ITEM_ID}" ]; then
                 echo "Item exists, replacing..."
-                ITEM_PAYLOAD=\$(jq -n --arg id "\${ITEM_ID}" --arg title "\${ONEPASSWORD_ITEM}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" --arg argocdName "\${ARGOCD_CLUSTER_NAME}" --arg argocdServer "\${KUBECONFIG_SERVER}" --arg argocdConfig "\${ARGOCD_CONFIG_JSON}" '{id:\$id,title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:\$notes},{label:"argocd-name",type:"STRING",value:\$argocdName},{label:"argocd-server",type:"STRING",value:\$argocdServer},{label:"argocd-config",type:"CONCEALED",value:\$argocdConfig}]}')
+                ITEM_PAYLOAD=\$(jq -n --arg id "\${ITEM_ID}" --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" --arg argocdName "\${ARGOCD_CLUSTER_NAME}" --arg argocdServer "\${KUBECONFIG_SERVER}" --arg argocdConfig "\${ARGOCD_CONFIG_JSON}" '{id:\$id,title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:\$notes},{label:"argocd-name",type:"STRING",value:\$argocdName},{label:"argocd-server",type:"STRING",value:\$argocdServer},{label:"argocd-config",type:"CONCEALED",value:\$argocdConfig}]}')
                 curl -fsS -X PUT -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items/\${ITEM_ID}" -d "\${ITEM_PAYLOAD}" >/dev/null
               else
                 echo "Item not found, creating..."
-                ITEM_PAYLOAD=\$(jq -n --arg title "\${ONEPASSWORD_ITEM}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" --arg argocdName "\${ARGOCD_CLUSTER_NAME}" --arg argocdServer "\${KUBECONFIG_SERVER}" --arg argocdConfig "\${ARGOCD_CONFIG_JSON}" '{title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:\$notes},{label:"argocd-name",type:"STRING",value:\$argocdName},{label:"argocd-server",type:"STRING",value:\$argocdServer},{label:"argocd-config",type:"CONCEALED",value:\$argocdConfig}]}')
+                ITEM_PAYLOAD=\$(jq -n --arg title "\${OP_ITEM_NAME}" --arg vault "\${VAULT_ID}" --arg notes "\${KUBECONFIG_CONTENT}" --arg argocdName "\${ARGOCD_CLUSTER_NAME}" --arg argocdServer "\${KUBECONFIG_SERVER}" --arg argocdConfig "\${ARGOCD_CONFIG_JSON}" '{title:\$title,vault:{id:\$vault},category:"SECURE_NOTE",notesPlain:\$notes,fields:[{label:"kubeconfig",type:"CONCEALED",value:\$notes},{label:"argocd-name",type:"STRING",value:\$argocdName},{label:"argocd-server",type:"STRING",value:\$argocdServer},{label:"argocd-config",type:"CONCEALED",value:\$argocdConfig}]}')
                 ITEM_ID=\$(curl -fsS -X POST -H "\${AUTH_HEADER}" -H "Content-Type: application/json" "\${API_BASE}/vaults/\${VAULT_ID}/items" -d "\${ITEM_PAYLOAD}" | jq -r '.id')
                 if [ -z "\${ITEM_ID}" ] || [ "\${ITEM_ID}" = "null" ]; then
                   echo "Failed to create item in 1Password"
