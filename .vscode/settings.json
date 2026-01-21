@@ -141,5 +141,8 @@
     "sleep": true,
     "kubectl -n argocd": true,
     "argocd": true
-  }
+  },
+  "chat.mcp.gallery.enabled": true,
+  "chat.agent.maxRequests": 1000,
+  "chat.agent.thinking.collapsedTools": "off"
 }
