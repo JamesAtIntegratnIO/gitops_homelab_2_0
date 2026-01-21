@@ -26,3 +26,27 @@ spec:
       namespace: vcluster-test
       jsonPointers:
         - /data/NodeHosts
+    - kind: ConfigMap
+      name: coredns-x-kube-system-x-test2
+      namespace: vcluster-test-2
+      jsonPointers:
+        - /data/NodeHosts
+    - kind: ConfigMap
+      name: coredns-x-kube-system-x-test3
+      namespace: vcluster-test-3
+      jsonPointers:
+        - /data/NodeHosts
+    - kind: ConfigMap
+      name: coredns-x-kube-system-x-test4
+      namespace: vcluster-test-4
+      jsonPointers:
+        - /data/NodeHosts
+    - kind: Job
+      jsonPointers:
+        - /spec
+        - /status
+    - kind: Application
+      namespace: argocd
+      jsonPointers:
+        - /metadata/annotations/argocd.argoproj.io~1tracking-id
+        - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
