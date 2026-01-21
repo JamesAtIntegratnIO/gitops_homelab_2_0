@@ -3,6 +3,8 @@ kind: VClusterOrchestrator
 metadata:
 	name: test-cluster-4
 	namespace: platform-requests
+	annotations:
+		platform.integratn.tech/reconcile-at: "2026-01-20T21:05:00Z"
 spec:
 	name: test4
 	targetNamespace: vcluster-test-4
