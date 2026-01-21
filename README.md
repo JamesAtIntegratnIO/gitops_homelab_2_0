@@ -94,10 +94,31 @@ Secrets never live in Git. All credentials and kubeconfigs are sourced from 1Pas
 2. Commit and push
 3. Argo CD reconciles and applies the addon
 
+Commands:
+```
+git status --short
+git add addons/clusters
+git commit -m "Update addon config"
+git push
+kubectl patch application -n argocd addons-in-cluster --type=merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+kubectl get application -n argocd addons-in-cluster -o jsonpath='{.status.sync.status} {.status.health.status}' && echo
+```
+
 ### Add or change a vcluster
 1. Update a vcluster request in [platform/vclusters](platform/vclusters)
 2. Commit and push
 3. Argo CD applies request → Kratix fulfills → state reconciler applies outputs
+
+Commands:
+```
+git status --short
+git add platform/vclusters
+git commit -m "Update vcluster request"
+git push
+kubectl patch application -n argocd platform-vclusters-the-cluster --type=merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+kubectl get application -n argocd platform-vclusters-the-cluster -o jsonpath='{.status.sync.status} {.status.health.status}' && echo
+kubectl get application -n argocd kratix-state-reconciler -o jsonpath='{.status.sync.status} {.status.health.status}' && echo
+```
 
 ### Update a promise pipeline
 1. Modify scripts under [promises](promises)
@@ -105,6 +126,17 @@ Secrets never live in Git. All credentials and kubeconfigs are sourced from 1Pas
 3. GitHub Actions builds a new pipeline image
 4. Refresh the Kratix promises app to pick up the new image
 5. Re-trigger the request reconcile to re-run pipelines
+
+Commands:
+```
+git status --short
+git add promises/<promise-name>
+git commit -m "Update <promise-name> pipeline"
+git push
+kubectl patch application -n argocd kratix-promises-the-cluster --type=merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+kubectl patch application -n argocd platform-vclusters-the-cluster --type=merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+kubectl get application -n argocd kratix-promises-the-cluster -o jsonpath='{.status.sync.status} {.status.health.status}' && echo
+```
 
 ## Notes
 - Argo CD is the source of truth for cluster state.
