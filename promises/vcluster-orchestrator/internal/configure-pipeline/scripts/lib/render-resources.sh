@@ -169,6 +169,8 @@ sync:
     pods:
       enabled: true
   fromHost:
+    storageClasses:
+      enabled: true
     secrets:
       enabled: true
       mappings:
