@@ -128,6 +128,7 @@ additionalResources:
           jsonPointers:
             - /metadata/annotations/argocd.argoproj.io~1tracking-id
             - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+            - /metadata/labels
         - group: batch
           kind: Job
           name: vcluster-test-kubeconfig-sync
