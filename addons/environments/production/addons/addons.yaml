@@ -484,7 +484,6 @@ vcluster-coredns-config:
       - SkipDryRunOnMissingResource=true
   ignoreDifferences:
     - kind: ConfigMap
-      name: coredns
       jsonPointers:
         - /data/NodeHosts
 
