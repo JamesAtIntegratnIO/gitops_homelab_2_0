@@ -21,6 +21,9 @@ spec:
           etcd:
             deploy:
               enabled: true
+              statefulSet:
+                highAvailability:
+                  replicas: 3
   exposure:
     hostname: media.integratn.tech
   integrations:
