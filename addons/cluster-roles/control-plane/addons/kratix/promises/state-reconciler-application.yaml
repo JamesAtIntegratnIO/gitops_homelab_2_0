@@ -41,6 +41,11 @@ spec:
       namespace: vcluster-test-4
       jsonPointers:
         - /data/NodeHosts
+    - kind: ConfigMap
+      name: coredns-x-kube-system-x-media
+      namespace: vcluster-media
+      jsonPointers:
+        - /data/NodeHosts
     - kind: Job
       jsonPointers:
         - /spec
