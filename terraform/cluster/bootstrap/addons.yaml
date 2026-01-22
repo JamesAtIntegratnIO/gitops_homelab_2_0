@@ -17,7 +17,7 @@ spec:
                 - vcluster
   template:
     metadata:
-      name: 'bootstrap-addons'
+      name: 'bootstrap-addons-{{name}}'
     spec:
       project: default
       destination:
