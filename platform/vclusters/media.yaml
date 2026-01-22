@@ -11,17 +11,18 @@ spec:
     preset: prod
     replicas: 3
     helmOverrides:
-      service:
-        spec:
-          ports:
-            - name: https
-              port: 443
-              targetPort: 8443
-              protocol: TCP
-            - name: https-alt
-              port: 8443
-              targetPort: 8443
-              protocol: TCP
+      controlPlane:
+        service:
+          spec:
+            ports:
+              - name: https
+                port: 443
+                targetPort: 8443
+                protocol: TCP
+              - name: https-alt
+                port: 8443
+                targetPort: 8443
+                protocol: TCP
     resources:
       requests:
         memory: "2Gi"
