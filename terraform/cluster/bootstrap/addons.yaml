@@ -9,8 +9,12 @@ spec:
   generators:
     - clusters:
         selector:
-          matchLabels:
-            cluster_role: control-plane
+          matchExpressions:
+            - key: cluster_role
+              operator: In
+              values:
+                - control-plane
+                - vcluster
   template:
     metadata:
       name: 'bootstrap-addons'
