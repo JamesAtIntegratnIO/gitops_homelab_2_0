@@ -51,6 +51,10 @@ spec:
       environment: production
       clusterLabels:
         enable_argocd: "true"
+        enable_gateway_api_crds: "true"
+        enable_nginx_gateway_fabric: "true"
+        enable_cert_manager: "true"
+        enable_external_secrets: "true"
         cluster_type: "vcluster"
   argocdApplication:
     repoURL: https://charts.loft.sh
