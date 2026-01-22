@@ -28,9 +28,10 @@ build_blocks() {
   fi
 
   if [ "${LABELS_LENGTH}" -eq 0 ]; then
-    LABELS="    {}"
+    LABELS_BLOCK=""
   else
     LABELS=$(sed 's/^/    /' "${LABELS_FILE}")
+    LABELS_BLOCK=$(printf "  labels:\n%s\n" "${LABELS}")
   fi
 
   if [ "${FINALIZERS_LENGTH}" -eq 0 ]; then
@@ -62,8 +63,7 @@ metadata:
   namespace: ${NAMESPACE}
   annotations:
 ${ANNOTATIONS}
-  labels:
-${LABELS}
+${LABELS_BLOCK}
 ${FINALIZERS_BLOCK}
 spec:
   project: ${PROJECT}
