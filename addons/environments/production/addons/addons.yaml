@@ -479,6 +479,9 @@ vcluster-coredns-config:
         values: ['worker']
       - key: cluster_type
         operator: DoesNotExist
+      - key: cluster_name
+        operator: NotIn
+        values: ['media']
   syncPolicy:
     automated: {}
     syncOptions:
