@@ -16,6 +16,8 @@ sonarr:
         fsGroup: 1000
       containerSecurityContext:
         runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
         readOnlyRootFilesystem: false
       image:
         repository: linuxserver/sonarr
