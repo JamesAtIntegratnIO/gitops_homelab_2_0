@@ -26,6 +26,7 @@ spec:
       server: https://media.integratn.tech:8443
   exposure:
     hostname: media.integratn.tech
+    apiPort: 8443
   integrations:
     certManager:
       clusterIssuerSelectorLabels:
