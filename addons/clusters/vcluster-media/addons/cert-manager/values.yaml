@@ -28,3 +28,26 @@ extraObjects:
             conversionStrategy: Default
             decodingStrategy: None
             metadataPolicy: None
+  - |
+    apiVersion: cert-manager.io/v1
+    kind: ClusterIssuer
+    metadata:
+      name: letsencrypt-prod
+      labels:
+        integratn.tech/cluster-issuer: letsencrypt-prod
+    spec:
+      acme:
+        server: https://acme-v02.api.letsencrypt.org/directory
+        email: james@integratn.io
+        privateKeySecretRef:
+          name: letsencrypt-prod
+        solvers:
+          - selector:
+              dnsZones:
+                - integratn.tech
+            dns01:
+              cloudflare:
+                email: james@integratn.io
+                apiKeySecretRef:
+                  name: cloudflare-api-key
+                  key: CF_API_KEY
