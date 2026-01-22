@@ -84,15 +84,18 @@ argocd-vcluster:
           syncPolicy:
             preserveResourcesOnDeletion: false
           generators:
-            - clusters:
-                selector:
-                  matchExpressions:
-                    - key: akuity.io/argo-cd-cluster-name
-                      operator: NotIn
-                      values: [in-cluster]
-                    - key: environment
-                      operator: NotIn
-                      values: [control-plane]
+            - list:
+                elements:
+                  - name: in-cluster
+                    server: https://kubernetes.default.svc
+                    metadata:
+                      labels:
+                        environment: '{{ .metadata.labels.environment }}'
+                      annotations:
+                        workload_repo_url: '{{ index .metadata.annotations "workload_repo_url" }}'
+                        workload_repo_basepath: '{{ index .metadata.annotations "workload_repo_basepath" }}'
+                        workload_repo_path: '{{ index .metadata.annotations "workload_repo_path" }}'
+                        workload_repo_revision: '{{ index .metadata.annotations "workload_repo_revision" }}'
           template:
             metadata:
               name: 'workload-{{metadata.labels.environment}}'
@@ -104,7 +107,7 @@ argocd-vcluster:
                 targetRevision: '{{metadata.annotations.workload_repo_revision}}'
               destination:
                 namespace: workload
-                name: '{{name}}'
+                server: '{{server}}'
               syncPolicy:
                 automated: {}
                 syncOptions:
