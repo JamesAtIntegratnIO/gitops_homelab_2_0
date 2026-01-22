@@ -37,7 +37,7 @@ spec:
             ignoreMissingValueFiles: true
             valuesObject:
               repoURLGit: '{{metadata.annotations.addons_repo_url}}'
-              appsetPrefix: "bootstrap-"
+              appsetPrefix: "bootstrap-vcluster-{{metadata.labels.cluster_name}}-"
             valueFiles:
               - '$values/addons/environments/{{metadata.labels.environment}}/addons/addons.yaml'
               - '$values/addons/environments/{{metadata.labels.environment}}/addons/common.yaml'
