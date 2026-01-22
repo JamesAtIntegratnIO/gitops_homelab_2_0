@@ -81,6 +81,8 @@ sonarr:
           mountPath: /config
         media:
           mountPath: /data
+    persistence:
+      enabled: false
     service:
       additionalLabels:
         prometheus: media-cluster
