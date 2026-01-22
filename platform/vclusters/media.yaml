@@ -1,45 +1,45 @@
-# apiVersion: platform.integratn.tech/v1alpha1
-# kind: VClusterOrchestrator
-# metadata:
-#   name: media
-#   namespace: platform-requests
-# spec:
-#   name: media
-#   targetNamespace: vcluster-media
-#   projectName: vcluster-media
-#   vcluster:
-#     preset: prod
-#     replicas: 3
-#     resources:
-#       requests:
-#         memory: "2Gi"
-#       limits:
-#         memory: "2Gi"
-#     backingStore:
-#       etcd:
-#         deploy:
-#           enabled: true
-#           statefulSet:
-#             highAvailability:
-#               replicas: 3
-#     exportKubeConfig:
-#       server: https://media.integratn.tech:8443
-#   exposure:
-#     hostname: media.integratn.tech
-#     apiPort: 8443
-#   integrations:
-#     certManager:
-#       clusterIssuerSelectorLabels:
-#         integratn.tech/cluster-issuer: letsencrypt-prod
-#     externalSecrets:
-#       clusterStoreSelectorLabels:
-#         integratn.tech/cluster-secret-store: onepassword-store
-#     argocd:
-#       environment: production
-#       clusterLabels:
-#         enable_argocd: "true"
-#         cluster_type: "vcluster"
-#   argocdApplication:
-#     repoURL: https://charts.loft.sh
-#     chart: vcluster
-#     targetRevision: 0.30.4
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VClusterOrchestrator
+metadata:
+	name: media
+	namespace: platform-requests
+spec:
+	name: media
+	targetNamespace: vcluster-media
+	projectName: vcluster-media
+	vcluster:
+		preset: prod
+		replicas: 3
+		resources:
+			requests:
+				memory: "2Gi"
+			limits:
+				memory: "2Gi"
+		backingStore:
+			etcd:
+				deploy:
+					enabled: true
+					statefulSet:
+						highAvailability:
+							replicas: 3
+		exportKubeConfig:
+			server: https://media.integratn.tech:443
+	exposure:
+		hostname: media.integratn.tech
+		apiPort: 443
+	integrations:
+		certManager:
+			clusterIssuerSelectorLabels:
+				integratn.tech/cluster-issuer: letsencrypt-prod
+		externalSecrets:
+			clusterStoreSelectorLabels:
+				integratn.tech/cluster-secret-store: onepassword-store
+		argocd:
+			environment: production
+			clusterLabels:
+				enable_argocd: "true"
+				cluster_type: "vcluster"
+	argocdApplication:
+		repoURL: https://charts.loft.sh
+		chart: vcluster
+		targetRevision: 0.30.4
