@@ -108,7 +108,7 @@ argocd-vcluster:
                 targetRevision: '{{ .metadata.annotations.workload_repo_revision }}'
               destination:
                 namespace: workload
-                server: '{{ .server }}'
+                name: '{{ .name }}'
               syncPolicy:
                 automated: {}
                 syncOptions:
