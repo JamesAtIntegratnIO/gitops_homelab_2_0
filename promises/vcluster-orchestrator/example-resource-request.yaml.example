@@ -15,7 +15,6 @@ spec:
       clusterDomain: cluster.local
     coredns:
       replicas: 2
-    helmOverrides: {}
   exposure:
     hostname: dev-team.integratn.tech
     subnet: 10.0.6.0/24
