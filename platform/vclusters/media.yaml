@@ -4,7 +4,7 @@ metadata:
   name: media
   namespace: platform-requests
   annotations:
-    platform.integratn.tech/reconcile-at: "2026-01-21T00:00:00Z"
+    platform.integratn.tech/reconcile-at: "2026-01-21T00:30:00Z"
 spec:
   name: media
   targetNamespace: vcluster-media
