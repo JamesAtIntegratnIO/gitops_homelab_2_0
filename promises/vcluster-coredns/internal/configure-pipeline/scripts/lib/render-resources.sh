@@ -28,7 +28,6 @@ data:
       reload
       loadbalance
     }
-  NodeHosts: ""
 EOF
 }
 
