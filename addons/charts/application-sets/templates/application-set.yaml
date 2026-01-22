@@ -202,6 +202,9 @@ spec:
         {{- if ne (default "" $chartConfig.type) "manifest" }}
         helm:
           releaseName: {{ default "{{ .values.addonChart }}" $chartConfig.releaseName | squote }}
+          {{- if $chartConfig.helmSkipCrds }}
+          skipCrds: true
+          {{- end }}
           ignoreMissingValueFiles: true
           {{- if $chartConfig.valuesObject }}
           valuesObject:
