@@ -7,6 +7,11 @@ sonarr:
   chartRepository: https://stakater.github.io/stakater-charts
   chartName: application
   defaultVersion: 6.14.0
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .status
   valuesObject:
     applicationName: sonarr
     extraObjects:
