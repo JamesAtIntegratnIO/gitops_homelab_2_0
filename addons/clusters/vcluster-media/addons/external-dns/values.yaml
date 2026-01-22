@@ -10,10 +10,10 @@ env:
         name: cloudflare-api-key
         key: CF_API_EMAIL
 
-logLevel: debug
+logLevel: info
 
 domainFilters:
-  - integratn.tech
+  - media.integratn.tech
 
 provider:
   name: cloudflare
@@ -25,7 +25,6 @@ sources:
 policy: sync
 registry: txt
 
-# Must be unique per cluster so multiple external-dns instances don't fight.
 txtOwnerId: vcluster-media
 txtPrefix: vcluster-media-
 

@@ -57,7 +57,7 @@ spec:
         enable_nginx_gateway_fabric: "true"
         enable_cert_manager: "true"
         enable_external_secrets: "true"
-        enable_external_dns: "true"
+          enable_external_dns: "true"
         cluster_type: "vcluster"
   argocdApplication:
     repoURL: https://charts.loft.sh
