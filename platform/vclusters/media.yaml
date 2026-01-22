@@ -3,6 +3,8 @@ kind: VClusterOrchestrator
 metadata:
   name: media
   namespace: platform-requests
+  annotations:
+    platform.integratn.tech/reconcile-at: "2026-01-21T00:00:00Z"
 spec:
   name: media
   targetNamespace: vcluster-media

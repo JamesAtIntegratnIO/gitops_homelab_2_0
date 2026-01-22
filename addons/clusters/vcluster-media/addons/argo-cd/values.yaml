@@ -1,0 +1,51 @@
+global:
+  domain: argocd.media.integratn.tech
+
+configs:
+  params:
+    server.insecure: true
+    server.url: https://argocd.media.integratn.tech
+
+extraObjects:
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: argocd
+      namespace: argocd
+    spec:
+      parentRefs:
+        - name: nginx-gateway
+          namespace: nginx-gateway
+          sectionName: https
+      hostnames:
+        - argocd.media.integratn.tech
+      rules:
+        - matches:
+            - path:
+                type: PathPrefix
+                value: /
+          backendRefs:
+            - name: argo-cd-argocd-server
+              port: 80
+  - apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: argocd-http-redirect
+      namespace: argocd
+    spec:
+      parentRefs:
+        - name: nginx-gateway
+          namespace: nginx-gateway
+          sectionName: http
+      hostnames:
+        - argocd.media.integratn.tech
+      rules:
+        - filters:
+            - type: RequestRedirect
+              requestRedirect:
+                scheme: https
+                statusCode: 301
+          matches:
+            - path:
+                type: PathPrefix
+                value: /
