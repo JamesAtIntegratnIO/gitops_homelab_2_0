@@ -116,6 +116,8 @@ argocd-vcluster:
                       repoURLGit: '{{ .metadata.annotations.workload_repo_url }}'
                       repoURLGitRevision: '{{ .metadata.annotations.workload_repo_revision }}'
                       repoURLGitBasePath: '{{ .metadata.annotations.workload_repo_basepath }}'
+                      useValuesFilePrefix: false
+                      valueFiles: []
                     valueFiles:
                       - '$values/{{ .metadata.annotations.workload_repo_basepath }}{{ .metadata.annotations.workload_repo_path }}/{{ .metadata.labels.cluster_name }}/addons.yaml'
               destination:
