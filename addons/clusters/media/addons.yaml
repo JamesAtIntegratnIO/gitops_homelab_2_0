@@ -1,1 +1,12 @@
-{}
+argocd:
+	ignoreDifferences:
+		- group: gateway.networking.k8s.io
+			kind: HTTPRoute
+			jqPathExpressions:
+				- .status
+			jsonPointers:
+				- /spec/rules/0/backendRefs/0/group
+				- /spec/rules/0/backendRefs/0/kind
+				- /spec/rules/0/backendRefs/0/weight
+				- /spec/parentRefs/0/group
+				- /spec/parentRefs/0/kind
