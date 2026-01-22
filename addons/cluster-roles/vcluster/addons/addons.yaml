@@ -92,6 +92,7 @@ argocd-vcluster:
                     metadata:
                       labels:
                         environment: '{{ .metadata.labels.environment }}'
+                        cluster_name: '{{ .metadata.labels.cluster_name }}'
                       annotations:
                         workload_repo_url: '{{ index .metadata.annotations "workload_repo_url" }}'
                         workload_repo_basepath: '{{ index .metadata.annotations "workload_repo_basepath" }}'
@@ -102,10 +103,21 @@ argocd-vcluster:
               name: 'workload-{{ .metadata.labels.environment }}'
             spec:
               project: default
-              source:
-                repoURL: '{{ .metadata.annotations.workload_repo_url }}'
-                path: '{{ .metadata.annotations.workload_repo_basepath }}{{ .metadata.annotations.workload_repo_path }}'
-                targetRevision: '{{ .metadata.annotations.workload_repo_revision }}'
+              sources:
+                - repoURL: '{{ .metadata.annotations.workload_repo_url }}'
+                  targetRevision: '{{ .metadata.annotations.workload_repo_revision }}'
+                  ref: values
+                - repoURL: '{{ .metadata.annotations.workload_repo_url }}'
+                  path: addons/charts/application-sets
+                  targetRevision: '{{ .metadata.annotations.workload_repo_revision }}'
+                  helm:
+                    ignoreMissingValueFiles: true
+                    valuesObject:
+                      repoURLGit: '{{ .metadata.annotations.workload_repo_url }}'
+                      repoURLGitRevision: '{{ .metadata.annotations.workload_repo_revision }}'
+                      repoURLGitBasePath: '{{ .metadata.annotations.workload_repo_basepath }}'
+                    valueFiles:
+                      - '$values/{{ .metadata.annotations.workload_repo_basepath }}{{ .metadata.annotations.workload_repo_path }}/{{ .metadata.labels.cluster_name }}/addons.yaml'
               destination:
                 namespace: workload
                 name: in-cluster

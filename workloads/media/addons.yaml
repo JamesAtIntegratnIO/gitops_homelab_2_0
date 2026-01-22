@@ -1,3 +1,6 @@
+globalSelectors:
+	cluster_name: media
+
 sonarr:
 	enabled: true
 	namespace: media
