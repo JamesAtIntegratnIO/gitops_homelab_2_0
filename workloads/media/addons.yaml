@@ -9,6 +9,75 @@ sonarr:
   defaultVersion: 6.14.0
   valuesObject:
     applicationName: sonarr
+    extraObjects:
+      - apiVersion: v1
+        kind: PersistentVolume
+        metadata:
+          name: sonarr-config-pv
+          labels:
+            app: sonarr
+          annotations:
+            pv.kubernetes.io/provisioned-by: k8s-sigs.io/nfs-subdir-external-provisioner
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          capacity:
+            storage: 1Gi
+          nfs:
+            path: /mnt/user/kube_storage/sonarr-config-pvc
+            server: 10.0.0.12
+          persistentVolumeReclaimPolicy: Retain
+          storageClassName: nfs-client
+          volumeMode: Filesystem
+      - apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: sonarr-config-pvc
+          namespace: media
+          labels:
+            app: sonarr
+        spec:
+          storageClassName: nfs-client
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+          volumeName: sonarr-config-pv
+      - apiVersion: v1
+        kind: PersistentVolume
+        metadata:
+          name: sonarr-media-pv
+          labels:
+            app: sonarr
+          annotations:
+            pv.kubernetes.io/provisioned-by: k8s-sigs.io/data-nfs-subdir-external-provisioner
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          capacity:
+            storage: 1Gi
+          nfs:
+            path: /mnt/user/data
+            server: 10.0.0.12
+          persistentVolumeReclaimPolicy: Retain
+          storageClassName: data-nfs-client
+          volumeMode: Filesystem
+      - apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: sonarr-media-pvc
+          namespace: media
+          labels:
+            app: sonarr
+        spec:
+          storageClassName: data-nfs-client
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+          volumeName: sonarr-media-pv
     deployment:
       securityContext:
         runAsUser: 1000
