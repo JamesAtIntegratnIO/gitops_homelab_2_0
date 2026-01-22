@@ -25,6 +25,8 @@ if [ -z "${HOSTNAME}" ] || [ "${HOSTNAME}" = "null" ]; then
   HOSTNAME="${NAME}.${BASE_DOMAIN}"
 fi
 
+BASE_DOMAIN_SANITIZED=$(echo "${BASE_DOMAIN}" | tr '.' '-')
+
 if [ -z "${PRESET}" ] || [ "${PRESET}" = "null" ]; then
   PRESET=dev
 fi
@@ -50,7 +52,14 @@ fi
 ARGOCD_CLUSTER_LABELS_BASE=$(cat <<EOF
 argocd.argoproj.io/secret-type: cluster
 cluster_name: ${NAME}
-cluster_role: worker
+cluster_role: vcluster
+cluster_type: vcluster
+enable_argocd: "true"
+enable_gateway_api_crds: "true"
+enable_nginx_gateway_fabric: "true"
+enable_cert_manager: "true"
+enable_external_secrets: "true"
+enable_external_dns: "true"
 environment: ${ARGOCD_ENVIRONMENT}
 EOF
 )
@@ -66,6 +75,8 @@ external_dns_namespace: external-dns
 nfs_subdir_external_provisioner_namespace: nfs-provisioner
 cluster_name: ${NAME}
 environment: ${ARGOCD_ENVIRONMENT}
+platform.integratn.tech/base-domain: ${BASE_DOMAIN}
+platform.integratn.tech/base-domain-sanitized: ${BASE_DOMAIN_SANITIZED}
 EOF
 )
 

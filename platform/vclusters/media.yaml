@@ -4,7 +4,7 @@ metadata:
   name: media
   namespace: platform-requests
   annotations:
-    platform.integratn.tech/reconcile-at: "2026-01-21T00:30:00Z"
+    platform.integratn.tech/reconcile-at: "2026-01-21T01:30:00Z"
 spec:
   name: media
   targetNamespace: vcluster-media
@@ -51,14 +51,6 @@ spec:
         integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production
-      clusterLabels:
-        enable_argocd: "true"
-        enable_gateway_api_crds: "true"
-        enable_nginx_gateway_fabric: "true"
-        enable_cert_manager: "true"
-        enable_external_secrets: "true"
-          enable_external_dns: "true"
-        cluster_type: "vcluster"
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster

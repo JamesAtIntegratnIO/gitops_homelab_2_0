@@ -1,18 +1,1 @@
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: ReferenceGrant
-metadata:
-  name: allow-httproutes-from-all
-  namespace: nginx-gateway
-  annotations:
-    argocd.argoproj.io/compare-options: IgnoreExtraneous
-    argocd.argoproj.io/sync-options: Prune=false
-spec:
-  from:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      namespace: argocd
-  to:
-    - group: ""
-      kind: Service
-    - group: gateway.networking.k8s.io
-      kind: Gateway
+# migrated to cert-manager valuesObject in addons/cluster-roles/vcluster/addons.yaml

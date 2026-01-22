@@ -1,6 +1,1 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: nginx-gateway
-  labels:
-    kubernetes.io/metadata.name: nginx-gateway
+# migrated to chart CreateNamespace option

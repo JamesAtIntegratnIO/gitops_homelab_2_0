@@ -1,0 +1,29 @@
+env:
+  - name: CF_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: cloudflare-api-key
+        key: CF_API_KEY
+  - name: CF_API_EMAIL
+    valueFrom:
+      secretKeyRef:
+        name: cloudflare-api-key
+        key: CF_API_EMAIL
+
+provider:
+  name: cloudflare
+
+sources:
+  - gateway-httproute
+  - service
+
+policy: sync
+registry: txt
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 100Mi
+  limits:
+    cpu: 500m
+    memory: 500Mi
