@@ -81,6 +81,7 @@ argocd-vcluster:
           name: workloads
           namespace: argocd
         spec:
+          goTemplate: true
           syncPolicy:
             preserveResourcesOnDeletion: false
           generators:
@@ -98,16 +99,16 @@ argocd-vcluster:
                         workload_repo_revision: '{{ index .metadata.annotations "workload_repo_revision" }}'
           template:
             metadata:
-              name: 'workload-{{metadata.labels.environment}}'
+              name: 'workload-{{ .metadata.labels.environment }}'
             spec:
               project: default
               source:
-                repoURL: '{{metadata.annotations.workload_repo_url}}'
-                path: '{{metadata.annotations.workload_repo_basepath}}{{metadata.annotations.workload_repo_path}}'
-                targetRevision: '{{metadata.annotations.workload_repo_revision}}'
+                repoURL: '{{ .metadata.annotations.workload_repo_url }}'
+                path: '{{ .metadata.annotations.workload_repo_basepath }}{{ .metadata.annotations.workload_repo_path }}'
+                targetRevision: '{{ .metadata.annotations.workload_repo_revision }}'
               destination:
                 namespace: workload
-                server: '{{server}}'
+                server: '{{ .server }}'
               syncPolicy:
                 automated: {}
                 syncOptions:
