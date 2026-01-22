@@ -69,10 +69,6 @@ sonarr:
                 secretKeyRef:
                   name: homepage-secret
                   key: HOMEPAGE_VAR_SONARR_KEY
-          livenessProbe:
-            enabled: true
-          readinessProbe:
-            enabled: true
       volumes:
         config:
           persistentVolumeClaim:
