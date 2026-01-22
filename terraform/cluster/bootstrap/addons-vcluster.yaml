@@ -21,7 +21,7 @@ spec:
       project: default
       destination:
         namespace: 'argocd'
-        name: in-cluster
+        name: the-cluster
       syncPolicy:
         automated:
           prune: true
