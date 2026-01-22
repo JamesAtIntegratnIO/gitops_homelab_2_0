@@ -34,6 +34,10 @@ ${SERVICE_LOADBALANCER_IP_LINE}
           port: ${API_PORT}
           targetPort: 8443
           protocol: TCP
+        - name: https-internal
+          port: 443
+          targetPort: 8443
+          protocol: TCP
 EOF
 )
 
