@@ -65,7 +65,8 @@ module "argocd" {
     addons = local.addons
   }
   apps = {
-    addons = file("${path.module}/bootstrap/addons.yaml")
+    addons-control-plane = file("${path.module}/bootstrap/addons-control-plane.yaml")
+    addons-vcluster      = file("${path.module}/bootstrap/addons-vcluster.yaml")
   }
 
 }
