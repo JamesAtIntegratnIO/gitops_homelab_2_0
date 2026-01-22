@@ -10,6 +10,14 @@ spec:
   vcluster:
     preset: prod
     replicas: 3
+    helmOverrides:
+      service:
+        spec:
+          ports:
+            - name: https
+              port: 443
+              targetPort: 8443
+              protocol: TCP
     resources:
       requests:
         memory: "2Gi"
