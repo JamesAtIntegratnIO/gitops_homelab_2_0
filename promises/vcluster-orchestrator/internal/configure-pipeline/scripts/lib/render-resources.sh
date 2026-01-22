@@ -215,6 +215,10 @@ EOF
     echo "{}" > "${VALUES_BACKING_STORE_FILE}"
   fi
 
+  if [ -z "${EXTERNAL_SERVER_URL}" ] && [ -n "${HOSTNAME}" ] && [ "${HOSTNAME}" != "null" ]; then
+    EXTERNAL_SERVER_URL="https://${HOSTNAME}:${API_PORT}"
+  fi
+
   if [ -n "${EXTERNAL_SERVER_URL}" ]; then
     cat > "${VALUES_EXPORT_DEFAULT_FILE}" <<EOF
 exportKubeConfig:

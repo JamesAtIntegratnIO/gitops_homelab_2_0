@@ -24,8 +24,6 @@ spec:
           statefulSet:
             highAvailability:
               replicas: 3
-    exportKubeConfig:
-      server: https://media.integratn.tech:443
   exposure:
     hostname: media.integratn.tech
     apiPort: 443
