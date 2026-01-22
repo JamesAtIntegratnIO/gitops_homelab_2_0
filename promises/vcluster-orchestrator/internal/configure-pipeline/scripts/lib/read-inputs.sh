@@ -34,6 +34,10 @@ EXTERNAL_SECRETS_CLUSTER_STORE_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.
 ARGOCD_ENVIRONMENT_RAW=$(yq eval '.spec.integrations.argocd.environment // ""' "${INPUT_FILE}")
 ARGOCD_CLUSTER_LABELS_RAW=$(yq eval -o=yaml '.spec.integrations.argocd.clusterLabels' "${INPUT_FILE}")
 ARGOCD_CLUSTER_ANNOTATIONS_RAW=$(yq eval -o=yaml '.spec.integrations.argocd.clusterAnnotations' "${INPUT_FILE}")
+WORKLOAD_REPO_URL_RAW=$(yq eval '.spec.integrations.argocd.workloadRepo.url // ""' "${INPUT_FILE}")
+WORKLOAD_REPO_BASEPATH_RAW=$(yq eval '.spec.integrations.argocd.workloadRepo.basePath // ""' "${INPUT_FILE}")
+WORKLOAD_REPO_PATH_RAW=$(yq eval '.spec.integrations.argocd.workloadRepo.path // ""' "${INPUT_FILE}")
+WORKLOAD_REPO_REVISION_RAW=$(yq eval '.spec.integrations.argocd.workloadRepo.revision // ""' "${INPUT_FILE}")
 
 ARGOCD_REPO_URL=$(yq eval '.spec.argocdApplication.repoURL // "https://charts.loft.sh"' "${INPUT_FILE}")
 ARGOCD_CHART=$(yq eval '.spec.argocdApplication.chart // "vcluster"' "${INPUT_FILE}")

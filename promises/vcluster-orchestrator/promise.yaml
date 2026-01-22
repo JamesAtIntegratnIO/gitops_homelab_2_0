@@ -223,6 +223,22 @@ spec:
                               description: Additional annotations applied to the ArgoCD cluster secret
                               additionalProperties:
                                 type: string
+                            workloadRepo:
+                              type: object
+                              description: Workloads ApplicationSet source settings for vcluster ArgoCD
+                              properties:
+                                url:
+                                  type: string
+                                  default: https://github.com/jamesatintegratnio/gitops_homelab_2_0
+                                basePath:
+                                  type: string
+                                  default: ""
+                                path:
+                                  type: string
+                                  default: workloads
+                                revision:
+                                  type: string
+                                  default: main
                     argocdApplication:
                       type: object
                       required:

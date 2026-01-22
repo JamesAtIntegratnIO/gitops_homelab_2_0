@@ -41,6 +41,30 @@ else
   fi
 fi
 
+if [ -n "${WORKLOAD_REPO_URL_RAW}" ] && [ "${WORKLOAD_REPO_URL_RAW}" != "null" ]; then
+  WORKLOAD_REPO_URL="${WORKLOAD_REPO_URL_RAW}"
+else
+  WORKLOAD_REPO_URL="https://github.com/jamesatintegratnio/gitops_homelab_2_0"
+fi
+
+if [ -n "${WORKLOAD_REPO_BASEPATH_RAW}" ] && [ "${WORKLOAD_REPO_BASEPATH_RAW}" != "null" ]; then
+  WORKLOAD_REPO_BASEPATH="${WORKLOAD_REPO_BASEPATH_RAW}"
+else
+  WORKLOAD_REPO_BASEPATH=""
+fi
+
+if [ -n "${WORKLOAD_REPO_PATH_RAW}" ] && [ "${WORKLOAD_REPO_PATH_RAW}" != "null" ]; then
+  WORKLOAD_REPO_PATH="${WORKLOAD_REPO_PATH_RAW}"
+else
+  WORKLOAD_REPO_PATH="workloads"
+fi
+
+if [ -n "${WORKLOAD_REPO_REVISION_RAW}" ] && [ "${WORKLOAD_REPO_REVISION_RAW}" != "null" ]; then
+  WORKLOAD_REPO_REVISION="${WORKLOAD_REPO_REVISION_RAW}"
+else
+  WORKLOAD_REPO_REVISION="main"
+fi
+
 if [ -z "${ARGOCD_CLUSTER_LABELS_RAW}" ] || [ "${ARGOCD_CLUSTER_LABELS_RAW}" = "null" ] || [ "${ARGOCD_CLUSTER_LABELS_RAW}" = "{}" ]; then
   ARGOCD_CLUSTER_LABELS_RAW=""
 fi
@@ -51,6 +75,7 @@ fi
 
 ARGOCD_CLUSTER_LABELS_BASE=$(cat <<EOF
 argocd.argoproj.io/secret-type: cluster
+akuity.io/argo-cd-cluster-name: ${NAME}
 cluster_name: ${NAME}
 cluster_role: vcluster
 cluster_type: vcluster
@@ -77,6 +102,10 @@ cluster_name: ${NAME}
 environment: ${ARGOCD_ENVIRONMENT}
 platform.integratn.tech/base-domain: ${BASE_DOMAIN}
 platform.integratn.tech/base-domain-sanitized: ${BASE_DOMAIN_SANITIZED}
+workload_repo_url: ${WORKLOAD_REPO_URL}
+workload_repo_basepath: ${WORKLOAD_REPO_BASEPATH}
+workload_repo_path: ${WORKLOAD_REPO_PATH}
+workload_repo_revision: ${WORKLOAD_REPO_REVISION}
 EOF
 )
 
