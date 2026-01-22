@@ -153,6 +153,11 @@ sonarr:
       secretName: sonarr-tls
       dnsNames:
         - sonarr.integratn.tech
+      commonName: sonarr.integratn.tech
+      usages:
+        - digital signature
+        - key encipherment
+        - server auth
       issuerRef:
         name: letsencrypt-prod
         kind: ClusterIssuer
