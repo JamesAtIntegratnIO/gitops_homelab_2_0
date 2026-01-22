@@ -1,0 +1,41 @@
+env:
+  - name: CF_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: cloudflare-api-key
+        key: CF_API_KEY
+  - name: CF_API_EMAIL
+    valueFrom:
+      secretKeyRef:
+        name: cloudflare-api-key
+        key: CF_API_EMAIL
+
+logLevel: debug
+
+domainFilters:
+  - integratn.tech
+
+provider:
+  name: cloudflare
+
+sources:
+  - gateway-httproute
+  - service
+
+policy: sync
+registry: txt
+
+# Must be unique per cluster so multiple external-dns instances don't fight.
+txtOwnerId: vcluster-media
+txtPrefix: vcluster-media-
+
+extraArgs:
+  - --gateway-name=nginx-gateway
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 100Mi
+  limits:
+    cpu: 500m
+    memory: 500Mi

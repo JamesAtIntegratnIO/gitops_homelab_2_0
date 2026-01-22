@@ -25,3 +25,9 @@ nginx-gateway-fabric:
       kind: ReferenceGrant
       jqPathExpressions:
         - .status
+
+external-dns:
+  additionalResources:
+    type: manifests
+    path: clusters
+    manifestPath: addons/external-dns-resources
