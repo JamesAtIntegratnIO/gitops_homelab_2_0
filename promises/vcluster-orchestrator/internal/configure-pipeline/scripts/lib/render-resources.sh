@@ -21,6 +21,17 @@ build_service_values() {
     SERVICE_LOADBALANCER_IP_LINE="      loadBalancerIP: \"${VIP}\""
   fi
 
+  SERVICE_INTERNAL_PORT_BLOCK=""
+  if [ "${API_PORT}" != "443" ]; then
+    SERVICE_INTERNAL_PORT_BLOCK=$(cat <<EOF
+        - name: https-internal
+          port: 443
+          targetPort: 8443
+          protocol: TCP
+EOF
+)
+  fi
+
   SERVICE_VALUES=$(cat <<EOF
   service:
     enabled: true
@@ -34,10 +45,7 @@ ${SERVICE_LOADBALANCER_IP_LINE}
           port: ${API_PORT}
           targetPort: 8443
           protocol: TCP
-        - name: https-internal
-          port: 443
-          targetPort: 8443
-          protocol: TCP
+${SERVICE_INTERNAL_PORT_BLOCK}
 EOF
 )
 
