@@ -1,4 +1,4 @@
 config:
-	preserve: false
-	webhookLabels:
-		app.kubernetes.io/managed-by: argocd
+  preserve: false
+  webhookLabels:
+    app.kubernetes.io/managed-by: argocd
