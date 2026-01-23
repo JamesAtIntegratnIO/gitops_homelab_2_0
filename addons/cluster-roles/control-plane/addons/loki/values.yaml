@@ -4,8 +4,25 @@ loki:
   auth_enabled: false
   commonConfig:
     replication_factor: 1
+    path_prefix: /var/loki
   storage:
     type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: boltdb-shipper
+        object_store: filesystem
+        schema: v12
+        index:
+          prefix: loki_index_
+          period: 24h
+  storageConfig:
+    boltdb_shipper:
+      active_index_directory: /var/loki/index
+      cache_location: /var/loki/cache
+      shared_store: filesystem
+    filesystem:
+      directory: /var/loki/chunks
   limits_config:
     retention_period: 168h
 
