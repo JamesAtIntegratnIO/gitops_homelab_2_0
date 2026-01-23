@@ -199,7 +199,7 @@ sonarr:
           namespace: nginx-gateway
           sectionName: https
       hostnames:
-        - sonarr.media.integratn.tech
+        - sonarr.integratn.tech
       rules:
         - backendRefs:
             - name: sonarr
@@ -212,8 +212,8 @@ sonarr:
       enabled: true
       secretName: sonarr-tls
       dnsNames:
-        - sonarr.media.integratn.tech
-      commonName: sonarr.media.integratn.tech
+        - sonarr.integratn.tech
+      commonName: sonarr.integratn.tech
       subject: {}
       usages:
         - digital signature
@@ -406,7 +406,7 @@ radarr:
           namespace: nginx-gateway
           sectionName: https
       hostnames:
-        - radarr.media.integratn.tech
+        - radarr.integratn.tech
       rules:
         - backendRefs:
             - name: radarr
@@ -419,8 +419,8 @@ radarr:
       enabled: true
       secretName: radarr-tls
       dnsNames:
-        - radarr.media.integratn.tech
-      commonName: radarr.media.integratn.tech
+        - radarr.integratn.tech
+      commonName: radarr.integratn.tech
       subject: {}
       usages:
         - digital signature
@@ -542,7 +542,7 @@ sabnzbd:
         SABNZBD__PORT:
           value: "8080"
         SABNZBD__HOST_WHITELIST_ENTRIES:
-          value: "sabnzbd,sabnzbd.default,sabnzbd.default.svc,sabnzbd.default.svc.cluster,sabnzbd.default.svc.cluster.local,sabnzbd.media.integratn.tech"
+          value: "sabnzbd,sabnzbd.default,sabnzbd.default.svc,sabnzbd.default.svc.cluster,sabnzbd.default.svc.cluster.local,sabnzbd.integratn.tech"
       additionalContainers:
         - name: exportarr
           image: ghcr.io/onedr0p/exportarr:latest
@@ -599,7 +599,7 @@ sabnzbd:
           namespace: nginx-gateway
           sectionName: https
       hostnames:
-        - sabnzbd.media.integratn.tech
+        - sabnzbd.integratn.tech
       rules:
         - backendRefs:
             - name: sabnzbd
@@ -612,8 +612,8 @@ sabnzbd:
       enabled: true
       secretName: sabnzbd-tls
       dnsNames:
-        - sabnzbd.media.integratn.tech
-      commonName: sabnzbd.media.integratn.tech
+        - sabnzbd.integratn.tech
+      commonName: sabnzbd.integratn.tech
       subject: {}
       usages:
         - digital signature
