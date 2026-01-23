@@ -1,0 +1,22 @@
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  limits_config:
+    retention_period: 168h
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    storageClass: config-nfs-client
+    size: 50Gi
+
+gateway:
+  enabled: true
+  service:
+    type: ClusterIP

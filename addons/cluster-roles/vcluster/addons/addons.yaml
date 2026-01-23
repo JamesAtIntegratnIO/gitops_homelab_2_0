@@ -169,6 +169,59 @@ external-dns-resources-vcluster:
         operator: In
         values: ['vcluster']
 
+kube-prometheus-stack-agent:
+  enabled: true
+  namespace: monitoring
+  releaseName: kube-prometheus-stack
+  chartName: kube-prometheus-stack
+  project: platform-services
+  chartRepository: https://prometheus-community.github.io/helm-charts
+  defaultVersion: "58.2.1"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: In
+        values: ['vcluster']
+  valuesObject:
+    prometheus:
+      prometheusSpec:
+        externalLabels:
+          cluster: '{{ .metadata.labels.cluster_name }}'
+          environment: '{{ .metadata.labels.environment }}'
+        remoteWrite:
+          - url: 'https://prom-remote.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}/api/v1/write'
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+promtail-vcluster:
+  enabled: true
+  namespace: promtail
+  releaseName: promtail
+  chartName: promtail
+  project: platform-services
+  chartRepository: https://grafana.github.io/helm-charts
+  defaultVersion: "6.9.0"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: In
+        values: ['vcluster']
+  valuesObject:
+    config:
+      clients:
+        - url: 'https://loki.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}/loki/api/v1/push'
+          external_labels:
+            cluster: '{{ .metadata.labels.cluster_name }}'
+            environment: '{{ .metadata.labels.environment }}'
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
 cert-manager-vcluster:
   enabled: true
   releaseName: cert-manager

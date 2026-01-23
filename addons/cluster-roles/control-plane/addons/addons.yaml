@@ -70,3 +70,59 @@ platform-vclusters:
   info:
     - name: Description
       value: Kratix ResourceRequests for vCluster provisioning
+
+observability-secrets:
+  enabled: true
+  type: manifest
+  namespace: monitoring
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/observability-secrets
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+
+kube-prometheus-stack:
+  enabled: true
+  namespace: monitoring
+  releaseName: kube-prometheus-stack
+  chartName: kube-prometheus-stack
+  project: platform-services
+  chartRepository: https://prometheus-community.github.io/helm-charts
+  defaultVersion: "58.2.1"
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+loki:
+  enabled: true
+  namespace: loki
+  releaseName: loki
+  chartName: loki
+  project: platform-services
+  chartRepository: https://grafana.github.io/helm-charts
+  defaultVersion: "6.9.0"
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+promtail:
+  enabled: true
+  namespace: promtail
+  releaseName: promtail
+  chartName: promtail
+  project: platform-services
+  chartRepository: https://grafana.github.io/helm-charts
+  defaultVersion: "6.9.0"
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
