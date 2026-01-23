@@ -12,6 +12,11 @@ spec:
   vcluster:
     preset: prod
     replicas: 3
+    helmOverrides:
+      sync:
+        toHost:
+          persistentVolumes:
+            enabled: true
     resources:
       requests:
         memory: "2Gi"
