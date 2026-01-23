@@ -109,6 +109,7 @@ sonarr:
                 secretKeyRef:
                   name: homepage-secret
                   key: HOMEPAGE_VAR_SONARR_KEY
+                  optional: true
       volumes:
         config:
           persistentVolumeClaim:
