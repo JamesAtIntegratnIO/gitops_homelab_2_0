@@ -1,1 +1,4 @@
-# Kyverno values override (optional)
+config:
+	preserve: false
+	webhookLabels:
+		app.kubernetes.io/managed-by: argocd
