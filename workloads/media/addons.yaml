@@ -1,7 +1,3 @@
-valueFiles:
-  - workloads/media/addons
-useValuesFilePrefix: false
-
 globalSelectors:
   cluster_name: media
 
