@@ -21,7 +21,7 @@ sonarr:
   valuesObject:
     applicationName: sonarr
     extraObjects:
-      - apiVersion: external-secrets.io/v1
+      - apiVersion: external-secrets.io/v1beta1
         kind: ExternalSecret
         metadata:
           name: eso-homepage-secret
@@ -41,6 +41,25 @@ sonarr:
                 conversionStrategy: Default
                 metadataPolicy: None
       - apiVersion: v1
+        kind: PersistentVolume
+        metadata:
+          name: sonarr-config-pv
+          labels:
+            app: sonarr
+          annotations:
+            pv.kubernetes.io/provisioned-by: k8s-sigs.io/nfs-subdir-external-provisioner
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          capacity:
+            storage: 1Gi
+          nfs:
+            path: /mnt/user/kube_storage/sonarr-config-pvc
+            server: 10.0.0.12
+          persistentVolumeReclaimPolicy: Retain
+          storageClassName: config-nfs-client
+          volumeMode: Filesystem
+      - apiVersion: v1
         kind: PersistentVolumeClaim
         metadata:
           name: sonarr-config-pvc
@@ -55,26 +74,25 @@ sonarr:
             requests:
               storage: 1Gi
           volumeName: sonarr-config-pv
-            volumeName: sonarr-config-pv
-        - apiVersion: v1
-          kind: PersistentVolume
-          metadata:
-            name: sonarr-config-pv
-            labels:
-              app: sonarr
-            annotations:
-              pv.kubernetes.io/provisioned-by: k8s-sigs.io/nfs-subdir-external-provisioner
-          spec:
-            accessModes:
-              - ReadWriteOnce
-            capacity:
-              storage: 1Gi
-            nfs:
-              path: /mnt/user/kube_storage/sonarr-config-pvc
-              server: 10.0.0.12
-            persistentVolumeReclaimPolicy: Retain
-            storageClassName: config-nfs-client
-            volumeMode: Filesystem
+      - apiVersion: v1
+        kind: PersistentVolume
+        metadata:
+          name: sonarr-media-pv
+          labels:
+            app: sonarr
+          annotations:
+            pv.kubernetes.io/provisioned-by: k8s-sigs.io/data-nfs-subdir-external-provisioner
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          capacity:
+            storage: 1Gi
+          nfs:
+            path: /mnt/user/data
+            server: 10.0.0.12
+          persistentVolumeReclaimPolicy: Retain
+          storageClassName: data-nfs-client
+          volumeMode: Filesystem
       - apiVersion: v1
         kind: PersistentVolumeClaim
         metadata:
@@ -89,26 +107,6 @@ sonarr:
           resources:
             requests:
               storage: 1Gi
-            volumeName: sonarr-media-pv
-        - apiVersion: v1
-          kind: PersistentVolume
-          metadata:
-            name: sonarr-media-pv
-            labels:
-              app: sonarr
-            annotations:
-              pv.kubernetes.io/provisioned-by: k8s-sigs.io/data-nfs-subdir-external-provisioner
-          spec:
-            accessModes:
-              - ReadWriteOnce
-            capacity:
-              storage: 1Gi
-            nfs:
-              path: /mnt/user/data
-              server: 10.0.0.12
-            persistentVolumeReclaimPolicy: Retain
-            storageClassName: data-nfs-client
-            volumeMode: Filesystem
           volumeName: sonarr-media-pv
     deployment:
       securityContext:
@@ -149,6 +147,27 @@ sonarr:
           value: info
         SONARR__THEME:
           value: dark
+      additionalContainers:
+        - name: exportarr
+          image: ghcr.io/onedr0p/exportarr:latest
+          command:
+            - /exportarr
+          args:
+            - sonarr
+          ports:
+            - name: metrics
+              containerPort: 9707
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "9707"
+            - name: URL
+              value: http://localhost:8989
+            - name: APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: homepage-secret
+                  key: HOMEPAGE_VAR_SONARR_KEY
       volumes:
         config:
           persistentVolumeClaim:
