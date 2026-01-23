@@ -21,6 +21,25 @@ sonarr:
   valuesObject:
     applicationName: sonarr
     extraObjects:
+      - apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: eso-homepage-secret
+          namespace: media
+        spec:
+          refreshInterval: 1h
+          secretStoreRef:
+            kind: ClusterSecretStore
+            name: onepassword-store
+          target:
+            name: homepage-secret
+            creationPolicy: Owner
+          dataFrom:
+            - extract:
+                key: homepage-secret
+                decodingStrategy: None
+                conversionStrategy: Default
+                metadataPolicy: None
       - apiVersion: v1
         kind: PersistentVolumeClaim
         metadata:
