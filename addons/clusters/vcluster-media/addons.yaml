@@ -1,0 +1,8 @@
+sonarr-pvs:
+  enabled: true
+  type: manifest
+  namespace: default
+  manifestSource:
+    repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0
+    targetRevision: main
+    path: addons/clusters/vcluster-media/addons/sonarr-pvs

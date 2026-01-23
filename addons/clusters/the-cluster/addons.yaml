@@ -32,8 +32,3 @@ external-dns:
     path: clusters
     manifestPath: addons/external-dns-resources
 
-sonarr-pvs:
-  additionalResources:
-    type: manifests
-    path: clusters
-    manifestPath: addons/sonarr-pvs
