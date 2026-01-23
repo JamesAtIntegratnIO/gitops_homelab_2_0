@@ -21,11 +21,14 @@ mediaAppDefaults: &mediaAppDefaults
 sonarr:
   <<: *mediaAppDefaults
   enabled: true
+  valuesFileName: sonarr.yaml
 
 radarr:
   <<: *mediaAppDefaults
   enabled: true
+  valuesFileName: radarr.yaml
 
 sabnzbd:
   <<: *mediaAppDefaults
   enabled: true
+  valuesFileName: sabnzbd.yaml
