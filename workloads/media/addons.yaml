@@ -119,7 +119,7 @@ sonarr:
           namespace: nginx-gateway
           sectionName: https
       hostnames:
-        - sonarr.integratn.tech
+        - sonarr.media.integratn.tech
       rules:
         - backendRefs:
             - name: sonarr
@@ -132,8 +132,8 @@ sonarr:
       enabled: true
       secretName: sonarr-tls
       dnsNames:
-        - sonarr.integratn.tech
-      commonName: sonarr.integratn.tech
+        - sonarr.media.integratn.tech
+      commonName: sonarr.media.integratn.tech
       subject: {}
       usages:
         - digital signature
