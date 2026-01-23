@@ -578,6 +578,22 @@ kyverno:
   project: platform-services
   chartRepository: https://kyverno.github.io/kyverno/
   defaultVersion: "3.2.6"
+  valuesObject:
+    crds:
+      install: false
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+
+kyverno-crds:
+  enabled: true
+  namespace: kyverno
+  releaseName: kyverno-crds
+  chartName: kyverno-crds
+  project: platform-services
+  chartRepository: https://kyverno.github.io/kyverno/
+  defaultVersion: "3.2.6"
   syncPolicy:
     automated: {}
     syncOptions:
