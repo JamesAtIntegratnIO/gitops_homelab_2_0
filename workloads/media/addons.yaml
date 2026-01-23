@@ -1,6 +1,8 @@
 globalSelectors:
   cluster_name: media
 
+useAddonNameForValues: true
+
 mediaAppDefaults: &mediaAppDefaults
   namespace: media
   chartRepository: https://stakater.github.io/stakater-charts
@@ -21,14 +23,11 @@ mediaAppDefaults: &mediaAppDefaults
 sonarr:
   <<: *mediaAppDefaults
   enabled: true
-  valuesFileName: sonarr.yaml
 
 radarr:
   <<: *mediaAppDefaults
   enabled: true
-  valuesFileName: radarr.yaml
 
 sabnzbd:
   <<: *mediaAppDefaults
   enabled: true
-  valuesFileName: sabnzbd.yaml

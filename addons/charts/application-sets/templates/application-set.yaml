@@ -10,6 +10,7 @@
 {{- $valueFiles := .Values.valueFiles -}}
 {{- $valuesFilePrefix :=  .Values.valuesFilePrefix -}}
 {{- $useValuesFilePrefix := (default false .Values.useValuesFilePrefix )  -}}
+{{- $useAddonNameForValues := (default false .Values.useAddonNameForValues) -}}
 {{- $useSelectors:= .Values.useSelectors  -}}
 {{- $globalSelectors  := .Values.globalSelectors   -}}
 {{- $appsetPrefix := .Values.appsetPrefix -}}
@@ -44,6 +45,14 @@ Newer capabilities:
 {{- if and (kindIs "map" $chartConfig) (hasKey $chartConfig "enabled") }}
 {{- if eq (toString $chartConfig.enabled) "true" }}
 {{- $nameNormalize := printf "%s" $chartName | replace "_" "-" | trunc 63 | trimSuffix "-"  -}}
+{{- $valuesFolderName := "" -}}
+{{- if $chartConfig.valuesFolderName }}
+{{- $valuesFolderName = $chartConfig.valuesFolderName -}}
+{{- else if $useAddonNameForValues }}
+{{- $valuesFolderName = $nameNormalize -}}
+{{- else }}
+{{- $valuesFolderName = ($chartConfig.chartName | default $nameNormalize) -}}
+{{- end }}
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -213,7 +222,7 @@ spec:
           {{- if $valueFiles }}
           valueFiles:
           {{- include "application-sets.valueFiles" (dict
-            "nameNormalize" ($chartConfig.chartName | default $nameNormalize)
+            "nameNormalize" $valuesFolderName
             "chartConfig" $chartConfig
             "valueFiles" $valueFiles "values" $values) | nindent 12 }}
           {{- end }}
