@@ -88,28 +88,6 @@ sonarr:
           value: info
         SONARR__THEME:
           value: dark
-      additionalContainers:
-        - name: exportarr
-          image: ghcr.io/onedr0p/exportarr:latest
-          command:
-            - /exportarr
-          args:
-            - sonarr
-          ports:
-            - name: metrics
-              containerPort: 9707
-              protocol: TCP
-          env:
-            - name: PORT
-              value: "9707"
-            - name: URL
-              value: http://localhost:8989
-            - name: APIKEY
-              valueFrom:
-                secretKeyRef:
-                  name: homepage-secret
-                  key: HOMEPAGE_VAR_SONARR_KEY
-                  optional: true
       volumes:
         config:
           persistentVolumeClaim:
@@ -132,18 +110,8 @@ sonarr:
           port: 8989
           targetPort: 8989
           protocol: TCP
-        - name: metrics
-          port: 9707
-          targetPort: 9707
-          protocol: TCP
     serviceMonitor:
-      enabled: true
-      endpoints:
-        - port: metrics
-          path: /metrics
-          interval: 30s
-      additionalLabels:
-        prometheus: media-cluster
+      enabled: false
     httpRoute:
       enabled: true
       parentRefs:
