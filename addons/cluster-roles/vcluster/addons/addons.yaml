@@ -260,6 +260,19 @@ cert-manager-vcluster:
           dnsNames:
             - '*.{{ .metadata.labels.cluster_name }}.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}'
       - |
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        metadata:
+          name: wildcard-{{ index .metadata.annotations "platform.integratn.tech/base-domain-sanitized" }}
+          namespace: nginx-gateway
+        spec:
+          secretName: wildcard-{{ index .metadata.annotations "platform.integratn.tech/base-domain-sanitized" }}-tls
+          issuerRef:
+            name: letsencrypt-prod
+            kind: ClusterIssuer
+          dnsNames:
+            - '*.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}'
+      - |
         apiVersion: gateway.networking.k8s.io/v1beta1
         kind: ReferenceGrant
         metadata:
@@ -339,6 +352,26 @@ nginx-gateway-fabric-vcluster:
                   - group: ""
                     kind: Secret
                     name: 'wildcard-{{ .metadata.labels.cluster_name }}-{{ index .metadata.annotations "platform.integratn.tech/base-domain-sanitized" }}-tls'
+              allowedRoutes:
+                namespaces:
+                  from: All
+            - name: http-public
+              port: 80
+              protocol: HTTP
+              hostname: '{{ printf "*.%s" (index .metadata.annotations "platform.integratn.tech/base-domain") }}'
+              allowedRoutes:
+                namespaces:
+                  from: All
+            - name: https-public
+              port: 443
+              protocol: HTTPS
+              hostname: '{{ printf "*.%s" (index .metadata.annotations "platform.integratn.tech/base-domain") }}'
+              tls:
+                mode: Terminate
+                certificateRefs:
+                  - group: ""
+                    kind: Secret
+                    name: 'wildcard-{{ index .metadata.annotations "platform.integratn.tech/base-domain-sanitized" }}-tls'
               allowedRoutes:
                 namespaces:
                   from: All

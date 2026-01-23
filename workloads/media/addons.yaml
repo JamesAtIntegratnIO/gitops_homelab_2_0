@@ -197,7 +197,7 @@ sonarr:
       parentRefs:
         - name: nginx-gateway
           namespace: nginx-gateway
-          sectionName: https
+          sectionName: https-public
       hostnames:
         - sonarr.integratn.tech
       rules:
@@ -404,7 +404,7 @@ radarr:
       parentRefs:
         - name: nginx-gateway
           namespace: nginx-gateway
-          sectionName: https
+          sectionName: https-public
       hostnames:
         - radarr.integratn.tech
       rules:
@@ -597,7 +597,7 @@ sabnzbd:
       parentRefs:
         - name: nginx-gateway
           namespace: nginx-gateway
-          sectionName: https
+          sectionName: https-public
       hostnames:
         - sabnzbd.integratn.tech
       rules:
