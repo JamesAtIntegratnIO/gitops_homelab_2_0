@@ -184,6 +184,8 @@ sync:
   toHost:
     pods:
       enabled: true
+    persistentVolumes:
+      enabled: true
   fromHost:
     storageClasses:
       enabled: true
