@@ -78,6 +78,11 @@ observability-secrets:
   project: platform-services
   defaultVersion: "main"
   path: addons/cluster-roles/control-plane/addons/observability-secrets
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
   syncPolicy:
     automated:
       selfHeal: true
@@ -93,6 +98,11 @@ kube-prometheus-stack:
   project: platform-services
   chartRepository: https://prometheus-community.github.io/helm-charts
   defaultVersion: "58.2.1"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
   syncPolicy:
     automated: {}
     syncOptions:
@@ -107,6 +117,11 @@ loki:
   project: platform-services
   chartRepository: https://grafana.github.io/helm-charts
   defaultVersion: "6.9.0"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
   syncPolicy:
     automated: {}
     syncOptions:
@@ -121,6 +136,11 @@ promtail:
   project: platform-services
   chartRepository: https://grafana.github.io/helm-charts
   defaultVersion: "6.9.0"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
   syncPolicy:
     automated: {}
     syncOptions:
