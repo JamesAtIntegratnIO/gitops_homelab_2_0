@@ -1,0 +1,127 @@
+applicationName: otterwiki
+extraObjects:
+  - apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: eso-otterwiki-secret
+      namespace: media
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: onepassword-store
+      target:
+        name: otterwiki-secret
+        creationPolicy: Owner
+      dataFrom:
+        - extract:
+            key: otterwiki-secret
+            decodingStrategy: None
+            conversionStrategy: Default
+            metadataPolicy: None
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: otterwiki-config-pv
+      labels:
+        app: otterwiki
+      annotations:
+        pv.kubernetes.io/provisioned-by: k8s-sigs.io/data-nfs-subdir-external-provisioner
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      capacity:
+        storage: 1Gi
+      nfs:
+        path: /mnt/user/kube_storage/otterwiki
+        server: 10.0.0.12
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: nfs-client
+      volumeMode: Filesystem
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: otterwiki-config-pvc
+      namespace: media
+      labels:
+        app: otterwiki
+    spec:
+      storageClassName: nfs-client
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      volumeName: otterwiki-config-pv
+deployment:
+  image:
+    repository: redimp/otterwiki
+    tag: latest
+    pullPolicy: IfNotPresent
+  ports:
+    - name: http
+      containerPort: 8080
+      protocol: TCP
+  env:
+    TZ:
+      value: America/Denver
+    OTTERWIKI_SECRET_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: otterwiki-secret
+          key: SECRET_KEY
+    OTTERWIKI_ADMIN_USER:
+      valueFrom:
+        secretKeyRef:
+          name: otterwiki-secret
+          key: ADMIN_USER
+    OTTERWIKI_ADMIN_PASSWORD:
+      valueFrom:
+        secretKeyRef:
+          name: otterwiki-secret
+          key: ADMIN_PASSWORD
+  volumes:
+    config:
+      persistentVolumeClaim:
+        claimName: otterwiki-config-pvc
+  volumeMounts:
+    config:
+      mountPath: /data
+persistence:
+  enabled: false
+service:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https-public
+  hostnames:
+    - wiki.integratn.tech
+  rules:
+    - backendRefs:
+        - name: otterwiki
+          port: 8080
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+certificate:
+  enabled: true
+  secretName: otterwiki-tls
+  dnsNames:
+    - wiki.integratn.tech
+  commonName: wiki.integratn.tech
+  subject: {}
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer

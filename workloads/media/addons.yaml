@@ -31,3 +31,7 @@ radarr:
 sabnzbd:
   <<: *mediaAppDefaults
   enabled: true
+
+otterwiki:
+  <<: *mediaAppDefaults
+  enabled: true
