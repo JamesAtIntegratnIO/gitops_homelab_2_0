@@ -117,7 +117,7 @@ sonarr:
       parentRefs:
         - name: nginx-gateway
           namespace: nginx-gateway
-          sectionName: https-sonarr
+          sectionName: https
       hostnames:
         - sonarr.integratn.tech
       rules:
