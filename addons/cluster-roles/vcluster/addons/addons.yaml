@@ -192,7 +192,8 @@ kube-prometheus-stack-agent:
         remoteWrite:
           - url: 'https://prom-remote.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}/api/v1/write'
   syncPolicy:
-    automated: {}
+    automated:
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
