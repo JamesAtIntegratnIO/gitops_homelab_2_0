@@ -1,0 +1,44 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: loki
+  namespace: loki
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https-public
+  hostnames:
+    - loki.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: loki-gateway
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: loki-http-redirect
+  namespace: loki
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http-public
+  hostnames:
+    - loki.cluster.integratn.tech
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            port: 443

@@ -17,7 +17,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https
+      sectionName: https-public
   hostnames:
     - grafana.cluster.integratn.tech
   rules:
@@ -32,13 +32,32 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
+  name: grafana-http-redirect
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http-public
+  hostnames:
+    - grafana.cluster.integratn.tech
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            port: 443
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
   name: prom-remote
   namespace: monitoring
 spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https
+      sectionName: https-public
   hostnames:
     - prom-remote.integratn.tech
   rules:
@@ -59,9 +78,9 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https
+      sectionName: https-public
   hostnames:
-    - loki.integratn.tech
+    - loki.cluster.integratn.tech
   rules:
     - matches:
         - path:
@@ -70,3 +89,102 @@ spec:
       backendRefs:
         - name: loki-gateway
           port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: loki-http-redirect
+  namespace: loki
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http-public
+  hostnames:
+    - loki.cluster.integratn.tech
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            port: 443
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https-public
+  hostnames:
+    - prometheus.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: kube-prometheus-stack-prometheus
+          port: 9090
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prometheus-http-redirect
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http-public
+  hostnames:
+    - prometheus.cluster.integratn.tech
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            port: 443
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https-public
+  hostnames:
+    - alertmanager.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: kube-prometheus-stack-alertmanager
+          port: 9093
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: alertmanager-http-redirect
+  namespace: monitoring
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http-public
+  hostnames:
+    - alertmanager.cluster.integratn.tech
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            port: 443
