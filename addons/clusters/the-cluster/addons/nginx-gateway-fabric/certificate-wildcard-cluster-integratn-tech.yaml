@@ -9,7 +9,5 @@ spec:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-    - integratn.tech
-    - '*.integratn.tech'
     - cluster.integratn.tech
     - '*.cluster.integratn.tech'

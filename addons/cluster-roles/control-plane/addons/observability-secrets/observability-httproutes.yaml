@@ -19,7 +19,7 @@ spec:
       namespace: nginx-gateway
       sectionName: https
   hostnames:
-    - grafana.integratn.tech
+    - grafana.cluster.integratn.tech
   rules:
     - matches:
         - path:
