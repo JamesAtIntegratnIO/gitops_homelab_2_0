@@ -16,6 +16,15 @@ prometheus:
   prometheusSpec:
     enableRemoteWriteReceiver: true
     retention: 15d
+    # Discover ServiceMonitors across all namespaces
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelector: {}
+    # Discover PodMonitors across all namespaces
+    podMonitorNamespaceSelector: {}
+    podMonitorSelector: {}
+    # Discover PrometheusRules across all namespaces
+    ruleNamespaceSelector: {}
+    ruleSelector: {}
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -24,6 +33,16 @@ prometheus:
           resources:
             requests:
               storage: 30Gi
+
+# Disable ServiceMonitors for components not available in Talos
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
 
 grafana:
   defaultDashboardsEnabled: true
