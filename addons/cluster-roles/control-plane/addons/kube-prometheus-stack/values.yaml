@@ -151,3 +151,23 @@ grafana:
       type: loki
       access: proxy
       url: http://loki-gateway.loki.svc.cluster.local
+
+defaultRules:
+  rules:
+    etcd: true
+  # Override the etcdInsufficientMembers alert to properly aggregate across all members
+  additionalPrometheusRules:
+    - name: etcd-override
+      groups:
+        - name: etcd
+          rules:
+            - alert: etcdInsufficientMembers
+              annotations:
+                description: 'etcd cluster "{{ $labels.job }}": insufficient members ({{ $value }}).'
+                summary: etcd cluster has insufficient number of members.
+              expr: |
+                sum(up{job=~".*etcd.*"} == bool 1) < ((count(up{job=~".*etcd.*"}) + 1) / 2)
+              for: 3m
+              labels:
+                severity: critical
+

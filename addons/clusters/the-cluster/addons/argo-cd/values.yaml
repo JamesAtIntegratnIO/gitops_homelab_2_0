@@ -6,6 +6,12 @@ configs:
     server.insecure: true
     server.url: https://argocd.cluster.integratn.tech
 
+dex:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
 server:
   service:
     annotations:
