@@ -5,50 +5,65 @@
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Control Plane Cluster (the-cluster)                              │
-│                                                                   │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │  Prometheus  │  │ Alertmanager │  │   Grafana    │          │
-│  │   (9090)     │  │   (9093)     │  │    (80)      │          │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
-│         │                  │                  │                   │
-│         └──────────────────┴──────────────────┘                  │
-│                            │                                      │
-│                            ▼                                      │
-│                  ┌──────────────────┐                            │
-│                  │  nginx-gateway   │                            │
-│                  │   (10.0.4.205)   │                            │
-│                  └────────┬─────────┘                            │
-│                           │                                       │
-│  ┌────────────────────────┴────────────────────────┐            │
-│  │                     Loki                          │            │
-│  │               loki-gateway (80)                   │            │
-│  └───────────────────────────────────────────────────┘            │
-└───────────────────────────────────────────────────────────────────┘
-                            │
-                            │ HTTPS/TLS (Let's Encrypt)
-                            ▼
-                     Internet Access
-           *.cluster.integratn.tech
+```mermaid
+graph TB
+    subgraph Internet["🌐 Internet"]
+        Users["Users/Browsers"]
+    end
 
-┌─────────────────────────────────────────────────────────────────┐
-│ Media VCluster (vcluster-media)                                  │
-│                                                                   │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Prometheus Agent (federation mode)                      │   │
-│  │  - 6h retention                                           │   │
-│  │  - Remote write to control plane                         │   │
-│  │  - Cluster label: media                                  │   │
-│  │  - Environment: production                               │   │
-│  └────────────────────────┬─────────────────────────────────┘   │
-│                            │                                      │
-│                            │ Remote Write                         │
-│                            ▼                                      │
-│              https://prom-remote.integratn.tech/api/v1/write     │
-└───────────────────────────────────────────────────────────────────┘
+    subgraph ControlPlane["Control Plane Cluster (the-cluster)"]
+        subgraph Monitoring["Monitoring Stack"]
+            Prometheus["Prometheus<br/>:9090<br/>15d retention"]
+            Alertmanager["Alertmanager<br/>:9093<br/>Alert routing"]
+            Grafana["Grafana<br/>:80<br/>Dashboards"]
+        end
+        
+        subgraph Logging["Logging Stack"]
+            LokiGateway["Loki Gateway<br/>:80"]
+            LokiBackend["Loki Backend<br/>Read/Write/Compact"]
+            LokiCache["Memcached<br/>Chunks & Results"]
+        end
+        
+        Gateway["nginx-gateway<br/>10.0.4.205<br/>HTTPS/TLS Termination"]
+        
+        PromRemote["Prom Remote Write<br/>prom-remote.integratn.tech<br/>:9090/api/v1/write"]
+    end
+    
+    subgraph VCluster["Media VCluster (vcluster-media)"]
+        PromAgent["Prometheus Agent<br/>6h retention<br/>cluster: media<br/>env: production"]
+    end
+    
+    subgraph DNS["DNS & Certificates"]
+        LetsEncrypt["Let's Encrypt<br/>*.cluster.integratn.tech"]
+        Cloudflare["Cloudflare DNS<br/>DNS-01 Challenge"]
+    end
 
+    Users -->|HTTPS| Gateway
+    Gateway -->|*.cluster.integratn.tech| Prometheus
+    Gateway --> Alertmanager
+    Gateway --> Grafana
+    Gateway --> LokiGateway
+    Gateway --> PromRemote
+    
+    LokiGateway --> LokiBackend
+    LokiBackend --> LokiCache
+    
+    Prometheus -->|Queries| Grafana
+    Alertmanager -->|Alerts| Grafana
+    LokiBackend -->|Logs| Grafana
+    
+    PromAgent -->|Remote Write<br/>HTTPS| PromRemote
+    PromRemote -->|Ingests| Prometheus
+    
+    Gateway -.->|TLS Cert| LetsEncrypt
+    LetsEncrypt -.->|Validation| Cloudflare
+
+    style Prometheus fill:#e85d75,stroke:#333,stroke-width:2px,color:#fff
+    style Alertmanager fill:#ff9800,stroke:#333,stroke-width:2px,color:#fff
+    style Grafana fill:#f46800,stroke:#333,stroke-width:2px,color:#fff
+    style LokiGateway fill:#00bfb3,stroke:#333,stroke-width:2px,color:#fff
+    style Gateway fill:#009688,stroke:#333,stroke-width:2px,color:#fff
+    style PromAgent fill:#e85d75,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ## Exposed Services
@@ -217,19 +232,57 @@ spec:
 
 ## Monitoring Hierarchy
 
-```
-1. Workload Clusters/VClusters
-   └─> Prometheus Agents (6h retention)
-       └─> Remote Write to Control Plane
-           └─> Central Prometheus (15d retention)
-               ├─> Alertmanager (alert routing)
-               ├─> Grafana (visualization)
-               └─> Long-term storage (optional: Thanos/Mimir)
+```mermaid
+flowchart TD
+    subgraph Workloads["Workload Clusters / VClusters"]
+        Apps["Applications"]
+        Logs["Application Logs"]
+        Metrics["Metrics"]
+        
+        Apps --> Logs
+        Apps --> Metrics
+    end
+    
+    subgraph Federation["Federation Layer"]
+        PromAgent["Prometheus Agents<br/>6h retention<br/>Per-cluster labels"]
+        Promtail["Promtail<br/>(Future)"]
+        
+        Metrics --> PromAgent
+        Logs --> Promtail
+    end
+    
+    subgraph ControlPlane["Control Plane - Observability"]
+        RemoteWrite["Remote Write Endpoint<br/>prom-remote.integratn.tech"]
+        
+        CentralProm["Central Prometheus<br/>15d retention<br/>Aggregated metrics"]
+        
+        AlertMgr["Alertmanager<br/>Alert routing<br/>Receivers: Slack, Email"]
+        
+        Loki["Loki<br/>Log aggregation<br/>Scalable storage"]
+        
+        Grafana["Grafana<br/>Unified visualization"]
+        
+        LTS["Long-term Storage<br/>(Future: Thanos/Mimir)"]
+    end
+    
+    PromAgent -->|"Remote Write<br/>HTTPS"| RemoteWrite
+    RemoteWrite --> CentralProm
+    Promtail -.->|"Push API<br/>(Future)"| Loki
+    
+    CentralProm --> AlertMgr
+    CentralProm --> Grafana
+    CentralProm -.->|"Optional"| LTS
+    
+    Loki --> Grafana
+    AlertMgr --> Grafana
+    
+    Grafana -->|"Dashboards<br/>Queries<br/>Alerts"| Users["Users & Teams"]
 
-2. Logging
-   └─> Application Logs
-       └─> Loki (control plane)
-           └─> Grafana (visualization)
+    style CentralProm fill:#e85d75,stroke:#333,stroke-width:3px,color:#fff
+    style Grafana fill:#f46800,stroke:#333,stroke-width:3px,color:#fff
+    style Loki fill:#00bfb3,stroke:#333,stroke-width:3px,color:#fff
+    style PromAgent fill:#ff6b9d,stroke:#333,stroke-width:2px,color:#fff
+    style AlertMgr fill:#ff9800,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ## Future Enhancements
