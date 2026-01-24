@@ -12,3 +12,15 @@ machine:
         ip: 10.0.4.100
 cluster:
   allowSchedulingOnControlPlanes: true
+  controllerManager:
+    extraArgs:
+      bind-address: "0.0.0.0"
+  scheduler:
+    extraArgs:
+      bind-address: "0.0.0.0"
+  proxy:
+    extraArgs:
+      metrics-bind-address: "0.0.0.0:10249"
+  etcd:
+    extraArgs:
+      listen-metrics-urls: "https://0.0.0.0:2381"
