@@ -25,6 +25,9 @@ prometheus:
   prometheusSpec:
     retention: 6h
     scrapeInterval: 30s
-    serviceMonitorSelectorNilUsesHelmValues: false
-    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: true
+    podMonitorSelectorNilUsesHelmValues: true
     storageSpec: {}
+
+kube-state-metrics:
+  enabled: true

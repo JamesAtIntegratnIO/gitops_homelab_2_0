@@ -26,6 +26,8 @@ prometheus:
               storage: 30Gi
 
 grafana:
+  defaultDashboardsEnabled: true
+  defaultDashboardsTimezone: browser
   admin:
     existingSecret: grafana-admin
     userKey: admin-user
@@ -43,6 +45,26 @@ grafana:
     enabled: true
     storageClassName: config-nfs-client
     size: 5Gi
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: default
+          orgId: 1
+          folder: Kubernetes
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      kubernetes-cluster-monitoring:
+        gnetId: 315
+        datasource: Prometheus
+      node-exporter-full:
+        gnetId: 1860
+        datasource: Prometheus
   additionalDataSources:
     - name: Loki
       type: loki
