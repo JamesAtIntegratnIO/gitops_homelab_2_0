@@ -30,6 +30,10 @@ grafana:
     existingSecret: grafana-admin
     userKey: admin-user
     passwordKey: admin-password
+  initChownData:
+    enabled: false
+  podSecurityContext:
+    fsGroup: 472
   service:
     type: ClusterIP
   persistence:
