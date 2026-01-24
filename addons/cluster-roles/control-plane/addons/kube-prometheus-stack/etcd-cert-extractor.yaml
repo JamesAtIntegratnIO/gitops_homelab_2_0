@@ -1,0 +1,82 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: etcd-secret-writer
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: etcd-secret-writer
+  namespace: monitoring
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: etcd-secret-writer
+  namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: etcd-secret-writer
+subjects:
+  - kind: ServiceAccount
+    name: etcd-secret-writer
+    namespace: monitoring
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: etcd-secret-writer
+  namespace: monitoring
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: true
+      serviceAccountName: etcd-secret-writer
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: Exists
+      containers:
+        - name: kubectl
+          image: bitnami/kubectl:latest
+          command: ["/bin/sh"]
+          args:
+            - "-c"
+            - >-
+              kubectl create secret generic etcd-client-cert
+              --from-file=ca.crt=/system/secrets/etcd/ca.crt
+              --from-file=server.crt=/system/secrets/etcd/server.crt
+              --from-file=server.key=/system/secrets/etcd/server.key
+              --dry-run=client -o yaml |
+              kubectl apply -f -
+          imagePullPolicy: IfNotPresent
+          volumeMounts:
+            - mountPath: /system/secrets/etcd
+              name: etcd-certs
+              readOnly: true
+            - mountPath: /tmp
+              name: tmp
+          securityContext:
+            privileged: true  # Need privileged to read Talos system paths
+            readOnlyRootFilesystem: true
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: etcd-certs
+          hostPath:
+            path: /system/secrets/etcd
+      restartPolicy: Never
+      serviceAccountName: etcd-secret-writer

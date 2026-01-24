@@ -16,6 +16,9 @@ prometheus:
   prometheusSpec:
     enableRemoteWriteReceiver: true
     retention: 15d
+    # Mount etcd client certificates for secure etcd scraping
+    secrets:
+      - etcd-client-cert
     # Disable the behavior that makes {} selector use Helm values
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
@@ -86,14 +89,18 @@ kubeEtcd:
   # See: https://github.com/siderolabs/talos/discussions/7214
   service:
     enabled: true
-    port: 2381
-    targetPort: 2381
+    port: 2379  # etcd main port with TLS
+    targetPort: 2379
     selector:
       k8s-app: kube-controller-manager  # Reuse controller-manager selector since all CP nodes run same services
   serviceMonitor:
     enabled: true
     scheme: https
-    insecureSkipVerify: true
+    insecureSkipVerify: false
+    serverName: localhost
+    caFile: /etc/prometheus/secrets/etcd-client-cert/ca.crt
+    certFile: /etc/prometheus/secrets/etcd-client-cert/server.crt
+    keyFile: /etc/prometheus/secrets/etcd-client-cert/server.key
     # Remove pod label since etcd doesn't run in a pod
     metricRelabelings:
       - action: labeldrop
