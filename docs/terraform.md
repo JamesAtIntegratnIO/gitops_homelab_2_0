@@ -43,39 +43,29 @@ GitOps Territory (ArgoCD manages):
 
 ## Architecture Diagram
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│  Workstation (Developer/CI)                                         │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ terraform/cluster/terraform.tfvars (git-ignored)             │  │
-│  │   cluster_name = "the-cluster"                               │  │
-│  │   cloudflare_api_key = "<secret>"                            │  │
-│  │   onepassword_token = "<secret>"                             │  │
-│  └────────────────────────┬─────────────────────────────────────┘  │
-│                            │ tofu init -backend-config=backend.hcl
-│                            ▼
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ Remote Backend (S3/Consul/etc)                               │  │
-│  │   terraform.tfstate                                          │  │
-│  │     - Tracks all managed resources                           │  │
-│  │     - Prevents concurrent modifications (state locking)      │  │
-│  └────────────────────────┬─────────────────────────────────────┘  │
-│                            │ tofu apply
-│                            ▼
-└────────────────────────────┼─────────────────────────────────────┘
-                             │
-     ┌───────────────────────┼───────────────────────────────┐
-     │                       │                               │
-     ▼                       ▼                               ▼
-┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────────┐
-│ Cloudflare API  │ │ Kubernetes API  │ │ GitHub API              │
-│                 │ │                 │ │                         │
-│ Creates:        │ │ Creates:        │ │ Could create:           │
-│ - A records     │ │ - Namespaces    │ │ - Repos                 │
-│ - CNAME records │ │ - Secrets       │ │ - Webhooks              │
-│ - TXT records   │ │ - ArgoCD Helm   │ │ (Future use)            │
-│                 │ │ - ApplicationSet│ │                         │
-└─────────────────┘ └─────────────────┘ └─────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Workstation["💻 Workstation (Developer/CI)"]
+        TFVars["📄 terraform.tfvars<br/>(git-ignored)<br/>cluster_name<br/>cloudflare_api_key<br/>onepassword_token"]
+        Backend["🗄️ Remote Backend<br/>S3/Consul<br/>terraform.tfstate<br/>State locking"]
+        
+        TFVars -->|"tofu init<br/>-backend-config=backend.hcl"| Backend
+    end
+    
+    subgraph APIs["🌐 External APIs"]
+        CF["☁️ Cloudflare API<br/>A/CNAME/TXT records"]
+        K8s["☸️ Kubernetes API<br/>Namespaces, Secrets<br/>ArgoCD Helm<br/>ApplicationSets"]
+        GH["🐙 GitHub API<br/>Repos, Webhooks<br/>(Future use)"]
+    end
+    
+    Backend -->|"tofu apply"| CF
+    Backend --> K8s
+    Backend --> GH
+    
+    style Workstation fill:#bbdefb,stroke:#1976d2,stroke-width:2px
+    style APIs fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
+    style TFVars fill:#ff9800,stroke:#fff,stroke-width:2px,color:#fff
+    style Backend fill:#42a5f5,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 ## Directory Structure

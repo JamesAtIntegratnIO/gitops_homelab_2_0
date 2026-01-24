@@ -90,104 +90,68 @@ This repository defines a **GitOps-first homelab platform** built on bare-metal 
 
 ## System Architecture Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         Git Repositories                                 │
-│  ┌───────────────────────────┐  ┌────────────────────────────────────┐ │
-│  │  gitops_homelab_2_0       │  │  kratix-platform-state            │ │
-│  │  (this repo)              │  │  (generated resources)            │ │
-│  │  - addons/                │  │  - clusters/the-cluster/          │ │
-│  │  - platform/              │  │  - namespaces, configmaps, etc.   │ │
-│  │  - promises/              │  └───────────────┬────────────────────┘ │
-│  │  - terraform/             │                  │                      │
-│  └──────────┬────────────────┘                  │                      │
-│             │ ArgoCD pull                       │ ArgoCD reconcile     │
-└─────────────┼───────────────────────────────────┼──────────────────────┘
-              │                                   │
-              ▼                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Kubernetes Control Plane (Talos)                      │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  ArgoCD (argocd namespace)                                        │  │
-│  │  ├─ ApplicationSet: application-sets (bootstrapped by Terraform)  │  │
-│  │  ├─ ApplicationSet: argocd (self-manages ArgoCD)                 │  │
-│  │  ├─ ApplicationSet: kube-prometheus-stack                        │  │
-│  │  ├─ ApplicationSet: cert-manager                                 │  │
-│  │  ├─ ApplicationSet: external-secrets                             │  │
-│  │  ├─ ApplicationSet: nginx-gateway-fabric                         │  │
-│  │  └─ ApplicationSet: kratix-promises                              │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  Platform Services                                                │  │
-│  │  ├─ cert-manager (cert-manager ns) - TLS automation              │  │
-│  │  ├─ external-secrets (external-secrets ns) - 1Password sync      │  │
-│  │  ├─ nginx-gateway-fabric (nginx-gateway ns) - HTTP routing       │  │
-│  │  ├─ external-dns (external-dns ns) - Cloudflare DNS              │  │
-│  │  ├─ MetalLB (metallb-system ns) - LoadBalancer IPs               │  │
-│  │  ├─ Kyverno (kyverno ns) - Policy enforcement                    │  │
-│  │  └─ NFS CSI (nfs-provisioner ns) - Persistent volumes            │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  Observability Stack (monitoring ns)                              │  │
-│  │  ├─ Prometheus (metrics storage, alerting)                       │  │
-│  │  ├─ Grafana (dashboards, visualization)                          │  │
-│  │  ├─ Alertmanager (alert routing)                                 │  │
-│  │  └─ kube-state-metrics (Kubernetes object metrics)               │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  Logging Stack (loki/promtail ns)                                 │  │
-│  │  ├─ Loki (log aggregation, storage)                              │  │
-│  │  └─ Promtail DaemonSet (log collection from nodes)               │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  Kratix Platform (kratix-platform-system ns)                      │  │
-│  │  ├─ kratix-platform-controller-manager                           │  │
-│  │  │  - Watches platform-requests namespace                        │  │
-│  │  │  - Triggers promise pipelines                                 │  │
-│  │  │  - Writes rendered resources to state repo                    │  │
-│  │  └─ Promise CRDs: VClusterOrchestrator, ArgocdProject, etc.      │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  vCluster: media (vcluster-media ns)                              │  │
-│  │  ├─ media-0, media-1, media-2 (vcluster control plane pods)      │  │
-│  │  ├─ media-etcd-0, media-etcd-1, media-etcd-2 (etcd StatefulSet)  │  │
-│  │  └─ Syncer: syncs resources between vcluster and host            │  │
-│  │                                                                    │  │
-│  │  Inside vcluster (virtual namespaces):                            │  │
-│  │  ├─ argocd (ArgoCD for vcluster workloads)                       │  │
-│  │  ├─ cert-manager (TLS for vcluster apps)                         │  │
-│  │  ├─ external-secrets (secrets for vcluster apps)                 │  │
-│  │  ├─ monitoring (Prometheus agent → host Prometheus)              │  │
-│  │  └─ media (radarr, sonarr, sabnzbd, otterwiki)                   │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────┘
-              │                                   │
-              │ MetalLB L2 Advertisement          │ Gateway API Routes
-              ▼                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         External Access                                  │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  nginx-gateway LoadBalancer: 10.0.4.205                           │  │
-│  │  ├─ https://argocd.cluster.integratn.tech → ArgoCD UI            │  │
-│  │  ├─ https://grafana.cluster.integratn.tech → Grafana             │  │
-│  │  ├─ https://prom-remote.cluster.integratn.tech → Prometheus      │  │
-│  │  ├─ https://loki.cluster.integratn.tech → Loki push API          │  │
-│  │  └─ https://media.integratn.tech → vcluster media apps           │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                          │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │  Cloudflare DNS (managed by external-dns)                         │  │
-│  │  ├─ argocd.cluster.integratn.tech → 10.0.4.205                   │  │
-│  │  ├─ grafana.cluster.integratn.tech → 10.0.4.205                  │  │
-│  │  ├─ *.cluster.integratn.tech → 10.0.4.205                        │  │
-│  │  └─ media.integratn.tech → <vcluster gateway IP>                 │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Git["📦 Git Repositories"]
+        GitOps["gitops_homelab_2_0"]
+        StateRepo["kratix-platform-state"]
+    end
+    
+    GitOps -->|"ArgoCD pull"| ArgoCD
+    StateRepo -->|"reconcile"| ArgoCD
+    
+    subgraph K8s["⎈ Kubernetes Control Plane (Talos)"]
+        ArgoCD["🔄 ArgoCD<br/>ApplicationSets"]
+        
+        ArgoCD --> PlatformCore
+        ArgoCD --> ObsLog
+        ArgoCD --> Kratix
+        ArgoCD --> VCluster
+        
+        subgraph PlatformCore["🔧 Platform Core"]
+            CertManager["cert-manager"]
+            ExtSecrets["external-secrets"]
+            Gateway["nginx-gateway"]
+            MetalLB["MetalLB"]
+        end
+        
+        subgraph ObsLog["📊 Observability & Logging"]
+            Prometheus["Prometheus"]
+            Grafana["Grafana"]
+            Loki["Loki"]
+        end
+        
+        Kratix["🎯 Kratix<br/>Promise Controller"]
+        
+        subgraph VCluster["☸️ vCluster: media"]
+            VControl["Control Plane Pods"]
+            VApps["Media Apps<br/>radarr, sonarr, etc."]
+        end
+    end
+    
+    Kratix -->|"writes"| StateRepo
+    
+    subgraph External["🌐 External Access"]
+        NGW["nginx-gateway LB<br/>10.0.4.205"]
+        DNS["Cloudflare DNS"]
+    end
+    
+    MetalLB --> NGW
+    Gateway --> NGW
+    NGW --> DNS
+    
+    VApps -->|"metrics"| Prometheus
+    Prometheus --> Grafana
+    Loki --> Grafana
+    
+    style Git fill:#e1bee7,stroke:#8e24aa,stroke-width:2px
+    style K8s fill:#bbdefb,stroke:#1976d2,stroke-width:2px
+    style ArgoCD fill:#326ce5,stroke:#fff,stroke-width:2px,color:#fff
+    style PlatformCore fill:#00bcd4,stroke:#fff,stroke-width:2px,color:#fff
+    style ObsLog fill:#ff6f00,stroke:#fff,stroke-width:2px,color:#fff
+    style Kratix fill:#9c27b0,stroke:#fff,stroke-width:2px,color:#fff
+    style VCluster fill:#e91e63,stroke:#fff,stroke-width:2px,color:#fff
+    style External fill:#009688,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 ## GitOps Flow (How Changes Propagate)
@@ -336,33 +300,45 @@ Example: Creating a vcluster named "media"
 
 ### Data Flow: ArgoCD Sync Decision Tree
 
-```
-User commits to Git
-  ↓
-ArgoCD Sync (every 3min or webhook)
-  ↓
-├─ Is resource already in cluster?
-│  ├─ YES: Compare spec, sync if different
-│  └─ NO: Create resource
-│
-├─ Sync Wave ordering (annotation: argocd.argoproj.io/sync-wave)
-│  ├─ Wave -2: ArgoCD Projects
-│  ├─ Wave -1: Namespaces, CRDs
-│  ├─ Wave 0: Default (most resources)
-│  ├─ Wave 1: Applications depending on Wave 0
-│  └─ Wave 2+: Higher-order dependencies
-│
-├─ Resource Hooks (annotation: argocd.argoproj.io/hook)
-│  ├─ PreSync: Run before sync (e.g., backups)
-│  ├─ Sync: Normal sync
-│  ├─ PostSync: Run after sync (e.g., tests)
-│  └─ SyncFail: Run on failure
-│
-└─ Health Assessment
-   ├─ Progressing → Healthy (Deployment replicas ready)
-   ├─ Progressing → Degraded (pods crash looping)
-   ├─ Suspended (manual intervention needed)
-   └─ Missing (resource deleted outside ArgoCD)
+```mermaid
+flowchart TD
+    Start["👤 User commits to Git"] --> Sync["🔄 ArgoCD Sync<br/>(every 3min or webhook)"]
+    
+    Sync --> Check{"📋 Is resource<br/>already in cluster?"}
+    Check -->|"YES"| Compare["🔍 Compare spec<br/>sync if different"]
+    Check -->|"NO"| Create["➕ Create resource"]
+    
+    Compare --> Waves
+    Create --> Waves
+    
+    Waves["⚡ Sync Wave Ordering<br/>argocd.argoproj.io/sync-wave"]
+    Waves --> Wave-2["Wave -2:<br/>ArgoCD Projects"]
+    Wave-2 --> Wave-1["Wave -1:<br/>Namespaces, CRDs"]
+    Wave-1 --> Wave0["Wave 0:<br/>Default (most resources)"]
+    Wave0 --> Wave1["Wave 1:<br/>Apps depending on Wave 0"]
+    Wave1 --> Wave2["Wave 2+:<br/>Higher-order dependencies"]
+    
+    Wave2 --> Hooks["🪝 Resource Hooks<br/>argocd.argoproj.io/hook"]
+    Hooks --> PreSync["PreSync:<br/>backups, prep"]
+    PreSync --> SyncH["Sync:<br/>normal sync"]
+    SyncH --> PostSync["PostSync:<br/>tests, validation"]
+    PostSync --> Health
+    
+    Health["🏥 Health Assessment"]
+    Health --> Healthy["✅ Healthy:<br/>replicas ready"]
+    Health --> Degraded["❌ Degraded:<br/>crash loops"]
+    Health --> Suspended["⏸️ Suspended:<br/>manual intervention"]
+    Health --> Missing["⚠️ Missing:<br/>deleted outside ArgoCD"]
+    
+    Hooks -.->|"On failure"| SyncFail["💥 SyncFail:<br/>cleanup, rollback"]
+    
+    style Start fill:#42a5f5,stroke:#fff,stroke-width:2px,color:#fff
+    style Sync fill:#5c6bc0,stroke:#fff,stroke-width:2px,color:#fff
+    style Waves fill:#ab47bc,stroke:#fff,stroke-width:2px,color:#fff
+    style Hooks fill:#ff7043,stroke:#fff,stroke-width:2px,color:#fff
+    style Health fill:#ffa726,stroke:#333,stroke-width:2px
+    style Healthy fill:#66bb6a,stroke:#fff,stroke-width:2px,color:#fff
+    style Degraded fill:#ef5350,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 ## Cluster Roles & Targeting
@@ -436,40 +412,54 @@ kube-prometheus-stack-agent:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ External (Untrusted)                                         │
-│ - Internet users accessing apps                             │
-│ - Cloudflare (DNS, proxy)                                   │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ TLS (Let's Encrypt certs)
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Perimeter (DMZ)                                              │
-│ - nginx-gateway-fabric (TLS termination)                    │
-│ - HTTPRoute resources (routing rules)                       │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ ClusterIP services
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Platform Services (Trusted)                                  │
-│ - ArgoCD (authentication required)                          │
-│ - Grafana (authentication via ExternalSecret)               │
-│ - Prometheus (internal only, remote_write endpoint exposed) │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ Kubernetes RBAC
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Platform Core (Highly Trusted)                               │
-│ - cert-manager (issues TLS certs)                           │
-│ - external-secrets (pulls from 1Password)                   │
-│ - Kratix (executes pipelines)                               │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ 1Password Connect API
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Secrets Backend (Critical)                                   │
-│ - 1Password (credential store)                              │
-│ - Connect API token (stored in Kubernetes Secret)           │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph External["🌐 External (Untrusted)"]
+        Users["Internet Users<br/>accessing apps"]
+        CF["Cloudflare<br/>DNS & Proxy"]
+    end
+    
+    subgraph Perimeter["🛡️ Perimeter (DMZ)"]
+        Gateway["nginx-gateway-fabric<br/>TLS termination"]
+        HTTPRoutes["HTTPRoute resources<br/>routing rules"]
+    end
+    
+    subgraph Platform["🔐 Platform Services (Trusted)"]
+        ArgoCD["ArgoCD<br/>authentication required"]
+        Grafana["Grafana<br/>auth via ExternalSecret"]
+        Prom["Prometheus<br/>internal + remote_write"]
+    end
+    
+    subgraph Core["🔒 Platform Core (Highly Trusted)"]
+        CertMgr["cert-manager<br/>issues TLS certs"]
+        ExtSec["external-secrets<br/>pulls from 1Password"]
+        Kratix["Kratix<br/>executes pipelines"]
+    end
+    
+    subgraph Secrets["🔑 Secrets Backend (Critical)"]
+        OnePass["1Password<br/>credential store"]
+        ConnectAPI["Connect API token<br/>K8s Secret"]
+    end
+    
+    Users -->|"HTTPS<br/>Let's Encrypt"| Gateway
+    CF -->|"DNS Resolution"| Gateway
+    Gateway --> HTTPRoutes
+    HTTPRoutes -->|"ClusterIP services"| ArgoCD
+    HTTPRoutes --> Grafana
+    HTTPRoutes --> Prom
+    
+    ArgoCD -.->|"K8s RBAC"| CertMgr
+    Grafana -.->|"K8s RBAC"| ExtSec
+    Prom -.->|"K8s RBAC"| Kratix
+    
+    ExtSec -->|"1Password Connect API"| OnePass
+    ExtSec --> ConnectAPI
+    
+    style External fill:#ff5252,stroke:#fff,stroke-width:2px,color:#fff
+    style Perimeter fill:#ff9800,stroke:#fff,stroke-width:2px,color:#fff
+    style Platform fill:#ffc107,stroke:#333,stroke-width:2px
+    style Core fill:#4caf50,stroke:#fff,stroke-width:2px,color:#fff
+    style Secrets fill:#9c27b0,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 ### Secret Management Flow
@@ -478,7 +468,34 @@ kube-prometheus-stack-agent:
 
 **Solution:** ExternalSecrets Operator + 1Password Connect
 
-1. **Store secrets in 1Password:**
+```mermaid
+flowchart LR
+    subgraph OP["🔐 1Password"]
+        Vault["Vault: Homelab"]
+        Items["Items:<br/>grafana-admin<br/>argocd-admin<br/>vcluster-creds"]
+    end
+    
+    subgraph K8s["☸️ Kubernetes"]
+        CSS["ClusterSecretStore"]
+        ES["ExternalSecret<br/>monitoring/grafana-admin"]
+        Sec["Secret Created<br/>monitoring/grafana-admin"]
+        Pod["Grafana Pod<br/>mounts secret"]
+    end
+    
+    Vault --> Items
+    Items -->|"Connect API"| CSS
+    CSS -->|"Poll every 5min"| ES
+    ES -->|"Creates/Updates"| Sec
+    Sec -->|"Volume mount"| Pod
+    
+    style OP fill:#9c27b0,stroke:#fff,stroke-width:2px,color:#fff
+    style K8s fill:#326ce5,stroke:#fff,stroke-width:2px,color:#fff
+    style CSS fill:#4caf50,stroke:#fff,stroke-width:2px,color:#fff
+    style ES fill:#ff9800,stroke:#fff,stroke-width:2px,color:#fff
+    style Sec fill:#f44336,stroke:#fff,stroke-width:2px,color:#fff
+```
+
+**Store secrets in 1Password:**
    ```
    1Password Vault: "Homelab"
      ├─ Item: "grafana-admin"

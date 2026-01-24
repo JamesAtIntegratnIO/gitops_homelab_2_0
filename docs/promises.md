@@ -30,104 +30,42 @@ Developer → ResourceRequest (CRD) → Kratix Promise Pipeline → GitStateStor
 
 ## Architecture Diagram
 
+```mermaid
+flowchart TB
+    subgraph GitRepo1["📁 gitops_homelab_2_0"]
+        RR["📄 platform/vclusters/media.yaml<br/>VClusterOrchestrator<br/>name: media<br/>targetNamespace: vcluster-media<br/>preset: prod, replicas: 3"]
+    end
+    
+    subgraph K8s["☸️ Kubernetes: the-cluster"]
+        RRK8s["📋 VClusterOrchestrator: media<br/>(platform-requests namespace)"]
+        Promise["🎯 Promise: vcluster-orchestrator<br/>workflows.resource.configure<br/>Pipeline container"]
+        Pod["🔄 Pod: media-configure-xyz<br/>Reads /kratix/input/object.yaml<br/>Executes configure-pipeline.sh<br/>Renders 6 sub-ResourceRequests<br/>Writes to /kratix/output/"]
+        GSS["📤 GitStateStore Controller<br/>Commits to kratix-platform-state<br/>Path: clusters/the-cluster/media/*.yaml"]
+        SubRR["📋 Sub-ResourceRequests (6 CRs)<br/>VClusterCore, CoreDNS, Kubeconfig,<br/>ExternalSecret, ArgoCD Registration,<br/>ArgoCD Application"]
+        SubPipelines["⚙️ Sub-Promise Pipelines<br/>VClusterCore → namespace + ConfigMap<br/>ArgocdApplication → Application CR<br/>All output to GitStateStore"]
+    end
+    
+    subgraph StateRepo["📁 kratix-platform-state"]
+        StateFiles["📄 clusters/the-cluster/media/<br/>vclustercore-media.yaml<br/>vclustercoredns-media.yaml<br/>vclusterkubeconfigsync-media.yaml<br/>argocdapplication-media.yaml<br/>... (6 files)"]
+        FinalResources["📄 clusters/the-cluster/media-vclustercore/<br/>namespace.yaml<br/>configmap.yaml<br/>application.yaml<br/>... (final resources)"]
+    end
+    
+    RR -->|"ArgoCD syncs"| RRK8s
+    RRK8s -->|"Kratix controller detects"| Promise
+    Promise -->|"Schedules pipeline pod"| Pod
+    Pod -->|"Outputs collected"| GSS
+    GSS -->|"Git push"| StateFiles
+    StateFiles -->|"ArgoCD state-reconciler syncs"| SubRR
+    SubRR -->|"Each triggers pipeline"| SubPipelines
+    SubPipelines -->|"Final outputs"| FinalResources
+    
+    style GitRepo1 fill:#e1bee7,stroke:#8e24aa,stroke-width:2px
+    style K8s fill:#bbdefb,stroke:#1976d2,stroke-width:2px
+    style StateRepo fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
+    style Promise fill:#ff9800,stroke:#fff,stroke-width:2px,color:#fff
+    style Pod fill:#42a5f5,stroke:#fff,stroke-width:2px,color:#fff
+    style GSS fill:#66bb6a,stroke:#fff,stroke-width:2px,color:#fff
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│  Git Repo: gitops_homelab_2_0                                      │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ platform/vclusters/media.yaml                                │  │
-│  │                                                               │  │
-│  │ apiVersion: platform.integratn.tech/v1alpha1                 │  │
-│  │ kind: VClusterOrchestrator                                   │  │
-│  │ spec:                                                         │  │
-│  │   name: media                                                │  │
-│  │   targetNamespace: vcluster-media                            │  │
-│  │   vcluster:                                                  │  │
-│  │     preset: prod                                             │  │
-│  │     replicas: 3                                              │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└───────────────────────┬────────────────────────────────────────────┘
-                        │ ArgoCD syncs
-                        ▼
-┌────────────────────────────────────────────────────────────────────┐
-│  Kubernetes: the-cluster (platform-requests namespace)             │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ VClusterOrchestrator: media                                  │  │
-│  │ (CustomResource created by ArgoCD)                           │  │
-│  └────────────────────┬─────────────────────────────────────────┘  │
-│                       │ Kratix controller detects new resource
-│                       ▼
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ Promise: vcluster-orchestrator                               │  │
-│  │   workflows.resource.configure:                              │  │
-│  │     - Pipeline: vcluster-orchestrator-configure              │  │
-│  │       container: ghcr.io/.../vcluster-orchestrator:main      │  │
-│  └────────────────────┬─────────────────────────────────────────┘  │
-│                       │ Kratix schedules pipeline pod
-│                       ▼
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ Pod: media-configure-xyz (runs once)                         │  │
-│  │   - Reads /kratix/input/object.yaml (ResourceRequest)        │  │
-│  │   - Executes configure-pipeline.sh                           │  │
-│  │   - Renders 6 sub-ResourceRequests:                          │  │
-│  │       * VClusterCore                                         │  │
-│  │       * VClusterCoreDNS                                      │  │
-│  │       * VClusterKubeconfigSync                               │  │
-│  │       * VClusterKubeconfigExternalSecret                     │  │
-│  │       * VClusterArgocdClusterRegistration                    │  │
-│  │       * ArgocdApplication                                    │  │
-│  │   - Writes YAML to /kratix/output/                           │  │
-│  └────────────────────┬─────────────────────────────────────────┘  │
-│                       │ Kratix collects outputs
-│                       ▼
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ GitStateStore Controller                                     │  │
-│  │   - Commits outputs to kratix-platform-state repo            │  │
-│  │   - Path: clusters/the-cluster/media/*.yaml                  │  │
-│  └────────────────────┬─────────────────────────────────────────┘  │
-└────────────────────────┼─────────────────────────────────────────┘
-                         │ Git push
-                         ▼
-┌────────────────────────────────────────────────────────────────────┐
-│  Git Repo: kratix-platform-state (separate repo)                   │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ clusters/the-cluster/media/                                  │  │
-│  │   - vclustercore-media.yaml                                  │  │
-│  │   - vclustercoredns-media.yaml                               │  │
-│  │   - vclusterkubeconfigsync-media.yaml                        │  │
-│  │   - vclusterkubeconfigexternalsecret-media.yaml              │  │
-│  │   - vclusterargocdclusterregistration-media.yaml             │  │
-│  │   - argocdapplication-media.yaml                             │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└───────────────────────┬────────────────────────────────────────────┘
-                        │ ArgoCD kratix-state-reconciler app syncs
-                        ▼
-┌────────────────────────────────────────────────────────────────────┐
-│  Kubernetes: the-cluster (platform-requests namespace)             │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ Sub-ResourceRequests created (6 new CRs)                     │  │
-│  └────────────────────┬─────────────────────────────────────────┘  │
-│                       │ Each triggers its own Promise pipeline
-│                       ▼
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ VClusterCore Pipeline                                        │  │
-│  │   - Renders namespace: vcluster-media                        │  │
-│  │   - Renders ConfigMap: media-vcluster-values                 │  │
-│  │   - Outputs to GitStateStore                                 │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ ArgocdApplication Pipeline                                   │  │
-│  │   - Renders Application: media                               │  │
-│  │   - References ConfigMap for Helm values                     │  │
-│  │   - Outputs to GitStateStore                                 │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│  ... (other sub-promise pipelines execute similarly)               │
-└────────────────────────────────────────────────────────────────────┘
-                        │ GitStateStore commits final resources
-                        ▼
-┌────────────────────────────────────────────────────────────────────┐
-│  Git Repo: kratix-platform-state                                    │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │ clusters/the-cluster/media-vclustercore/                     │  │
 │  │   - namespace-vcluster-media.yaml                            │  │
 │  │   - configmap-media-vcluster-values.yaml                     │  │
 │  │                                                               │  │
