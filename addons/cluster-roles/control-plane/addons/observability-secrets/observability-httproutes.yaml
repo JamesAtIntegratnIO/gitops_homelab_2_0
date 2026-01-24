@@ -59,7 +59,7 @@ spec:
       namespace: nginx-gateway
       sectionName: https
   hostnames:
-    - prom-remote.integratn.tech
+    - prom-remote.cluster.integratn.tech
   rules:
     - matches:
         - path:

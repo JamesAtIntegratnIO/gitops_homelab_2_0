@@ -21,14 +21,14 @@ gateways:
         - name: http
           port: 80
           protocol: HTTP
-          hostname: "*.integratn.tech"
+          hostname: "*.cluster.integratn.tech"
           allowedRoutes:
             namespaces:
               from: All
         - name: https
           port: 443
           protocol: HTTPS
-          hostname: "*.integratn.tech"
+          hostname: "*.cluster.integratn.tech"
           tls:
             mode: Terminate
             certificateRefs:
