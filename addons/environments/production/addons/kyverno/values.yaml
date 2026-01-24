@@ -2,3 +2,20 @@ config:
   preserve: false
   webhookLabels:
     app.kubernetes.io/managed-by: argocd
+
+cleanupJobs:
+  admissionReports:
+    image:
+      tag: '1.34'
+  clusterAdmissionReports:
+    image:
+      tag: '1.34'
+  ephemeralReports:
+    image:
+      tag: '1.34'
+  clusterEphemeralReports:
+    image:
+      tag: '1.34'
+  updateRequests:
+    image:
+      tag: '1.34'
