@@ -28,12 +28,13 @@ This guide covers **day-to-day operations** for the GitOps homelab platform, inc
 
 ### Core URLs
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| **ArgoCD** | https://argocd.cluster.integratn.tech | GitOps dashboard |
-| **Grafana** | https://grafana.cluster.integratn.tech | Metrics/dashboards |
-| **Prometheus** | https://prometheus.cluster.integratn.tech | Metrics store/alerts |
-| **Alertmanager** | https://alertmanager.cluster.integratn.tech | Alert routing |
+| Service | URL | Access Method |
+|---------|-----|---------------|
+| **ArgoCD** | https://argocd.media.integratn.tech | External via Gateway |
+| **Grafana** | https://grafana.cluster.integratn.tech | External via Gateway |
+| **Prometheus** | https://prometheus.cluster.integratn.tech | External via Gateway |
+| **Alertmanager** | _(Not currently deployed)_ | Enable in kube-prometheus-stack values |
+| **Loki** | _(Not currently deployed)_ | Enable as separate addon |
 
 ### Common Commands
 
