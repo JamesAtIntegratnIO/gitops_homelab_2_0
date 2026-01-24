@@ -16,6 +16,10 @@ prometheus:
   prometheusSpec:
     enableRemoteWriteReceiver: true
     retention: 15d
+    # Disable the behavior that makes {} selector use Helm values
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
     # Discover ServiceMonitors across all namespaces
     serviceMonitorNamespaceSelector: {}
     serviceMonitorSelector: {}
