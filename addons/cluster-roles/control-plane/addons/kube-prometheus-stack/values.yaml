@@ -82,21 +82,22 @@ kubeProxy:
 
 kubeEtcd:
   enabled: true
-  endpoints:
-    - 10.0.4.101
-    - 10.0.4.102
-    - 10.0.4.103
+  # Use selector workaround to auto-populate endpoints from control plane nodes
+  # See: https://github.com/siderolabs/talos/discussions/7214
   service:
     enabled: true
     port: 2381
     targetPort: 2381
+    selector:
+      k8s-app: kube-controller-manager  # Reuse controller-manager selector since all CP nodes run same services
   serviceMonitor:
     enabled: true
     scheme: https
     insecureSkipVerify: true
-    caFile: ""
-    certFile: ""
-    keyFile: ""
+    # Remove pod label since etcd doesn't run in a pod
+    metricRelabelings:
+      - action: labeldrop
+        regex: pod
 
 grafana:
   defaultDashboardsEnabled: true
