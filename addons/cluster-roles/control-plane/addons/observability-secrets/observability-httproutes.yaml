@@ -17,7 +17,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-public
+      sectionName: https
   hostnames:
     - grafana.cluster.integratn.tech
   rules:
@@ -38,7 +38,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: http-public
+      sectionName: http
   hostnames:
     - grafana.cluster.integratn.tech
   rules:
@@ -57,7 +57,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-public
+      sectionName: https
   hostnames:
     - prom-remote.integratn.tech
   rules:
@@ -78,7 +78,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-public
+      sectionName: https
   hostnames:
     - loki.cluster.integratn.tech
   rules:
@@ -99,7 +99,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: http-public
+      sectionName: http
   hostnames:
     - loki.cluster.integratn.tech
   rules:
@@ -118,7 +118,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-public
+      sectionName: https
   hostnames:
     - prometheus.cluster.integratn.tech
   rules:
@@ -139,7 +139,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: http-public
+      sectionName: http
   hostnames:
     - prometheus.cluster.integratn.tech
   rules:
@@ -158,7 +158,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-public
+      sectionName: https
   hostnames:
     - alertmanager.cluster.integratn.tech
   rules:
@@ -179,7 +179,7 @@ spec:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: http-public
+      sectionName: http
   hostnames:
     - alertmanager.cluster.integratn.tech
   rules:
