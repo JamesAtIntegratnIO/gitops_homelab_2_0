@@ -94,6 +94,9 @@ kubeEtcd:
     enabled: true
     scheme: https
     insecureSkipVerify: true
+    caFile: ""
+    certFile: ""
+    keyFile: ""
 
 grafana:
   defaultDashboardsEnabled: true
