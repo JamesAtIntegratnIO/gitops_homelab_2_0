@@ -132,13 +132,17 @@ flowchart TD
     Kratix -->|"writes"| StateRepo
     
     subgraph External["🌐 External Access"]
-        NGW["nginx-gateway LB<br/>10.0.4.205"]
-        DNS["Cloudflare DNS"]
+        DNS["Cloudflare DNS<br/>external-dns managed"]
+        NGWMain["Main Gateway LB<br/>10.0.4.205"]
+        NGWMedia["Media Gateway LB<br/>10.0.4.201"]
     end
     
-    MetalLB --> NGW
-    Gateway --> NGW
-    NGW --> DNS
+    MetalLB --> NGWMain
+    MetalLB --> NGWMedia
+    Gateway --> NGWMain
+    VCluster -.->|"has own gateway"| NGWMedia
+    DNS -.->|"routes to"| NGWMain
+    DNS -.->|"routes to"| NGWMedia
     
     VApps -->|"metrics"| Prometheus
     Prometheus --> Grafana
