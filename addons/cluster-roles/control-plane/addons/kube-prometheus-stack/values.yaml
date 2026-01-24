@@ -94,9 +94,6 @@ kubeEtcd:
     enabled: true
     scheme: https
     insecureSkipVerify: true
-    caFile: /etc/prometheus/secrets/etcd-client-cert/ca.crt
-    certFile: /etc/prometheus/secrets/etcd-client-cert/tls.crt
-    keyFile: /etc/prometheus/secrets/etcd-client-cert/tls.key
 
 grafana:
   defaultDashboardsEnabled: true
