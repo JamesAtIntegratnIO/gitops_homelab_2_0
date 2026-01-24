@@ -199,7 +199,7 @@ kube-prometheus-stack-agent:
       - ServerSideApply=true
 
 promtail-vcluster:
-  enabled: true
+  enabled: false
   namespace: promtail
   releaseName: promtail
   chartName: promtail
