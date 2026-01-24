@@ -4,7 +4,7 @@ alertmanager:
 grafana:
   enabled: false
 
-nodeExporter:
+prometheus-node-exporter:
   enabled: false
 
 kubeEtcd:
