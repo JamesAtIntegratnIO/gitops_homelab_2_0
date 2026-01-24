@@ -31,10 +31,11 @@ This guide covers **day-to-day operations** for the GitOps homelab platform, inc
 | Service | URL | Access Method |
 |---------|-----|---------------|
 | **ArgoCD** | https://argocd.media.integratn.tech | External via Gateway |
-| **Grafana** | https://grafana.cluster.integratn.tech | External via Gateway |
-| **Prometheus** | https://prometheus.cluster.integratn.tech | External via Gateway |
-| **Alertmanager** | _(Not currently deployed)_ | Enable in kube-prometheus-stack values |
-| **Loki** | _(Not currently deployed)_ | Enable as separate addon |
+| **Grafana** | https://grafana.cluster.integratn.tech | External via Gateway ✓ |
+| **Prometheus** | https://prometheus.cluster.integratn.tech | External via Gateway ✓ |
+| **Alertmanager** | https://alertmanager.cluster.integratn.tech | External via Gateway ✓ |
+| **Loki** | https://loki.cluster.integratn.tech | External via Gateway ✓ |
+| **Prom Remote Write** | https://prom-remote.integratn.tech | Internal (vcluster federation) |
 
 ### Common Commands
 
