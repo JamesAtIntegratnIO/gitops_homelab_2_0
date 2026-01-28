@@ -8,24 +8,24 @@ cleanupJobs:
     image:
       registry: registry.k8s.io
       repository: kubectl
-      tag: '1.34'
+      tag: 'v1.34.1'
   clusterAdmissionReports:
     image:
       registry: registry.k8s.io
       repository: kubectl
-      tag: '1.34'
+      tag: 'v1.34.1'
   ephemeralReports:
     image:
       registry: registry.k8s.io
       repository: kubectl
-      tag: '1.34'
+      tag: 'v1.34.1'
   clusterEphemeralReports:
     image:
       registry: registry.k8s.io
       repository: kubectl
-      tag: '1.34'
+      tag: 'v1.34.1'
   updateRequests:
     image:
       registry: registry.k8s.io
       repository: kubectl
-      tag: '1.34'
+      tag: 'v1.34.1'
