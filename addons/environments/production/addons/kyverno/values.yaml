@@ -5,22 +5,22 @@ config:
 
 webhooksCleanup:
   image:
-    registry: docker.io
-    repository: bitnami/kubectl
-    tag: '1.34.1'
+    registry: ghcr.io
+    repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
+    tag: 'v1.34.1'
 
 policyReportsCleanup:
   image:
-    registry: docker.io
-    repository: bitnami/kubectl
-    tag: '1.34.1'
+    registry: ghcr.io
+    repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
+    tag: 'v1.34.1'
 
 cleanupJobs:
   admissionReports:
     image:
-      registry: docker.io
-      repository: bitnami/kubectl
-      tag: '1.34.1'
+      registry: ghcr.io
+      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
+      tag: 'v1.34.1'
     securityContext:
       runAsNonRoot: false
       privileged: false
@@ -33,9 +33,9 @@ cleanupJobs:
         type: RuntimeDefault
   clusterAdmissionReports:
     image:
-      registry: docker.io
-      repository: bitnami/kubectl
-      tag: '1.34.1'
+      registry: ghcr.io
+      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
+      tag: 'v1.34.1'
     securityContext:
       runAsNonRoot: false
       privileged: false
@@ -48,9 +48,9 @@ cleanupJobs:
         type: RuntimeDefault
   ephemeralReports:
     image:
-      registry: docker.io
-      repository: bitnami/kubectl
-      tag: '1.34.1'
+      registry: ghcr.io
+      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
+      tag: 'v1.34.1'
     securityContext:
       runAsNonRoot: false
       privileged: false
@@ -63,9 +63,9 @@ cleanupJobs:
         type: RuntimeDefault
   clusterEphemeralReports:
     image:
-      registry: docker.io
-      repository: bitnami/kubectl
-      tag: '1.34.1'
+      registry: ghcr.io
+      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
+      tag: 'v1.34.1'
     securityContext:
       runAsNonRoot: false
       privileged: false
@@ -78,9 +78,9 @@ cleanupJobs:
         type: RuntimeDefault
   updateRequests:
     image:
-      registry: docker.io
-      repository: bitnami/kubectl
-      tag: '1.34.1'
+      registry: ghcr.io
+      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
+      tag: 'v1.34.1'
     securityContext:
       runAsNonRoot: false
       privileged: false
