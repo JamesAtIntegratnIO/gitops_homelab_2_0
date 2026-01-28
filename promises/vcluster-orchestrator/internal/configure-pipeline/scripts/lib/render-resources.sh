@@ -114,6 +114,9 @@ controlPlane:
   statefulSet:
     highAvailability:
       replicas: ${REPLICAS}
+    scheduling:
+      podManagementPolicy: Parallel
+      priorityClassName: system-cluster-critical
     image:
       repository: "loft-sh/vcluster-oss"
     persistence:
@@ -183,6 +186,15 @@ ${CERT_MANAGER_CLUSTER_ISSUER_LABELS}
 telemetry:
   enabled: false
 
+logging:
+  encoding: json
+
+controlPlane:
+  advanced:
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
 networking:
   advanced:
     clusterDomain: "${CLUSTER_DOMAIN}"
@@ -193,9 +205,15 @@ sync:
       enabled: true
     persistentVolumes:
       enabled: true
+    ingresses:
+      enabled: false
+    networkPolicies:
+      enabled: false
   fromHost:
     storageClasses:
       enabled: true
+    ingressClasses:
+      enabled: false
     secrets:
       enabled: true
       mappings:
