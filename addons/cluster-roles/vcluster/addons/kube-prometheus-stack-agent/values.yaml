@@ -23,10 +23,11 @@ prometheus:
   service:
     type: ClusterIP
   prometheusSpec:
+    mode: agent
     retention: 6h
     scrapeInterval: 30s
-    serviceMonitorSelectorNilUsesHelmValues: true
-    podMonitorSelectorNilUsesHelmValues: true
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
     storageSpec: {}
 
 kube-state-metrics:
