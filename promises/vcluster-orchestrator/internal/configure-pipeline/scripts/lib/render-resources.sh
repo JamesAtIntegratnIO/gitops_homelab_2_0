@@ -206,14 +206,14 @@ sync:
     persistentVolumes:
       enabled: true
     ingresses:
-      enabled: false
+      enabled: true
     networkPolicies:
       enabled: false
   fromHost:
     storageClasses:
       enabled: true
     ingressClasses:
-      enabled: false
+      enabled: true
     secrets:
       enabled: true
       mappings:
