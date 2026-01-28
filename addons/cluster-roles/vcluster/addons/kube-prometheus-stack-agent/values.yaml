@@ -24,6 +24,8 @@ prometheus:
     type: ClusterIP
   prometheusSpec:
     mode: agent
+    enableFeatures:
+      - agent
     retention: 6h
     scrapeInterval: 30s
     serviceMonitorSelectorNilUsesHelmValues: false
