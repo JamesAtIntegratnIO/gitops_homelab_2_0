@@ -104,6 +104,13 @@ controlPlane:
     k8s:
       enabled: true
       version: "${K8S_VERSION}"
+  serviceMonitor:
+    enabled: true
+    labels:
+      vcluster_name: "${NAME}"
+      vcluster_namespace: "${NAMESPACE}"
+      environment: "${ARGOCD_ENVIRONMENT}"
+      cluster_role: "vcluster"
   statefulSet:
     highAvailability:
       replicas: ${REPLICAS}
