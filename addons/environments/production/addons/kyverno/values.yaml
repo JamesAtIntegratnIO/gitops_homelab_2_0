@@ -6,16 +6,26 @@ config:
 cleanupJobs:
   admissionReports:
     image:
+      registry: registry.k8s.io
+      repository: kubectl
       tag: '1.34'
   clusterAdmissionReports:
     image:
+      registry: registry.k8s.io
+      repository: kubectl
       tag: '1.34'
   ephemeralReports:
     image:
+      registry: registry.k8s.io
+      repository: kubectl
       tag: '1.34'
   clusterEphemeralReports:
     image:
+      registry: registry.k8s.io
+      repository: kubectl
       tag: '1.34'
   updateRequests:
     image:
+      registry: registry.k8s.io
+      repository: kubectl
       tag: '1.34'
