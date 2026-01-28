@@ -3,6 +3,18 @@ config:
   webhookLabels:
     app.kubernetes.io/managed-by: argocd
 
+webhooksCleanup:
+  image:
+    registry: registry.k8s.io
+    repository: kubectl
+    tag: 'v1.34.1'
+
+policyReportsCleanup:
+  image:
+    registry: registry.k8s.io
+    repository: kubectl
+    tag: 'v1.34.1'
+
 cleanupJobs:
   admissionReports:
     image:
