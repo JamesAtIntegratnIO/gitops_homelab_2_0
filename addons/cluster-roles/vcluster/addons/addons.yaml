@@ -184,6 +184,8 @@ kube-prometheus-stack-agent:
         operator: In
         values: ['vcluster']
   valuesObject:
+    prometheus-node-exporter:
+      enabled: false
     prometheus:
       prometheusSpec:
         externalLabels:
