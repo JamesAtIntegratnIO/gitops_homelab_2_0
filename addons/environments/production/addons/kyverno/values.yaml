@@ -21,23 +21,73 @@ cleanupJobs:
       registry: registry.k8s.io
       repository: kubectl
       tag: 'v1.34.1'
+    securityContext:
+      runAsNonRoot: false
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
   clusterAdmissionReports:
     image:
       registry: registry.k8s.io
       repository: kubectl
       tag: 'v1.34.1'
+    securityContext:
+      runAsNonRoot: false
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
   ephemeralReports:
     image:
       registry: registry.k8s.io
       repository: kubectl
       tag: 'v1.34.1'
+    securityContext:
+      runAsNonRoot: false
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
   clusterEphemeralReports:
     image:
       registry: registry.k8s.io
       repository: kubectl
       tag: 'v1.34.1'
+    securityContext:
+      runAsNonRoot: false
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
   updateRequests:
     image:
       registry: registry.k8s.io
       repository: kubectl
       tag: 'v1.34.1'
+    securityContext:
+      runAsNonRoot: false
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+      seccompProfile:
+        type: RuntimeDefault
