@@ -11,14 +11,15 @@ metadata:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-gateway-to-prometheus
+  name: allow-nginx-gateway-to-prometheus-receiver
   namespace: monitoring
 spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/name: prometheus
-      operator.prometheus.io/name: kube-prometheus-stack-prometheus
-  policyTypes: ["Ingress"]
+      prometheus: kube-prometheus-stack-prometheus
+  policyTypes:
+    - Ingress
   ingress:
     - from:
         - namespaceSelector:
