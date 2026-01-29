@@ -19,6 +19,9 @@ kubeScheduler:
 kubeProxy:
   enabled: false
 
+kubelet:
+  enabled: false
+
 prometheus:
   service:
     type: ClusterIP
@@ -30,6 +33,9 @@ prometheus:
     scrapeInterval: 30s
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    podMonitorSelector: {}
+    probeSelector: {}
     storageSpec: {}
 
 kube-state-metrics:

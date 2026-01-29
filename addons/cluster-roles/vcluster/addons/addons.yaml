@@ -191,8 +191,14 @@ kube-prometheus-stack-agent:
         externalLabels:
           cluster: '{{ .metadata.labels.cluster_name }}'
           environment: '{{ .metadata.labels.environment }}'
+          vcluster: '{{ .metadata.name }}'
         remoteWrite:
           - url: 'https://prom-remote.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}/api/v1/write'
+            queueConfig:
+              maxShards: 8
+              capacity: 10000
+              maxSamplesPerSend: 2000
+              batchSendDeadline: 5s
   syncPolicy:
     automated:
       prune: true
