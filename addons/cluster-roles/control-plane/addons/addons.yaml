@@ -122,6 +122,11 @@ loki:
       - key: cluster_role
         operator: NotIn
         values: ['vcluster']
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates/0/metadata/creationTimestamp
   syncPolicy:
     automated: {}
     syncOptions:
