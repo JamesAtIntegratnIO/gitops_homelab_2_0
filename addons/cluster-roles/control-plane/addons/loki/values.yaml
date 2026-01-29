@@ -34,18 +34,6 @@ singleBinary:
     storageClass: config-nfs-client
     size: 50Gi
 
-simpleScalable:
-  replicas: 0
-
-read:
-  replicas: 0
-
-write:
-  replicas: 0
-
-backend:
-  replicas: 0
-
 gateway:
   enabled: true
   service:
