@@ -122,6 +122,8 @@ loki:
       - key: cluster_role
         operator: NotIn
         values: ['vcluster']
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
   ignoreDifferences:
     - group: apps
       kind: StatefulSet
