@@ -34,6 +34,16 @@ singleBinary:
     storageClass: config-nfs-client
     size: 50Gi
 
+# Must explicitly set to 0 when using SingleBinary mode
+read:
+  replicas: 0
+
+write:
+  replicas: 0
+
+backend:
+  replicas: 0
+
 gateway:
   enabled: true
   service:
