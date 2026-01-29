@@ -4,6 +4,9 @@ alertmanager:
 grafana:
   enabled: false
 
+nodeExporter:
+  enabled: false
+
 prometheus-node-exporter:
   enabled: false
 

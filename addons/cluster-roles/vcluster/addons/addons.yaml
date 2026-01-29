@@ -184,6 +184,8 @@ kube-prometheus-stack-agent:
         operator: In
         values: ['vcluster']
   valuesObject:
+    nodeExporter:
+      enabled: false
     prometheus-node-exporter:
       enabled: false
     prometheus:
