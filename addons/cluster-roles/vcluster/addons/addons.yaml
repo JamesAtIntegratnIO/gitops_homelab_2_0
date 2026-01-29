@@ -191,7 +191,7 @@ kube-prometheus-stack-agent:
         externalLabels:
           cluster: '{{ .metadata.labels.cluster_name }}'
           environment: '{{ .metadata.labels.environment }}'
-          vcluster: '{{ .metadata.name }}'
+          vcluster: '{{ .metadata.labels.cluster_name }}'
         remoteWrite:
           - url: 'https://prom-remote.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}/api/v1/write'
             queueConfig:
