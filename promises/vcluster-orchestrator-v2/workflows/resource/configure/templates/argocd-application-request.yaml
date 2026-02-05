@@ -21,7 +21,6 @@ spec:
     helm:
       releaseName: {{ .Name }}
       valuesObject:
-        # Vcluster core configuration
         vcluster:
           image:
             tag: {{ .K8sVersion }}
@@ -35,14 +34,11 @@ spec:
           service:
             type: LoadBalancer
             annotations:
-              io.cilium/lb-ipam-ips: {{ .VIP | default "auto" }}
-          {{- if .BackingStore }}
-          backingStore:
+              io.cilium/lb-ipam-ips: {{ .VIP }}
+{{ if .BackingStore }}          backingStore:
 {{ .BackingStore | toYaml | indent 12 }}
-          {{- end }}
-          coredns:
+{{ end }}          coredns:
             enabled: false
-        # Synchronization Configuration
         sync:
           toHost:
             ingresses:
@@ -52,25 +48,22 @@ spec:
             persistentVolumeClaims:
               enabled: true
             storageClasses:
-              enabled: {{ if .PersistenceEnabled }}true{{ else }}false{{ end }}
+              enabled: {{ .PersistenceEnabled | toBool }}
           fromHost:
             ingressClasses:
               enabled: true
             storageClasses:
-              enabled: {{ if .PersistenceEnabled }}true{{ else }}false{{ end }}
-        # Networking Configuration
+              enabled: {{ .PersistenceEnabled | toBool }}
         networking:
           replicateServices:
             fromHost:
               - from: default/kubernetes
                 to: default/kubernetes
-        # External DNS Configuration
         integrations:
           externalDNS:
             enabled: {{ if .Hostname }}true{{ else }}false{{ end }}
-            domain: {{ .Hostname }}
-            sync: enabled
-        # Resources
+{{ if .Hostname }}            domain: {{ .Hostname }}
+{{ end }}            sync: enabled
         resources:
           requests:
             cpu: {{ .CPURequest }}
@@ -78,24 +71,14 @@ spec:
           limits:
             cpu: {{ .CPULimit }}
             memory: {{ .MemoryLimit }}
-        # Persistence
-        {{- if .PersistenceEnabled }}
-        persistence:
+{{ if .PersistenceEnabled }}        persistence:
           volumeClaim:
             enabled: true
             size: {{ .PersistenceSize }}
-            {{- if .PersistenceClass }}
-            storageClass: {{ .PersistenceClass }}
-            {{- end }}
-        {{- end }}
-        # Telemetry
-        telemetry:
+{{ if .PersistenceClass }}            storageClass: {{ .PersistenceClass }}
+{{ end }}{{ end }}        telemetry:
           disabled: true
-        {{- if .HelmOverrides }}
-        # Additional overrides
-{{ .HelmOverrides | toYaml | indent 8 }}
-        {{- end }}
-  {{- if .ArgoCDSyncPolicy }}
-  syncPolicy:
+{{ if .HelmOverrides }}{{ .HelmOverrides | toYaml | indent 8 }}
+{{ end }}{{ if .ArgoCDSyncPolicy }}  syncPolicy:
 {{ .ArgoCDSyncPolicy | toYaml | indent 4 }}
-  {{- end }}
+{{ end }}
