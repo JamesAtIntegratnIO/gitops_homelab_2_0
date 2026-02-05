@@ -247,6 +247,14 @@ spec:
               - name: configure
                 image: ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure:latest
                 imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault
       delete:
         - apiVersion: platform.kratix.io/v1alpha1
           kind: Pipeline
@@ -258,3 +266,11 @@ spec:
               - name: delete
                 image: ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure:latest
                 imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault
