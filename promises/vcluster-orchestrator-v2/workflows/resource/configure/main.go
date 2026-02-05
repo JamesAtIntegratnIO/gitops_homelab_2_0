@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-//go:embed templates/*.yaml
+//go:embed templates/*.yaml.tmpl
 var templatesFS embed.FS
 
 // VClusterConfig holds all configuration for template rendering
@@ -337,17 +337,17 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 
 	// Templates for ResourceRequests (keeps ArgoCD promises separate for reusability)
 	rrTemplates := []string{
-		"argocd-project-request.yaml",
-		"argocd-application-request.yaml",
+		"argocd-project-request.yaml.tmpl",
+		"argocd-application-request.yaml.tmpl",
 	}
 
 	// Direct resource templates (consolidates vcluster-specific sub-promises)
 	resourceTemplates := []string{
-		"coredns-configmap.yaml",
-		"kubeconfig-sync-rbac.yaml",
-		"kubeconfig-sync-job.yaml",
-		"kubeconfig-external-secret.yaml",
-		"argocd-cluster-external-secret.yaml",
+		"coredns-configmap.yaml.tmpl",
+		"kubeconfig-sync-rbac.yaml.tmpl",
+		"kubeconfig-sync-job.yaml.tmpl",
+		"kubeconfig-external-secret.yaml.tmpl",
+		"argocd-cluster-external-secret.yaml.tmpl",
 	}
 
 	allTemplates := append(rrTemplates, resourceTemplates...)
