@@ -35,11 +35,9 @@ spec:
             type: LoadBalancer
             annotations:
               io.cilium/lb-ipam-ips: {{ .VIP }}
-{{- if .BackingStore }}
-          backingStore:
+{{ if .BackingStore }}          backingStore:
 {{ .BackingStore | toYaml | indent 12 }}
-{{- end }}
-          coredns:
+{{ end }}          coredns:
             enabled: false
         sync:
           toHost:
