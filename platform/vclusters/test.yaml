@@ -1,0 +1,61 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: VClusterOrchestratorV2
+metadata:
+  name: test
+  namespace: platform-requests
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  name: test
+  targetNamespace: vcluster-test
+  projectName: vcluster-test
+  vcluster:
+    preset: dev
+    k8sVersion: v1.34.3
+    replicas: 1
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+    persistence:
+      enabled: false
+    coredns:
+      replicas: 1
+    backingStore:
+      etcd:
+        deploy:
+          enabled: false
+  exposure:
+    hostname: test.integratn.tech
+    subnet: 10.0.4.0/24
+    apiPort: 443
+  integrations:
+    certManager:
+      clusterIssuerSelectorLabels:
+        integratn.tech/cluster-issuer: letsencrypt-prod
+    externalSecrets:
+      clusterStoreSelectorLabels:
+        integratn.tech/cluster-secret-store: onepassword-store
+    argocd:
+      environment: development
+      clusterLabels:
+        integratn.tech/environment: development
+        integratn.tech/cluster-type: vcluster
+      workloadRepo:
+        url: https://github.com/jamesatintegratnio/gitops_homelab_2_0
+        path: workloads
+        revision: main
+  argocdApplication:
+    repoURL: https://charts.loft.sh
+    chart: vcluster
+    targetRevision: 0.30.4
+    destinationServer: https://kubernetes.default.svc
+    syncPolicy:
+      automated:
+        selfHeal: true
+        prune: true
+      syncOptions:
+        - CreateNamespace=true
