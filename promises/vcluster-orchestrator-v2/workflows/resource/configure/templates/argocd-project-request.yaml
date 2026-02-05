@@ -1,0 +1,22 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: ArgoCDProject
+metadata:
+  name: {{ .ProjectName }}
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/name: argocd-project
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: {{ .WorkflowContext.PromiseName }}
+    kratix.io/resource-name: {{ .Name }}
+spec:
+  name: {{ .ProjectName }}
+  description: "Project for vcluster {{ .Name }}"
+  sourceRepos:
+    - "{{ .WorkloadRepoURL }}"
+    - "https://charts.loft.sh"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"

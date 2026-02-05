@@ -1,0 +1,255 @@
+name: Build Go SDK Promise Pipelines
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'promises/*/workflows/**'
+  pull_request:
+    paths:
+      - 'promises/*/workflows/**'
+  workflow_dispatch:
+    inputs:
+      promise:
+        description: 'Promise name to build (optional; build all if empty)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      promises: ${{ steps.filter.outputs.promises }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Detect changed promises
+        id: filter
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ -n "${{ inputs.promise }}" ]]; then
+              echo "promises=[\"${{ inputs.promise }}\"]" >> $GITHUB_OUTPUT
+            else
+              # Build all promises with workflows/resource/configure/Dockerfile
+              promises=$(find promises -mindepth 4 -maxdepth 4 -type f -path 'promises/*/workflows/resource/configure/Dockerfile' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+              echo "promises=${promises}" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Detect changes
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^promises/.*/workflows/' || true)
+            else
+              if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+                changed_files=$(git diff --name-only --root ${{ github.sha }} | grep '^promises/.*/workflows/' || true)
+              elif git cat-file -e ${{ github.event.before }}^{commit} 2>/dev/null; then
+                changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '^promises/.*/workflows/' || true)
+              else
+                changed_files=$(git diff --name-only HEAD~1 HEAD | grep '^promises/.*/workflows/' || true)
+              fi
+            fi
+            
+            if [[ -z "$changed_files" ]]; then
+              echo "promises=[]" >> $GITHUB_OUTPUT
+            else
+              promises=$(echo "$changed_files" | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+              echo "promises=${promises}" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  build-configure:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.promises != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        promise: ${{ fromJson(needs.detect-changes.outputs.promises) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if configure Dockerfile exists
+        id: check-configure
+        run: |
+          if [[ -f "promises/${{ matrix.promise }}/workflows/resource/configure/Dockerfile" ]]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️  No configure Dockerfile found for ${{ matrix.promise }}, skipping"
+          fi
+
+      - name: Extract metadata for configure
+        if: steps.check-configure.outputs.exists == 'true'
+        id: meta-configure
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.promise }}-configure
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push configure pipeline
+        if: steps.check-configure.outputs.exists == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./promises/${{ matrix.promise }}/workflows/resource/configure
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-configure.outputs.tags }}
+          labels: ${{ steps.meta-configure.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.promise }}-configure
+          cache-to: type=gha,mode=max,scope=${{ matrix.promise }}-configure
+
+      - name: Summary for configure
+        if: steps.check-configure.outputs.exists == 'true'
+        run: |
+          echo "### ✅ ${{ matrix.promise }} configure pipeline built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta-configure.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  build-delete:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.promises != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        promise: ${{ fromJson(needs.detect-changes.outputs.promises) }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if delete Dockerfile exists
+        id: check-delete
+        run: |
+          if [[ -f "promises/${{ matrix.promise }}/workflows/resource/delete/Dockerfile" ]]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No delete Dockerfile found for ${{ matrix.promise }}, skipping"
+          fi
+
+      - name: Extract metadata for delete
+        if: steps.check-delete.outputs.exists == 'true'
+        id: meta-delete
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.promise }}-delete
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push delete pipeline
+        if: steps.check-delete.outputs.exists == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./promises/${{ matrix.promise }}/workflows/resource/delete
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-delete.outputs.tags }}
+          labels: ${{ steps.meta-delete.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.promise }}-delete
+          cache-to: type=gha,mode=max,scope=${{ matrix.promise }}-delete
+
+      - name: Summary for delete
+        if: steps.check-delete.outputs.exists == 'true'
+        run: |
+          echo "### ✅ ${{ matrix.promise }} delete pipeline built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta-delete.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  validate-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for forbidden Secret resources
+        run: |
+          if find promises/*/workflows -name "*.yaml" -o -name "*.yml" | xargs grep -l "kind: Secret" 2>/dev/null; then
+            echo "❌ ERROR: Found 'kind: Secret' in promise workflows"
+            echo "Use ExternalSecret instead for security compliance"
+            exit 1
+          fi
+          echo "✅ No forbidden Secret resources found"
+
+      - name: Validate Go code (if applicable)
+        run: |
+          for promise in promises/*/workflows/resource/configure; do
+            if [[ -f "$promise/main.go" ]]; then
+              echo "Checking $promise..."
+              docker run --rm -v "$(pwd)/$promise:/workspace" -w /workspace golang:1.24-alpine sh -c "go mod tidy && go build -o /dev/null main.go" || exit 1
+            fi
+          done
+          echo "✅ All Go code validated"
+
+  summary:
+    needs: [build-configure, build-delete, validate-secrets]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report status
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.build-configure.result }}" == "success" ]]; then
+            echo "✅ Configure pipelines built successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Configure pipeline builds failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ needs.build-delete.result }}" == "success" || "${{ needs.build-delete.result }}" == "skipped" ]]; then
+            echo "✅ Delete pipelines built (or skipped)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Delete pipeline builds failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [[ "${{ needs.validate-secrets.result }}" == "success" ]]; then
+            echo "✅ Secret validation passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Secret validation failed" >> $GITHUB_STEP_SUMMARY
+          fi

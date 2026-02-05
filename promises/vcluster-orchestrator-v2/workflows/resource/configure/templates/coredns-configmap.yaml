@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vc-{{ .Name }}-coredns
+  namespace: {{ .TargetNamespace }}
+  labels:
+    app.kubernetes.io/name: coredns
+    app.kubernetes.io/instance: vc-{{ .Name }}
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: {{ .WorkflowContext.PromiseName }}
+    kratix.io/resource-name: {{ .Name }}
+data:
+  Corefile: |
+    .:1053 {
+        errors
+        health
+        ready
+        kubernetes {{ .ClusterDomain }} in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+        }
+        hosts /etc/coredns/NodeHosts {
+            ttl 60
+            reload 15s
+            fallthrough
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
+
+    import /etc/coredns/custom/*.server
+  NodeHosts: ""

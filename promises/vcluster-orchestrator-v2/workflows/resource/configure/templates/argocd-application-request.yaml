@@ -1,0 +1,97 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: ArgoCDApplication
+metadata:
+  name: {{ .Name }}
+  namespace: {{ .Namespace }}
+  labels:
+    app.kubernetes.io/name: argocd-application
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: {{ .WorkflowContext.PromiseName }}
+    kratix.io/resource-name: {{ .Name }}
+spec:
+  name: vc-{{ .Name }}
+  project: {{ .ProjectName }}
+  destination:
+    server: {{ .ArgoCDDestServer }}
+    namespace: {{ .TargetNamespace }}
+  source:
+    repoURL: {{ .ArgoCDRepoURL }}
+    chart: {{ .ArgoCDChart }}
+    targetRevision: {{ .ArgoCDTargetRevision }}
+    helm:
+      releaseName: {{ .Name }}
+      valuesObject:
+        # Vcluster core configuration
+        vcluster:
+          image:
+            tag: {{ .K8sVersion }}
+        controlPlane:
+          distro:
+            k8s:
+              enabled: true
+          statefulSet:
+            highAvailability:
+              replicas: {{ .Replicas }}
+          service:
+            type: LoadBalancer
+            annotations:
+              io.cilium/lb-ipam-ips: {{ .VIP | default "auto" }}
+          backingStore:
+{{ .BackingStore | toYaml | indent 12 }}
+          coredns:
+            enabled: false
+        # Synchronization Configuration
+        sync:
+          toHost:
+            ingresses:
+              enabled: true
+            services:
+              enabled: true
+            persistentVolumeClaims:
+              enabled: true
+            storageClasses:
+              enabled: {{ if .PersistenceEnabled }}true{{ else }}false{{ end }}
+          fromHost:
+            ingressClasses:
+              enabled: true
+            storageClasses:
+              enabled: {{ if .PersistenceEnabled }}true{{ else }}false{{ end }}
+        # Networking Configuration
+        networking:
+          replicateServices:
+            fromHost:
+              - from: default/kubernetes
+                to: default/kubernetes
+        # External DNS Configuration
+        integrations:
+          externalDNS:
+            enabled: {{ if .Hostname }}true{{ else }}false{{ end }}
+            domain: {{ .Hostname }}
+            sync: enabled
+        # Resources
+        resources:
+          requests:
+            cpu: {{ .CPURequest }}
+            memory: {{ .MemoryRequest }}
+          limits:
+            cpu: {{ .CPULimit }}
+            memory: {{ .MemoryLimit }}
+        # Persistence
+        {{- if .PersistenceEnabled }}
+        persistence:
+          volumeClaim:
+            enabled: true
+            size: {{ .PersistenceSize }}
+            {{- if .PersistenceClass }}
+            storageClass: {{ .PersistenceClass }}
+            {{- end }}
+        {{- end }}
+        # Telemetry
+        telemetry:
+          disabled: true
+        # Additional overrides
+{{ .HelmOverrides | toYaml | indent 8 }}
+  {{- if .ArgoCDSyncPolicy }}
+  syncPolicy:
+{{ .ArgoCDSyncPolicy | toYaml | indent 4 }}
+  {{- end }}
