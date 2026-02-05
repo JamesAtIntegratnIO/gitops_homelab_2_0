@@ -398,6 +398,9 @@ func renderTemplate(sdk *kratix.KratixSDK, tmplName string, config *VClusterConf
 			}
 			return "false"
 		},
+		"quote": func(s string) string {
+			return fmt.Sprintf("%q", s)
+		},
 	}
 
 	tmpl, err := template.New(tmplName).Funcs(funcMap).Parse(string(content))
