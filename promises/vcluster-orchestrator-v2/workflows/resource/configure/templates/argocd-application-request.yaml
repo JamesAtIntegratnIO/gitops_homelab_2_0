@@ -36,8 +36,10 @@ spec:
             type: LoadBalancer
             annotations:
               io.cilium/lb-ipam-ips: {{ .VIP | default "auto" }}
+          {{- if .BackingStore }}
           backingStore:
 {{ .BackingStore | toYaml | indent 12 }}
+          {{- end }}
           coredns:
             enabled: false
         # Synchronization Configuration
@@ -89,8 +91,10 @@ spec:
         # Telemetry
         telemetry:
           disabled: true
+        {{- if .HelmOverrides }}
         # Additional overrides
 {{ .HelmOverrides | toYaml | indent 8 }}
+        {{- end }}
   {{- if .ArgoCDSyncPolicy }}
   syncPolicy:
 {{ .ArgoCDSyncPolicy | toYaml | indent 4 }}
