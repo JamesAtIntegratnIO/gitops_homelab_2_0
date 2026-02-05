@@ -33,7 +33,7 @@ kratix-promises:
     path: promises
     directory:
       recurse: true
-      exclude: vcluster/pipelines/vcluster.values.schema.json,_archived/**,vcluster-orchestrator-v2/workflows/**
+      exclude: vcluster/pipelines/vcluster.values.schema.json,_archived/**,vcluster-orchestrator-v2/workflows/**,**/templates/**
   syncPolicy:
     automated:
       selfHeal: true
