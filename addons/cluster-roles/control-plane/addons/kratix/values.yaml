@@ -6,8 +6,32 @@ stateStores: []
 # Disable default destinations
 destinations: []
 
+# Configure persistent storage for GitStateStore repos to prevent corruption
+controller:
+  volumes:
+    - name: kratix-git-storage
+      persistentVolumeClaim:
+        claimName: kratix-git-storage
+  volumeMounts:
+    - name: kratix-git-storage
+      mountPath: /tmp/kratix-repo
+
 # Additional resources for Kratix platform setup
 additionalResources:
+  # PersistentVolumeClaim for git repository storage (prevents corruption on restart)
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: kratix-git-storage
+      namespace: kratix-platform-system
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+      # storageClassName: "" # Uses default storage class
+  
   # ExternalSecret to pull GitHub App credentials from 1Password
   - apiVersion: external-secrets.io/v1beta1
     kind: ExternalSecret

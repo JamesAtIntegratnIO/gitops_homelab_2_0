@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-manual-pipeline-job
+  namespace: kratix-platform-system
+spec:
+  template:
+    metadata:
+      labels:
+        kratix.io/resource-name: media
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: configure
+          image: ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure:latest
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: KRATIX_WORKFLOW_ACTION
+              value: "configure"
+            - name: KRATIX_WORKFLOW_TYPE
+              value: "resource"
+          volumeMounts:
+            - name: shared-input
+              mountPath: /kratix/input
+            - name: shared-output
+              mountPath: /kratix/output
+            - name: shared-metadata
+              mountPath: /kratix/metadata
+      volumes:
+        - name: shared-input
+          emptyDir: {}
+        - name: shared-output
+          emptyDir: {}
+        - name: shared-metadata
+          emptyDir: {}
