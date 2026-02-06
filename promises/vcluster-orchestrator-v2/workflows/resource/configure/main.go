@@ -419,7 +419,9 @@ func renderTemplate(sdk *kratix.KratixSDK, tmplName string, config *VClusterConf
 		return fmt.Errorf("invalid YAML generated: %w", err)
 	}
 
-	outputPath := "resources/" + tmplName
+	// Strip .tmpl extension from output filename
+	outputName := strings.TrimSuffix(tmplName, ".tmpl")
+	outputPath := "resources/" + outputName
 	if err := sdk.WriteOutput(outputPath, buf.Bytes()); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
