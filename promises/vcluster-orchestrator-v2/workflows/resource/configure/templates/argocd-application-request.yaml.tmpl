@@ -22,24 +22,41 @@ spec:
     helm:
       releaseName: {{ .Name }}
       valuesObject:
-        vcluster:
-          image:
-            tag: {{ .K8sVersion }}
         controlPlane:
           distro:
             k8s:
               enabled: true
+              image:
+                tag: {{ .K8sVersion }}
           statefulSet:
             highAvailability:
               replicas: {{ .Replicas }}
-          service:
-            type: LoadBalancer
-            annotations:
-              io.cilium/lb-ipam-ips: {{ .VIP }}
+            resources:
+              requests:
+                cpu: {{ .CPURequest }}
+                memory: {{ .MemoryRequest }}
+              limits:
+                cpu: {{ .CPULimit }}
+                memory: {{ .MemoryLimit }}
 {{ if .BackingStore }}          backingStore:
 {{ .BackingStore | toYaml | indent 12 }}
-{{ end }}          coredns:
+{{ end }}{{ if .PersistenceEnabled }}          persistence:
+            volumeClaim:
+              enabled: true
+              size: {{ .PersistenceSize }}
+{{ if .PersistenceClass }}              storageClass: {{ .PersistenceClass }}
+{{ end }}{{ end }}          coredns:
             enabled: false
+          service:
+            annotations:
+              io.cilium/lb-ipam-ips: {{ .VIP }}
+        networking:
+          advanced:
+            clusterDomain: ""
+          replicateServices:
+            fromHost:
+              - from: default/kubernetes
+                to: default/kubernetes
         sync:
           toHost:
             ingresses:
@@ -55,30 +72,14 @@ spec:
               enabled: true
             storageClasses:
               enabled: {{ .PersistenceEnabled | toBool }}
-        networking:
-          replicateServices:
-            fromHost:
-              - from: default/kubernetes
-                to: default/kubernetes
-        integrations:
-          externalDNS:
-            enabled: {{ if .Hostname }}true{{ else }}false{{ end }}
-{{ if .Hostname }}            domain: {{ .Hostname }}
-{{ end }}            sync: enabled
-        resources:
-          requests:
-            cpu: {{ .CPURequest }}
-            memory: {{ .MemoryRequest }}
-          limits:
-            cpu: {{ .CPULimit }}
-            memory: {{ .MemoryLimit }}
-{{ if .PersistenceEnabled }}        persistence:
-          volumeClaim:
-            enabled: true
-            size: {{ .PersistenceSize }}
-{{ if .PersistenceClass }}            storageClass: {{ .PersistenceClass }}
-{{ end }}{{ end }}        telemetry:
-          disabled: true
+{{ if .Hostname }}        externalDNS:
+          enabled: true
+          domain: {{ .Hostname }}
+        ingress:
+          enabled: true
+          host: {{ .Hostname }}
+{{ end }}        telemetry:
+          enableTelemetry: false
 {{ if .HelmOverrides }}{{ .HelmOverrides | toYaml | indent 8 }}
 {{ end }}{{ if .ArgoCDSyncPolicy }}  syncPolicy:
 {{ .ArgoCDSyncPolicy | toYaml | indent 4 }}
