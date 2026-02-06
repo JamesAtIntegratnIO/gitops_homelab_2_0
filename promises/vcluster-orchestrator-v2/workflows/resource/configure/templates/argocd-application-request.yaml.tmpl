@@ -38,16 +38,19 @@ spec:
               limits:
                 cpu: {{ .CPULimit }}
                 memory: {{ .MemoryLimit }}
-{{ if .BackingStore }}          backingStore:
+{{ if .PersistenceEnabled }}            persistence:
+              volumeClaim:
+                enabled: true
+                size: {{ .PersistenceSize }}
+{{ if .PersistenceClass }}                storageClass: {{ .PersistenceClass }}
+{{ end }}{{ end }}{{ if .BackingStore }}          backingStore:
 {{ .BackingStore | toYaml | indent 12 }}
-{{ end }}{{ if .PersistenceEnabled }}          persistence:
-            volumeClaim:
-              enabled: true
-              size: {{ .PersistenceSize }}
-{{ if .PersistenceClass }}              storageClass: {{ .PersistenceClass }}
-{{ end }}{{ end }}          coredns:
+{{ end }}          coredns:
             enabled: false
-          service:
+{{ if .Hostname }}          ingress:
+            enabled: true
+            host: {{ .Hostname }}
+{{ end }}          service:
             annotations:
               io.cilium/lb-ipam-ips: {{ .VIP }}
         networking:
@@ -72,14 +75,8 @@ spec:
               enabled: true
             storageClasses:
               enabled: {{ .PersistenceEnabled | toBool }}
-{{ if .Hostname }}        externalDNS:
-          enabled: true
-          domain: {{ .Hostname }}
-        ingress:
-          enabled: true
-          host: {{ .Hostname }}
-{{ end }}        telemetry:
-          enableTelemetry: false
+        telemetry:
+          enabled: false
 {{ if .HelmOverrides }}{{ .HelmOverrides | toYaml | indent 8 }}
 {{ end }}{{ if .ArgoCDSyncPolicy }}  syncPolicy:
 {{ .ArgoCDSyncPolicy | toYaml | indent 4 }}
