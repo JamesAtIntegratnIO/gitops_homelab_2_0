@@ -117,7 +117,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./promises/${{ matrix.promise }}/workflows/resource/configure
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-configure.outputs.tags }}
           labels: ${{ steps.meta-configure.outputs.labels }}
@@ -188,7 +188,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./promises/${{ matrix.promise }}/workflows/resource/delete
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-delete.outputs.tags }}
           labels: ${{ steps.meta-delete.outputs.labels }}
