@@ -9,6 +9,7 @@ metadata:
     kratix.io/promise-name: {{ .WorkflowContext.PromiseName }}
     kratix.io/resource-name: {{ .Name }}
 spec:
+  namespace: argocd
   name: {{ .ProjectName }}
   description: "Project for vcluster {{ .Name }}"
   sourceRepos:
