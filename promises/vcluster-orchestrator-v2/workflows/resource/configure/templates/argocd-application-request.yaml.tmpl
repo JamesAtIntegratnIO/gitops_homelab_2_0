@@ -28,53 +28,153 @@ spec:
               enabled: true
               image:
                 tag: {{ .K8sVersion }}
+          serviceMonitor:
+            enabled: true
+            labels:
+              vcluster_name: {{ .Name }}
+              vcluster_namespace: {{ .TargetNamespace }}
+              environment: {{ .ArgoCDEnvironment }}
+              cluster_role: vcluster
           statefulSet:
             highAvailability:
               replicas: {{ .Replicas }}
-            resources:
+            scheduling:
+              podManagementPolicy: Parallel
+              priorityClassName: system-cluster-critical
+            image:
+              repository: loft-sh/vcluster-oss
+            persistence:
+              volumeClaim:
+                enabled: {{ .PersistenceEnabled | toBool }}
+                size: {{ .PersistenceSize }}
+{{ if .PersistenceClass }}                storageClass: {{ .PersistenceClass }}
+{{ end }}            resources:
               requests:
                 cpu: {{ .CPURequest }}
                 memory: {{ .MemoryRequest }}
               limits:
                 cpu: {{ .CPULimit }}
                 memory: {{ .MemoryLimit }}
-{{ if .PersistenceEnabled }}            persistence:
-              volumeClaim:
-                enabled: true
-                size: {{ .PersistenceSize }}
-{{ if .PersistenceClass }}                storageClass: {{ .PersistenceClass }}
-{{ end }}{{ end }}{{ if .BackingStore }}          backingStore:
+          coredns:
+            enabled: true
+            deployment:
+              replicas: {{ .CorednsReplicas }}
+            overwriteConfig: |
+              .:1053 {
+                errors
+                health
+                ready
+                kubernetes {{ .ClusterDomain }} in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+                }
+                prometheus 0.0.0.0:9153
+                forward . /etc/resolv.conf
+                cache 30
+                loop
+                reload
+                loadbalance
+              }
+{{ if .BackingStore }}          backingStore:
 {{ .BackingStore | toYaml | indent 12 }}
-{{ end }}          coredns:
-            enabled: false
-{{ if .Hostname }}          ingress:
+{{ end }}{{ if .ProxyExtraSANs }}          proxy:
+            extraSANs:
+{{ range .ProxyExtraSANs }}              - {{ . }}
+{{ end }}{{ end }}{{ if .Hostname }}          ingress:
             enabled: true
             host: {{ .Hostname }}
-{{ end }}          service:
+{{ end }}{{ if .VIP }}          service:
+            enabled: true
             annotations:
-              io.cilium/lb-ipam-ips: {{ .VIP }}
+              external-dns.alpha.kubernetes.io/hostname: {{ .Hostname }}
+            spec:
+              type: LoadBalancer
+              loadBalancerIP: {{ .VIP }}
+              ports:
+                - name: https
+                  port: {{ .APIPort }}
+                  targetPort: 8443
+                  protocol: TCP
+{{ if ne .APIPort 443 }}                - name: https-internal
+                  port: 443
+                  targetPort: 8443
+                  protocol: TCP
+{{ end }}{{ end }}          advanced:
+            podDisruptionBudget:
+              enabled: true
+              minAvailable: 1
+        deploy:
+          metallb:
+            enabled: true
+        integrations:
+          externalSecrets:
+            enabled: true
+            webhook:
+              enabled: true
+            sync:
+              fromHost:
+                clusterStores:
+                  enabled: true
+                  selector:
+                    matchLabels:
+{{ range $key, $value := .ExternalSecretsStoreLabels }}                      {{ $key }}: {{ $value }}
+{{ end }}          metricsServer:
+            enabled: true
+          certManager:
+            enabled: true
+            sync:
+              fromHost:
+                clusterIssuers:
+                  enabled: true
+                  selector:
+                    labels:
+{{ range $key, $value := .CertManagerIssuerLabels }}                      {{ $key }}: {{ $value }}
+{{ end }}        telemetry:
+          enabled: false
+        logging:
+          encoding: json
         networking:
           advanced:
-            clusterDomain: ""
+            clusterDomain: {{ .ClusterDomain }}
           replicateServices:
             fromHost:
               - from: default/kubernetes
                 to: default/kubernetes
         sync:
           toHost:
+            pods:
+              enabled: true
+            persistentVolumes:
+              enabled: true
             ingresses:
               enabled: true
-            services:
-              enabled: true
-            persistentVolumeClaims:
-              enabled: true
+            networkPolicies:
+              enabled: false
           fromHost:
+            storageClasses:
+              enabled: true
             ingressClasses:
               enabled: true
-            storageClasses:
-              enabled: {{ .PersistenceEnabled | toBool }}
-        telemetry:
-          enabled: false
+            secrets:
+              enabled: true
+              mappings:
+                byName:
+                  external-secrets/eso-onepassword-token: external-secrets/eso-onepassword-token
+        rbac:
+          clusterRole:
+            enabled: true
+            extraRules:
+              - apiGroups:
+                  - ""
+                resources:
+                  - secrets
+                verbs:
+                  - get
+                  - list
+                  - watch
+                resourceNames:
+                  - eso-onepassword-token
 {{ if .HelmOverrides }}{{ .HelmOverrides | toYaml | indent 8 }}
 {{ end }}{{ if .ArgoCDSyncPolicy }}  syncPolicy:
 {{ .ArgoCDSyncPolicy | toYaml | indent 4 }}

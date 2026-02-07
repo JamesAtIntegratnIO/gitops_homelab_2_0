@@ -42,6 +42,7 @@ type VClusterConfig struct {
 	IsolationMode       string
 	BackingStore        map[string]interface{}
 	HelmOverrides       map[string]interface{}
+	ProxyExtraSANs      []string
 
 	// Exposure configuration
 	Hostname         string
@@ -206,6 +207,14 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		config.ExternalServerURL = fmt.Sprintf("https://%s:%d", config.Hostname, config.APIPort)
 	} else if config.VIP != "" {
 		config.ExternalServerURL = fmt.Sprintf("https://%s:%d", config.VIP, config.APIPort)
+	}
+
+	// Build proxy extraSANs
+	if config.Hostname != "" {
+		config.ProxyExtraSANs = append(config.ProxyExtraSANs, config.Hostname)
+	}
+	if config.VIP != "" {
+		config.ProxyExtraSANs = append(config.ProxyExtraSANs, config.VIP)
 	}
 
 	// Extract integration configuration
