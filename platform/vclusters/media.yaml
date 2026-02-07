@@ -1,5 +1,5 @@
 apiVersion: platform.integratn.tech/v1alpha1
-kind: VClusterOrchestrator
+kind: VClusterOrchestratorV2
 metadata:
   name: media
   namespace: platform-requests
