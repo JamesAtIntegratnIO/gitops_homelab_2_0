@@ -44,7 +44,14 @@ spec:
                 size: {{ .PersistenceSize }}
 {{ if .PersistenceClass }}                storageClass: {{ .PersistenceClass }}
 {{ end }}{{ end }}{{ if .BackingStore }}          backingStore:
+            database:
+              embedded:
+                enabled: false
 {{ .BackingStore | toYaml | indent 12 }}
+{{ else }}          backingStore:
+            database:
+              embedded:
+                enabled: true
 {{ end }}          coredns:
             enabled: false
 {{ if .Hostname }}          ingress:
