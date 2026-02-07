@@ -344,6 +344,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	// Direct resource templates (consolidates vcluster-specific sub-promises)
 	resourceTemplates := []string{
 		"namespace.yaml.tmpl",
+		"etcd-certificates.yaml.tmpl",
 		"coredns-configmap.yaml.tmpl",
 		"kubeconfig-sync-rbac.yaml.tmpl",
 		"kubeconfig-sync-job.yaml.tmpl",
