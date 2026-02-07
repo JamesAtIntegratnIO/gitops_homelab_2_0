@@ -321,6 +321,23 @@ spec:
 EOF
 }
 
+write_namespace() {
+  cat > /kratix/output/vcluster-namespace.yaml <<EOF
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${TARGET_NAMESPACE}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/name: vcluster
+    app.kubernetes.io/instance: ${NAME}
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: vcluster-orchestrator
+    kratix.io/resource-request: ${NAME}
+EOF
+}
+
 write_argocd_project_request() {
   cat > /kratix/output/argocd-project-request.yaml <<EOF
 apiVersion: platform.integratn.tech/v1alpha1
@@ -447,6 +464,7 @@ render_all_resources() {
   build_values_files
   build_sync_policy
 
+  write_namespace
   write_vcluster_core_request
   write_vcluster_coredns_request
   write_argocd_project_request
