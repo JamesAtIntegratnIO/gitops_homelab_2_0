@@ -68,8 +68,6 @@ spec:
               enabled: true
             persistentVolumeClaims:
               enabled: true
-            storageClasses:
-              enabled: {{ .PersistenceEnabled | toBool }}
           fromHost:
             ingressClasses:
               enabled: true
