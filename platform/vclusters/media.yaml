@@ -11,20 +11,19 @@ spec:
   projectName: vcluster-media
   vcluster:
     preset: prod
-    replicas: 1  # Temporarily testing single replica with embedded database
+    replicas: 3
     resources:
       requests:
         memory: "2Gi"
       limits:
         memory: "2Gi"
-    # Temporarily testing with embedded database instead of external etcd
-    # backingStore:
-    #   etcd:
-    #     deploy:
-    #       enabled: true
-    #       statefulSet:
-    #         highAvailability:
-    #           replicas: 3
+    backingStore:
+      etcd:
+        deploy:
+          enabled: true
+          statefulSet:
+            highAvailability:
+              replicas: 3
   exposure:
     hostname: media.integratn.tech
     apiPort: 443
@@ -40,4 +39,4 @@ spec:
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
-    targetRevision: 0.30.4
+    targetRevision: 0.31.0
