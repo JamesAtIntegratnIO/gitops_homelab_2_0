@@ -1,42 +1,42 @@
-apiVersion: platform.integratn.tech/v1alpha1
-kind: VClusterOrchestratorV2
-metadata:
-  name: media
-  namespace: platform-requests
-  annotations:
-    platform.integratn.tech/reconcile-at: "2026-02-05T21:50:00Z"
-spec:
-  name: media
-  targetNamespace: vcluster-media
-  projectName: vcluster-media
-  vcluster:
-    preset: prod
-    replicas: 3
-    resources:
-      requests:
-        memory: "2Gi"
-      limits:
-        memory: "2Gi"
-    backingStore:
-      etcd:
-        deploy:
-          enabled: true
-          statefulSet:
-            highAvailability:
-              replicas: 3
-  exposure:
-    hostname: media.integratn.tech
-    apiPort: 443
-  integrations:
-    certManager:
-      clusterIssuerSelectorLabels:
-        integratn.tech/cluster-issuer: letsencrypt-prod
-    externalSecrets:
-      clusterStoreSelectorLabels:
-        integratn.tech/cluster-secret-store: onepassword-store
-    argocd:
-      environment: production
-  argocdApplication:
-    repoURL: https://charts.loft.sh
-    chart: vcluster
-    targetRevision: 0.31.0
+# apiVersion: platform.integratn.tech/v1alpha1
+# kind: VClusterOrchestratorV2
+# metadata:
+#   name: media
+#   namespace: platform-requests
+#   annotations:
+#     platform.integratn.tech/reconcile-at: "2026-02-05T21:50:00Z"
+# spec:
+#   name: media
+#   targetNamespace: vcluster-media
+#   projectName: vcluster-media
+#   vcluster:
+#     preset: prod
+#     replicas: 3
+#     resources:
+#       requests:
+#         memory: "2Gi"
+#       limits:
+#         memory: "2Gi"
+#     backingStore:
+#       etcd:
+#         deploy:
+#           enabled: true
+#           statefulSet:
+#             highAvailability:
+#               replicas: 3
+#   exposure:
+#     hostname: media.integratn.tech
+#     apiPort: 443
+#   integrations:
+#     certManager:
+#       clusterIssuerSelectorLabels:
+#         integratn.tech/cluster-issuer: letsencrypt-prod
+#     externalSecrets:
+#       clusterStoreSelectorLabels:
+#         integratn.tech/cluster-secret-store: onepassword-store
+#     argocd:
+#       environment: production
+#   argocdApplication:
+#     repoURL: https://charts.loft.sh
+#     chart: vcluster
+#     targetRevision: 0.31.0
