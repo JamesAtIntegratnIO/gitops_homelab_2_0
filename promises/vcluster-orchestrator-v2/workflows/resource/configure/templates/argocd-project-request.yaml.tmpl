@@ -3,6 +3,8 @@ kind: ArgoCDProject
 metadata:
   name: {{ .ProjectName }}
   namespace: {{ .Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
   labels:
     app.kubernetes.io/name: argocd-project
     app.kubernetes.io/managed-by: kratix

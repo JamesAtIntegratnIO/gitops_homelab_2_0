@@ -11,6 +11,10 @@ metadata:
 spec:
   namespace: argocd
   name: vc-{{ .Name }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
   project: {{ .ProjectName }}
   destination:
     server: {{ .ArgoCDDestServer }}
