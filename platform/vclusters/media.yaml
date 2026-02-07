@@ -11,7 +11,7 @@ spec:
   projectName: vcluster-media
   vcluster:
     preset: prod
-    replicas: 3
+    replicas: 1  # Temporarily testing single replica with embedded database
     resources:
       requests:
         memory: "2Gi"
