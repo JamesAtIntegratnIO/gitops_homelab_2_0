@@ -41,6 +41,7 @@ spec:
             scheduling:
               podManagementPolicy: Parallel
               priorityClassName: system-cluster-critical
+            imagePullPolicy: Always
             image:
               repository: loft-sh/vcluster-oss
             persistence:
