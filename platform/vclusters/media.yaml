@@ -17,13 +17,14 @@ spec:
         memory: "2Gi"
       limits:
         memory: "2Gi"
-    backingStore:
-      etcd:
-        deploy:
-          enabled: true
-          statefulSet:
-            highAvailability:
-              replicas: 3
+    # Temporarily testing with embedded database instead of external etcd
+    # backingStore:
+    #   etcd:
+    #     deploy:
+    #       enabled: true
+    #       statefulSet:
+    #         highAvailability:
+    #           replicas: 3
   exposure:
     hostname: media.integratn.tech
     apiPort: 443
