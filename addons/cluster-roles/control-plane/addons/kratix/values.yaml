@@ -50,6 +50,19 @@ additionalResources:
       url: https://github.com/jamesatintegratnio/kratix-platform-state
       branch: main
       path: clusters
+
+  # PVC for Kratix Git workspace
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: kratix-git-storage
+      namespace: kratix-platform-system
+    spec:
+      accessModes:
+        - ReadWriteMany
+      resources:
+        requests:
+          storage: 1Gi
   
   # Destination for the-cluster workload scheduling
   - apiVersion: platform.kratix.io/v1alpha1
