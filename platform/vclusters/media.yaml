@@ -80,6 +80,8 @@ spec:
             deploy:
               enabled: true
               statefulSet:
+                extraArgs:
+                  - "--client-cert-auth=false"
                 highAvailability:
                   replicas: 3
         ingress:
