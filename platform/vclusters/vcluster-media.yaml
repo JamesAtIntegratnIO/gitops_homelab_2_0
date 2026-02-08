@@ -61,6 +61,24 @@ spec:
                       openssl genrsa -out /data/pki/ca.key 2048
                       openssl req -x509 -new -nodes -key /data/pki/ca.key -subj "/CN=vcluster-media-ca" -days 3650 -out /data/pki/ca.crt
                     fi
+                    if [ ! -f /data/pki/server-ca.crt ]; then
+                      cp /data/pki/ca.crt /data/pki/server-ca.crt
+                    fi
+                    if [ ! -f /data/pki/server-ca.key ]; then
+                      cp /data/pki/ca.key /data/pki/server-ca.key
+                    fi
+                    if [ ! -f /data/pki/client-ca.crt ]; then
+                      cp /data/pki/ca.crt /data/pki/client-ca.crt
+                    fi
+                    if [ ! -f /data/pki/client-ca.key ]; then
+                      cp /data/pki/ca.key /data/pki/client-ca.key
+                    fi
+                    if [ ! -f /data/pki/front-proxy-ca.crt ]; then
+                      cp /data/pki/ca.crt /data/pki/front-proxy-ca.crt
+                    fi
+                    if [ ! -f /data/pki/front-proxy-ca.key ]; then
+                      cp /data/pki/ca.key /data/pki/front-proxy-ca.key
+                    fi
                     if [ ! -f /data/pki/apiserver-etcd-client.crt ] || [ ! -f /data/pki/apiserver-etcd-client.key ]; then
                       if [ -f /etcd-certs/etcd-ca.key ]; then
                         openssl genrsa -out /data/pki/apiserver-etcd-client.key 2048
@@ -75,6 +93,36 @@ spec:
                     if [ ! -f /data/pki/sa.key ] || [ ! -f /data/pki/sa.pub ]; then
                       openssl genrsa -out /data/pki/sa.key 2048
                       openssl rsa -in /data/pki/sa.key -pubout -out /data/pki/sa.pub
+                    fi
+                    if [ ! -f /data/pki/apiserver.crt ] || [ ! -f /data/pki/apiserver.key ]; then
+                      openssl genrsa -out /data/pki/apiserver.key 2048
+                      cat > /tmp/apiserver.cnf <<EOF
+[ req ]
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+
+[ req_distinguished_name ]
+
+[ v3_req ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = kubernetes
+DNS.2 = kubernetes.default
+DNS.3 = kubernetes.default.svc
+DNS.4 = kubernetes.default.svc.cluster.local
+IP.1 = 127.0.0.1
+IP.2 = 10.96.0.1
+EOF
+                      openssl req -new -key /data/pki/apiserver.key -subj "/CN=kubernetes" -out /tmp/apiserver.csr -config /tmp/apiserver.cnf
+                      openssl x509 -req -in /tmp/apiserver.csr -CA /data/pki/server-ca.crt -CAkey /data/pki/server-ca.key -CAcreateserial -out /data/pki/apiserver.crt -days 3650 -extensions v3_req -extfile /tmp/apiserver.cnf
+                      rm -f /tmp/apiserver.csr /tmp/apiserver.cnf
+                    fi
+                    if [ ! -f /data/pki/front-proxy-client.crt ] || [ ! -f /data/pki/front-proxy-client.key ]; then
+                      openssl genrsa -out /data/pki/front-proxy-client.key 2048
+                      openssl req -new -key /data/pki/front-proxy-client.key -subj "/CN=front-proxy-client" -out /tmp/front-proxy-client.csr
+                      openssl x509 -req -in /tmp/front-proxy-client.csr -CA /data/pki/front-proxy-ca.crt -CAkey /data/pki/front-proxy-ca.key -CAcreateserial -out /data/pki/front-proxy-client.crt -days 3650
+                      rm -f /tmp/front-proxy-client.csr
                     fi
                     openssl genrsa -out /data/pki/admin.key 2048
                     openssl req -new -key /data/pki/admin.key -subj "/CN=admin/O=system:masters" -out /data/pki/admin.csr
