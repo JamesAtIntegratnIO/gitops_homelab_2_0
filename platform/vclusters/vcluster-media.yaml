@@ -48,6 +48,21 @@ spec:
                 mountPath: /etcd-certs
                 readOnly: true
           initContainers:
+            - name: seed-vcluster-ca
+              image: alpine:3.20
+              command:
+                - sh
+                - -c
+                - |
+                  if [ ! -f /data/pki/ca.crt ]; then
+                    apk add --no-cache openssl >/dev/null 2>&1
+                    mkdir -p /data/pki
+                    openssl genrsa -out /data/pki/ca.key 2048
+                    openssl req -x509 -new -nodes -key /data/pki/ca.key -subj "/CN=vcluster-media-ca" -days 3650 -out /data/pki/ca.crt
+                  fi
+              volumeMounts:
+                - name: data
+                  mountPath: /data
             - name: seed-etcd-certs
               image: busybox:1.36
               command:
