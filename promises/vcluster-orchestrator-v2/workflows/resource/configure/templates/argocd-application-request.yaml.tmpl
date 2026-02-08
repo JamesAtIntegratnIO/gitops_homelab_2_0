@@ -1,7 +1,7 @@
 apiVersion: platform.integratn.tech/v1alpha1
 kind: ArgoCDApplication
 metadata:
-  name: vc-{{ .Name }}
+  name: {{ .TargetNamespace }}
   namespace: {{ .Namespace }}
   labels:
     app.kubernetes.io/name: argocd-application
@@ -9,7 +9,7 @@ metadata:
     kratix.io/promise-name: {{ .WorkflowContext.PromiseName }}
     kratix.io/resource-name: {{ .Name }}
 spec:
-  name: vc-{{ .Name }}
+  name: {{ .TargetNamespace }}
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "0"
