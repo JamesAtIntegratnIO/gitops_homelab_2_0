@@ -37,7 +37,7 @@ spec:
             repository: loft-sh/vcluster-oss
           persistence:
             volumeClaim:
-              enabled: true
+              enabled: false
               size: 10Gi
             addVolumes:
               - name: etcd-certs
