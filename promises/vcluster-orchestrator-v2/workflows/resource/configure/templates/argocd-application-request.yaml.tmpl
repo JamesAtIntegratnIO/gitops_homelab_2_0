@@ -7,23 +7,25 @@ metadata:
     app.kubernetes.io/name: argocd-application
     app.kubernetes.io/managed-by: kratix
     kratix.io/promise-name: {{ .WorkflowContext.PromiseName }}
-    kratix.io/resource-name: {{ .Name }}
-spec:
-  namespace: argocd
-  name: vc-{{ .Name }}
-  annotations:
-{{ if .VIP }}              loadBalancerIP: {{ .VIP }}
-{{ end }}              ports:
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
-  project: {{ .ProjectName }}
-  destination:
-    server: {{ .ArgoCDDestServer }}
-    namespace: {{ .TargetNamespace }}
-  source:
-    repoURL: {{ .ArgoCDRepoURL }}
-    chart: {{ .ArgoCDChart }}
-    targetRevision: {{ .ArgoCDTargetRevision }}
+          coredns:
+            enabled: true
+            overwriteConfig: |
+              .:1053 {
+                errors
+                health
+                ready
+                kubernetes {{ .ClusterDomain }} in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+                }
+                prometheus 0.0.0.0:9153
+                forward . /etc/resolv.conf
+                cache 30
+                loop
+                reload
+                loadbalance
+              }
     helm:
       releaseName: {{ .Name }}
       valuesObject:
