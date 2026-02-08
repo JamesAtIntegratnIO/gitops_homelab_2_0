@@ -61,10 +61,6 @@ spec:
               limits:
                 cpu: {{ .CPULimit }}
                 memory: {{ .MemoryLimit }}
-          coredns:
-            enabled: true
-            deployment:
-              replicas: {{ .CorednsReplicas }}
             overwriteConfig: |
               .:1053 {
                 errors
