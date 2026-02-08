@@ -96,24 +96,7 @@ spec:
                     fi
                     if [ ! -f /data/pki/apiserver.crt ] || [ ! -f /data/pki/apiserver.key ]; then
                       openssl genrsa -out /data/pki/apiserver.key 2048
-                      printf '%s\n' \
-                        "[ req ]" \
-                        "distinguished_name = req_distinguished_name" \
-                        "req_extensions = v3_req" \
-                        "" \
-                        "[ req_distinguished_name ]" \
-                        "" \
-                        "[ v3_req ]" \
-                        "subjectAltName = @alt_names" \
-                        "" \
-                        "[ alt_names ]" \
-                        "DNS.1 = kubernetes" \
-                        "DNS.2 = kubernetes.default" \
-                        "DNS.3 = kubernetes.default.svc" \
-                        "DNS.4 = kubernetes.default.svc.cluster.local" \
-                        "IP.1 = 127.0.0.1" \
-                        "IP.2 = 10.96.0.1" \
-                        > /tmp/apiserver.cnf
+                      printf '%s\n' "[ req ]" "distinguished_name = req_distinguished_name" "req_extensions = v3_req" "" "[ req_distinguished_name ]" "" "[ v3_req ]" "subjectAltName = @alt_names" "" "[ alt_names ]" "DNS.1 = kubernetes" "DNS.2 = kubernetes.default" "DNS.3 = kubernetes.default.svc" "DNS.4 = kubernetes.default.svc.cluster.local" "IP.1 = 127.0.0.1" "IP.2 = 10.96.0.1" > /tmp/apiserver.cnf
                       openssl req -new -key /data/pki/apiserver.key -subj "/CN=kubernetes" -out /tmp/apiserver.csr -config /tmp/apiserver.cnf
                       openssl x509 -req -in /tmp/apiserver.csr -CA /data/pki/server-ca.crt -CAkey /data/pki/server-ca.key -CAcreateserial -out /data/pki/apiserver.crt -days 3650 -extensions v3_req -extfile /tmp/apiserver.cnf
                       rm -f /tmp/apiserver.csr /tmp/apiserver.cnf
@@ -127,26 +110,7 @@ spec:
                     openssl genrsa -out /data/pki/admin.key 2048
                     openssl req -new -key /data/pki/admin.key -subj "/CN=admin/O=system:masters" -out /data/pki/admin.csr
                     openssl x509 -req -in /data/pki/admin.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/admin.crt -days 3650
-                    printf '%s\n' \
-                      "apiVersion: v1" \
-                      "kind: Config" \
-                      "clusters:" \
-                      "- name: vcluster" \
-                      "  cluster:" \
-                      "    certificate-authority: /data/pki/ca.crt" \
-                      "    server: https://127.0.0.1:6443" \
-                      "users:" \
-                      "- name: admin" \
-                      "  user:" \
-                      "    client-certificate: /data/pki/admin.crt" \
-                      "    client-key: /data/pki/admin.key" \
-                      "contexts:" \
-                      "- name: admin@vcluster" \
-                      "  context:" \
-                      "    cluster: vcluster" \
-                      "    user: admin" \
-                      "current-context: admin@vcluster" \
-                      > /data/pki/admin.conf
+                    printf '%s\n' "apiVersion: v1" "kind: Config" "clusters:" "- name: vcluster" "  cluster:" "    certificate-authority: /data/pki/ca.crt" "    server: https://127.0.0.1:6443" "users:" "- name: admin" "  user:" "    client-certificate: /data/pki/admin.crt" "    client-key: /data/pki/admin.key" "contexts:" "- name: admin@vcluster" "  context:" "    cluster: vcluster" "    user: admin" "current-context: admin@vcluster" > /data/pki/admin.conf
                     rm -f /data/pki/admin.csr /data/pki/ca.srl
                   fi
               volumeMounts:
