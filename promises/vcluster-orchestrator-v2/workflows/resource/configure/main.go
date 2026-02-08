@@ -196,7 +196,10 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Set hostname if not specified
-	config.BaseDomain = "integratn.tech" // TODO: Extract from annotation if present
+	config.BaseDomain, _ = getStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain")
+	if config.BaseDomain == "" || config.BaseDomain == "null" {
+		config.BaseDomain = "integratn.tech"
+	}
 	if config.Hostname == "" {
 		config.Hostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
 	}
@@ -244,6 +247,57 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	config.WorkloadRepoBasePath, _ = getStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
 	config.WorkloadRepoPath, _ = getStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
 	config.WorkloadRepoRevision, _ = getStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
+
+	defaultClusterLabels := map[string]string{
+		"argocd.argoproj.io/secret-type": "cluster",
+		"akuity.io/argo-cd-cluster-name":  config.Name,
+		"cluster_name":                    config.Name,
+		"cluster_role":                    "vcluster",
+		"cluster_type":                    "vcluster",
+		"enable_argocd":                   "true",
+		"enable_gateway_api_crds":         "true",
+		"enable_nginx_gateway_fabric":     "true",
+		"enable_cert_manager":             "true",
+		"enable_external_secrets":         "true",
+		"enable_external_dns":             "true",
+		"environment":                     config.ArgoCDEnvironment,
+	}
+	defaultClusterAnnotations := map[string]string{
+		"addons_repo_url":                            "https://github.com/jamesatintegratnio/gitops_homelab_2_0",
+		"addons_repo_revision":                       "main",
+		"addons_repo_basepath":                       "addons/",
+		"addons_repo_path":                           "charts/application-sets",
+		"managed-by":                                 "argocd.argoproj.io",
+		"cert_manager_namespace":                     "cert-manager",
+		"external_dns_namespace":                     "external-dns",
+		"nfs_subdir_external_provisioner_namespace":   "nfs-provisioner",
+		"cluster_name":                               config.Name,
+		"environment":                                config.ArgoCDEnvironment,
+		"platform.integratn.tech/base-domain":         config.BaseDomain,
+		"platform.integratn.tech/base-domain-sanitized": config.BaseDomainSanitized,
+		"workload_repo_url":                          config.WorkloadRepoURL,
+		"workload_repo_basepath":                     config.WorkloadRepoBasePath,
+		"workload_repo_path":                         config.WorkloadRepoPath,
+		"workload_repo_revision":                     config.WorkloadRepoRevision,
+	}
+
+	if len(config.ArgoCDClusterLabels) == 0 {
+		config.ArgoCDClusterLabels = map[string]string{}
+	}
+	for key, value := range defaultClusterLabels {
+		if _, exists := config.ArgoCDClusterLabels[key]; !exists {
+			config.ArgoCDClusterLabels[key] = value
+		}
+	}
+
+	if len(config.ArgoCDClusterAnnotations) == 0 {
+		config.ArgoCDClusterAnnotations = map[string]string{}
+	}
+	for key, value := range defaultClusterAnnotations {
+		if _, exists := config.ArgoCDClusterAnnotations[key]; !exists {
+			config.ArgoCDClusterAnnotations[key] = value
+		}
+	}
 
 	// Extract ArgoCD application configuration
 	config.ArgoCDRepoURL, _ = getStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")

@@ -12,7 +12,8 @@ spec:
   namespace: argocd
   name: vc-{{ .Name }}
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+{{ if .VIP }}              loadBalancerIP: {{ .VIP }}
+{{ end }}              ports:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   project: {{ .ProjectName }}
@@ -86,17 +87,14 @@ spec:
 {{ end }}{{ if .ProxyExtraSANs }}          proxy:
             extraSANs:
 {{ range .ProxyExtraSANs }}              - {{ . }}
-{{ end }}{{ end }}{{ if .Hostname }}          ingress:
-            enabled: true
-            host: {{ .Hostname }}
-{{ end }}{{ if .VIP }}          service:
+{{ end }}{{ end }}          service:
             enabled: true
             annotations:
               external-dns.alpha.kubernetes.io/hostname: {{ .Hostname }}
             spec:
               type: LoadBalancer
-              loadBalancerIP: {{ .VIP }}
-              ports:
+{{ if .VIP }}              loadBalancerIP: {{ .VIP }}
+{{ end }}              ports:
                 - name: https
                   port: {{ .APIPort }}
                   targetPort: 8443
@@ -105,7 +103,7 @@ spec:
                   port: 443
                   targetPort: 8443
                   protocol: TCP
-{{ end }}{{ end }}          advanced:
+{{ end }}          advanced:
             podDisruptionBudget:
               enabled: true
               minAvailable: 1
