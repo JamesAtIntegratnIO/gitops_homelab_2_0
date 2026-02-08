@@ -45,8 +45,22 @@ spec:
                   secretName: media-certs
             addVolumeMounts:
               - name: etcd-certs
-                mountPath: /pki
+                mountPath: /etcd-certs
                 readOnly: true
+          initContainers:
+            - name: seed-etcd-certs
+              image: busybox:1.36
+              command:
+                - sh
+                - -c
+                - |
+                  cp /etcd-certs/* /pki/ && chmod 600 /pki/*.key || true
+              volumeMounts:
+                - name: etcd-certs
+                  mountPath: /etcd-certs
+                  readOnly: true
+                - name: certs
+                  mountPath: /pki
           resources:
             requests:
               cpu: 500m
