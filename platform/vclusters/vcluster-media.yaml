@@ -110,7 +110,25 @@ spec:
                     openssl genrsa -out /data/pki/admin.key 2048
                     openssl req -new -key /data/pki/admin.key -subj "/CN=admin/O=system:masters" -out /data/pki/admin.csr
                     openssl x509 -req -in /data/pki/admin.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/admin.crt -days 3650
+                    if [ ! -f /data/pki/controller-manager.crt ] || [ ! -f /data/pki/controller-manager.key ]; then
+                      openssl genrsa -out /data/pki/controller-manager.key 2048
+                      openssl req -new -key /data/pki/controller-manager.key -subj "/CN=system:kube-controller-manager/O=system:masters" -out /data/pki/controller-manager.csr
+                      openssl x509 -req -in /data/pki/controller-manager.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/controller-manager.crt -days 3650
+                      rm -f /data/pki/controller-manager.csr
+                    fi
+                    if [ ! -f /data/pki/scheduler.crt ] || [ ! -f /data/pki/scheduler.key ]; then
+                      openssl genrsa -out /data/pki/scheduler.key 2048
+                      openssl req -new -key /data/pki/scheduler.key -subj "/CN=system:kube-scheduler/O=system:masters" -out /data/pki/scheduler.csr
+                      openssl x509 -req -in /data/pki/scheduler.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/scheduler.crt -days 3650
+                      rm -f /data/pki/scheduler.csr
+                    fi
                     printf '%s\n' "apiVersion: v1" "kind: Config" "clusters:" "- name: vcluster" "  cluster:" "    certificate-authority: /data/pki/ca.crt" "    server: https://127.0.0.1:6443" "users:" "- name: admin" "  user:" "    client-certificate: /data/pki/admin.crt" "    client-key: /data/pki/admin.key" "contexts:" "- name: admin@vcluster" "  context:" "    cluster: vcluster" "    user: admin" "current-context: admin@vcluster" > /data/pki/admin.conf
+                    if [ ! -f /data/pki/controller-manager.conf ]; then
+                      printf '%s\n' "apiVersion: v1" "kind: Config" "clusters:" "- name: vcluster" "  cluster:" "    certificate-authority: /data/pki/ca.crt" "    server: https://127.0.0.1:6443" "users:" "- name: system:kube-controller-manager" "  user:" "    client-certificate: /data/pki/controller-manager.crt" "    client-key: /data/pki/controller-manager.key" "contexts:" "- name: system:kube-controller-manager@vcluster" "  context:" "    cluster: vcluster" "    user: system:kube-controller-manager" "current-context: system:kube-controller-manager@vcluster" > /data/pki/controller-manager.conf
+                    fi
+                    if [ ! -f /data/pki/scheduler.conf ]; then
+                      printf '%s\n' "apiVersion: v1" "kind: Config" "clusters:" "- name: vcluster" "  cluster:" "    certificate-authority: /data/pki/ca.crt" "    server: https://127.0.0.1:6443" "users:" "- name: system:kube-scheduler" "  user:" "    client-certificate: /data/pki/scheduler.crt" "    client-key: /data/pki/scheduler.key" "contexts:" "- name: system:kube-scheduler@vcluster" "  context:" "    cluster: vcluster" "    user: system:kube-scheduler" "current-context: system:kube-scheduler@vcluster" > /data/pki/scheduler.conf
+                    fi
                     rm -f /data/pki/admin.csr /data/pki/ca.srl
                   fi
               volumeMounts:
