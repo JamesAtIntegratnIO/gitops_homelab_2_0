@@ -1,31 +1,28 @@
 apiVersion: platform.integratn.tech/v1alpha1
 kind: ArgoCDApplication
 metadata:
-  name: {{ .Name }}
+  name: vc-{{ .Name }}
   namespace: {{ .Namespace }}
   labels:
     app.kubernetes.io/name: argocd-application
     app.kubernetes.io/managed-by: kratix
     kratix.io/promise-name: {{ .WorkflowContext.PromiseName }}
-          coredns:
-            enabled: true
-            overwriteConfig: |
-              .:1053 {
-                errors
-                health
-                ready
-                kubernetes {{ .ClusterDomain }} in-addr.arpa ip6.arpa {
-                  pods insecure
-                  fallthrough in-addr.arpa ip6.arpa
-                  ttl 30
-                }
-                prometheus 0.0.0.0:9153
-                forward . /etc/resolv.conf
-                cache 30
-                loop
-                reload
-                loadbalance
-              }
+    kratix.io/resource-name: {{ .Name }}
+spec:
+  name: vc-{{ .Name }}
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  project: {{ .ProjectName }}
+  destination:
+    server: {{ .ArgoCDDestServer }}
+    namespace: {{ .TargetNamespace }}
+  source:
+    repoURL: {{ .ArgoCDRepoURL }}
+    chart: {{ .ArgoCDChart }}
+    targetRevision: {{ .ArgoCDTargetRevision }}
     helm:
       releaseName: {{ .Name }}
       valuesObject:
@@ -63,6 +60,10 @@ metadata:
               limits:
                 cpu: {{ .CPULimit }}
                 memory: {{ .MemoryLimit }}
+          coredns:
+            enabled: true
+            deployment:
+              replicas: {{ .CorednsReplicas }}
             overwriteConfig: |
               .:1053 {
                 errors
@@ -80,34 +81,35 @@ metadata:
                 reload
                 loadbalance
               }
-{{ if .BackingStore }}          backingStore:
+{{ if .BackingStore }}
+          backingStore:
 {{ .BackingStore | toYaml | indent 12 }}
-{{ end }}          ingress:
-            enabled: false
-{{ if .ProxyExtraSANs }}          proxy:
-            extraSANs:
-{{ range .ProxyExtraSANs }}              - {{ . }}
-{{ end }}{{ end }}          service:
-            enabled: true
-            annotations:
-              external-dns.alpha.kubernetes.io/hostname: {{ .Hostname }}
-            spec:
-              type: LoadBalancer
-{{ if .VIP }}              loadBalancerIP: {{ .VIP }}
-{{ end }}              ports:
-                - name: https
-                  port: {{ .APIPort }}
-                  targetPort: 8443
-                  protocol: TCP
-{{ if ne .APIPort 443 }}                - name: https-internal
-                  port: 443
-                  targetPort: 8443
-                  protocol: TCP
-{{ end }}          advanced:
-            podDisruptionBudget:
-              enabled: true
-              minAvailable: 1
-        deploy:
+{{ end }}
+        ingress:
+          enabled: false
+{{ if .ProxyExtraSANs }}
+        proxy:
+          extraSANs:
+{{ range .ProxyExtraSANs }}            - {{ . }}
+{{ end }}
+{{ end }}
+        service:
+          enabled: true
+          annotations:
+            external-dns.alpha.kubernetes.io/hostname: {{ .Hostname }}
+          spec:
+            type: LoadBalancer
+{{ if .VIP }}            loadBalancerIP: {{ .VIP }}
+{{ end }}            ports:
+              - name: https
+                port: {{ .APIPort }}
+                targetPort: 8443
+                protocol: TCP
+{{ if ne .APIPort 443 }}              - name: https-internal
+                port: 443
+                targetPort: 8443
+                protocol: TCP
+{{ end }}        deploy:
           metallb:
             enabled: true
         integrations:
