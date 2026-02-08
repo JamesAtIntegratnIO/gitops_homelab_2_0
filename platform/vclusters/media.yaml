@@ -36,6 +36,8 @@ spec:
         integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production
+      clusterAnnotations:
+        platform.integratn.tech/reconcile-at: "2026-02-08T04:24:29Z"
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
