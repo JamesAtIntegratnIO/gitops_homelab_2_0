@@ -42,3 +42,9 @@ spec:
     repoURL: https://charts.loft.sh
     chart: vcluster
     targetRevision: 0.31.0
+    syncPolicy:
+      automated:
+        selfHeal: true
+        prune: true
+      syncOptions:
+        - CreateNamespace=true
