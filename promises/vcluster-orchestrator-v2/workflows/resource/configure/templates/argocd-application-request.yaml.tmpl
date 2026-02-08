@@ -85,30 +85,30 @@ spec:
           backingStore:
 {{ .BackingStore | toYaml | indent 12 }}
 {{ end }}
-        ingress:
-          enabled: false
+          ingress:
+            enabled: false
 {{ if .ProxyExtraSANs }}
-        proxy:
-          extraSANs:
-{{ range .ProxyExtraSANs }}            - {{ . }}
+          proxy:
+            extraSANs:
+{{ range .ProxyExtraSANs }}              - {{ . }}
 {{ end }}
 {{ end }}
-        service:
-          enabled: true
-          annotations:
-            external-dns.alpha.kubernetes.io/hostname: {{ .Hostname }}
-          spec:
-            type: LoadBalancer
-{{ if .VIP }}            loadBalancerIP: {{ .VIP }}
-{{ end }}            ports:
-              - name: https
-                port: {{ .APIPort }}
-                targetPort: 8443
-                protocol: TCP
-{{ if ne .APIPort 443 }}              - name: https-internal
-                port: 443
-                targetPort: 8443
-                protocol: TCP
+          service:
+            enabled: true
+            annotations:
+              external-dns.alpha.kubernetes.io/hostname: {{ .Hostname }}
+            spec:
+              type: LoadBalancer
+{{ if .VIP }}              loadBalancerIP: {{ .VIP }}
+{{ end }}              ports:
+                - name: https
+                  port: {{ .APIPort }}
+                  targetPort: 8443
+                  protocol: TCP
+{{ if ne .APIPort 443 }}                - name: https-internal
+                  port: 443
+                  targetPort: 8443
+                  protocol: TCP
 {{ end }}        deploy:
           metallb:
             enabled: true
