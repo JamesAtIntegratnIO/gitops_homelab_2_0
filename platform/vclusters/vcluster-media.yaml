@@ -61,6 +61,12 @@ spec:
                       openssl genrsa -out /data/pki/ca.key 2048
                       openssl req -x509 -new -nodes -key /data/pki/ca.key -subj "/CN=vcluster-media-ca" -days 3650 -out /data/pki/ca.crt
                     fi
+                    if [ ! -f /data/pki/apiserver-etcd-client.crt ] || [ ! -f /data/pki/apiserver-etcd-client.key ]; then
+                      openssl genrsa -out /data/pki/apiserver-etcd-client.key 2048
+                      openssl req -new -key /data/pki/apiserver-etcd-client.key -subj "/CN=apiserver-etcd-client" -out /data/pki/apiserver-etcd-client.csr
+                      openssl x509 -req -in /data/pki/apiserver-etcd-client.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/apiserver-etcd-client.crt -days 3650
+                      rm -f /data/pki/apiserver-etcd-client.csr
+                    fi
                     openssl genrsa -out /data/pki/admin.key 2048
                     openssl req -new -key /data/pki/admin.key -subj "/CN=admin/O=system:masters" -out /data/pki/admin.csr
                     openssl x509 -req -in /data/pki/admin.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/admin.crt -days 3650
