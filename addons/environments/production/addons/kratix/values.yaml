@@ -155,6 +155,20 @@ additionalResources:
             - /metadata/annotations/argocd.argoproj.io~1tracking-id
             - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
             - /metadata/labels
+        - group: platform.integratn.tech
+          kind: ArgoCDApplication
+          namespace: platform-requests
+          jsonPointers:
+            - /metadata/annotations/argocd.argoproj.io~1tracking-id
+            - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+            - /metadata/labels
+        - group: platform.integratn.tech
+          kind: ArgoCDProject
+          namespace: platform-requests
+          jsonPointers:
+            - /metadata/annotations/argocd.argoproj.io~1tracking-id
+            - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+            - /metadata/labels
         - group: batch
           kind: Job
           name: vcluster-test-kubeconfig-sync
