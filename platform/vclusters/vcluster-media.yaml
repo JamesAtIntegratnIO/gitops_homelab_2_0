@@ -62,10 +62,15 @@ spec:
                       openssl req -x509 -new -nodes -key /data/pki/ca.key -subj "/CN=vcluster-media-ca" -days 3650 -out /data/pki/ca.crt
                     fi
                     if [ ! -f /data/pki/apiserver-etcd-client.crt ] || [ ! -f /data/pki/apiserver-etcd-client.key ]; then
-                      openssl genrsa -out /data/pki/apiserver-etcd-client.key 2048
-                      openssl req -new -key /data/pki/apiserver-etcd-client.key -subj "/CN=apiserver-etcd-client" -out /data/pki/apiserver-etcd-client.csr
-                      openssl x509 -req -in /data/pki/apiserver-etcd-client.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/apiserver-etcd-client.crt -days 3650
-                      rm -f /data/pki/apiserver-etcd-client.csr
+                      if [ -f /etcd-certs/etcd-ca.key ]; then
+                        openssl genrsa -out /data/pki/apiserver-etcd-client.key 2048
+                        openssl req -new -key /data/pki/apiserver-etcd-client.key -subj "/CN=apiserver-etcd-client" -out /data/pki/apiserver-etcd-client.csr
+                        openssl x509 -req -in /data/pki/apiserver-etcd-client.csr -CA /etcd-certs/etcd-ca.crt -CAkey /etcd-certs/etcd-ca.key -CAcreateserial -out /data/pki/apiserver-etcd-client.crt -days 3650
+                        rm -f /data/pki/apiserver-etcd-client.csr
+                      else
+                        cp /etcd-certs/etcd-server.crt /data/pki/apiserver-etcd-client.crt
+                        cp /etcd-certs/etcd-server.key /data/pki/apiserver-etcd-client.key
+                      fi
                     fi
                     openssl genrsa -out /data/pki/admin.key 2048
                     openssl req -new -key /data/pki/admin.key -subj "/CN=admin/O=system:masters" -out /data/pki/admin.csr
@@ -95,6 +100,9 @@ spec:
               volumeMounts:
                 - name: data
                   mountPath: /data
+                - name: etcd-certs
+                  mountPath: /etcd-certs
+                  readOnly: true
             - name: seed-etcd-certs
               image: busybox:1.36
               command:
