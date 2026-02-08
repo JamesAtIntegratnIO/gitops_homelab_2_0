@@ -42,6 +42,7 @@ type VClusterConfig struct {
 	IsolationMode       string
 	BackingStore        map[string]interface{}
 	HelmOverrides       map[string]interface{}
+	ValuesObject        map[string]interface{}
 	ProxyExtraSANs      []string
 
 	// Exposure configuration
@@ -333,7 +334,266 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync", config.Name)
 	}
 
+	config.ValuesObject = buildValuesObject(config)
+
 	return config, nil
+}
+
+func buildValuesObject(config *VClusterConfig) map[string]interface{} {
+	controlPlane := map[string]interface{}{
+		"distro": map[string]interface{}{
+			"k8s": map[string]interface{}{
+				"enabled": true,
+				"image": map[string]interface{}{
+					"tag": config.K8sVersion,
+				},
+			},
+		},
+		"serviceMonitor": map[string]interface{}{
+			"enabled": true,
+			"labels": map[string]interface{}{
+				"vcluster_name":      config.Name,
+				"vcluster_namespace": config.TargetNamespace,
+				"environment":        config.ArgoCDEnvironment,
+				"cluster_role":       "vcluster",
+			},
+		},
+		"statefulSet": map[string]interface{}{
+			"highAvailability": map[string]interface{}{
+				"replicas": config.Replicas,
+			},
+			"scheduling": map[string]interface{}{
+				"podManagementPolicy": "Parallel",
+				"priorityClassName":   "system-cluster-critical",
+			},
+			"imagePullPolicy": "Always",
+			"image": map[string]interface{}{
+				"repository": "loft-sh/vcluster-oss",
+			},
+			"persistence": map[string]interface{}{
+				"volumeClaim": map[string]interface{}{
+					"enabled": config.PersistenceEnabled,
+					"size":    config.PersistenceSize,
+				},
+			},
+			"resources": map[string]interface{}{
+				"requests": map[string]interface{}{
+					"cpu":    config.CPURequest,
+					"memory": config.MemoryRequest,
+				},
+				"limits": map[string]interface{}{
+					"cpu":    config.CPULimit,
+					"memory": config.MemoryLimit,
+				},
+			},
+		},
+		"coredns": map[string]interface{}{
+			"enabled": true,
+			"deployment": map[string]interface{}{
+				"replicas": config.CorednsReplicas,
+			},
+			"overwriteConfig": fmt.Sprintf(`.:1053 {
+  errors
+  health
+  ready
+  kubernetes %s in-addr.arpa ip6.arpa {
+    pods insecure
+    fallthrough in-addr.arpa ip6.arpa
+    ttl 30
+  }
+  prometheus 0.0.0.0:9153
+  forward . /etc/resolv.conf
+  cache 30
+  loop
+  reload
+  loadbalance
+}`,
+				config.ClusterDomain,
+			),
+		},
+		"ingress": map[string]interface{}{
+			"enabled": false,
+		},
+		"service": map[string]interface{}{
+			"enabled": true,
+			"annotations": map[string]interface{}{
+				"external-dns.alpha.kubernetes.io/hostname": config.Hostname,
+			},
+			"spec": map[string]interface{}{
+				"type": "LoadBalancer",
+				"ports": []map[string]interface{}{
+					{
+						"name":       "https",
+						"port":       config.APIPort,
+						"targetPort": 8443,
+						"protocol":   "TCP",
+					},
+				},
+			},
+		},
+	}
+
+	if config.PersistenceClass != "" {
+		volumeClaim := controlPlane["statefulSet"].(map[string]interface{})["persistence"].(map[string]interface{})["volumeClaim"].(map[string]interface{})
+		volumeClaim["storageClass"] = config.PersistenceClass
+	}
+
+	if config.BackingStore != nil {
+		controlPlane["backingStore"] = config.BackingStore
+	}
+
+	if len(config.ProxyExtraSANs) > 0 {
+		controlPlane["proxy"] = map[string]interface{}{
+			"extraSANs": config.ProxyExtraSANs,
+		}
+	}
+
+	if config.VIP != "" {
+		serviceSpec := controlPlane["service"].(map[string]interface{})["spec"].(map[string]interface{})
+		serviceSpec["loadBalancerIP"] = config.VIP
+	}
+
+	if config.APIPort != 443 {
+		serviceSpec := controlPlane["service"].(map[string]interface{})["spec"].(map[string]interface{})
+		ports := serviceSpec["ports"].([]map[string]interface{})
+		ports = append(ports, map[string]interface{}{
+			"name":       "https-internal",
+			"port":       443,
+			"targetPort": 8443,
+			"protocol":   "TCP",
+		})
+		serviceSpec["ports"] = ports
+	}
+
+	values := map[string]interface{}{
+		"controlPlane": controlPlane,
+		"deploy": map[string]interface{}{
+			"metallb": map[string]interface{}{
+				"enabled": true,
+			},
+		},
+		"integrations": map[string]interface{}{
+			"externalSecrets": map[string]interface{}{
+				"enabled": true,
+				"webhook": map[string]interface{}{
+					"enabled": true,
+				},
+				"sync": map[string]interface{}{
+					"fromHost": map[string]interface{}{
+						"clusterStores": map[string]interface{}{
+							"enabled": true,
+							"selector": map[string]interface{}{
+								"matchLabels": config.ExternalSecretsStoreLabels,
+							},
+						},
+					},
+				},
+			},
+			"metricsServer": map[string]interface{}{
+				"enabled": true,
+			},
+			"certManager": map[string]interface{}{
+				"enabled": true,
+				"sync": map[string]interface{}{
+					"fromHost": map[string]interface{}{
+						"clusterIssuers": map[string]interface{}{
+							"enabled": true,
+							"selector": map[string]interface{}{
+								"labels": config.CertManagerIssuerLabels,
+							},
+						},
+					},
+				},
+			},
+		},
+		"telemetry": map[string]interface{}{
+			"enabled": false,
+		},
+		"logging": map[string]interface{}{
+			"encoding": "json",
+		},
+		"networking": map[string]interface{}{
+			"advanced": map[string]interface{}{
+				"clusterDomain": config.ClusterDomain,
+			},
+			"replicateServices": map[string]interface{}{
+				"fromHost": []map[string]interface{}{
+					{
+						"from": "default/kubernetes",
+						"to":   "default/kubernetes",
+					},
+				},
+			},
+		},
+		"sync": map[string]interface{}{
+			"toHost": map[string]interface{}{
+				"pods": map[string]interface{}{
+					"enabled": true,
+				},
+				"persistentVolumes": map[string]interface{}{
+					"enabled": true,
+				},
+				"ingresses": map[string]interface{}{
+					"enabled": false,
+				},
+				"networkPolicies": map[string]interface{}{
+					"enabled": false,
+				},
+			},
+			"fromHost": map[string]interface{}{
+				"storageClasses": map[string]interface{}{
+					"enabled": true,
+				},
+				"ingressClasses": map[string]interface{}{
+					"enabled": false,
+				},
+				"secrets": map[string]interface{}{
+					"enabled": true,
+					"mappings": map[string]interface{}{
+						"byName": map[string]interface{}{
+							"external-secrets/eso-onepassword-token": "external-secrets/eso-onepassword-token",
+						},
+					},
+				},
+			},
+		},
+		"rbac": map[string]interface{}{
+			"clusterRole": map[string]interface{}{
+				"enabled": true,
+				"extraRules": []map[string]interface{}{
+					{
+						"apiGroups": []string{""},
+						"resources": []string{"secrets"},
+						"verbs":     []string{"get", "list", "watch"},
+						"resourceNames": []string{"eso-onepassword-token"},
+					},
+				},
+			},
+		},
+	}
+
+	return mergeMaps(values, config.HelmOverrides)
+}
+
+func mergeMaps(dst, src map[string]interface{}) map[string]interface{} {
+	if dst == nil {
+		dst = map[string]interface{}{}
+	}
+	if src == nil {
+		return dst
+	}
+	for key, value := range src {
+		if srcMap, ok := value.(map[string]interface{}); ok {
+			if dstMap, ok := dst[key].(map[string]interface{}); ok {
+				dst[key] = mergeMaps(dstMap, srcMap)
+				continue
+			}
+			dst[key] = mergeMaps(map[string]interface{}{}, srcMap)
+			continue
+		}
+		dst[key] = value
+	}
+	return dst
 }
 
 func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
