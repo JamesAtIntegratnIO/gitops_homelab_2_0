@@ -131,12 +131,14 @@ additionalResources:
           jsonPointers:
             - /spec
             - /status
-        - kind: Application
+        - group: argoproj.io
+          kind: Application
           namespace: argocd
           jsonPointers:
             - /metadata/annotations/argocd.argoproj.io~1tracking-id
             - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
-        - kind: AppProject
+        - group: argoproj.io
+          kind: AppProject
           namespace: argocd
           jsonPointers:
             - /metadata/annotations/argocd.argoproj.io~1tracking-id
