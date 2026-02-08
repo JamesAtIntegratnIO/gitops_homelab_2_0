@@ -54,11 +54,37 @@ spec:
                 - sh
                 - -c
                 - |
-                  if [ ! -f /data/pki/ca.crt ]; then
+                  if [ ! -f /data/pki/ca.crt ] || [ ! -f /data/pki/admin.conf ]; then
                     apk add --no-cache openssl >/dev/null 2>&1
                     mkdir -p /data/pki
-                    openssl genrsa -out /data/pki/ca.key 2048
-                    openssl req -x509 -new -nodes -key /data/pki/ca.key -subj "/CN=vcluster-media-ca" -days 3650 -out /data/pki/ca.crt
+                    if [ ! -f /data/pki/ca.crt ]; then
+                      openssl genrsa -out /data/pki/ca.key 2048
+                      openssl req -x509 -new -nodes -key /data/pki/ca.key -subj "/CN=vcluster-media-ca" -days 3650 -out /data/pki/ca.crt
+                    fi
+                    openssl genrsa -out /data/pki/admin.key 2048
+                    openssl req -new -key /data/pki/admin.key -subj "/CN=admin/O=system:masters" -out /data/pki/admin.csr
+                    openssl x509 -req -in /data/pki/admin.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/admin.crt -days 3650
+                    cat > /data/pki/admin.conf <<EOF
+                  apiVersion: v1
+                  kind: Config
+                  clusters:
+                  - name: vcluster
+                    cluster:
+                      certificate-authority: /data/pki/ca.crt
+                      server: https://127.0.0.1:6443
+                  users:
+                  - name: admin
+                    user:
+                      client-certificate: /data/pki/admin.crt
+                      client-key: /data/pki/admin.key
+                  contexts:
+                  - name: admin@vcluster
+                    context:
+                      cluster: vcluster
+                      user: admin
+                  current-context: admin@vcluster
+                  EOF
+                    rm -f /data/pki/admin.csr /data/pki/ca.srl
                   fi
               volumeMounts:
                 - name: data
