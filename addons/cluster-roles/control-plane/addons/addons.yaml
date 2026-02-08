@@ -129,6 +129,7 @@ loki:
       kind: StatefulSet
       jsonPointers:
         - /spec/volumeClaimTemplates/0/metadata/creationTimestamp
+        - /spec/volumeClaimTemplates/0/status
   syncPolicy:
     automated: {}
     syncOptions:

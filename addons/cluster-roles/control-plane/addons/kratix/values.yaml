@@ -136,6 +136,12 @@ additionalResources:
           jsonPointers:
             - /metadata/annotations/argocd.argoproj.io~1tracking-id
             - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+        - kind: AppProject
+          namespace: argocd
+          jsonPointers:
+            - /metadata/annotations/argocd.argoproj.io~1tracking-id
+            - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+            - /metadata/labels
         - kind: Job
           name: vcluster-test-kubeconfig-sync
           namespace: vcluster-test
