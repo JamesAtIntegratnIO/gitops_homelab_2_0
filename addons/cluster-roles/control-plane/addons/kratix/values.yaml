@@ -127,7 +127,8 @@ additionalResources:
           namespace: vcluster-test-4
           jsonPointers:
             - /data/NodeHosts
-        - kind: Job
+        - group: batch
+          kind: Job
           jsonPointers:
             - /spec
             - /status
@@ -158,7 +159,8 @@ additionalResources:
             - /metadata/annotations/argocd.argoproj.io~1tracking-id
             - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
             - /metadata/labels
-        - kind: Job
+        - group: batch
+          kind: Job
           name: vcluster-test-kubeconfig-sync
           namespace: vcluster-test
           jsonPointers:
