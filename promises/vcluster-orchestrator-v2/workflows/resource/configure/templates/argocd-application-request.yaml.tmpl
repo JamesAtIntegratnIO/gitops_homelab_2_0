@@ -84,7 +84,9 @@ spec:
               }
 {{ if .BackingStore }}          backingStore:
 {{ .BackingStore | toYaml | indent 12 }}
-{{ end }}{{ if .ProxyExtraSANs }}          proxy:
+{{ end }}          ingress:
+            enabled: false
+{{ if .ProxyExtraSANs }}          proxy:
             extraSANs:
 {{ range .ProxyExtraSANs }}              - {{ . }}
 {{ end }}{{ end }}          service:
