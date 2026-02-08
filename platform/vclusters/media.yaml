@@ -14,8 +14,31 @@ spec:
     replicas: 3
     helmOverrides:
       controlPlane:
+        distro:
+          k8s:
+            enabled: true
+            image:
+              tag: v1.34.3
+        serviceMonitor:
+          enabled: true
+          labels:
+            vcluster_name: media
+            vcluster_namespace: vcluster-media
+            environment: production
+            cluster_role: vcluster
         statefulSet:
+          highAvailability:
+            replicas: 3
+          scheduling:
+            podManagementPolicy: Parallel
+            priorityClassName: system-cluster-critical
+          imagePullPolicy: Always
+          image:
+            repository: loft-sh/vcluster-oss
           persistence:
+            volumeClaim:
+              enabled: true
+              size: 10Gi
             addVolumes:
               - name: etcd-certs
                 secret:
@@ -24,6 +47,57 @@ spec:
               - name: etcd-certs
                 mountPath: /pki
                 readOnly: true
+          resources:
+            requests:
+              cpu: 500m
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+        coredns:
+          enabled: true
+          deployment:
+            replicas: 2
+          overwriteConfig: |
+            .:1053 {
+              errors
+              health
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                pods insecure
+                fallthrough in-addr.arpa ip6.arpa
+                ttl 30
+              }
+              prometheus 0.0.0.0:9153
+              forward . /etc/resolv.conf
+              cache 30
+              loop
+              reload
+              loadbalance
+            }
+        backingStore:
+          etcd:
+            deploy:
+              enabled: true
+              statefulSet:
+                highAvailability:
+                  replicas: 3
+        ingress:
+          enabled: false
+        proxy:
+          extraSANs:
+            - media.integratn.tech
+        service:
+          enabled: true
+          annotations:
+            external-dns.alpha.kubernetes.io/hostname: media.integratn.tech
+          spec:
+            type: LoadBalancer
+            ports:
+              - name: https
+                port: 443
+                targetPort: 8443
+                protocol: TCP
     resources:
       requests:
         memory: "2Gi"
