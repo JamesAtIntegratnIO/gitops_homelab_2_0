@@ -28,10 +28,9 @@ build_blocks() {
   fi
 
   if [ "${LABELS_LENGTH}" -eq 0 ]; then
-    LABELS_BLOCK=""
+    USER_LABELS=""
   else
-    LABELS=$(sed 's/^/    /' "${LABELS_FILE}")
-    LABELS_BLOCK=$(printf "  labels:\n%s\n" "${LABELS}")
+    USER_LABELS=$(sed 's/^/    /' "${LABELS_FILE}")
   fi
 
   if [ "${FINALIZERS_LENGTH}" -eq 0 ]; then
@@ -63,7 +62,11 @@ metadata:
   namespace: ${NAMESPACE}
   annotations:
 ${ANNOTATIONS}
-${LABELS_BLOCK}
+  labels:
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
+${USER_LABELS}
 ${FINALIZERS_BLOCK}
 spec:
   project: ${PROJECT}

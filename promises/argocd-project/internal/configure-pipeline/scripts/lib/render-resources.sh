@@ -27,9 +27,9 @@ build_blocks() {
   fi
 
   if [ "${LABELS_LENGTH}" -eq 0 ]; then
-    LABELS="    {}"
+    USER_LABELS=""
   else
-    LABELS=$(sed 's/^/    /' "${LABELS_FILE}")
+    USER_LABELS=$(sed 's/^/    /' "${LABELS_FILE}")
   fi
 
   SOURCEREPOS=$(sed 's/^/    /' "${SOURCEREPOS_FILE}")
@@ -48,7 +48,10 @@ metadata:
   annotations:
 ${ANNOTATIONS}
   labels:
-${LABELS}
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
+${USER_LABELS}
 spec:
   description: ${DESCRIPTION}
   sourceRepos:

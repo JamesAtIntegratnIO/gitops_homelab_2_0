@@ -2,6 +2,9 @@
 
 INPUT_FILE="/kratix/input/object.yaml"
 
+PROMISE_NAME="vcluster-coredns"
+RESOURCE_NAME=$(yq eval '.metadata.name' "${INPUT_FILE}")
+
 NAME=$(yq eval '.spec.name' "${INPUT_FILE}")
 TARGET_NAMESPACE=$(yq eval '.spec.targetNamespace' "${INPUT_FILE}")
 CLUSTER_DOMAIN=$(yq eval '.spec.clusterDomain' "${INPUT_FILE}")

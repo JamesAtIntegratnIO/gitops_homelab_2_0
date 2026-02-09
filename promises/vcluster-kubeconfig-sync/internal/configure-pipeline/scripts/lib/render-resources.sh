@@ -7,6 +7,10 @@ kind: ExternalSecret
 metadata:
   name: vcluster-${NAME}-onepassword-token
   namespace: ${TARGET_NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
 spec:
   refreshInterval: 1h
   secretStoreRef:
@@ -30,12 +34,20 @@ kind: ServiceAccount
 metadata:
   name: vcluster-${NAME}-kubeconfig-sync
   namespace: ${TARGET_NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: vcluster-${NAME}-kubeconfig-reader
   namespace: ${TARGET_NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -47,6 +59,10 @@ kind: RoleBinding
 metadata:
   name: vcluster-${NAME}-kubeconfig-sync
   namespace: ${TARGET_NAMESPACE}
+  labels:
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -65,6 +81,9 @@ metadata:
     app: vcluster
     instance: ${NAME}
     component: kubeconfig-sync
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
 spec:
   template:
     metadata:

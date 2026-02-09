@@ -9,6 +9,9 @@ metadata:
   labels:
     app: vcluster
     instance: ${NAME}
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
     pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: privileged
     pod-security.kubernetes.io/warn: privileged
@@ -24,6 +27,12 @@ kind: ConfigMap
 metadata:
   name: ${NAME}-vcluster-values
   namespace: ${TARGET_NAMESPACE}
+  labels:
+    app: vcluster
+    instance: ${NAME}
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
 data:
   values.yaml: |
 ${VALUES_CONFIGMAP}

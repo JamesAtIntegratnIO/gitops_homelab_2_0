@@ -35,6 +35,9 @@ metadata:
   labels:
     app: vcluster
     instance: ${NAME}
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: ${PROMISE_NAME}
+    kratix.io/resource-name: ${RESOURCE_NAME}
 spec:
   refreshInterval: 5m
   secretStoreRef:
