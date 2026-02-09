@@ -1,0 +1,347 @@
+package main
+
+import "fmt"
+
+func buildKubeconfigExternalSecret(config *VClusterConfig) map[string]interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":      "external-secret",
+		"app.kubernetes.io/component": "kubeconfig",
+	}, baseLabels(config, config.Name))
+
+	return map[string]interface{}{
+		"apiVersion": "external-secrets.io/v1beta1",
+		"kind":       "ExternalSecret",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-kubeconfig", config.Name),
+			config.TargetNamespace,
+			labels,
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"secretStoreRef": map[string]interface{}{
+				"name": "onepassword-store",
+				"kind": "ClusterSecretStore",
+			},
+			"target": map[string]interface{}{
+				"name": fmt.Sprintf("vcluster-%s-kubeconfig-external", config.Name),
+				"template": map[string]interface{}{
+					"engineVersion": "v2",
+					"data": map[string]string{
+						"config": "{{ .kubeconfig }}\n",
+					},
+				},
+			},
+			"dataFrom": []map[string]interface{}{
+				{
+					"extract": map[string]interface{}{
+						"key": config.OnePasswordItem,
+					},
+				},
+			},
+			"refreshInterval": "15m",
+		},
+	}
+}
+
+func buildKubeconfigSyncRBAC(config *VClusterConfig) []interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":      "external-secret",
+		"app.kubernetes.io/component": "kubeconfig-sync",
+	}, baseLabels(config, config.Name))
+
+	externalSecret := map[string]interface{}{
+		"apiVersion": "external-secrets.io/v1beta1",
+		"kind":       "ExternalSecret",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-onepassword-token", config.Name),
+			config.TargetNamespace,
+			labels,
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"secretStoreRef": map[string]interface{}{
+				"name": "onepassword-store",
+				"kind": "ClusterSecretStore",
+			},
+			"target": map[string]interface{}{
+				"name": fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+			},
+			"data": []map[string]interface{}{
+				{
+					"secretKey": "token",
+					"remoteRef": map[string]interface{}{
+						"key":      "onepassword-access-token",
+						"property": "credential",
+					},
+				},
+				{
+					"secretKey": "vault",
+					"remoteRef": map[string]interface{}{
+						"key":      "onepassword-access-token",
+						"property": "vault",
+					},
+				},
+			},
+		},
+	}
+
+	baseRBACLabels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name": "kubeconfig-sync",
+	}, baseLabels(config, config.Name))
+
+	serviceAccount := map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "ServiceAccount",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+			config.TargetNamespace,
+			baseRBACLabels,
+			nil,
+		),
+	}
+
+	role := map[string]interface{}{
+		"apiVersion": "rbac.authorization.k8s.io/v1",
+		"kind":       "Role",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+			config.TargetNamespace,
+			baseRBACLabels,
+			nil,
+		),
+		"rules": []map[string]interface{}{
+			{
+				"apiGroups":     []string{""},
+				"resources":     []string{"secrets"},
+				"resourceNames": []string{fmt.Sprintf("vc-%s", config.Name), fmt.Sprintf("vcluster-%s-onepassword-token", config.Name)},
+				"verbs":         []string{"get"},
+			},
+		},
+	}
+
+	roleBinding := map[string]interface{}{
+		"apiVersion": "rbac.authorization.k8s.io/v1",
+		"kind":       "RoleBinding",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+			config.TargetNamespace,
+			baseRBACLabels,
+			nil,
+		),
+		"roleRef": map[string]interface{}{
+			"apiGroup": "rbac.authorization.k8s.io",
+			"kind":     "Role",
+			"name":     fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+		},
+		"subjects": []map[string]interface{}{
+			{
+				"kind":      "ServiceAccount",
+				"name":      fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+				"namespace": config.TargetNamespace,
+			},
+		},
+	}
+
+	return []interface{}{externalSecret, serviceAccount, role, roleBinding}
+}
+
+func buildKubeconfigSyncJob(config *VClusterConfig) map[string]interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name": "kubeconfig-sync",
+	}, baseLabels(config, config.Name))
+
+	initCommand := fmt.Sprintf(`echo "Waiting for secret vc-%s to exist..."
+until [ -f /kubeconfig/config ]; do
+  echo "Kubeconfig not found yet, sleeping..."
+  sleep 5
+done
+echo "Kubeconfig found!"`, config.Name)
+
+	syncCommand := `set -e
+
+apk add --no-cache curl jq >/dev/null 2>&1
+
+echo "=== VCluster Kubeconfig Sync to 1Password ==="
+echo "VCluster: $VCLUSTER_NAME"
+echo "1Password Item: $OP_ITEM_NAME"
+echo "Vault: $OP_VAULT"
+
+# Read kubeconfig from secret
+KUBECONFIG_CONTENT=$(cat /kubeconfig/config)
+
+# Build ArgoCD cluster config
+ARGOCD_CONFIG=$(cat <<EOF
+{
+  "tlsClientConfig": {
+    "insecure": false
+  }
+}
+EOF
+)
+
+# Check if item exists
+echo "Checking if item exists..."
+ITEM_SEARCH=$(curl -s -X POST "$OP_CONNECT_HOST/v1/vaults/homelab/items" \
+  -H "Authorization: Bearer $OP_CONNECT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"title\":\"$OP_ITEM_NAME\"}" || echo "{}")
+
+ITEM_ID=$(echo "$ITEM_SEARCH" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4 || echo "")
+
+if [ -z "$ITEM_ID" ]; then
+  echo "Creating new 1Password item..."
+  RESPONSE=$(curl -s -X POST "$OP_CONNECT_HOST/v1/vaults/homelab/items" \
+    -H "Authorization: Bearer $OP_CONNECT_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"title\": \"$OP_ITEM_NAME\",
+      \"category\": \"SERVER\",
+      \"tags\": [\"vcluster\", \"kubeconfig\", \"$ARGOCD_ENVIRONMENT\"],
+      \"fields\": [
+        {
+          \"id\": \"kubeconfig\",
+          \"type\": \"CONCEALED\",
+          \"label\": \"kubeconfig\",
+          \"value\": $(echo \"$KUBECONFIG_CONTENT\" | jq -Rs .)
+        },
+        {
+          \"id\": \"argocd-name\",
+          \"type\": \"STRING\",
+          \"label\": \"argocd-name\",
+          \"value\": \"$VCLUSTER_NAME.$BASE_DOMAIN_SANITIZED\"
+        },
+        {
+          \"id\": \"argocd-server\",
+          \"type\": \"STRING\",
+          \"label\": \"argocd-server\",
+          \"value\": \"$EXTERNAL_SERVER_URL\"
+        },
+        {
+          \"id\": \"argocd-config\",
+          \"type\": \"CONCEALED\",
+          \"label\": \"argocd-config\",
+          \"value\": $(echo \"$ARGOCD_CONFIG\" | jq -Rc .)
+        }
+      ]
+    }")
+  ITEM_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+  echo "Created item with ID: $ITEM_ID"
+else
+  echo "Updating existing item ID: $ITEM_ID"
+  curl -s -X PATCH "$OP_CONNECT_HOST/v1/vaults/homelab/items/$ITEM_ID" \
+    -H "Authorization: Bearer $OP_CONNECT_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"fields\": [
+        {
+          \"id\": \"kubeconfig\",
+          \"value\": $(echo \"$KUBECONFIG_CONTENT\" | jq -Rs .)
+        },
+        {
+          \"id\": \"argocd-name\",
+          \"value\": \"$VCLUSTER_NAME.$BASE_DOMAIN_SANITIZED\"
+        },
+        {
+          \"id\": \"argocd-server\",
+          \"value\": \"$EXTERNAL_SERVER_URL\"
+        },
+        {
+          \"id\": \"argocd-config\",
+          \"value\": $(echo \"$ARGOCD_CONFIG\" | jq -Rc .)
+        }
+      ]
+    }"
+fi
+
+echo "✓ Kubeconfig synced to 1Password successfully"`
+
+	return map[string]interface{}{
+		"apiVersion": "batch/v1",
+		"kind":       "Job",
+		"metadata": resourceMeta(
+			config.KubeconfigSyncJobName,
+			config.TargetNamespace,
+			labels,
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"backoffLimit":            3,
+			"ttlSecondsAfterFinished": 600,
+			"template": map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]string{
+						"app.kubernetes.io/name":     "kubeconfig-sync",
+						"app.kubernetes.io/instance": config.Name,
+					},
+				},
+				"spec": map[string]interface{}{
+					"serviceAccountName": fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+					"restartPolicy":      "OnFailure",
+					"initContainers": []map[string]interface{}{
+						{
+							"name":    "wait-for-kubeconfig",
+							"image":   "busybox:1.36",
+							"command": []string{"sh", "-c", initCommand},
+							"volumeMounts": []map[string]interface{}{
+								{
+									"name":      "kubeconfig",
+									"mountPath": "/kubeconfig",
+								},
+							},
+						},
+					},
+					"containers": []map[string]interface{}{
+						{
+							"name":  "sync-to-onepassword",
+							"image": "alpine:3.20",
+							"env": []map[string]interface{}{
+								{"name": "OP_CONNECT_HOST", "value": "https://connect.integratn.tech"},
+								{
+									"name": "OP_CONNECT_TOKEN",
+									"valueFrom": map[string]interface{}{
+										"secretKeyRef": map[string]interface{}{
+											"name": fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+											"key":  "token",
+										},
+									},
+								},
+								{
+									"name": "OP_VAULT",
+									"valueFrom": map[string]interface{}{
+										"secretKeyRef": map[string]interface{}{
+											"name": fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+											"key":  "vault",
+										},
+									},
+								},
+								{"name": "VCLUSTER_NAME", "value": config.Name},
+								{"name": "OP_ITEM_NAME", "value": config.OnePasswordItem},
+								{"name": "BASE_DOMAIN", "value": config.BaseDomain},
+								{"name": "BASE_DOMAIN_SANITIZED", "value": config.BaseDomainSanitized},
+								{"name": "EXTERNAL_SERVER_URL", "value": config.ExternalServerURL},
+								{"name": "ARGOCD_ENVIRONMENT", "value": config.ArgoCDEnvironment},
+							},
+							"command": []string{"sh", "-c", syncCommand},
+							"volumeMounts": []map[string]interface{}{
+								{
+									"name":      "kubeconfig",
+									"mountPath": "/kubeconfig",
+									"readOnly":  true,
+								},
+							},
+						},
+					},
+					"volumes": []map[string]interface{}{
+						{
+							"name": "kubeconfig",
+							"secret": map[string]interface{}{
+								"secretName": fmt.Sprintf("vc-%s", config.Name),
+								"optional":   false,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}

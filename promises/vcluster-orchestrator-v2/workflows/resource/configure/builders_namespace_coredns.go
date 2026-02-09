@@ -1,0 +1,67 @@
+package main
+
+import "fmt"
+
+func buildNamespace(config *VClusterConfig) map[string]interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":     "vcluster-namespace",
+		"vcluster.loft.sh/namespace": "true",
+	}, baseLabels(config, config.Name))
+
+	return map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Namespace",
+		"metadata": resourceMeta(
+			config.TargetNamespace,
+			"",
+			labels,
+			map[string]string{"argocd.argoproj.io/sync-wave": "-2"},
+		),
+	}
+}
+
+func buildCorednsConfigMap(config *VClusterConfig) map[string]interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":     "coredns",
+		"app.kubernetes.io/instance": fmt.Sprintf("vc-%s", config.Name),
+	}, baseLabels(config, config.Name))
+
+	corefile := fmt.Sprintf(`.:1053 {
+    errors
+    health
+    ready
+    kubernetes %s in-addr.arpa ip6.arpa {
+        pods insecure
+        fallthrough in-addr.arpa ip6.arpa
+    }
+    hosts /etc/coredns/NodeHosts {
+        ttl 60
+        reload 15s
+        fallthrough
+    }
+    prometheus :9153
+    forward . /etc/resolv.conf
+    cache 30
+    loop
+    reload
+    loadbalance
+}
+
+import /etc/coredns/custom/*.server
+`, config.ClusterDomain)
+
+	return map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata": resourceMeta(
+			fmt.Sprintf("vc-%s-coredns", config.Name),
+			config.TargetNamespace,
+			labels,
+			nil,
+		),
+		"data": map[string]string{
+			"Corefile":  corefile,
+			"NodeHosts": "",
+		},
+	}
+}
