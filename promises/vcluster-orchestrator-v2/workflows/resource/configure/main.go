@@ -858,10 +858,6 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 			config.KubeconfigSyncJobName,
 			config.TargetNamespace,
 		),
-		"resources/delete-namespace.yaml": fmt.Sprintf(
-			"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: %s\n",
-			config.TargetNamespace,
-		),
 	}
 
 	if config.BackingStore != nil {
