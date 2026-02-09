@@ -2,21 +2,16 @@ package main
 
 import (
 	"bytes"
-	"embed"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"strconv"
 	"strings"
-	"text/template"
 
 	kratix "github.com/syntasso/kratix-go"
 	"sigs.k8s.io/yaml"
 )
-
-//go:embed templates/*.yaml.tmpl
-var templatesFS embed.FS
 
 // VClusterConfig holds all configuration for template rendering
 type VClusterConfig struct {
@@ -690,37 +685,65 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	log.Println("--- Rendering orchestrator resources ---")
 
-	// Templates for ResourceRequests (keeps ArgoCD promises separate for reusability)
-	rrTemplates := []string{
-		"argocd-project-request.yaml.tmpl",
-		"argocd-application-request.yaml.tmpl",
+	resourceRequests := map[string]interface{}{
+		"resources/argocd-project-request.yaml":     buildArgoCDProjectRequest(config),
+		"resources/argocd-application-request.yaml": buildArgoCDApplicationRequest(config),
 	}
 
-	// Direct resource templates (consolidates vcluster-specific sub-promises)
-	resourceTemplates := []string{
-		"namespace.yaml.tmpl",
-		"etcd-certificates.yaml.tmpl",
-		"coredns-configmap.yaml.tmpl",
-		"kubeconfig-sync-rbac.yaml.tmpl",
-		"kubeconfig-sync-job.yaml.tmpl",
-		"kubeconfig-external-secret.yaml.tmpl",
-		"argocd-cluster-external-secret.yaml.tmpl",
-	}
-
-	allTemplates := append(rrTemplates, resourceTemplates...)
-
-	for _, tmplName := range allTemplates {
-		if err := renderTemplate(sdk, tmplName, config); err != nil {
-			return fmt.Errorf("failed to render %s: %w", tmplName, err)
+	for path, obj := range resourceRequests {
+		if err := writeYAML(sdk, path, obj); err != nil {
+			return fmt.Errorf("write %s: %w", path, err)
 		}
-		log.Printf("✓ Rendered: %s", tmplName)
+		log.Printf("✓ Rendered: %s", path)
+	}
+
+	if err := writeYAML(sdk, "resources/namespace.yaml", buildNamespace(config)); err != nil {
+		return fmt.Errorf("write namespace: %w", err)
+	}
+	log.Printf("✓ Rendered: %s", "resources/namespace.yaml")
+
+	if docs := buildEtcdCertificates(config); len(docs) > 0 {
+		if err := writeYAMLDocuments(sdk, "resources/etcd-certificates.yaml", docs); err != nil {
+			return fmt.Errorf("write etcd certificates: %w", err)
+		}
+		log.Printf("✓ Rendered: %s", "resources/etcd-certificates.yaml")
+	}
+
+	if err := writeYAML(sdk, "resources/coredns-configmap.yaml", buildCorednsConfigMap(config)); err != nil {
+		return fmt.Errorf("write coredns configmap: %w", err)
+	}
+	log.Printf("✓ Rendered: %s", "resources/coredns-configmap.yaml")
+
+	if err := writeYAMLDocuments(sdk, "resources/kubeconfig-sync-rbac.yaml", buildKubeconfigSyncRBAC(config)); err != nil {
+		return fmt.Errorf("write kubeconfig sync rbac: %w", err)
+	}
+	log.Printf("✓ Rendered: %s", "resources/kubeconfig-sync-rbac.yaml")
+
+	if err := writeYAML(sdk, "resources/kubeconfig-sync-job.yaml", buildKubeconfigSyncJob(config)); err != nil {
+		return fmt.Errorf("write kubeconfig sync job: %w", err)
+	}
+	log.Printf("✓ Rendered: %s", "resources/kubeconfig-sync-job.yaml")
+
+	if err := writeYAML(sdk, "resources/kubeconfig-external-secret.yaml", buildKubeconfigExternalSecret(config)); err != nil {
+		return fmt.Errorf("write kubeconfig external secret: %w", err)
+	}
+	log.Printf("✓ Rendered: %s", "resources/kubeconfig-external-secret.yaml")
+
+	if err := writeYAML(sdk, "resources/argocd-cluster-external-secret.yaml", buildArgoCDClusterExternalSecret(config)); err != nil {
+		return fmt.Errorf("write argocd cluster external secret: %w", err)
+	}
+	log.Printf("✓ Rendered: %s", "resources/argocd-cluster-external-secret.yaml")
+
+	directResources := 6
+	if etcdEnabled(config) {
+		directResources++
 	}
 
 	status := kratix.NewStatus()
 	status.Set("phase", "Scheduled")
 	status.Set("message", "VCluster resources scheduled for creation")
-	status.Set("resourceRequestsGenerated", len(rrTemplates))
-	status.Set("directResourcesGenerated", len(resourceTemplates))
+	status.Set("resourceRequestsGenerated", len(resourceRequests))
+	status.Set("directResourcesGenerated", directResources)
 	status.Set("vclusterName", config.Name)
 	status.Set("targetNamespace", config.TargetNamespace)
 	status.Set("hostname", config.Hostname)
@@ -734,56 +757,927 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	return nil
 }
 
-func renderTemplate(sdk *kratix.KratixSDK, tmplName string, config *VClusterConfig) error {
-	content, err := templatesFS.ReadFile("templates/" + tmplName)
+func writeYAML(sdk *kratix.KratixSDK, path string, obj interface{}) error {
+	data, err := yaml.Marshal(obj)
 	if err != nil {
-		return fmt.Errorf("read template: %w", err)
+		return fmt.Errorf("marshal %s: %w", path, err)
 	}
-
-	funcMap := template.FuncMap{
-		"toYaml": func(v interface{}) string {
-			data, _ := yaml.Marshal(v)
-			return strings.TrimSuffix(string(data), "\n")
-		},
-		"indent": func(spaces int, s string) string {
-			pad := strings.Repeat(" ", spaces)
-			return pad + strings.ReplaceAll(s, "\n", "\n"+pad)
-		},
-		"toBool": func(v bool) string {
-			if v {
-				return "true"
-			}
-			return "false"
-		},
-		"quote": func(s string) string {
-			return fmt.Sprintf("%q", s)
-		},
+	if err := sdk.WriteOutput(path, data); err != nil {
+		return fmt.Errorf("write output %s: %w", path, err)
 	}
+	return nil
+}
 
-	tmpl, err := template.New(tmplName).Funcs(funcMap).Parse(string(content))
-	if err != nil {
-		return fmt.Errorf("parse template: %w", err)
+func writeYAMLDocuments(sdk *kratix.KratixSDK, path string, docs []interface{}) error {
+	if len(docs) == 0 {
+		return nil
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, config); err != nil {
-		return fmt.Errorf("execute template: %w", err)
+	for i, doc := range docs {
+		data, err := yaml.Marshal(doc)
+		if err != nil {
+			return fmt.Errorf("marshal %s: %w", path, err)
+		}
+		if i > 0 {
+			buf.WriteString("---\n")
+		}
+		buf.Write(data)
 	}
 
-	// Validate YAML
-	var yamlCheck interface{}
-	if err := yaml.Unmarshal(buf.Bytes(), &yamlCheck); err != nil {
-		return fmt.Errorf("invalid YAML generated: %w", err)
+	if err := sdk.WriteOutput(path, buf.Bytes()); err != nil {
+		return fmt.Errorf("write output %s: %w", path, err)
 	}
-
-	// Strip .tmpl extension from output filename
-	outputName := strings.TrimSuffix(tmplName, ".tmpl")
-	outputPath := "resources/" + outputName
-	if err := sdk.WriteOutput(outputPath, buf.Bytes()); err != nil {
-		return fmt.Errorf("write output: %w", err)
-	}
-
 	return nil
+}
+
+func etcdEnabled(config *VClusterConfig) bool {
+	if config.BackingStore == nil {
+		return false
+	}
+	etcd, ok := config.BackingStore["etcd"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	deploy, ok := etcd["deploy"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	enabled, ok := deploy["enabled"].(bool)
+	return ok && enabled
+}
+
+func resourceMeta(name, namespace string, labels, annotations map[string]string) map[string]interface{} {
+	meta := map[string]interface{}{
+		"name": name,
+	}
+	if namespace != "" {
+		meta["namespace"] = namespace
+	}
+	if len(labels) > 0 {
+		meta["labels"] = labels
+	}
+	if len(annotations) > 0 {
+		meta["annotations"] = annotations
+	}
+	return meta
+}
+
+func mergeStringMap(dst, src map[string]string) map[string]string {
+	if dst == nil {
+		dst = map[string]string{}
+	}
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func baseLabels(config *VClusterConfig, name string) map[string]string {
+	return map[string]string{
+		"app.kubernetes.io/managed-by": "kratix",
+		"kratix.io/promise-name":       config.WorkflowContext.PromiseName,
+		"kratix.io/resource-name":      name,
+	}
+}
+
+func deleteResource(apiVersion, kind, name, namespace string) map[string]interface{} {
+	meta := map[string]interface{}{
+		"name": name,
+	}
+	if namespace != "" {
+		meta["namespace"] = namespace
+	}
+	return map[string]interface{}{
+		"apiVersion": apiVersion,
+		"kind":       kind,
+		"metadata":   meta,
+	}
+}
+
+func buildArgoCDProjectRequest(config *VClusterConfig) map[string]interface{} {
+	metadataLabels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name": "argocd-project",
+	}, baseLabels(config, config.Name))
+
+	specLabels := map[string]string{
+		"app.kubernetes.io/managed-by":     "kratix",
+		"argocd.argoproj.io/project-group": "appteam",
+		"kratix.io/promise-name":           config.WorkflowContext.PromiseName,
+		"kratix.io/resource-name":          config.Name,
+	}
+
+	return map[string]interface{}{
+		"apiVersion": "platform.integratn.tech/v1alpha1",
+		"kind":       "ArgoCDProject",
+		"metadata": resourceMeta(
+			config.ProjectName,
+			config.Namespace,
+			metadataLabels,
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"namespace":   "argocd",
+			"name":        config.ProjectName,
+			"description": fmt.Sprintf("VCluster project for %s", config.Name),
+			"annotations": map[string]string{
+				"argocd.argoproj.io/sync-wave": "-1",
+			},
+			"labels": specLabels,
+			"sourceRepos": []string{
+				"https://charts.loft.sh",
+			},
+			"destinations": []map[string]interface{}{
+				{
+					"namespace": config.TargetNamespace,
+					"server":    "https://kubernetes.default.svc",
+				},
+			},
+			"clusterResourceWhitelist": []map[string]interface{}{
+				{
+					"group": "*",
+					"kind":  "*",
+				},
+			},
+			"namespaceResourceWhitelist": []map[string]interface{}{
+				{
+					"group": "*",
+					"kind":  "*",
+				},
+			},
+		},
+	}
+}
+
+func buildArgoCDApplicationRequest(config *VClusterConfig) map[string]interface{} {
+	metadataLabels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name": "argocd-application",
+	}, baseLabels(config, config.Name))
+
+	spec := map[string]interface{}{
+		"name":      fmt.Sprintf("vcluster-%s", config.Name),
+		"namespace": "argocd",
+		"annotations": map[string]string{
+			"argocd.argoproj.io/sync-wave": "0",
+		},
+		"finalizers": []string{"resources-finalizer.argocd.argoproj.io"},
+		"project":    config.ProjectName,
+		"destination": map[string]interface{}{
+			"server":    config.ArgoCDDestServer,
+			"namespace": config.TargetNamespace,
+		},
+		"source": map[string]interface{}{
+			"repoURL":        config.ArgoCDRepoURL,
+			"chart":          config.ArgoCDChart,
+			"targetRevision": config.ArgoCDTargetRevision,
+			"helm": map[string]interface{}{
+				"releaseName":  config.Name,
+				"valuesObject": config.ValuesObject,
+			},
+		},
+	}
+	if config.ArgoCDSyncPolicy != nil {
+		spec["syncPolicy"] = config.ArgoCDSyncPolicy
+	}
+
+	return map[string]interface{}{
+		"apiVersion": "platform.integratn.tech/v1alpha1",
+		"kind":       "ArgoCDApplication",
+		"metadata": resourceMeta(
+			fmt.Sprintf("vcluster-%s", config.Name),
+			config.Namespace,
+			metadataLabels,
+			nil,
+		),
+		"spec": spec,
+	}
+}
+
+func buildNamespace(config *VClusterConfig) map[string]interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":     "vcluster-namespace",
+		"vcluster.loft.sh/namespace": "true",
+	}, baseLabels(config, config.Name))
+
+	return map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "Namespace",
+		"metadata": resourceMeta(
+			config.TargetNamespace,
+			"",
+			labels,
+			map[string]string{"argocd.argoproj.io/sync-wave": "-2"},
+		),
+	}
+}
+
+func buildCorednsConfigMap(config *VClusterConfig) map[string]interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":     "coredns",
+		"app.kubernetes.io/instance": fmt.Sprintf("vc-%s", config.Name),
+	}, baseLabels(config, config.Name))
+
+	corefile := fmt.Sprintf(`.:1053 {
+    errors
+    health
+    ready
+    kubernetes %s in-addr.arpa ip6.arpa {
+        pods insecure
+        fallthrough in-addr.arpa ip6.arpa
+    }
+    hosts /etc/coredns/NodeHosts {
+        ttl 60
+        reload 15s
+        fallthrough
+    }
+    prometheus :9153
+    forward . /etc/resolv.conf
+    cache 30
+    loop
+    reload
+    loadbalance
+}
+
+import /etc/coredns/custom/*.server
+`, config.ClusterDomain)
+
+	return map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata": resourceMeta(
+			fmt.Sprintf("vc-%s-coredns", config.Name),
+			config.TargetNamespace,
+			labels,
+			nil,
+		),
+		"data": map[string]string{
+			"Corefile":  corefile,
+			"NodeHosts": "",
+		},
+	}
+}
+
+func buildKubeconfigExternalSecret(config *VClusterConfig) map[string]interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":      "external-secret",
+		"app.kubernetes.io/component": "kubeconfig",
+	}, baseLabels(config, config.Name))
+
+	return map[string]interface{}{
+		"apiVersion": "external-secrets.io/v1beta1",
+		"kind":       "ExternalSecret",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-kubeconfig", config.Name),
+			config.TargetNamespace,
+			labels,
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"secretStoreRef": map[string]interface{}{
+				"name": "onepassword-store",
+				"kind": "ClusterSecretStore",
+			},
+			"target": map[string]interface{}{
+				"name": fmt.Sprintf("vcluster-%s-kubeconfig-external", config.Name),
+				"template": map[string]interface{}{
+					"engineVersion": "v2",
+					"data": map[string]string{
+						"config": "{{ .kubeconfig }}\n",
+					},
+				},
+			},
+			"dataFrom": []map[string]interface{}{
+				{
+					"extract": map[string]interface{}{
+						"key": config.OnePasswordItem,
+					},
+				},
+			},
+			"refreshInterval": "15m",
+		},
+	}
+}
+
+func buildArgoCDClusterExternalSecret(config *VClusterConfig) map[string]interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":        "external-secret",
+		"app.kubernetes.io/component":   "argocd-cluster",
+		"argocd.argoproj.io/secret-type": "cluster",
+	}, baseLabels(config, config.Name))
+	labels = mergeStringMap(labels, config.ArgoCDClusterLabels)
+
+	metadataAnnotations := map[string]string{}
+	if len(config.ArgoCDClusterAnnotations) > 0 {
+		metadataAnnotations = mergeStringMap(metadataAnnotations, config.ArgoCDClusterAnnotations)
+	}
+
+	targetLabels := mergeStringMap(map[string]string{
+		"argocd.argoproj.io/secret-type": "cluster",
+		"integratn.tech/vcluster-name":  config.Name,
+		"integratn.tech/environment":    config.ArgoCDEnvironment,
+	}, config.ArgoCDClusterLabels)
+
+	targetAnnotations := map[string]string{}
+	if len(config.ArgoCDClusterAnnotations) > 0 {
+		targetAnnotations = mergeStringMap(targetAnnotations, config.ArgoCDClusterAnnotations)
+	}
+
+	metadata := resourceMeta(
+		fmt.Sprintf("%s-argocd-cluster", config.Name),
+		"argocd",
+		labels,
+		metadataAnnotations,
+	)
+
+	targetMetadata := map[string]interface{}{
+		"labels": targetLabels,
+	}
+	if len(targetAnnotations) > 0 {
+		targetMetadata["annotations"] = targetAnnotations
+	}
+
+	return map[string]interface{}{
+		"apiVersion": "external-secrets.io/v1beta1",
+		"kind":       "ExternalSecret",
+		"metadata":   metadata,
+		"spec": map[string]interface{}{
+			"secretStoreRef": map[string]interface{}{
+				"name": "onepassword-store",
+				"kind": "ClusterSecretStore",
+			},
+			"target": map[string]interface{}{
+				"name": fmt.Sprintf("vcluster-%s", config.Name),
+				"template": map[string]interface{}{
+					"engineVersion": "v2",
+					"type":         "Opaque",
+					"metadata":     targetMetadata,
+					"data": map[string]string{
+						"name":   "{{ index . \"argocd-name\" }}",
+						"server": "{{ index . \"argocd-server\" }}",
+						"config": "{{ index . \"argocd-config\" }}",
+					},
+				},
+			},
+			"dataFrom": []map[string]interface{}{
+				{
+					"extract": map[string]interface{}{
+						"key":                config.OnePasswordItem,
+						"conversionStrategy": "Default",
+						"decodingStrategy":   "None",
+					},
+				},
+			},
+			"refreshInterval": "15m",
+		},
+	}
+}
+
+func buildKubeconfigSyncRBAC(config *VClusterConfig) []interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":      "external-secret",
+		"app.kubernetes.io/component": "kubeconfig-sync",
+	}, baseLabels(config, config.Name))
+
+	externalSecret := map[string]interface{}{
+		"apiVersion": "external-secrets.io/v1beta1",
+		"kind":       "ExternalSecret",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-onepassword-token", config.Name),
+			config.TargetNamespace,
+			labels,
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"secretStoreRef": map[string]interface{}{
+				"name": "onepassword-store",
+				"kind": "ClusterSecretStore",
+			},
+			"target": map[string]interface{}{
+				"name": fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+			},
+			"data": []map[string]interface{}{
+				{
+					"secretKey": "token",
+					"remoteRef": map[string]interface{}{
+						"key":      "onepassword-access-token",
+						"property": "credential",
+					},
+				},
+				{
+					"secretKey": "vault",
+					"remoteRef": map[string]interface{}{
+						"key":      "onepassword-access-token",
+						"property": "vault",
+					},
+				},
+			},
+		},
+	}
+
+	baseRBACLabels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name": "kubeconfig-sync",
+	}, baseLabels(config, config.Name))
+
+	serviceAccount := map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "ServiceAccount",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+			config.TargetNamespace,
+			baseRBACLabels,
+			nil,
+		),
+	}
+
+	role := map[string]interface{}{
+		"apiVersion": "rbac.authorization.k8s.io/v1",
+		"kind":       "Role",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+			config.TargetNamespace,
+			baseRBACLabels,
+			nil,
+		),
+		"rules": []map[string]interface{}{
+			{
+				"apiGroups":     []string{""},
+				"resources":     []string{"secrets"},
+				"resourceNames": []string{fmt.Sprintf("vc-%s", config.Name), fmt.Sprintf("vcluster-%s-onepassword-token", config.Name)},
+				"verbs":         []string{"get"},
+			},
+		},
+	}
+
+	roleBinding := map[string]interface{}{
+		"apiVersion": "rbac.authorization.k8s.io/v1",
+		"kind":       "RoleBinding",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+			config.TargetNamespace,
+			baseRBACLabels,
+			nil,
+		),
+		"roleRef": map[string]interface{}{
+			"apiGroup": "rbac.authorization.k8s.io",
+			"kind":     "Role",
+			"name":     fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+		},
+		"subjects": []map[string]interface{}{
+			{
+				"kind":      "ServiceAccount",
+				"name":      fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+				"namespace": config.TargetNamespace,
+			},
+		},
+	}
+
+	return []interface{}{externalSecret, serviceAccount, role, roleBinding}
+}
+
+func buildKubeconfigSyncJob(config *VClusterConfig) map[string]interface{} {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name": "kubeconfig-sync",
+	}, baseLabels(config, config.Name))
+
+	initCommand := fmt.Sprintf(`echo "Waiting for secret vc-%s to exist..."
+until [ -f /kubeconfig/config ]; do
+  echo "Kubeconfig not found yet, sleeping..."
+  sleep 5
+done
+echo "Kubeconfig found!"`, config.Name)
+
+	syncCommand := `set -e
+
+apk add --no-cache curl jq >/dev/null 2>&1
+
+echo "=== VCluster Kubeconfig Sync to 1Password ==="
+echo "VCluster: $VCLUSTER_NAME"
+echo "1Password Item: $OP_ITEM_NAME"
+echo "Vault: $OP_VAULT"
+
+# Read kubeconfig from secret
+KUBECONFIG_CONTENT=$(cat /kubeconfig/config)
+
+# Build ArgoCD cluster config
+ARGOCD_CONFIG=$(cat <<EOF
+{
+  "tlsClientConfig": {
+    "insecure": false
+  }
+}
+EOF
+)
+
+# Check if item exists
+echo "Checking if item exists..."
+ITEM_SEARCH=$(curl -s -X POST "$OP_CONNECT_HOST/v1/vaults/homelab/items" \
+  -H "Authorization: Bearer $OP_CONNECT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"title\":\"$OP_ITEM_NAME\"}" || echo "{}")
+
+ITEM_ID=$(echo "$ITEM_SEARCH" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4 || echo "")
+
+if [ -z "$ITEM_ID" ]; then
+  echo "Creating new 1Password item..."
+  RESPONSE=$(curl -s -X POST "$OP_CONNECT_HOST/v1/vaults/homelab/items" \
+    -H "Authorization: Bearer $OP_CONNECT_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"title\": \"$OP_ITEM_NAME\",
+      \"category\": \"SERVER\",
+      \"tags\": [\"vcluster\", \"kubeconfig\", \"$ARGOCD_ENVIRONMENT\"],
+      \"fields\": [
+        {
+          \"id\": \"kubeconfig\",
+          \"type\": \"CONCEALED\",
+          \"label\": \"kubeconfig\",
+          \"value\": $(echo \"$KUBECONFIG_CONTENT\" | jq -Rs .)
+        },
+        {
+          \"id\": \"argocd-name\",
+          \"type\": \"STRING\",
+          \"label\": \"argocd-name\",
+          \"value\": \"$VCLUSTER_NAME.$BASE_DOMAIN_SANITIZED\"
+        },
+        {
+          \"id\": \"argocd-server\",
+          \"type\": \"STRING\",
+          \"label\": \"argocd-server\",
+          \"value\": \"$EXTERNAL_SERVER_URL\"
+        },
+        {
+          \"id\": \"argocd-config\",
+          \"type\": \"CONCEALED\",
+          \"label\": \"argocd-config\",
+          \"value\": $(echo \"$ARGOCD_CONFIG\" | jq -Rc .)
+        }
+      ]
+    }")
+  ITEM_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
+  echo "Created item with ID: $ITEM_ID"
+else
+  echo "Updating existing item ID: $ITEM_ID"
+  curl -s -X PATCH "$OP_CONNECT_HOST/v1/vaults/homelab/items/$ITEM_ID" \
+    -H "Authorization: Bearer $OP_CONNECT_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"fields\": [
+        {
+          \"id\": \"kubeconfig\",
+          \"value\": $(echo \"$KUBECONFIG_CONTENT\" | jq -Rs .)
+        },
+        {
+          \"id\": \"argocd-name\",
+          \"value\": \"$VCLUSTER_NAME.$BASE_DOMAIN_SANITIZED\"
+        },
+        {
+          \"id\": \"argocd-server\",
+          \"value\": \"$EXTERNAL_SERVER_URL\"
+        },
+        {
+          \"id\": \"argocd-config\",
+          \"value\": $(echo \"$ARGOCD_CONFIG\" | jq -Rc .)
+        }
+      ]
+    }"
+fi
+
+echo "✓ Kubeconfig synced to 1Password successfully"`
+
+	return map[string]interface{}{
+		"apiVersion": "batch/v1",
+		"kind":       "Job",
+		"metadata": resourceMeta(
+			config.KubeconfigSyncJobName,
+			config.TargetNamespace,
+			labels,
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"backoffLimit":            3,
+			"ttlSecondsAfterFinished": 600,
+			"template": map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]string{
+						"app.kubernetes.io/name":     "kubeconfig-sync",
+						"app.kubernetes.io/instance": config.Name,
+					},
+				},
+				"spec": map[string]interface{}{
+					"serviceAccountName": fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+					"restartPolicy":      "OnFailure",
+					"initContainers": []map[string]interface{}{
+						{
+							"name":    "wait-for-kubeconfig",
+							"image":   "busybox:1.36",
+							"command": []string{"sh", "-c", initCommand},
+							"volumeMounts": []map[string]interface{}{
+								{
+									"name":      "kubeconfig",
+									"mountPath": "/kubeconfig",
+								},
+							},
+						},
+					},
+					"containers": []map[string]interface{}{
+						{
+							"name":  "sync-to-onepassword",
+							"image": "alpine:3.20",
+							"env": []map[string]interface{}{
+								{"name": "OP_CONNECT_HOST", "value": "https://connect.integratn.tech"},
+								{
+									"name": "OP_CONNECT_TOKEN",
+									"valueFrom": map[string]interface{}{
+										"secretKeyRef": map[string]interface{}{
+											"name": fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+											"key":  "token",
+										},
+									},
+								},
+								{
+									"name": "OP_VAULT",
+									"valueFrom": map[string]interface{}{
+										"secretKeyRef": map[string]interface{}{
+											"name": fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+											"key":  "vault",
+										},
+									},
+								},
+								{"name": "VCLUSTER_NAME", "value": config.Name},
+								{"name": "OP_ITEM_NAME", "value": config.OnePasswordItem},
+								{"name": "BASE_DOMAIN", "value": config.BaseDomain},
+								{"name": "BASE_DOMAIN_SANITIZED", "value": config.BaseDomainSanitized},
+								{"name": "EXTERNAL_SERVER_URL", "value": config.ExternalServerURL},
+								{"name": "ARGOCD_ENVIRONMENT", "value": config.ArgoCDEnvironment},
+							},
+							"command": []string{"sh", "-c", syncCommand},
+							"volumeMounts": []map[string]interface{}{
+								{
+									"name":      "kubeconfig",
+									"mountPath": "/kubeconfig",
+									"readOnly":  true,
+								},
+							},
+						},
+					},
+					"volumes": []map[string]interface{}{
+						{
+							"name": "kubeconfig",
+							"secret": map[string]interface{}{
+								"secretName": fmt.Sprintf("vc-%s", config.Name),
+								"optional":   false,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func buildEtcdCertificates(config *VClusterConfig) []interface{} {
+	if !etcdEnabled(config) {
+		return nil
+	}
+
+	labels := func(name string) map[string]string {
+		return mergeStringMap(map[string]string{
+			"app.kubernetes.io/instance": config.Name,
+			"app.kubernetes.io/name":     name,
+		}, baseLabels(config, config.Name))
+	}
+
+	caCert := map[string]interface{}{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "Certificate",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-etcd-ca", config.Name),
+			config.TargetNamespace,
+			labels("etcd-ca"),
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"isCA":       true,
+			"commonName": fmt.Sprintf("%s-etcd-ca", config.Name),
+			"secretName": fmt.Sprintf("%s-etcd-ca", config.Name),
+			"privateKey": map[string]interface{}{
+				"algorithm": "RSA",
+				"size":      2048,
+			},
+			"issuerRef": map[string]interface{}{
+				"name":  fmt.Sprintf("%s-etcd-selfsigned", config.Name),
+				"kind":  "Issuer",
+				"group": "cert-manager.io",
+			},
+		},
+	}
+
+	selfsignedIssuer := map[string]interface{}{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "Issuer",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-etcd-selfsigned", config.Name),
+			config.TargetNamespace,
+			labels("etcd-issuer"),
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"selfSigned": map[string]interface{}{},
+		},
+	}
+
+	caIssuer := map[string]interface{}{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "Issuer",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-etcd-ca", config.Name),
+			config.TargetNamespace,
+			labels("etcd-ca-issuer"),
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"ca": map[string]interface{}{
+				"secretName": fmt.Sprintf("%s-etcd-ca", config.Name),
+			},
+		},
+	}
+
+	mergeJob := map[string]interface{}{
+		"apiVersion": "batch/v1",
+		"kind":       "Job",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-etcd-certs-merge", config.Name),
+			config.TargetNamespace,
+			labels("etcd-certs-job"),
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"template": map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"labels": map[string]string{
+						"app": "etcd-certs-merge",
+					},
+				},
+				"spec": map[string]interface{}{
+					"restartPolicy":      "OnFailure",
+					"serviceAccountName": fmt.Sprintf("vc-%s", config.Name),
+					"containers": []map[string]interface{}{
+						{
+							"name":    "merge-certs",
+							"image":   "bitnami/kubectl:latest",
+							"command": []string{"/bin/bash", "-c", buildEtcdMergeScript(config)},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	serverCert := map[string]interface{}{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "Certificate",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-etcd-server", config.Name),
+			config.TargetNamespace,
+			labels("etcd-server-cert"),
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"secretName": fmt.Sprintf("%s-etcd-server", config.Name),
+			"commonName": fmt.Sprintf("%s-etcd", config.Name),
+			"dnsNames":   buildEtcdDNSNames(config),
+			"ipAddresses": []string{
+				"127.0.0.1",
+			},
+			"privateKey": map[string]interface{}{
+				"algorithm": "RSA",
+				"size":      2048,
+			},
+			"usages": []string{"server auth", "client auth"},
+			"issuerRef": map[string]interface{}{
+				"name":  fmt.Sprintf("%s-etcd-ca", config.Name),
+				"kind":  "Issuer",
+				"group": "cert-manager.io",
+			},
+			"secretTemplate": map[string]interface{}{
+				"labels": map[string]string{
+					"app.kubernetes.io/name":     "etcd-server-cert",
+					"app.kubernetes.io/instance": config.Name,
+				},
+			},
+		},
+	}
+
+	peerCert := map[string]interface{}{
+		"apiVersion": "cert-manager.io/v1",
+		"kind":       "Certificate",
+		"metadata": resourceMeta(
+			fmt.Sprintf("%s-etcd-peer", config.Name),
+			config.TargetNamespace,
+			labels("etcd-peer-cert"),
+			nil,
+		),
+		"spec": map[string]interface{}{
+			"secretName": fmt.Sprintf("%s-etcd-peer", config.Name),
+			"commonName": fmt.Sprintf("%s-etcd", config.Name),
+			"dnsNames":   buildEtcdDNSNames(config),
+			"privateKey": map[string]interface{}{
+				"algorithm": "RSA",
+				"size":      2048,
+			},
+			"usages": []string{"server auth", "client auth"},
+			"issuerRef": map[string]interface{}{
+				"name":  fmt.Sprintf("%s-etcd-ca", config.Name),
+				"kind":  "Issuer",
+				"group": "cert-manager.io",
+			},
+			"secretTemplate": map[string]interface{}{
+				"labels": map[string]string{
+					"app.kubernetes.io/name":     "etcd-peer-cert",
+					"app.kubernetes.io/instance": config.Name,
+				},
+			},
+		},
+	}
+
+	return []interface{}{caCert, selfsignedIssuer, caIssuer, mergeJob, serverCert, peerCert}
+}
+
+func buildEtcdDNSNames(config *VClusterConfig) []string {
+	base := []string{
+		fmt.Sprintf("%s-etcd", config.Name),
+		fmt.Sprintf("%s-etcd.%s", config.Name, config.TargetNamespace),
+		fmt.Sprintf("%s-etcd.%s.svc", config.Name, config.TargetNamespace),
+		fmt.Sprintf("%s-etcd.%s.svc.cluster.local", config.Name, config.TargetNamespace),
+		fmt.Sprintf("%s-etcd-headless", config.Name),
+		fmt.Sprintf("%s-etcd-headless.%s", config.Name, config.TargetNamespace),
+		fmt.Sprintf("%s-etcd-headless.%s.svc", config.Name, config.TargetNamespace),
+		fmt.Sprintf("%s-etcd-headless.%s.svc.cluster.local", config.Name, config.TargetNamespace),
+	}
+	for i := 0; i < 3; i++ {
+		base = append(base,
+			fmt.Sprintf("%s-etcd-%d", config.Name, i),
+			fmt.Sprintf("%s-etcd-%d.%s-etcd-headless.%s", config.Name, i, config.Name, config.TargetNamespace),
+			fmt.Sprintf("%s-etcd-%d.%s-etcd-headless.%s.svc", config.Name, i, config.Name, config.TargetNamespace),
+			fmt.Sprintf("%s-etcd-%d.%s-etcd-headless.%s.svc.cluster.local", config.Name, i, config.Name, config.TargetNamespace),
+		)
+	}
+	base = append(base, "localhost")
+	return base
+}
+
+func buildEtcdMergeScript(config *VClusterConfig) string {
+	return fmt.Sprintf(`set -e
+echo "Waiting for certificates to be ready..."
+
+# Wait for CA cert
+until kubectl get secret %s-etcd-ca -n %s 2>/dev/null; do
+  echo "Waiting for CA certificate..."
+  sleep 2
+done
+
+# Wait for server cert
+until kubectl get secret %s-etcd-server -n %s 2>/dev/null; do
+  echo "Waiting for server certificate..."
+  sleep 2
+done
+
+# Wait for peer cert
+until kubectl get secret %s-etcd-peer -n %s 2>/dev/null; do
+  echo "Waiting for peer certificate..."
+  sleep 2
+done
+
+echo "All certificates ready, merging..."
+
+# Extract certs
+CA_CRT=$(kubectl get secret %s-etcd-ca -n %s -o jsonpath='{.data.tls\.crt}')
+SERVER_CRT=$(kubectl get secret %s-etcd-server -n %s -o jsonpath='{.data.tls\.crt}')
+SERVER_KEY=$(kubectl get secret %s-etcd-server -n %s -o jsonpath='{.data.tls\.key}')
+PEER_CRT=$(kubectl get secret %s-etcd-peer -n %s -o jsonpath='{.data.tls\.crt}')
+PEER_KEY=$(kubectl get secret %s-etcd-peer -n %s -o jsonpath='{.data.tls\.key}')
+
+# Create merged secret
+kubectl create secret generic %s-certs -n %s \
+  --from-literal=etcd-ca.crt="$(echo $CA_CRT | base64 -d)" \
+  --from-literal=etcd-server.crt="$(echo $SERVER_CRT | base64 -d)" \
+  --from-literal=etcd-server.key="$(echo $SERVER_KEY | base64 -d)" \
+  --from-literal=etcd-peer.crt="$(echo $PEER_CRT | base64 -d)" \
+  --from-literal=etcd-peer.key="$(echo $PEER_KEY | base64 -d)" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+echo "Certificate merge complete!"`,
+		config.Name, config.TargetNamespace,
+		config.Name, config.TargetNamespace,
+		config.Name, config.TargetNamespace,
+		config.Name, config.TargetNamespace,
+		config.Name, config.TargetNamespace,
+		config.Name, config.TargetNamespace,
+		config.Name, config.TargetNamespace,
+		config.Name, config.TargetNamespace,
+		config.Name, config.TargetNamespace,
+		config.Name, config.TargetNamespace,
+	)
 }
 
 func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
@@ -798,129 +1692,146 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
-	outputs := map[string]string{
-		"resources/delete-argocd-project-request.yaml": fmt.Sprintf(
-			"apiVersion: platform.integratn.tech/v1alpha1\nkind: ArgoCDProject\nmetadata:\n  name: %s\n  namespace: %s\n",
+	outputs := map[string]interface{}{
+		"resources/delete-argocd-project-request.yaml": deleteResource(
+			"platform.integratn.tech/v1alpha1",
+			"ArgoCDProject",
 			config.ProjectName,
 			config.Namespace,
 		),
-		"resources/delete-argocd-application-request.yaml": fmt.Sprintf(
-			"apiVersion: platform.integratn.tech/v1alpha1\nkind: ArgoCDApplication\nmetadata:\n  name: %s\n  namespace: %s\n",
+		"resources/delete-argocd-application-request.yaml": deleteResource(
+			"platform.integratn.tech/v1alpha1",
+			"ArgoCDApplication",
 			fmt.Sprintf("vcluster-%s", config.Name),
 			config.Namespace,
 		),
-		"resources/delete-coredns-configmap.yaml": fmt.Sprintf(
-			"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: vc-%s-coredns\n  namespace: %s\n",
-			config.Name,
+		"resources/delete-coredns-configmap.yaml": deleteResource(
+			"v1",
+			"ConfigMap",
+			fmt.Sprintf("vc-%s-coredns", config.Name),
 			config.TargetNamespace,
 		),
-		"resources/delete-kubeconfig-external-secret.yaml": fmt.Sprintf(
-			"apiVersion: external-secrets.io/v1beta1\nkind: ExternalSecret\nmetadata:\n  name: %s-kubeconfig\n  namespace: %s\n",
-			config.Name,
+		"resources/delete-kubeconfig-external-secret.yaml": deleteResource(
+			"external-secrets.io/v1beta1",
+			"ExternalSecret",
+			fmt.Sprintf("%s-kubeconfig", config.Name),
 			config.TargetNamespace,
 		),
-		"resources/delete-argocd-cluster-external-secret.yaml": fmt.Sprintf(
-			"apiVersion: external-secrets.io/v1beta1\nkind: ExternalSecret\nmetadata:\n  name: %s-argocd-cluster\n  namespace: argocd\n",
-			config.Name,
+		"resources/delete-argocd-cluster-external-secret.yaml": deleteResource(
+			"external-secrets.io/v1beta1",
+			"ExternalSecret",
+			fmt.Sprintf("%s-argocd-cluster", config.Name),
+			"argocd",
 		),
-		"resources/delete-onepassword-token-external-secret.yaml": fmt.Sprintf(
-			"apiVersion: external-secrets.io/v1beta1\nkind: ExternalSecret\nmetadata:\n  name: %s-onepassword-token\n  namespace: %s\n",
-			config.Name,
+		"resources/delete-onepassword-token-external-secret.yaml": deleteResource(
+			"external-secrets.io/v1beta1",
+			"ExternalSecret",
+			fmt.Sprintf("%s-onepassword-token", config.Name),
 			config.TargetNamespace,
 		),
-		"resources/delete-kubeconfig-sync-sa.yaml": fmt.Sprintf(
-			"apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: %s-kubeconfig-sync\n  namespace: %s\n",
-			config.Name,
+		"resources/delete-kubeconfig-sync-sa.yaml": deleteResource(
+			"v1",
+			"ServiceAccount",
+			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
 			config.TargetNamespace,
 		),
-		"resources/delete-kubeconfig-sync-role.yaml": fmt.Sprintf(
-			"apiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: %s-kubeconfig-sync\n  namespace: %s\n",
-			config.Name,
+		"resources/delete-kubeconfig-sync-role.yaml": deleteResource(
+			"rbac.authorization.k8s.io/v1",
+			"Role",
+			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
 			config.TargetNamespace,
 		),
-		"resources/delete-kubeconfig-sync-rolebinding.yaml": fmt.Sprintf(
-			"apiVersion: rbac.authorization.k8s.io/v1\nkind: RoleBinding\nmetadata:\n  name: %s-kubeconfig-sync\n  namespace: %s\n",
-			config.Name,
+		"resources/delete-kubeconfig-sync-rolebinding.yaml": deleteResource(
+			"rbac.authorization.k8s.io/v1",
+			"RoleBinding",
+			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
 			config.TargetNamespace,
 		),
-		"resources/delete-vcluster-clusterrole.yaml": fmt.Sprintf(
-			"apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: vc-%s-v-%s\n",
-			config.Name,
-			config.TargetNamespace,
+		"resources/delete-vcluster-clusterrole.yaml": deleteResource(
+			"rbac.authorization.k8s.io/v1",
+			"ClusterRole",
+			fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
+			"",
 		),
-		"resources/delete-vcluster-clusterrolebinding.yaml": fmt.Sprintf(
-			"apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\nmetadata:\n  name: vc-%s-v-%s\n",
-			config.Name,
-			config.TargetNamespace,
+		"resources/delete-vcluster-clusterrolebinding.yaml": deleteResource(
+			"rbac.authorization.k8s.io/v1",
+			"ClusterRoleBinding",
+			fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
+			"",
 		),
-		"resources/delete-kubeconfig-sync-job.yaml": fmt.Sprintf(
-			"apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: %s\n  namespace: %s\n",
+		"resources/delete-kubeconfig-sync-job.yaml": deleteResource(
+			"batch/v1",
+			"Job",
 			config.KubeconfigSyncJobName,
 			config.TargetNamespace,
 		),
 	}
 
-	if config.BackingStore != nil {
-		if etcd, ok := config.BackingStore["etcd"].(map[string]interface{}); ok {
-			if deploy, ok := etcd["deploy"].(map[string]interface{}); ok {
-				if enabled, ok := deploy["enabled"].(bool); ok && enabled {
-					outputs["resources/delete-etcd-ca-certificate.yaml"] = fmt.Sprintf(
-						"apiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n  name: %s-etcd-ca\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-					outputs["resources/delete-etcd-server-certificate.yaml"] = fmt.Sprintf(
-						"apiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n  name: %s-etcd-server\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-					outputs["resources/delete-etcd-peer-certificate.yaml"] = fmt.Sprintf(
-						"apiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n  name: %s-etcd-peer\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-					outputs["resources/delete-etcd-selfsigned-issuer.yaml"] = fmt.Sprintf(
-						"apiVersion: cert-manager.io/v1\nkind: Issuer\nmetadata:\n  name: %s-etcd-selfsigned\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-					outputs["resources/delete-etcd-ca-issuer.yaml"] = fmt.Sprintf(
-						"apiVersion: cert-manager.io/v1\nkind: Issuer\nmetadata:\n  name: %s-etcd-ca\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-					outputs["resources/delete-etcd-certs-job.yaml"] = fmt.Sprintf(
-						"apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: %s-etcd-certs-merge\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-					outputs["resources/delete-etcd-ca-secret.yaml"] = fmt.Sprintf(
-						"apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s-etcd-ca\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-					outputs["resources/delete-etcd-server-secret.yaml"] = fmt.Sprintf(
-						"apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s-etcd-server\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-					outputs["resources/delete-etcd-peer-secret.yaml"] = fmt.Sprintf(
-						"apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s-etcd-peer\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-					outputs["resources/delete-etcd-merged-secret.yaml"] = fmt.Sprintf(
-						"apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s-certs\n  namespace: %s\n",
-						config.Name,
-						config.TargetNamespace,
-					)
-				}
-			}
-		}
+	if etcdEnabled(config) {
+		outputs["resources/delete-etcd-ca-certificate.yaml"] = deleteResource(
+			"cert-manager.io/v1",
+			"Certificate",
+			fmt.Sprintf("%s-etcd-ca", config.Name),
+			config.TargetNamespace,
+		)
+		outputs["resources/delete-etcd-server-certificate.yaml"] = deleteResource(
+			"cert-manager.io/v1",
+			"Certificate",
+			fmt.Sprintf("%s-etcd-server", config.Name),
+			config.TargetNamespace,
+		)
+		outputs["resources/delete-etcd-peer-certificate.yaml"] = deleteResource(
+			"cert-manager.io/v1",
+			"Certificate",
+			fmt.Sprintf("%s-etcd-peer", config.Name),
+			config.TargetNamespace,
+		)
+		outputs["resources/delete-etcd-selfsigned-issuer.yaml"] = deleteResource(
+			"cert-manager.io/v1",
+			"Issuer",
+			fmt.Sprintf("%s-etcd-selfsigned", config.Name),
+			config.TargetNamespace,
+		)
+		outputs["resources/delete-etcd-ca-issuer.yaml"] = deleteResource(
+			"cert-manager.io/v1",
+			"Issuer",
+			fmt.Sprintf("%s-etcd-ca", config.Name),
+			config.TargetNamespace,
+		)
+		outputs["resources/delete-etcd-certs-job.yaml"] = deleteResource(
+			"batch/v1",
+			"Job",
+			fmt.Sprintf("%s-etcd-certs-merge", config.Name),
+			config.TargetNamespace,
+		)
+		outputs["resources/delete-etcd-ca-secret.yaml"] = deleteResource(
+			"v1",
+			"Secret",
+			fmt.Sprintf("%s-etcd-ca", config.Name),
+			config.TargetNamespace,
+		)
+		outputs["resources/delete-etcd-server-secret.yaml"] = deleteResource(
+			"v1",
+			"Secret",
+			fmt.Sprintf("%s-etcd-server", config.Name),
+			config.TargetNamespace,
+		)
+		outputs["resources/delete-etcd-peer-secret.yaml"] = deleteResource(
+			"v1",
+			"Secret",
+			fmt.Sprintf("%s-etcd-peer", config.Name),
+			config.TargetNamespace,
+		)
+		outputs["resources/delete-etcd-merged-secret.yaml"] = deleteResource(
+			"v1",
+			"Secret",
+			fmt.Sprintf("%s-certs", config.Name),
+			config.TargetNamespace,
+		)
 	}
 
-	for path, content := range outputs {
-		if err := sdk.WriteOutput(path, []byte(content)); err != nil {
+	for path, obj := range outputs {
+		if err := writeYAML(sdk, path, obj); err != nil {
 			return fmt.Errorf("write delete output %s: %w", path, err)
 		}
 	}
