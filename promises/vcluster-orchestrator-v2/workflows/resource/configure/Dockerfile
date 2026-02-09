@@ -6,12 +6,12 @@ ARG TARGETARCH
 
 WORKDIR /workspace
 
-# Copy source code first
-COPY main.go ./
-COPY templates/ ./templates/
-
 # Copy go mod files
 COPY go.mod ./
+
+# Copy source code
+COPY *.go ./
+COPY templates/ ./templates/
 RUN go mod tidy && go mod download
 
 # Build static binary
@@ -19,7 +19,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
     -a -installsuffix cgo \
     -ldflags="-w -s" \
     -o configure \
-    main.go
+    .
 
 # Runtime stage
 FROM --platform=$TARGETPLATFORM alpine:3.19
