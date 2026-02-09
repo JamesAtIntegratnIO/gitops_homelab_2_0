@@ -215,7 +215,7 @@ jobs:
           for promise in promises/*/workflows/resource/configure; do
             if [[ -f "$promise/main.go" ]]; then
               echo "Checking $promise..."
-              docker run --rm -v "$(pwd)/$promise:/workspace" -w /workspace golang:1.24-alpine sh -c "go mod tidy && go build -o /dev/null main.go" || exit 1
+              docker run --rm -v "$(pwd)/$promise:/workspace" -w /workspace golang:1.24-alpine sh -c "go mod tidy && go build -o /dev/null ." || exit 1
             fi
           done
           echo "✅ All Go code validated"
