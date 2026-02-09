@@ -843,6 +843,16 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 			config.Name,
 			config.TargetNamespace,
 		),
+		"resources/delete-vcluster-clusterrole.yaml": fmt.Sprintf(
+			"apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRole\nmetadata:\n  name: vc-%s-v-%s\n",
+			config.Name,
+			config.TargetNamespace,
+		),
+		"resources/delete-vcluster-clusterrolebinding.yaml": fmt.Sprintf(
+			"apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\nmetadata:\n  name: vc-%s-v-%s\n",
+			config.Name,
+			config.TargetNamespace,
+		),
 		"resources/delete-kubeconfig-sync-job.yaml": fmt.Sprintf(
 			"apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: %s\n  namespace: %s\n",
 			config.KubeconfigSyncJobName,
