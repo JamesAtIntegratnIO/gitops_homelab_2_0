@@ -3,8 +3,6 @@ kind: ArgoCDProject
 metadata:
   name: {{ .ProjectName }}
   namespace: {{ .Namespace }}
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"
   labels:
     app.kubernetes.io/name: argocd-project
     app.kubernetes.io/managed-by: kratix
@@ -13,13 +11,19 @@ metadata:
 spec:
   namespace: argocd
   name: {{ .ProjectName }}
-  description: "Project for vcluster {{ .Name }}"
+  description: "VCluster project for {{ .Name }}"
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+    app.kubernetes.io/managed-by: kratix
+    kratix.io/promise-name: {{ .WorkflowContext.PromiseName }}
+    kratix.io/resource-name: {{ .Name }}
+    argocd.argoproj.io/project-group: appteam
   sourceRepos:
-    - "{{ .WorkloadRepoURL }}"
     - "https://charts.loft.sh"
   destinations:
-    - namespace: "*"
-      server: "*"
+    - namespace: "{{ .TargetNamespace }}"
+      server: "https://kubernetes.default.svc"
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"

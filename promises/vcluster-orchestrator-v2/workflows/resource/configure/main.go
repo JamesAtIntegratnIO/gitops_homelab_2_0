@@ -41,6 +41,7 @@ type VClusterConfig struct {
 	ClusterDomain       string
 	IsolationMode       string
 	BackingStore        map[string]interface{}
+	ExportKubeConfig    map[string]interface{}
 	HelmOverrides       map[string]interface{}
 	ValuesObject        map[string]interface{}
 	ProxyExtraSANs      []string
@@ -167,6 +168,12 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		}
 	}
 
+	if val, err := resource.GetValue("spec.vcluster.exportKubeConfig"); err == nil && val != nil {
+		if m, ok := val.(map[string]interface{}); ok {
+			config.ExportKubeConfig = m
+		}
+	}
+
 	if val, err := resource.GetValue("spec.vcluster.helmOverrides"); err == nil && val != nil {
 		if m, ok := val.(map[string]interface{}); ok {
 			config.HelmOverrides = m
@@ -211,6 +218,16 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		config.ExternalServerURL = fmt.Sprintf("https://%s:%d", config.Hostname, config.APIPort)
 	} else if config.VIP != "" {
 		config.ExternalServerURL = fmt.Sprintf("https://%s:%d", config.VIP, config.APIPort)
+	}
+
+	defaultExport := map[string]interface{}{}
+	if config.ExternalServerURL != "" {
+		defaultExport["server"] = config.ExternalServerURL
+	}
+	if len(config.ExportKubeConfig) > 0 {
+		config.ExportKubeConfig = mergeMaps(defaultExport, config.ExportKubeConfig)
+	} else if len(defaultExport) > 0 {
+		config.ExportKubeConfig = defaultExport
 	}
 
 	// Build proxy extraSANs
@@ -264,7 +281,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		"environment":                     config.ArgoCDEnvironment,
 	}
 	defaultClusterAnnotations := map[string]string{
-		"addons_repo_url":                            "https://github.com/jamesatintegratnio/gitops_homelab_2_0",
+		"addons_repo_url":                            "https://github.com/jamesatintegratnio/gitops_homelab_2_0.git",
 		"addons_repo_revision":                       "main",
 		"addons_repo_basepath":                       "addons/",
 		"addons_repo_path":                           "charts/application-sets",
@@ -313,6 +330,19 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		}
 	}
 
+	defaultSyncPolicy := map[string]interface{}{
+		"automated": map[string]interface{}{
+			"selfHeal": true,
+			"prune":    true,
+		},
+		"syncOptions": []string{"CreateNamespace=true"},
+	}
+	if config.ArgoCDSyncPolicy == nil {
+		config.ArgoCDSyncPolicy = defaultSyncPolicy
+	} else {
+		config.ArgoCDSyncPolicy = mergeMaps(defaultSyncPolicy, config.ArgoCDSyncPolicy)
+	}
+
 	// Set derived values
 	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
 	
@@ -344,9 +374,7 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 		"distro": map[string]interface{}{
 			"k8s": map[string]interface{}{
 				"enabled": true,
-				"image": map[string]interface{}{
-					"tag": config.K8sVersion,
-				},
+				"version": config.K8sVersion,
 			},
 		},
 		"serviceMonitor": map[string]interface{}{
@@ -534,7 +562,7 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 					"enabled": true,
 				},
 				"ingresses": map[string]interface{}{
-					"enabled": false,
+					"enabled": true,
 				},
 				"networkPolicies": map[string]interface{}{
 					"enabled": false,
@@ -545,7 +573,7 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 					"enabled": true,
 				},
 				"ingressClasses": map[string]interface{}{
-					"enabled": false,
+					"enabled": true,
 				},
 				"secrets": map[string]interface{}{
 					"enabled": true,
@@ -570,6 +598,10 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 				},
 			},
 		},
+	}
+
+	if len(config.ExportKubeConfig) > 0 {
+		values["exportKubeConfig"] = config.ExportKubeConfig
 	}
 
 	return mergeMaps(values, config.HelmOverrides)
@@ -774,7 +806,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		),
 		"resources/delete-argocd-application-request.yaml": fmt.Sprintf(
 			"apiVersion: platform.integratn.tech/v1alpha1\nkind: ArgoCDApplication\nmetadata:\n  name: %s\n  namespace: %s\n",
-			config.TargetNamespace,
+			fmt.Sprintf("vcluster-%s", config.Name),
 			config.Namespace,
 		),
 		"resources/delete-coredns-configmap.yaml": fmt.Sprintf(
@@ -820,6 +852,65 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 			"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: %s\n",
 			config.TargetNamespace,
 		),
+	}
+
+	if config.BackingStore != nil {
+		if etcd, ok := config.BackingStore["etcd"].(map[string]interface{}); ok {
+			if deploy, ok := etcd["deploy"].(map[string]interface{}); ok {
+				if enabled, ok := deploy["enabled"].(bool); ok && enabled {
+					outputs["resources/delete-etcd-ca-certificate.yaml"] = fmt.Sprintf(
+						"apiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n  name: %s-etcd-ca\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+					outputs["resources/delete-etcd-server-certificate.yaml"] = fmt.Sprintf(
+						"apiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n  name: %s-etcd-server\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+					outputs["resources/delete-etcd-peer-certificate.yaml"] = fmt.Sprintf(
+						"apiVersion: cert-manager.io/v1\nkind: Certificate\nmetadata:\n  name: %s-etcd-peer\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+					outputs["resources/delete-etcd-selfsigned-issuer.yaml"] = fmt.Sprintf(
+						"apiVersion: cert-manager.io/v1\nkind: Issuer\nmetadata:\n  name: %s-etcd-selfsigned\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+					outputs["resources/delete-etcd-ca-issuer.yaml"] = fmt.Sprintf(
+						"apiVersion: cert-manager.io/v1\nkind: Issuer\nmetadata:\n  name: %s-etcd-ca\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+					outputs["resources/delete-etcd-certs-job.yaml"] = fmt.Sprintf(
+						"apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: %s-etcd-certs-merge\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+					outputs["resources/delete-etcd-ca-secret.yaml"] = fmt.Sprintf(
+						"apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s-etcd-ca\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+					outputs["resources/delete-etcd-server-secret.yaml"] = fmt.Sprintf(
+						"apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s-etcd-server\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+					outputs["resources/delete-etcd-peer-secret.yaml"] = fmt.Sprintf(
+						"apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s-etcd-peer\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+					outputs["resources/delete-etcd-merged-secret.yaml"] = fmt.Sprintf(
+						"apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s-certs\n  namespace: %s\n",
+						config.Name,
+						config.TargetNamespace,
+					)
+				}
+			}
+		}
 	}
 
 	for path, content := range outputs {
