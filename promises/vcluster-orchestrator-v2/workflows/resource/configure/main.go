@@ -766,6 +766,68 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
+	outputs := map[string]string{
+		"resources/delete-argocd-project-request.yaml": fmt.Sprintf(
+			"apiVersion: platform.integratn.tech/v1alpha1\nkind: ArgoCDProject\nmetadata:\n  name: %s\n  namespace: %s\n",
+			config.ProjectName,
+			config.Namespace,
+		),
+		"resources/delete-argocd-application-request.yaml": fmt.Sprintf(
+			"apiVersion: platform.integratn.tech/v1alpha1\nkind: ArgoCDApplication\nmetadata:\n  name: %s\n  namespace: %s\n",
+			config.TargetNamespace,
+			config.Namespace,
+		),
+		"resources/delete-coredns-configmap.yaml": fmt.Sprintf(
+			"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: vc-%s-coredns\n  namespace: %s\n",
+			config.Name,
+			config.TargetNamespace,
+		),
+		"resources/delete-kubeconfig-external-secret.yaml": fmt.Sprintf(
+			"apiVersion: external-secrets.io/v1beta1\nkind: ExternalSecret\nmetadata:\n  name: %s-kubeconfig\n  namespace: %s\n",
+			config.Name,
+			config.TargetNamespace,
+		),
+		"resources/delete-argocd-cluster-external-secret.yaml": fmt.Sprintf(
+			"apiVersion: external-secrets.io/v1beta1\nkind: ExternalSecret\nmetadata:\n  name: %s-argocd-cluster\n  namespace: argocd\n",
+			config.Name,
+		),
+		"resources/delete-onepassword-token-external-secret.yaml": fmt.Sprintf(
+			"apiVersion: external-secrets.io/v1beta1\nkind: ExternalSecret\nmetadata:\n  name: %s-onepassword-token\n  namespace: %s\n",
+			config.Name,
+			config.TargetNamespace,
+		),
+		"resources/delete-kubeconfig-sync-sa.yaml": fmt.Sprintf(
+			"apiVersion: v1\nkind: ServiceAccount\nmetadata:\n  name: %s-kubeconfig-sync\n  namespace: %s\n",
+			config.Name,
+			config.TargetNamespace,
+		),
+		"resources/delete-kubeconfig-sync-role.yaml": fmt.Sprintf(
+			"apiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: %s-kubeconfig-sync\n  namespace: %s\n",
+			config.Name,
+			config.TargetNamespace,
+		),
+		"resources/delete-kubeconfig-sync-rolebinding.yaml": fmt.Sprintf(
+			"apiVersion: rbac.authorization.k8s.io/v1\nkind: RoleBinding\nmetadata:\n  name: %s-kubeconfig-sync\n  namespace: %s\n",
+			config.Name,
+			config.TargetNamespace,
+		),
+		"resources/delete-kubeconfig-sync-job.yaml": fmt.Sprintf(
+			"apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: %s\n  namespace: %s\n",
+			config.KubeconfigSyncJobName,
+			config.TargetNamespace,
+		),
+		"resources/delete-namespace.yaml": fmt.Sprintf(
+			"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: %s\n",
+			config.TargetNamespace,
+		),
+	}
+
+	for path, content := range outputs {
+		if err := sdk.WriteOutput(path, []byte(content)); err != nil {
+			return fmt.Errorf("write delete output %s: %w", path, err)
+		}
+	}
+
 	return nil
 }
 
