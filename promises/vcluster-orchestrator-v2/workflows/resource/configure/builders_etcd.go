@@ -243,6 +243,5 @@ echo "Certificate merge complete!"`,
 		config.Name, config.TargetNamespace,
 		config.Name, config.TargetNamespace,
 		config.Name, config.TargetNamespace,
-		config.Name, config.TargetNamespace,
 	)
 }
