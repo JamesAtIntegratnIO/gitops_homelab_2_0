@@ -767,118 +767,77 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
-	outputs := map[string]interface{}{
-		"resources/delete-argocd-project-request.yaml": deleteResource(
-			"platform.integratn.tech/v1alpha1",
-			"ArgoCDProject",
-			config.ProjectName,
-			config.Namespace,
-		),
-		"resources/delete-argocd-application-request.yaml": deleteResource(
-			"platform.integratn.tech/v1alpha1",
-			"ArgoCDApplication",
-			fmt.Sprintf("vcluster-%s", config.Name),
-			config.Namespace,
-		),
-		"resources/delete-coredns-configmap.yaml": deleteResource(
-			"v1",
-			"ConfigMap",
-			fmt.Sprintf("vc-%s-coredns", config.Name),
-			config.TargetNamespace,
-		),
-		"resources/delete-kubeconfig-external-secret.yaml": deleteResource(
-			"external-secrets.io/v1beta1",
-			"ExternalSecret",
-			fmt.Sprintf("%s-kubeconfig", config.Name),
-			config.TargetNamespace,
-		),
-		"resources/delete-argocd-cluster-external-secret.yaml": deleteResource(
-			"external-secrets.io/v1beta1",
-			"ExternalSecret",
-			fmt.Sprintf("%s-argocd-cluster", config.Name),
-			"argocd",
-		),
-		"resources/delete-onepassword-token-external-secret.yaml": deleteResource(
-			"external-secrets.io/v1beta1",
-			"ExternalSecret",
-			fmt.Sprintf("%s-onepassword-token", config.Name),
-			config.TargetNamespace,
-		),
-		"resources/delete-kubeconfig-sync-sa.yaml": deleteResource(
-			"v1",
-			"ServiceAccount",
-			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
-			config.TargetNamespace,
-		),
-		"resources/delete-kubeconfig-sync-role.yaml": deleteResource(
-			"rbac.authorization.k8s.io/v1",
-			"Role",
-			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
-			config.TargetNamespace,
-		),
-		"resources/delete-kubeconfig-sync-rolebinding.yaml": deleteResource(
-			"rbac.authorization.k8s.io/v1",
-			"RoleBinding",
-			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
-			config.TargetNamespace,
-		),
-		"resources/delete-vcluster-clusterrole.yaml": deleteResource(
-			"rbac.authorization.k8s.io/v1",
-			"ClusterRole",
-			fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
-			"",
-		),
-		"resources/delete-vcluster-clusterrolebinding.yaml": deleteResource(
-			"rbac.authorization.k8s.io/v1",
-			"ClusterRoleBinding",
-			fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
-			"",
-		),
-		"resources/delete-kubeconfig-sync-job.yaml": deleteResource(
-			"batch/v1",
-			"Job",
-			config.KubeconfigSyncJobName,
-			config.TargetNamespace,
-		),
+	outputs := map[string]interface{}{}
+
+	createdObjects := []map[string]interface{}{
+		buildArgoCDProjectRequest(config),
+		buildArgoCDApplicationRequest(config),
+		buildCorednsConfigMap(config),
+		buildKubeconfigExternalSecret(config),
+		buildArgoCDClusterExternalSecret(config),
+		buildKubeconfigSyncJob(config),
+	}
+
+	for _, obj := range createdObjects {
+		deleteObj, err := deleteFromObject(obj)
+		if err != nil {
+			return fmt.Errorf("build delete object: %w", err)
+		}
+		path, err := deleteOutputPath("resources", obj)
+		if err != nil {
+			return fmt.Errorf("build delete path: %w", err)
+		}
+		outputs[path] = deleteObj
+	}
+
+	for _, doc := range buildKubeconfigSyncRBAC(config) {
+		obj, ok := doc.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("unexpected kubeconfig sync rbac doc type")
+		}
+		deleteObj, err := deleteFromObject(obj)
+		if err != nil {
+			return fmt.Errorf("build delete object: %w", err)
+		}
+		path, err := deleteOutputPath("resources", obj)
+		if err != nil {
+			return fmt.Errorf("build delete path: %w", err)
+		}
+		outputs[path] = deleteObj
 	}
 
 	if etcdEnabled(config) {
-		outputs["resources/delete-etcd-ca-certificate.yaml"] = deleteResource(
-			"cert-manager.io/v1",
-			"Certificate",
-			fmt.Sprintf("%s-etcd-ca", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-server-certificate.yaml"] = deleteResource(
-			"cert-manager.io/v1",
-			"Certificate",
-			fmt.Sprintf("%s-etcd-server", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-peer-certificate.yaml"] = deleteResource(
-			"cert-manager.io/v1",
-			"Certificate",
-			fmt.Sprintf("%s-etcd-peer", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-selfsigned-issuer.yaml"] = deleteResource(
-			"cert-manager.io/v1",
-			"Issuer",
-			fmt.Sprintf("%s-etcd-selfsigned", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-ca-issuer.yaml"] = deleteResource(
-			"cert-manager.io/v1",
-			"Issuer",
-			fmt.Sprintf("%s-etcd-ca", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-certs-job.yaml"] = deleteResource(
-			"batch/v1",
-			"Job",
-			fmt.Sprintf("%s-etcd-certs-merge", config.Name),
-			config.TargetNamespace,
-		)
+		for _, doc := range buildEtcdCertificates(config) {
+			obj, ok := doc.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("unexpected etcd cert doc type")
+			}
+			deleteObj, err := deleteFromObject(obj)
+			if err != nil {
+				return fmt.Errorf("build delete object: %w", err)
+			}
+			path, err := deleteOutputPath("resources", obj)
+			if err != nil {
+				return fmt.Errorf("build delete path: %w", err)
+			}
+			outputs[path] = deleteObj
+		}
+	}
+
+	outputs["resources/delete-vcluster-clusterrole.yaml"] = deleteResource(
+		"rbac.authorization.k8s.io/v1",
+		"ClusterRole",
+		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
+		"",
+	)
+	outputs["resources/delete-vcluster-clusterrolebinding.yaml"] = deleteResource(
+		"rbac.authorization.k8s.io/v1",
+		"ClusterRoleBinding",
+		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
+		"",
+	)
+
+	if etcdEnabled(config) {
 		outputs["resources/delete-etcd-ca-secret.yaml"] = deleteResource(
 			"v1",
 			"Secret",
