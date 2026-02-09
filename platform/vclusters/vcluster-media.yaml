@@ -61,18 +61,10 @@ spec:
                       openssl genrsa -out /data/pki/ca.key 2048
                       openssl req -x509 -new -nodes -key /data/pki/ca.key -subj "/CN=vcluster-media-ca" -days 3650 -out /data/pki/ca.crt
                     fi
-                    if [ ! -f /data/pki/server-ca.crt ]; then
-                      cp /data/pki/ca.crt /data/pki/server-ca.crt
-                    fi
-                    if [ ! -f /data/pki/server-ca.key ]; then
-                      cp /data/pki/ca.key /data/pki/server-ca.key
-                    fi
-                    if [ ! -f /data/pki/client-ca.crt ]; then
-                      cp /data/pki/ca.crt /data/pki/client-ca.crt
-                    fi
-                    if [ ! -f /data/pki/client-ca.key ]; then
-                      cp /data/pki/ca.key /data/pki/client-ca.key
-                    fi
+                    cp /data/pki/ca.crt /data/pki/server-ca.crt
+                    cp /data/pki/ca.key /data/pki/server-ca.key
+                    cp /data/pki/ca.crt /data/pki/client-ca.crt
+                    cp /data/pki/ca.key /data/pki/client-ca.key
                     if [ ! -f /data/pki/front-proxy-ca.crt ]; then
                       cp /data/pki/ca.crt /data/pki/front-proxy-ca.crt
                     fi
