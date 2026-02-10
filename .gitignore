@@ -29,3 +29,6 @@ node_modules/
 
 # Local scratch directory
 tmp/
+
+# macOS
+.DS_Store

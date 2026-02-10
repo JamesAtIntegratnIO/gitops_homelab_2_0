@@ -1,144 +1,162 @@
-# GitOps Homelab Platform Architecture & Workflow
+# GitOps Homelab 2.0
 
-## Overview
-This repository defines a GitOps-driven homelab platform built on Talos Linux and Kubernetes, orchestrated by Argo CD, and extended with Kratix promises. It delivers:
+A production-grade GitOps platform running on bare-metal, built for learning and demonstrating enterprise Kubernetes patterns at homelab scale.
 
-- Cluster lifecycle and bootstrap configuration (Terraform + Matchbox)
-- Addons and platform services via Argo CD ApplicationSets
-- Platform workflows via Kratix promises (including vcluster provisioning)
-- Secure secret management through ExternalSecrets backed by 1Password
+**Stack**: Talos Linux · Kubernetes 1.34 · ArgoCD · Kratix · vcluster · ExternalSecrets · 1Password
 
-## Core Architecture
+## Architecture
 
-### Control-plane components
-- **Talos + Kubernetes**: Immutable OS and control-plane for the cluster
-- **Argo CD**: GitOps engine that installs addons and reconciles platform state
-- **Kratix**: Platform promises and pipelines that fulfill ResourceRequests
-- **ExternalSecrets**: Syncs secrets from 1Password into Kubernetes
-
-### Git repositories
-- **This repo**: Desired state for addons, platform requests, promises, and infrastructure
-- **Kratix state repo**: Rendered resources from Kratix pipelines used by the state reconciler
-
-### High-level flow
-1. Argo CD bootstraps addon ApplicationSets from Git
-2. Addons are installed by per-cluster Applications
-3. Kratix promises are installed and run pipelines for platform requests
-4. Pipelines render resources into the state repo
-5. Argo CD state reconciler applies those resources to the cluster
-
-## GitOps Layers & Responsibilities
-
-### 1) Addons layer (ApplicationSets)
-The addons layer declares cluster-wide services (e.g., Argo CD, cert-manager, external-secrets, Kratix).
-
-- Entry point: [addons/README.md](addons/README.md)
-- Bootstrap ApplicationSet: [terraform/cluster/bootstrap/addons.yaml](terraform/cluster/bootstrap/addons.yaml)
-- ApplicationSets chart: [addons/charts/application-sets](addons/charts/application-sets)
-
-**Workflow**
-- A bootstrap ApplicationSet points Argo CD at this repo.
-- The ApplicationSets chart renders one ApplicationSet per addon.
-- Each addon ApplicationSet creates per-cluster Applications based on cluster labels.
-
-### 2) Platform requests layer
-Platform requests are Git-managed CRs that Kratix fulfills.
-
-- vcluster requests live in: [platform/vclusters](platform/vclusters)
-- vcluster request flow: [platform/vclusters/README.md](platform/vclusters/README.md)
-
-### 3) Kratix promises & pipelines
-Kratix promises define APIs and workflows to fulfill platform requests.
-
-- Promises root: [promises](promises)
-- vcluster orchestrator: [promises/vcluster-orchestrator/README.md](promises/vcluster-orchestrator/README.md)
-- kubeconfig sync promise: [promises/vcluster-kubeconfig-sync/README.md](promises/vcluster-kubeconfig-sync/README.md)
-
-**Pipeline images**
-- Pipeline images are built by GitHub Actions on changes under promises/*/pipelines or promises/*/internal.
-- Workflow: [.github/workflows/build-promise-images.yaml](.github/workflows/build-promise-images.yaml)
-
-## vcluster Workflow (End-to-End)
-The vcluster flow is the reference platform workflow.
-
-1. **Request**: Add or update a vcluster request under [platform/vclusters](platform/vclusters).
-2. **Reconcile**: Argo CD applies the request into the platform-requests namespace.
-3. **Orchestrate**: The vcluster orchestrator promise renders sub-requests:
-   - vcluster core (helm chart)
-   - coredns
-   - argocd project & application
-   - kubeconfig sync job
-   - external secret for kubeconfig
-   - Argo CD cluster registration
-4. **State output**: Pipelines render manifests into the Kratix state repo.
-5. **Apply**: The Kratix state reconciler app applies those manifests to the cluster.
-6. **Access**: Kubeconfig is synced into 1Password and exposed via ExternalSecrets.
-
-## Secret Management Model
-Secrets never live in Git. All credentials and kubeconfigs are sourced from 1Password and synced via ExternalSecrets.
-
-- ExternalSecrets are the only supported secret mechanism for promises.
-- Promises must render ExternalSecret resources, not Secret resources.
-
-## Repository Structure (Key Paths)
-- Addons: [addons](addons)
-- Platform requests: [platform](platform)
-- Promises: [promises](promises)
-- Terraform bootstrap and infrastructure: [terraform](terraform)
-- Talos assets: [matchbox](matchbox)
-
-## Operational Workflow
-
-### Add or change an addon
-1. Update addon config under [addons/clusters](addons/clusters)
-2. Commit and push
-3. Argo CD reconciles and applies the addon
-
-Commands:
 ```
-git status --short
-git add addons/clusters
-git commit -m "Update addon config"
-git push
-kubectl patch application -n argocd addons-in-cluster --type=merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-kubectl get application -n argocd addons-in-cluster -o jsonpath='{.status.sync.status} {.status.health.status}' && echo
+┌─────────────────────────────────────────────────────────────┐
+│                    Git (this repo)                          │
+│  addons/ · platform/ · promises/ · workloads/ · terraform/ │
+└──────┬──────────────────────────────┬───────────────────────┘
+       │                              │
+       ▼                              ▼
+┌──────────────┐            ┌──────────────────┐
+│   Terraform  │            │     ArgoCD       │
+│  Bootstrap   │───────────▶│  ApplicationSets │
+└──────────────┘            └────────┬─────────┘
+                                     │
+              ┌──────────────────────┼──────────────────────┐
+              ▼                      ▼                      ▼
+     ┌────────────────┐   ┌──────────────────┐   ┌────────────────┐
+     │  Host Cluster   │   │  Kratix Promises │   │   vclusters    │
+     │  (control-plane)│   │  & Pipelines     │   │  (workloads)   │
+     │                 │   │                  │   │                │
+     │ cert-manager    │   │ VClusterOrch v2  │   │ nginx-gateway  │
+     │ external-secrets│   │ (Go SDK)         │   │ cert-manager   │
+     │ nginx-gateway   │   │                  │   │ external-dns   │
+     │ metallb         │   │  ┌────────────┐  │   │ argocd         │
+     │ kratix          │   │  │ Pipelines  │  │   │                │
+     │ prometheus      │   │  │ render to  │──┼──▶│ sonarr, radarr │
+     │ loki            │   │  │ state repo │  │   │ sabnzbd, wiki  │
+     └────────────────┘   │  └────────────┘  │   └────────────────┘
+                           └──────────────────┘
 ```
 
-### Add or change a vcluster
-1. Update a vcluster request in [platform/vclusters](platform/vclusters)
-2. Commit and push
-3. Argo CD applies request → Kratix fulfills → state reconciler applies outputs
+Three control-plane nodes (Talos Linux, PXE-booted via Matchbox) run the host cluster. ArgoCD manages everything declaratively. Kratix promises provide platform APIs — a `VClusterOrchestratorV2` request provisions an entire tenant cluster with its own ArgoCD, networking, TLS, DNS, and observability.
 
-Commands:
+Secrets never live in Git. All credentials flow through 1Password → ExternalSecrets.
+
+For the full architecture deep-dive, see [docs/architecture.md](docs/architecture.md).
+
+## Repository Structure
+
 ```
-git status --short
-git add platform/vclusters
-git commit -m "Update vcluster request"
-git push
-kubectl patch application -n argocd platform-vclusters-the-cluster --type=merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-kubectl get application -n argocd platform-vclusters-the-cluster -o jsonpath='{.status.sync.status} {.status.health.status}' && echo
-kubectl get application -n argocd kratix-state-reconciler -o jsonpath='{.status.sync.status} {.status.health.status}' && echo
+.
+├── addons/                        # ArgoCD addon definitions (the "what to deploy" layer)
+│   ├── charts/application-sets/   #   Helm chart that renders one ApplicationSet per addon
+│   ├── cluster-roles/             #   Addons by role: control-plane, vcluster
+│   ├── clusters/                  #   Per-cluster overrides (the-cluster, vcluster-media)
+│   └── environments/              #   Per-environment config (production, staging, development)
+│
+├── platform/                      # Kratix ResourceRequests (the "what to provision" layer)
+│   └── vclusters/                 #   vcluster provisioning requests
+│
+├── promises/                      # Kratix Promise definitions (the "how to provision" layer)
+│   ├── vcluster-orchestrator-v2/  #   Active: Go SDK pipeline for full vcluster lifecycle
+│   └── _archived/                 #   Superseded v1 bash promises (kept for reference)
+│
+├── workloads/                     # Application definitions deployed inside vclusters
+│   └── vcluster-media/            #   Media stack: sonarr, radarr, sabnzbd, otterwiki
+│
+├── terraform/                     # Infrastructure as Code
+│   ├── cluster/                   #   ArgoCD bootstrap, ExternalSecrets operator, Cloudflare
+│   └── modules/cloudflare/        #   DNS zone management
+│
+├── matchbox/                      # PXE/iPXE bare-metal provisioning for Talos Linux
+│   ├── groups/                    #   MAC-address to profile mappings
+│   ├── profiles/                  #   Boot profiles (kernel + initramfs + machine config)
+│   └── talos-machineconfigs/      #   Talos machine configuration patches
+│
+├── docs/                          # Architecture, operations, troubleshooting guides
+├── hack/                          # Development and testing utilities
+├── images/                        # Container image sources (kubectl)
+├── scripts/                       # Git hooks setup
+└── flake.nix                      # Nix dev environment (kubectl, tofu, helm, talosctl, k9s)
+```
+
+## GitOps Layers
+
+The platform uses three declarative layers, each driven by Git:
+
+| Layer | Directory | Engine | Purpose |
+|-------|-----------|--------|---------|
+| **Addons** | `addons/` | ArgoCD ApplicationSets | Cluster services (cert-manager, monitoring, networking) |
+| **Platform** | `platform/` | Kratix Promises | Infrastructure provisioning (vclusters, future: databases) |
+| **Workloads** | `workloads/` | ArgoCD (inside vcluster) | Application deployments (media stack) |
+
+Addon value files are layered with precedence: `environments/` → `cluster-roles/` → `clusters/`. See [addons/README.md](addons/README.md) for details.
+
+## Quick Start
+
+```bash
+# 1. Enter the development environment (provides all CLI tools)
+nix develop
+
+# 2. Bootstrap the cluster (after Talos nodes are running)
+cd terraform/cluster
+tofu init && tofu apply
+
+# 3. Access ArgoCD
+argocd login argocd.cluster.integratn.tech
+```
+
+## Key Workflows
+
+### Provision a vcluster
+```bash
+# Create a resource request
+cp platform/vclusters/vcluster-media.yaml platform/vclusters/vcluster-new.yaml
+# Edit the spec, commit, push — Kratix handles the rest
+```
+
+### Add a workload to a vcluster
+```bash
+# Add app definition under workloads/<cluster-name>/addons/
+# The vcluster's ArgoCD picks it up automatically
 ```
 
 ### Update a promise pipeline
-1. Modify scripts under [promises](promises)
-2. Commit and push
-3. GitHub Actions builds a new pipeline image
-4. Refresh the Kratix promises app to pick up the new image
-5. Re-trigger the request reconcile to re-run pipelines
-
-Commands:
-```
-git status --short
-git add promises/<promise-name>
-git commit -m "Update <promise-name> pipeline"
-git push
-kubectl patch application -n argocd kratix-promises-the-cluster --type=merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-kubectl patch application -n argocd platform-vclusters-the-cluster --type=merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
-kubectl get application -n argocd kratix-promises-the-cluster -o jsonpath='{.status.sync.status} {.status.health.status}' && echo
+```bash
+# Modify Go code in promises/vcluster-orchestrator-v2/workflows/
+# Push — GitHub Actions builds and publishes the new image
+# Refresh the kratix-promises ArgoCD app to pick up the change
 ```
 
-## Notes
-- Argo CD is the source of truth for cluster state.
-- Kratix pipelines are idempotent and designed to be re-run safely.
-- State reconciliation is fully GitOps-driven via the Kratix state repo.
+See [docs/operations.md](docs/operations.md) for full runbooks.
+
+## Infrastructure
+
+| Component | Details |
+|-----------|---------|
+| **Nodes** | 3× control-plane (Talos 1.11.3), PXE-booted |
+| **Network** | 10.0.4.0/24 cluster, MetalLB L2 (10.0.4.200-253) |
+| **Ingress** | nginx-gateway-fabric, Gateway API |
+| **TLS** | cert-manager, Let's Encrypt (Cloudflare DNS-01) |
+| **DNS** | external-dns → Cloudflare |
+| **Secrets** | 1Password Connect → ExternalSecrets operator |
+| **Monitoring** | kube-prometheus-stack, Loki, Promtail |
+| **Storage** | NFS (Unraid), config-nfs-client / data-nfs-client |
+
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Architecture](docs/architecture.md) | Full architecture, ADRs, data flows, security model |
+| [Bootstrap](docs/bootstrap.md) | PXE boot, Talos setup, initial cluster creation |
+| [Addons](docs/addons.md) | ApplicationSet mechanics, value file precedence |
+| [Promises](docs/promises.md) | Kratix promise development and pipeline design |
+| [vclusters](docs/vclusters.md) | vcluster lifecycle, networking, storage |
+| [Observability](docs/observability.md) | Metrics, logs, dashboards |
+| [Operations](docs/operations.md) | Runbooks, troubleshooting, common tasks |
+| [Terraform](docs/terraform.md) | IaC workflow for cluster bootstrap |
+
+## CI/CD
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| [Build Go SDK Promises](.github/workflows/build-go-sdk-promises.yaml) | `promises/*/workflows/**` | Build and publish Go promise pipeline images |
+| [Build kubectl Image](.github/workflows/build-kubectl-image.yaml) | `images/kubectl/**` | Multi-arch kubectl container image |
+| [Validate Promises](.github/workflows/validate-promises.yaml) | `promises/**/*.yaml` | Block `kind: Secret` in promise output |
