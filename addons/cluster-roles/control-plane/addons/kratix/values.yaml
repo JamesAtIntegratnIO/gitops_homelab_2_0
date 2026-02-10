@@ -107,26 +107,6 @@ additionalResources:
         syncOptions:
           - CreateNamespace=true
       ignoreDifferences:
-        - kind: ConfigMap
-          name: coredns-x-kube-system-x-test
-          namespace: vcluster-test
-          jsonPointers:
-            - /data/NodeHosts
-        - kind: ConfigMap
-          name: coredns-x-kube-system-x-test2
-          namespace: vcluster-test-2
-          jsonPointers:
-            - /data/NodeHosts
-        - kind: ConfigMap
-          name: coredns-x-kube-system-x-test3
-          namespace: vcluster-test-3
-          jsonPointers:
-            - /data/NodeHosts
-        - kind: ConfigMap
-          name: coredns-x-kube-system-x-test4
-          namespace: vcluster-test-4
-          jsonPointers:
-            - /data/NodeHosts
         - group: batch
           kind: Job
           jsonPointers:
@@ -159,10 +139,10 @@ additionalResources:
             - /metadata/annotations/argocd.argoproj.io~1tracking-id
             - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
             - /metadata/labels
-        - group: batch
-          kind: Job
-          name: vcluster-test-kubeconfig-sync
-          namespace: vcluster-test
+        - group: platform.integratn.tech
+          kind: ArgoCDClusterRegistration
+          namespace: platform-requests
           jsonPointers:
-            - /spec
-            - /status
+            - /metadata/annotations/argocd.argoproj.io~1tracking-id
+            - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+            - /metadata/labels
