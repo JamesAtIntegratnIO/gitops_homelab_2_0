@@ -2,16 +2,16 @@ package main
 
 import "fmt"
 
-func buildNamespace(config *VClusterConfig) map[string]interface{} {
+func buildNamespace(config *VClusterConfig) Resource {
 	labels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name":     "vcluster-namespace",
 		"vcluster.loft.sh/namespace": "true",
 	}, baseLabels(config, config.Name))
 
-	return map[string]interface{}{
-		"apiVersion": "v1",
-		"kind":       "Namespace",
-		"metadata": resourceMeta(
+	return Resource{
+		APIVersion: "v1",
+		Kind:       "Namespace",
+		Metadata: resourceMeta(
 			config.TargetNamespace,
 			"",
 			labels,
@@ -20,7 +20,7 @@ func buildNamespace(config *VClusterConfig) map[string]interface{} {
 	}
 }
 
-func buildCorednsConfigMap(config *VClusterConfig) map[string]interface{} {
+func buildCorednsConfigMap(config *VClusterConfig) Resource {
 	labels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name":     "coredns",
 		"app.kubernetes.io/instance": fmt.Sprintf("vc-%s", config.Name),
@@ -50,16 +50,16 @@ func buildCorednsConfigMap(config *VClusterConfig) map[string]interface{} {
 import /etc/coredns/custom/*.server
 `, config.ClusterDomain)
 
-	return map[string]interface{}{
-		"apiVersion": "v1",
-		"kind":       "ConfigMap",
-		"metadata": resourceMeta(
+	return Resource{
+		APIVersion: "v1",
+		Kind:       "ConfigMap",
+		Metadata: resourceMeta(
 			fmt.Sprintf("vc-%s-coredns", config.Name),
 			config.TargetNamespace,
 			labels,
 			nil,
 		),
-		"data": map[string]string{
+		Data: map[string]string{
 			"Corefile":  corefile,
 			"NodeHosts": "",
 		},

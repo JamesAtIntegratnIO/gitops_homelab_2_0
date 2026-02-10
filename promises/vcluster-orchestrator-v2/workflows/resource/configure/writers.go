@@ -19,7 +19,7 @@ func writeYAML(sdk *kratix.KratixSDK, path string, obj interface{}) error {
 	return nil
 }
 
-func writeYAMLDocuments(sdk *kratix.KratixSDK, path string, docs []interface{}) error {
+func writeYAMLDocuments(sdk *kratix.KratixSDK, path string, docs []Resource) error {
 	if len(docs) == 0 {
 		return nil
 	}

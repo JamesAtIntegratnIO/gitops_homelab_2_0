@@ -2,83 +2,83 @@ package main
 
 import "fmt"
 
-func buildKubeconfigExternalSecret(config *VClusterConfig) map[string]interface{} {
+func buildKubeconfigExternalSecret(config *VClusterConfig) Resource {
 	labels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name":      "external-secret",
 		"app.kubernetes.io/component": "kubeconfig",
 	}, baseLabels(config, config.Name))
 
-	return map[string]interface{}{
-		"apiVersion": "external-secrets.io/v1beta1",
-		"kind":       "ExternalSecret",
-		"metadata": resourceMeta(
+	return Resource{
+		APIVersion: "external-secrets.io/v1beta1",
+		Kind:       "ExternalSecret",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-kubeconfig", config.Name),
 			config.TargetNamespace,
 			labels,
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"secretStoreRef": map[string]interface{}{
-				"name": "onepassword-store",
-				"kind": "ClusterSecretStore",
+		Spec: ExternalSecretSpec{
+			SecretStoreRef: SecretStoreRef{
+				Name: "onepassword-store",
+				Kind: "ClusterSecretStore",
 			},
-			"target": map[string]interface{}{
-				"name": fmt.Sprintf("vcluster-%s-kubeconfig-external", config.Name),
-				"template": map[string]interface{}{
-					"engineVersion": "v2",
-					"data": map[string]string{
+			Target: ExternalSecretTarget{
+				Name: fmt.Sprintf("vcluster-%s-kubeconfig-external", config.Name),
+				Template: &ExternalSecretTemplate{
+					EngineVersion: "v2",
+					Data: map[string]string{
 						"config": "{{ .kubeconfig }}\n",
 					},
 				},
 			},
-			"dataFrom": []map[string]interface{}{
+			DataFrom: []ExternalSecretDataFrom{
 				{
-					"extract": map[string]interface{}{
-						"key": config.OnePasswordItem,
+					Extract: &ExternalSecretExtract{
+						Key: config.OnePasswordItem,
 					},
 				},
 			},
-			"refreshInterval": "15m",
+			RefreshInterval: "15m",
 		},
 	}
 }
 
-func buildKubeconfigSyncRBAC(config *VClusterConfig) []interface{} {
+func buildKubeconfigSyncRBAC(config *VClusterConfig) []Resource {
 	labels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name":      "external-secret",
 		"app.kubernetes.io/component": "kubeconfig-sync",
 	}, baseLabels(config, config.Name))
 
-	externalSecret := map[string]interface{}{
-		"apiVersion": "external-secrets.io/v1beta1",
-		"kind":       "ExternalSecret",
-		"metadata": resourceMeta(
+	externalSecret := Resource{
+		APIVersion: "external-secrets.io/v1beta1",
+		Kind:       "ExternalSecret",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-onepassword-token", config.Name),
 			config.TargetNamespace,
 			labels,
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"secretStoreRef": map[string]interface{}{
-				"name": "onepassword-store",
-				"kind": "ClusterSecretStore",
+		Spec: ExternalSecretSpec{
+			SecretStoreRef: SecretStoreRef{
+				Name: "onepassword-store",
+				Kind: "ClusterSecretStore",
 			},
-			"target": map[string]interface{}{
-				"name": fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+			Target: ExternalSecretTarget{
+				Name: fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
 			},
-			"data": []map[string]interface{}{
+			Data: []ExternalSecretData{
 				{
-					"secretKey": "token",
-					"remoteRef": map[string]interface{}{
-						"key":      "onepassword-access-token",
-						"property": "credential",
+					SecretKey: "token",
+					RemoteRef: RemoteRef{
+						Key:      "onepassword-access-token",
+						Property: "credential",
 					},
 				},
 				{
-					"secretKey": "vault",
-					"remoteRef": map[string]interface{}{
-						"key":      "onepassword-access-token",
-						"property": "vault",
+					SecretKey: "vault",
+					RemoteRef: RemoteRef{
+						Key:      "onepassword-access-token",
+						Property: "vault",
 					},
 				},
 			},
@@ -89,10 +89,10 @@ func buildKubeconfigSyncRBAC(config *VClusterConfig) []interface{} {
 		"app.kubernetes.io/name": "kubeconfig-sync",
 	}, baseLabels(config, config.Name))
 
-	serviceAccount := map[string]interface{}{
-		"apiVersion": "v1",
-		"kind":       "ServiceAccount",
-		"metadata": resourceMeta(
+	serviceAccount := Resource{
+		APIVersion: "v1",
+		Kind:       "ServiceAccount",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
 			config.TargetNamespace,
 			baseRBACLabels,
@@ -100,52 +100,52 @@ func buildKubeconfigSyncRBAC(config *VClusterConfig) []interface{} {
 		),
 	}
 
-	role := map[string]interface{}{
-		"apiVersion": "rbac.authorization.k8s.io/v1",
-		"kind":       "Role",
-		"metadata": resourceMeta(
+	role := Resource{
+		APIVersion: "rbac.authorization.k8s.io/v1",
+		Kind:       "Role",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
 			config.TargetNamespace,
 			baseRBACLabels,
 			nil,
 		),
-		"rules": []map[string]interface{}{
+		Rules: []PolicyRule{
 			{
-				"apiGroups":     []string{""},
-				"resources":     []string{"secrets"},
-				"resourceNames": []string{fmt.Sprintf("vc-%s", config.Name), fmt.Sprintf("vcluster-%s-onepassword-token", config.Name)},
-				"verbs":         []string{"get"},
+				APIGroups:     []string{""},
+				Resources:     []string{"secrets"},
+				ResourceNames: []string{fmt.Sprintf("vc-%s", config.Name), fmt.Sprintf("vcluster-%s-onepassword-token", config.Name)},
+				Verbs:         []string{"get"},
 			},
 		},
 	}
 
-	roleBinding := map[string]interface{}{
-		"apiVersion": "rbac.authorization.k8s.io/v1",
-		"kind":       "RoleBinding",
-		"metadata": resourceMeta(
+	roleBinding := Resource{
+		APIVersion: "rbac.authorization.k8s.io/v1",
+		Kind:       "RoleBinding",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
 			config.TargetNamespace,
 			baseRBACLabels,
 			nil,
 		),
-		"roleRef": map[string]interface{}{
-			"apiGroup": "rbac.authorization.k8s.io",
-			"kind":     "Role",
-			"name":     fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+		RoleRef: &RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     fmt.Sprintf("%s-kubeconfig-sync", config.Name),
 		},
-		"subjects": []map[string]interface{}{
+		Subjects: []Subject{
 			{
-				"kind":      "ServiceAccount",
-				"name":      fmt.Sprintf("%s-kubeconfig-sync", config.Name),
-				"namespace": config.TargetNamespace,
+				Kind:      "ServiceAccount",
+				Name:      fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+				Namespace: config.TargetNamespace,
 			},
 		},
 	}
 
-	return []interface{}{externalSecret, serviceAccount, role, roleBinding}
+	return []Resource{externalSecret, serviceAccount, role, roleBinding}
 }
 
-func buildKubeconfigSyncJob(config *VClusterConfig) map[string]interface{} {
+func buildKubeconfigSyncJob(config *VClusterConfig) Resource {
 	labels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "kubeconfig-sync",
 	}, baseLabels(config, config.Name))
@@ -301,88 +301,88 @@ fi
 
 echo "✓ Kubeconfig synced to 1Password successfully"`
 
-	return map[string]interface{}{
-		"apiVersion": "batch/v1",
-		"kind":       "Job",
-		"metadata": resourceMeta(
+	return Resource{
+		APIVersion: "batch/v1",
+		Kind:       "Job",
+		Metadata: resourceMeta(
 			config.KubeconfigSyncJobName,
 			config.TargetNamespace,
 			labels,
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"backoffLimit":            3,
-			"ttlSecondsAfterFinished": 600,
-			"template": map[string]interface{}{
-				"metadata": map[string]interface{}{
-					"labels": map[string]string{
+		Spec: JobSpec{
+			BackoffLimit:            3,
+			TTLSecondsAfterFinished: 600,
+			Template: PodTemplateSpec{
+				Metadata: &ObjectMeta{
+					Labels: map[string]string{
 						"app.kubernetes.io/name":     "kubeconfig-sync",
 						"app.kubernetes.io/instance": config.Name,
 					},
 				},
-				"spec": map[string]interface{}{
-					"serviceAccountName": fmt.Sprintf("%s-kubeconfig-sync", config.Name),
-					"restartPolicy":      "OnFailure",
-					"initContainers": []map[string]interface{}{
+				Spec: PodSpec{
+					ServiceAccountName: fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+					RestartPolicy:      "OnFailure",
+					InitContainers: []Container{
 						{
-							"name":    "wait-for-kubeconfig",
-							"image":   "busybox:1.36",
-							"command": []string{"sh", "-c", initCommand},
-							"volumeMounts": []map[string]interface{}{
+							Name:    "wait-for-kubeconfig",
+							Image:   "busybox:1.36",
+							Command: []string{"sh", "-c", initCommand},
+							VolumeMounts: []VolumeMount{
 								{
-									"name":      "kubeconfig",
-									"mountPath": "/kubeconfig",
+									Name:      "kubeconfig",
+									MountPath: "/kubeconfig",
 								},
 							},
 						},
 					},
-					"containers": []map[string]interface{}{
+					Containers: []Container{
 						{
-							"name":  "sync-to-onepassword",
-							"image": "alpine:3.20",
-							"env": []map[string]interface{}{
-								{"name": "OP_CONNECT_HOST", "value": "https://connect.integratn.tech"},
+							Name:  "sync-to-onepassword",
+							Image: "alpine:3.20",
+							Env: []EnvVar{
+								{Name: "OP_CONNECT_HOST", Value: "https://connect.integratn.tech"},
 								{
-									"name": "OP_CONNECT_TOKEN",
-									"valueFrom": map[string]interface{}{
-										"secretKeyRef": map[string]interface{}{
-											"name": fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
-											"key":  "token",
+									Name: "OP_CONNECT_TOKEN",
+									ValueFrom: &EnvVarSource{
+										SecretKeyRef: &SecretKeySelector{
+											Name: fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+											Key:  "token",
 										},
 									},
 								},
 								{
-									"name": "OP_VAULT",
-									"valueFrom": map[string]interface{}{
-										"secretKeyRef": map[string]interface{}{
-											"name": fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
-											"key":  "vault",
+									Name: "OP_VAULT",
+									ValueFrom: &EnvVarSource{
+										SecretKeyRef: &SecretKeySelector{
+											Name: fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+											Key:  "vault",
 										},
 									},
 								},
-								{"name": "VCLUSTER_NAME", "value": config.Name},
-								{"name": "OP_ITEM_NAME", "value": config.OnePasswordItem},
-								{"name": "BASE_DOMAIN", "value": config.BaseDomain},
-								{"name": "BASE_DOMAIN_SANITIZED", "value": config.BaseDomainSanitized},
-								{"name": "EXTERNAL_SERVER_URL", "value": config.ExternalServerURL},
-								{"name": "ARGOCD_ENVIRONMENT", "value": config.ArgoCDEnvironment},
+								{Name: "VCLUSTER_NAME", Value: config.Name},
+								{Name: "OP_ITEM_NAME", Value: config.OnePasswordItem},
+								{Name: "BASE_DOMAIN", Value: config.BaseDomain},
+								{Name: "BASE_DOMAIN_SANITIZED", Value: config.BaseDomainSanitized},
+								{Name: "EXTERNAL_SERVER_URL", Value: config.ExternalServerURL},
+								{Name: "ARGOCD_ENVIRONMENT", Value: config.ArgoCDEnvironment},
 							},
-							"command": []string{"sh", "-c", syncCommand},
-							"volumeMounts": []map[string]interface{}{
+							Command: []string{"sh", "-c", syncCommand},
+							VolumeMounts: []VolumeMount{
 								{
-									"name":      "kubeconfig",
-									"mountPath": "/kubeconfig",
-									"readOnly":  true,
+									Name:      "kubeconfig",
+									MountPath: "/kubeconfig",
+									ReadOnly:  true,
 								},
 							},
 						},
 					},
-					"volumes": []map[string]interface{}{
+					Volumes: []Volume{
 						{
-							"name": "kubeconfig",
-							"secret": map[string]interface{}{
-								"secretName": fmt.Sprintf("vc-%s", config.Name),
-								"optional":   false,
+							Name: "kubeconfig",
+							Secret: &SecretVolume{
+								SecretName: fmt.Sprintf("vc-%s", config.Name),
+								Optional:   false,
 							},
 						},
 					},

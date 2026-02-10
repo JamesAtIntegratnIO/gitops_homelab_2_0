@@ -2,7 +2,7 @@ package main
 
 import "fmt"
 
-func buildArgoCDProjectRequest(config *VClusterConfig) map[string]interface{} {
+func buildArgoCDProjectRequest(config *VClusterConfig) Resource {
 	metadataLabels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "argocd-project",
 	}, baseLabels(config, config.Name))
@@ -14,93 +14,83 @@ func buildArgoCDProjectRequest(config *VClusterConfig) map[string]interface{} {
 		"kratix.io/resource-name":          config.Name,
 	}
 
-	return map[string]interface{}{
-		"apiVersion": "platform.integratn.tech/v1alpha1",
-		"kind":       "ArgoCDProject",
-		"metadata": resourceMeta(
+	return Resource{
+		APIVersion: "platform.integratn.tech/v1alpha1",
+		Kind:       "ArgoCDProject",
+		Metadata: resourceMeta(
 			config.ProjectName,
 			config.Namespace,
 			metadataLabels,
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"namespace":   "argocd",
-			"name":        config.ProjectName,
-			"description": fmt.Sprintf("VCluster project for %s", config.Name),
-			"annotations": map[string]string{
+		Spec: ArgoCDProjectSpec{
+			Namespace:   "argocd",
+			Name:        config.ProjectName,
+			Description: fmt.Sprintf("VCluster project for %s", config.Name),
+			Annotations: map[string]string{
 				"argocd.argoproj.io/sync-wave": "-1",
 			},
-			"labels": specLabels,
-			"sourceRepos": []string{
-				"https://charts.loft.sh",
-			},
-			"destinations": []map[string]interface{}{
+			Labels:      specLabels,
+			SourceRepos: []string{"https://charts.loft.sh"},
+			Destinations: []ProjectDestination{
 				{
-					"namespace": config.TargetNamespace,
-					"server":    "https://kubernetes.default.svc",
+					Namespace: config.TargetNamespace,
+					Server:    "https://kubernetes.default.svc",
 				},
 			},
-			"clusterResourceWhitelist": []map[string]interface{}{
-				{
-					"group": "*",
-					"kind":  "*",
-				},
+			ClusterResourceWhitelist: []ResourceFilter{
+				{Group: "*", Kind: "*"},
 			},
-			"namespaceResourceWhitelist": []map[string]interface{}{
-				{
-					"group": "*",
-					"kind":  "*",
-				},
+			NamespaceResourceWhitelist: []ResourceFilter{
+				{Group: "*", Kind: "*"},
 			},
 		},
 	}
 }
 
-func buildArgoCDApplicationRequest(config *VClusterConfig) map[string]interface{} {
+func buildArgoCDApplicationRequest(config *VClusterConfig) Resource {
 	metadataLabels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "argocd-application",
 	}, baseLabels(config, config.Name))
 
-	spec := map[string]interface{}{
-		"name":      fmt.Sprintf("vcluster-%s", config.Name),
-		"namespace": "argocd",
-		"annotations": map[string]string{
+	spec := ArgoCDApplicationSpec{
+		Name:      fmt.Sprintf("vcluster-%s", config.Name),
+		Namespace: "argocd",
+		Annotations: map[string]string{
 			"argocd.argoproj.io/sync-wave": "0",
 		},
-		"finalizers": []string{"resources-finalizer.argocd.argoproj.io"},
-		"project":    config.ProjectName,
-		"destination": map[string]interface{}{
-			"server":    config.ArgoCDDestServer,
-			"namespace": config.TargetNamespace,
+		Finalizers: []string{"resources-finalizer.argocd.argoproj.io"},
+		Project:    config.ProjectName,
+		Destination: Destination{
+			Server:    config.ArgoCDDestServer,
+			Namespace: config.TargetNamespace,
 		},
-		"source": map[string]interface{}{
-			"repoURL":        config.ArgoCDRepoURL,
-			"chart":          config.ArgoCDChart,
-			"targetRevision": config.ArgoCDTargetRevision,
-			"helm": map[string]interface{}{
-				"releaseName":  config.Name,
-				"valuesObject": config.ValuesObject,
+		Source: AppSource{
+			RepoURL:        config.ArgoCDRepoURL,
+			Chart:          config.ArgoCDChart,
+			TargetRevision: config.ArgoCDTargetRevision,
+			Helm: &HelmSource{
+				ReleaseName:  config.Name,
+				ValuesObject: config.ValuesObject,
 			},
 		},
-	}
-	if config.ArgoCDSyncPolicy != nil {
-		spec["syncPolicy"] = config.ArgoCDSyncPolicy
+		SyncPolicy: config.ArgoCDSyncPolicy,
 	}
 
-	return map[string]interface{}{
-		"apiVersion": "platform.integratn.tech/v1alpha1",
-		"kind":       "ArgoCDApplication",
-		"metadata": resourceMeta(
+	return Resource{
+		APIVersion: "platform.integratn.tech/v1alpha1",
+		Kind:       "ArgoCDApplication",
+		Metadata: resourceMeta(
 			fmt.Sprintf("vcluster-%s", config.Name),
 			config.Namespace,
 			metadataLabels,
 			nil,
 		),
-		"spec": spec,
+		Spec: spec,
 	}
 }
 
-func buildArgoCDClusterExternalSecret(config *VClusterConfig) map[string]interface{} {
+func buildArgoCDClusterExternalSecret(config *VClusterConfig) Resource {
 	labels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name":         "external-secret",
 		"app.kubernetes.io/component":    "argocd-cluster",
@@ -124,52 +114,50 @@ func buildArgoCDClusterExternalSecret(config *VClusterConfig) map[string]interfa
 		targetAnnotations = mergeStringMap(targetAnnotations, config.ArgoCDClusterAnnotations)
 	}
 
-	metadata := resourceMeta(
-		fmt.Sprintf("%s-argocd-cluster", config.Name),
-		"argocd",
-		labels,
-		metadataAnnotations,
-	)
-
-	targetMetadata := map[string]interface{}{
-		"labels": targetLabels,
+	tmplMeta := &TemplateMetadata{
+		Labels: targetLabels,
 	}
 	if len(targetAnnotations) > 0 {
-		targetMetadata["annotations"] = targetAnnotations
+		tmplMeta.Annotations = targetAnnotations
 	}
 
-	return map[string]interface{}{
-		"apiVersion": "external-secrets.io/v1beta1",
-		"kind":       "ExternalSecret",
-		"metadata":   metadata,
-		"spec": map[string]interface{}{
-			"secretStoreRef": map[string]interface{}{
-				"name": "onepassword-store",
-				"kind": "ClusterSecretStore",
+	return Resource{
+		APIVersion: "external-secrets.io/v1beta1",
+		Kind:       "ExternalSecret",
+		Metadata: resourceMeta(
+			fmt.Sprintf("%s-argocd-cluster", config.Name),
+			"argocd",
+			labels,
+			metadataAnnotations,
+		),
+		Spec: ExternalSecretSpec{
+			SecretStoreRef: SecretStoreRef{
+				Name: "onepassword-store",
+				Kind: "ClusterSecretStore",
 			},
-			"target": map[string]interface{}{
-				"name": fmt.Sprintf("vcluster-%s", config.Name),
-				"template": map[string]interface{}{
-					"engineVersion": "v2",
-					"type":         "Opaque",
-					"metadata":     targetMetadata,
-					"data": map[string]string{
+			Target: ExternalSecretTarget{
+				Name: fmt.Sprintf("vcluster-%s", config.Name),
+				Template: &ExternalSecretTemplate{
+					EngineVersion: "v2",
+					Type:          "Opaque",
+					Metadata:      tmplMeta,
+					Data: map[string]string{
 						"name":   "{{ index . \"argocd-name\" }}",
 						"server": "{{ index . \"argocd-server\" }}",
 						"config": "{{ index . \"argocd-config\" }}",
 					},
 				},
 			},
-			"dataFrom": []map[string]interface{}{
+			DataFrom: []ExternalSecretDataFrom{
 				{
-					"extract": map[string]interface{}{
-						"key":                config.OnePasswordItem,
-						"conversionStrategy": "Default",
-						"decodingStrategy":   "None",
+					Extract: &ExternalSecretExtract{
+						Key:                config.OnePasswordItem,
+						ConversionStrategy: "Default",
+						DecodingStrategy:   "None",
 					},
 				},
 			},
-			"refreshInterval": "15m",
+			RefreshInterval: "15m",
 		},
 	}
 }

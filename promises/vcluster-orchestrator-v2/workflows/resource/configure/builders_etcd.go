@@ -2,7 +2,7 @@ package main
 
 import "fmt"
 
-func buildEtcdCertificates(config *VClusterConfig) []interface{} {
+func buildEtcdCertificates(config *VClusterConfig) []Resource {
 	if !etcdEnabled(config) {
 		return nil
 	}
@@ -14,85 +14,85 @@ func buildEtcdCertificates(config *VClusterConfig) []interface{} {
 		}, baseLabels(config, config.Name))
 	}
 
-	caCert := map[string]interface{}{
-		"apiVersion": "cert-manager.io/v1",
-		"kind":       "Certificate",
-		"metadata": resourceMeta(
+	caCert := Resource{
+		APIVersion: "cert-manager.io/v1",
+		Kind:       "Certificate",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-etcd-ca", config.Name),
 			config.TargetNamespace,
 			labels("etcd-ca"),
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"isCA":       true,
-			"commonName": fmt.Sprintf("%s-etcd-ca", config.Name),
-			"secretName": fmt.Sprintf("%s-etcd-ca", config.Name),
-			"privateKey": map[string]interface{}{
-				"algorithm": "RSA",
-				"size":      2048,
+		Spec: CertificateSpec{
+			IsCA:       true,
+			CommonName: fmt.Sprintf("%s-etcd-ca", config.Name),
+			SecretName: fmt.Sprintf("%s-etcd-ca", config.Name),
+			PrivateKey: &PrivateKeySpec{
+				Algorithm: "RSA",
+				Size:      2048,
 			},
-			"issuerRef": map[string]interface{}{
-				"name":  fmt.Sprintf("%s-etcd-selfsigned", config.Name),
-				"kind":  "Issuer",
-				"group": "cert-manager.io",
+			IssuerRef: IssuerRef{
+				Name:  fmt.Sprintf("%s-etcd-selfsigned", config.Name),
+				Kind:  "Issuer",
+				Group: "cert-manager.io",
 			},
 		},
 	}
 
-	selfsignedIssuer := map[string]interface{}{
-		"apiVersion": "cert-manager.io/v1",
-		"kind":       "Issuer",
-		"metadata": resourceMeta(
+	selfsignedIssuer := Resource{
+		APIVersion: "cert-manager.io/v1",
+		Kind:       "Issuer",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-etcd-selfsigned", config.Name),
 			config.TargetNamespace,
 			labels("etcd-issuer"),
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"selfSigned": map[string]interface{}{},
+		Spec: IssuerSpec{
+			SelfSigned: &SelfSignedIssuer{},
 		},
 	}
 
-	caIssuer := map[string]interface{}{
-		"apiVersion": "cert-manager.io/v1",
-		"kind":       "Issuer",
-		"metadata": resourceMeta(
+	caIssuer := Resource{
+		APIVersion: "cert-manager.io/v1",
+		Kind:       "Issuer",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-etcd-ca", config.Name),
 			config.TargetNamespace,
 			labels("etcd-ca-issuer"),
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"ca": map[string]interface{}{
-				"secretName": fmt.Sprintf("%s-etcd-ca", config.Name),
+		Spec: IssuerSpec{
+			CA: &CAIssuer{
+				SecretName: fmt.Sprintf("%s-etcd-ca", config.Name),
 			},
 		},
 	}
 
-	mergeJob := map[string]interface{}{
-		"apiVersion": "batch/v1",
-		"kind":       "Job",
-		"metadata": resourceMeta(
+	mergeJob := Resource{
+		APIVersion: "batch/v1",
+		Kind:       "Job",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-etcd-certs-merge", config.Name),
 			config.TargetNamespace,
 			labels("etcd-certs-job"),
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"template": map[string]interface{}{
-				"metadata": map[string]interface{}{
-					"labels": map[string]string{
+		Spec: JobSpec{
+			Template: PodTemplateSpec{
+				Metadata: &ObjectMeta{
+					Labels: map[string]string{
 						"app": "etcd-certs-merge",
 					},
 				},
-				"spec": map[string]interface{}{
-					"restartPolicy":      "OnFailure",
-					"serviceAccountName": fmt.Sprintf("vc-%s", config.Name),
-					"containers": []map[string]interface{}{
+				Spec: PodSpec{
+					RestartPolicy:      "OnFailure",
+					ServiceAccountName: fmt.Sprintf("vc-%s", config.Name),
+					Containers: []Container{
 						{
-							"name":    "merge-certs",
-							"image":   "bitnami/kubectl:latest",
-							"command": []string{"/bin/bash", "-c", buildEtcdMergeScript(config)},
+							Name:    "merge-certs",
+							Image:   "bitnami/kubectl:latest",
+							Command: []string{"/bin/bash", "-c", buildEtcdMergeScript(config)},
 						},
 					},
 				},
@@ -100,34 +100,32 @@ func buildEtcdCertificates(config *VClusterConfig) []interface{} {
 		},
 	}
 
-	serverCert := map[string]interface{}{
-		"apiVersion": "cert-manager.io/v1",
-		"kind":       "Certificate",
-		"metadata": resourceMeta(
+	serverCert := Resource{
+		APIVersion: "cert-manager.io/v1",
+		Kind:       "Certificate",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-etcd-server", config.Name),
 			config.TargetNamespace,
 			labels("etcd-server-cert"),
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"secretName": fmt.Sprintf("%s-etcd-server", config.Name),
-			"commonName": fmt.Sprintf("%s-etcd", config.Name),
-			"dnsNames":   buildEtcdDNSNames(config),
-			"ipAddresses": []string{
-				"127.0.0.1",
+		Spec: CertificateSpec{
+			SecretName:  fmt.Sprintf("%s-etcd-server", config.Name),
+			CommonName:  fmt.Sprintf("%s-etcd", config.Name),
+			DNSNames:    buildEtcdDNSNames(config),
+			IPAddresses: []string{"127.0.0.1"},
+			PrivateKey: &PrivateKeySpec{
+				Algorithm: "RSA",
+				Size:      2048,
 			},
-			"privateKey": map[string]interface{}{
-				"algorithm": "RSA",
-				"size":      2048,
+			Usages: []string{"server auth", "client auth"},
+			IssuerRef: IssuerRef{
+				Name:  fmt.Sprintf("%s-etcd-ca", config.Name),
+				Kind:  "Issuer",
+				Group: "cert-manager.io",
 			},
-			"usages": []string{"server auth", "client auth"},
-			"issuerRef": map[string]interface{}{
-				"name":  fmt.Sprintf("%s-etcd-ca", config.Name),
-				"kind":  "Issuer",
-				"group": "cert-manager.io",
-			},
-			"secretTemplate": map[string]interface{}{
-				"labels": map[string]string{
+			SecretTemplate: &SecretTemplate{
+				Labels: map[string]string{
 					"app.kubernetes.io/name":     "etcd-server-cert",
 					"app.kubernetes.io/instance": config.Name,
 				},
@@ -135,31 +133,31 @@ func buildEtcdCertificates(config *VClusterConfig) []interface{} {
 		},
 	}
 
-	peerCert := map[string]interface{}{
-		"apiVersion": "cert-manager.io/v1",
-		"kind":       "Certificate",
-		"metadata": resourceMeta(
+	peerCert := Resource{
+		APIVersion: "cert-manager.io/v1",
+		Kind:       "Certificate",
+		Metadata: resourceMeta(
 			fmt.Sprintf("%s-etcd-peer", config.Name),
 			config.TargetNamespace,
 			labels("etcd-peer-cert"),
 			nil,
 		),
-		"spec": map[string]interface{}{
-			"secretName": fmt.Sprintf("%s-etcd-peer", config.Name),
-			"commonName": fmt.Sprintf("%s-etcd", config.Name),
-			"dnsNames":   buildEtcdDNSNames(config),
-			"privateKey": map[string]interface{}{
-				"algorithm": "RSA",
-				"size":      2048,
+		Spec: CertificateSpec{
+			SecretName: fmt.Sprintf("%s-etcd-peer", config.Name),
+			CommonName: fmt.Sprintf("%s-etcd", config.Name),
+			DNSNames:   buildEtcdDNSNames(config),
+			PrivateKey: &PrivateKeySpec{
+				Algorithm: "RSA",
+				Size:      2048,
 			},
-			"usages": []string{"server auth", "client auth"},
-			"issuerRef": map[string]interface{}{
-				"name":  fmt.Sprintf("%s-etcd-ca", config.Name),
-				"kind":  "Issuer",
-				"group": "cert-manager.io",
+			Usages: []string{"server auth", "client auth"},
+			IssuerRef: IssuerRef{
+				Name:  fmt.Sprintf("%s-etcd-ca", config.Name),
+				Kind:  "Issuer",
+				Group: "cert-manager.io",
 			},
-			"secretTemplate": map[string]interface{}{
-				"labels": map[string]string{
+			SecretTemplate: &SecretTemplate{
+				Labels: map[string]string{
 					"app.kubernetes.io/name":     "etcd-peer-cert",
 					"app.kubernetes.io/instance": config.Name,
 				},
@@ -167,7 +165,7 @@ func buildEtcdCertificates(config *VClusterConfig) []interface{} {
 		},
 	}
 
-	return []interface{}{caCert, selfsignedIssuer, caIssuer, mergeJob, serverCert, peerCert}
+	return []Resource{caCert, selfsignedIssuer, caIssuer, mergeJob, serverCert, peerCert}
 }
 
 func buildEtcdDNSNames(config *VClusterConfig) []string {

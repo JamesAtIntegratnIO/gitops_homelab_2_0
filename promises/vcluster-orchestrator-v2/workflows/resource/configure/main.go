@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -363,57 +362,45 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 }
 
 func buildValuesObject(config *VClusterConfig) map[string]interface{} {
-	controlPlane := map[string]interface{}{
-		"distro": map[string]interface{}{
-			"k8s": map[string]interface{}{
-				"enabled": true,
-				"version": config.K8sVersion,
+	cp := ControlPlane{
+		Distro: DistroConfig{
+			K8s: K8sDistro{
+				Enabled: true,
+				Version: config.K8sVersion,
 			},
 		},
-		"serviceMonitor": map[string]interface{}{
-			"enabled": true,
-			"labels": map[string]interface{}{
+		ServiceMonitor: ServiceMonitor{
+			Enabled: true,
+			Labels: map[string]string{
 				"vcluster_name":      config.Name,
 				"vcluster_namespace": config.TargetNamespace,
 				"environment":        config.ArgoCDEnvironment,
 				"cluster_role":       "vcluster",
 			},
 		},
-		"statefulSet": map[string]interface{}{
-			"highAvailability": map[string]interface{}{
-				"replicas": config.Replicas,
+		StatefulSet: StatefulSetConfig{
+			HighAvailability: HAConfig{Replicas: config.Replicas},
+			Scheduling: SchedulingConfig{
+				PodManagementPolicy: "Parallel",
+				PriorityClassName:   "system-cluster-critical",
 			},
-			"scheduling": map[string]interface{}{
-				"podManagementPolicy": "Parallel",
-				"priorityClassName":   "system-cluster-critical",
-			},
-			"imagePullPolicy": "Always",
-			"image": map[string]interface{}{
-				"repository": "loft-sh/vcluster-oss",
-			},
-			"persistence": map[string]interface{}{
-				"volumeClaim": map[string]interface{}{
-					"enabled": config.PersistenceEnabled,
-					"size":    config.PersistenceSize,
+			ImagePullPolicy: "Always",
+			Image:           ImageConfig{Repository: "loft-sh/vcluster-oss"},
+			Persistence: PersistenceConfig{
+				VolumeClaim: VolumeClaimConfig{
+					Enabled: config.PersistenceEnabled,
+					Size:    config.PersistenceSize,
 				},
 			},
-			"resources": map[string]interface{}{
-				"requests": map[string]interface{}{
-					"cpu":    config.CPURequest,
-					"memory": config.MemoryRequest,
-				},
-				"limits": map[string]interface{}{
-					"cpu":    config.CPULimit,
-					"memory": config.MemoryLimit,
-				},
+			Resources: ResourcesConfig{
+				Requests: ResourceValues{CPU: config.CPURequest, Memory: config.MemoryRequest},
+				Limits:   ResourceValues{CPU: config.CPULimit, Memory: config.MemoryLimit},
 			},
 		},
-		"coredns": map[string]interface{}{
-			"enabled": true,
-			"deployment": map[string]interface{}{
-				"replicas": config.CorednsReplicas,
-			},
-			"overwriteConfig": fmt.Sprintf(`.:1053 {
+		CoreDNS: CoreDNSConfig{
+			Enabled: true,
+			Deployment: DeploymentConfig{Replicas: config.CorednsReplicas},
+			OverwriteConfig: fmt.Sprintf(`.:1053 {
   errors
   health
   ready
@@ -432,28 +419,23 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 				config.ClusterDomain,
 			),
 		},
-		"ingress": map[string]interface{}{
-			"enabled": false,
+		Ingress: EnabledFlag{Enabled: false},
+		Advanced: AdvancedConfig{
+			PodDisruptionBudget: PDBConfig{Enabled: true, MinAvailable: 1},
 		},
-		"advanced": map[string]interface{}{
-			"podDisruptionBudget": map[string]interface{}{
-				"enabled":      true,
-				"minAvailable": 1,
-			},
-		},
-		"service": map[string]interface{}{
-			"enabled": true,
-			"annotations": map[string]interface{}{
+		Service: ServiceConfig{
+			Enabled: true,
+			Annotations: map[string]string{
 				"external-dns.alpha.kubernetes.io/hostname": config.Hostname,
 			},
-			"spec": map[string]interface{}{
-				"type": "LoadBalancer",
-				"ports": []map[string]interface{}{
+			Spec: ServiceSpecConfig{
+				Type: "LoadBalancer",
+				Ports: []ServicePort{
 					{
-						"name":       "https",
-						"port":       config.APIPort,
-						"targetPort": 8443,
-						"protocol":   "TCP",
+						Name:       "https",
+						Port:       config.APIPort,
+						TargetPort: 8443,
+						Protocol:   "TCP",
 					},
 				},
 			},
@@ -461,138 +443,104 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 	}
 
 	if config.PersistenceClass != "" {
-		volumeClaim := controlPlane["statefulSet"].(map[string]interface{})["persistence"].(map[string]interface{})["volumeClaim"].(map[string]interface{})
-		volumeClaim["storageClass"] = config.PersistenceClass
+		cp.StatefulSet.Persistence.VolumeClaim.StorageClass = config.PersistenceClass
 	}
 
 	if config.BackingStore != nil {
-		controlPlane["backingStore"] = config.BackingStore
+		cp.BackingStore = config.BackingStore
 	}
 
 	if len(config.ProxyExtraSANs) > 0 {
-		controlPlane["proxy"] = map[string]interface{}{
-			"extraSANs": config.ProxyExtraSANs,
-		}
+		cp.Proxy = &ProxyConfig{ExtraSANs: config.ProxyExtraSANs}
 	}
 
 	if config.VIP != "" {
-		serviceSpec := controlPlane["service"].(map[string]interface{})["spec"].(map[string]interface{})
-		serviceSpec["loadBalancerIP"] = config.VIP
+		cp.Service.Spec.LoadBalancerIP = config.VIP
 	}
 
 	if config.APIPort != 443 {
-		serviceSpec := controlPlane["service"].(map[string]interface{})["spec"].(map[string]interface{})
-		ports := serviceSpec["ports"].([]map[string]interface{})
-		ports = append(ports, map[string]interface{}{
-			"name":       "https-internal",
-			"port":       443,
-			"targetPort": 8443,
-			"protocol":   "TCP",
+		cp.Service.Spec.Ports = append(cp.Service.Spec.Ports, ServicePort{
+			Name:       "https-internal",
+			Port:       443,
+			TargetPort: 8443,
+			Protocol:   "TCP",
 		})
-		serviceSpec["ports"] = ports
 	}
 
-	values := map[string]interface{}{
-		"controlPlane": controlPlane,
-		"deploy": map[string]interface{}{
-			"metallb": map[string]interface{}{
-				"enabled": true,
-			},
+	values := VClusterValues{
+		ControlPlane: cp,
+		Deploy: DeployConfig{
+			MetalLB: EnabledFlag{Enabled: true},
 		},
-		"integrations": map[string]interface{}{
-			"externalSecrets": map[string]interface{}{
-				"enabled": true,
-				"webhook": map[string]interface{}{
-					"enabled": true,
-				},
-				"sync": map[string]interface{}{
-					"fromHost": map[string]interface{}{
-						"clusterStores": map[string]interface{}{
-							"enabled": true,
-							"selector": map[string]interface{}{
-								"matchLabels": config.ExternalSecretsStoreLabels,
+		Integrations: Integrations{
+			ExternalSecrets: IntegrationExternalSecrets{
+				Enabled: true,
+				Webhook: EnabledFlag{Enabled: true},
+				Sync: ESSyncConfig{
+					FromHost: ESFromHostConfig{
+						ClusterStores: ClusterStoresConfig{
+							Enabled: true,
+							Selector: LabelSelector{
+								MatchLabels: config.ExternalSecretsStoreLabels,
 							},
 						},
 					},
 				},
 			},
-			"metricsServer": map[string]interface{}{
-				"enabled": true,
-			},
-			"certManager": map[string]interface{}{
-				"enabled": true,
-				"sync": map[string]interface{}{
-					"fromHost": map[string]interface{}{
-						"clusterIssuers": map[string]interface{}{
-							"enabled": true,
-							"selector": map[string]interface{}{
-								"labels": config.CertManagerIssuerLabels,
+			MetricsServer: EnabledFlag{Enabled: true},
+			CertManager: IntegrationCertManager{
+				Enabled: true,
+				Sync: CMSyncConfig{
+					FromHost: CMFromHostConfig{
+						ClusterIssuers: ClusterIssuersConfig{
+							Enabled: true,
+							Selector: LabelSelector{
+								Labels: config.CertManagerIssuerLabels,
 							},
 						},
 					},
 				},
 			},
 		},
-		"telemetry": map[string]interface{}{
-			"enabled": false,
-		},
-		"logging": map[string]interface{}{
-			"encoding": "json",
-		},
-		"networking": map[string]interface{}{
-			"advanced": map[string]interface{}{
-				"clusterDomain": config.ClusterDomain,
-			},
-			"replicateServices": map[string]interface{}{
-				"fromHost": []map[string]interface{}{
-					{
-						"from": "default/kubernetes",
-						"to":   "default/kubernetes",
-					},
+		Telemetry: EnabledFlag{Enabled: false},
+		Logging:   LoggingConfig{Encoding: "json"},
+		Networking: NetworkingConfig{
+			Advanced: NetworkAdvanced{ClusterDomain: config.ClusterDomain},
+			ReplicateServices: ReplicateServices{
+				FromHost: []ServiceMapping{
+					{From: "default/kubernetes", To: "default/kubernetes"},
 				},
 			},
 		},
-		"sync": map[string]interface{}{
-			"toHost": map[string]interface{}{
-				"pods": map[string]interface{}{
-					"enabled": true,
-				},
-				"persistentVolumes": map[string]interface{}{
-					"enabled": true,
-				},
-				"ingresses": map[string]interface{}{
-					"enabled": true,
-				},
-				"networkPolicies": map[string]interface{}{
-					"enabled": false,
-				},
+		Sync: SyncConfig{
+			ToHost: SyncToHost{
+				Pods:              EnabledFlag{Enabled: true},
+				PersistentVolumes: EnabledFlag{Enabled: true},
+				Ingresses:         EnabledFlag{Enabled: true},
+				NetworkPolicies:   EnabledFlag{Enabled: false},
 			},
-			"fromHost": map[string]interface{}{
-				"storageClasses": map[string]interface{}{
-					"enabled": true,
-				},
-				"ingressClasses": map[string]interface{}{
-					"enabled": true,
-				},
-				"secrets": map[string]interface{}{
-					"enabled": true,
-					"mappings": map[string]interface{}{
-						"byName": map[string]interface{}{
+			FromHost: SyncFromHost{
+				StorageClasses: EnabledFlag{Enabled: true},
+				IngressClasses: EnabledFlag{Enabled: true},
+				Secrets: SecretSyncConfig{
+					Enabled: true,
+					Mappings: SecretMappings{
+						ByName: map[string]string{
 							"external-secrets/eso-onepassword-token": "external-secrets/eso-onepassword-token",
 						},
 					},
 				},
 			},
 		},
-		"rbac": map[string]interface{}{
-			"clusterRole": map[string]interface{}{
-				"enabled": true,
-				"extraRules": []map[string]interface{}{
+		RBAC: RBACConfig{
+			ClusterRole: ClusterRoleConfig{
+				Enabled: true,
+				ExtraRules: []PolicyRule{
 					{
-						"apiGroups": []string{""},
-						"resources": []string{"secrets"},
-						"verbs":     []string{"get", "list", "watch"},
-						"resourceNames": []string{"eso-onepassword-token"},
+						APIGroups:     []string{""},
+						Resources:     []string{"secrets"},
+						Verbs:         []string{"get", "list", "watch"},
+						ResourceNames: []string{"eso-onepassword-token"},
 					},
 				},
 			},
@@ -600,10 +548,16 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 	}
 
 	if len(config.ExportKubeConfig) > 0 {
-		values["exportKubeConfig"] = config.ExportKubeConfig
+		values.ExportKubeConfig = config.ExportKubeConfig
 	}
 
-	return mergeMaps(values, config.HelmOverrides)
+	// Convert typed struct to map for merging with HelmOverrides
+	valuesMap, err := toMap(values)
+	if err != nil {
+		log.Fatalf("ERROR: Failed to convert values to map: %v", err)
+	}
+
+	return mergeMaps(valuesMap, config.HelmOverrides)
 }
 
 func mergeMaps(dst, src map[string]interface{}) map[string]interface{} {
@@ -628,31 +582,31 @@ func mergeMaps(dst, src map[string]interface{}) map[string]interface{} {
 }
 
 func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
-	presetDefaults := map[string]map[string]interface{}{
+	presetDefaults := map[string]PresetDefaults{
 		"dev": {
-			"replicas":          1,
-			"cpuRequest":        "200m",
-			"memoryRequest":     "512Mi",
-			"cpuLimit":          "1000m",
-			"memoryLimit":       "1Gi",
-			"persistenceEnabled": false,
-			"persistenceSize":   "5Gi",
-			"corednsReplicas":   1,
+			Replicas:           1,
+			CPURequest:         "200m",
+			MemoryRequest:      "512Mi",
+			CPULimit:           "1000m",
+			MemoryLimit:        "1Gi",
+			PersistenceEnabled: false,
+			PersistenceSize:    "5Gi",
+			CorednsReplicas:    1,
 		},
 		"prod": {
-			"replicas":          3,
-			"cpuRequest":        "500m",
-			"memoryRequest":     "1Gi",
-			"cpuLimit":          "2",
-			"memoryLimit":       "2Gi",
-			"persistenceEnabled": true,
-			"persistenceSize":   "10Gi",
-			"corednsReplicas":   2,
+			Replicas:           3,
+			CPURequest:         "500m",
+			MemoryRequest:      "1Gi",
+			CPULimit:           "2",
+			MemoryLimit:        "2Gi",
+			PersistenceEnabled: true,
+			PersistenceSize:    "10Gi",
+			CorednsReplicas:    2,
 		},
 	}
 
 	defaults := presetDefaults[config.Preset]
-	if defaults == nil {
+	if defaults == (PresetDefaults{}) {
 		defaults = presetDefaults["dev"]
 	}
 
@@ -660,36 +614,36 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 	if val, err := getIntValue(resource, "spec.vcluster.replicas"); err == nil && val > 0 {
 		config.Replicas = val
 	} else {
-		config.Replicas = defaults["replicas"].(int)
+		config.Replicas = defaults.Replicas
 	}
 
 	// Apply resource requests/limits
-	config.CPURequest, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.requests.cpu", defaults["cpuRequest"].(string))
-	config.MemoryRequest, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.requests.memory", defaults["memoryRequest"].(string))
-	config.CPULimit, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.limits.cpu", defaults["cpuLimit"].(string))
-	config.MemoryLimit, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults["memoryLimit"].(string))
+	config.CPURequest, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.requests.cpu", defaults.CPURequest)
+	config.MemoryRequest, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.requests.memory", defaults.MemoryRequest)
+	config.CPULimit, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.limits.cpu", defaults.CPULimit)
+	config.MemoryLimit, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults.MemoryLimit)
 
 	// Apply persistence
 	if val, err := getBoolValue(resource, "spec.vcluster.persistence.enabled"); err == nil {
 		config.PersistenceEnabled = val
 	} else {
-		config.PersistenceEnabled = defaults["persistenceEnabled"].(bool)
+		config.PersistenceEnabled = defaults.PersistenceEnabled
 	}
 
-	config.PersistenceSize, _ = getStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults["persistenceSize"].(string))
+	config.PersistenceSize, _ = getStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
 
 	// Apply coredns replicas
 	if val, err := getIntValue(resource, "spec.vcluster.coredns.replicas"); err == nil && val > 0 {
 		config.CorednsReplicas = val
 	} else {
-		config.CorednsReplicas = defaults["corednsReplicas"].(int)
+		config.CorednsReplicas = defaults.CorednsReplicas
 	}
 }
 
 func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	log.Println("--- Rendering orchestrator resources ---")
 
-	resourceRequests := map[string]interface{}{
+	resourceRequests := map[string]Resource{
 		"resources/argocd-project-request.yaml":     buildArgoCDProjectRequest(config),
 		"resources/argocd-application-request.yaml": buildArgoCDApplicationRequest(config),
 	}
@@ -773,9 +727,9 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
-	outputs := map[string]interface{}{}
+	outputs := map[string]Resource{}
 
-	createdObjects := []map[string]interface{}{
+	createdObjects := []Resource{
 		buildArgoCDProjectRequest(config),
 		buildArgoCDApplicationRequest(config),
 		buildCorednsConfigMap(config),
@@ -785,47 +739,21 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	}
 
 	for _, obj := range createdObjects {
-		deleteObj, err := deleteFromObject(obj)
-		if err != nil {
-			return fmt.Errorf("build delete object: %w", err)
-		}
-		path, err := deleteOutputPath("resources", obj)
-		if err != nil {
-			return fmt.Errorf("build delete path: %w", err)
-		}
+		deleteObj := deleteFromResource(obj)
+		path := deleteOutputPathForResource("resources", obj)
 		outputs[path] = deleteObj
 	}
 
-	for _, doc := range buildKubeconfigSyncRBAC(config) {
-		obj, ok := doc.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("unexpected kubeconfig sync rbac doc type")
-		}
-		deleteObj, err := deleteFromObject(obj)
-		if err != nil {
-			return fmt.Errorf("build delete object: %w", err)
-		}
-		path, err := deleteOutputPath("resources", obj)
-		if err != nil {
-			return fmt.Errorf("build delete path: %w", err)
-		}
+	for _, obj := range buildKubeconfigSyncRBAC(config) {
+		deleteObj := deleteFromResource(obj)
+		path := deleteOutputPathForResource("resources", obj)
 		outputs[path] = deleteObj
 	}
 
 	if etcdEnabled(config) {
-		for _, doc := range buildEtcdCertificates(config) {
-			obj, ok := doc.(map[string]interface{})
-			if !ok {
-				return fmt.Errorf("unexpected etcd cert doc type")
-			}
-			deleteObj, err := deleteFromObject(obj)
-			if err != nil {
-				return fmt.Errorf("build delete object: %w", err)
-			}
-			path, err := deleteOutputPath("resources", obj)
-			if err != nil {
-				return fmt.Errorf("build delete path: %w", err)
-			}
+		for _, obj := range buildEtcdCertificates(config) {
+			deleteObj := deleteFromResource(obj)
+			path := deleteOutputPathForResource("resources", obj)
 			outputs[path] = deleteObj
 		}
 	}
@@ -950,24 +878,6 @@ func extractLabels(resource kratix.Resource, path string) map[string]string {
 	}
 
 	return labels
-}
-
-func extractSpec(resource kratix.Resource, path string, target interface{}) error {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return err
-	}
-
-	jsonBytes, err := json.Marshal(val)
-	if err != nil {
-		return fmt.Errorf("failed to marshal %s: %w", path, err)
-	}
-
-	if err := json.Unmarshal(jsonBytes, target); err != nil {
-		return fmt.Errorf("failed to unmarshal %s: %w", path, err)
-	}
-
-	return nil
 }
 
 // IP utility functions
