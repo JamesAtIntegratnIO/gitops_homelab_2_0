@@ -19,7 +19,7 @@ spec:
             addVolumes:
               - name: etcd-certs
                 secret:
-                  secretName: vcluster-media-certs
+                  secretName: vcluster-media-etcd-certs
             addVolumeMounts:
               - name: etcd-certs
                 mountPath: /etcd-certs

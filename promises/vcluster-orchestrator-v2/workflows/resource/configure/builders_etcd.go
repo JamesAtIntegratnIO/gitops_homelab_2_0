@@ -225,7 +225,7 @@ PEER_CRT=$(kubectl get secret %s-etcd-peer -n %s -o jsonpath='{.data.tls\.crt}')
 PEER_KEY=$(kubectl get secret %s-etcd-peer -n %s -o jsonpath='{.data.tls\.key}')
 
 # Create merged secret
-kubectl create secret generic %s-certs -n %s \
+kubectl create secret generic %s-etcd-certs -n %s \
   --from-literal=etcd-ca.crt="$(echo $CA_CRT | base64 -d)" \
   --from-literal=etcd-server.crt="$(echo $SERVER_CRT | base64 -d)" \
   --from-literal=etcd-server.key="$(echo $SERVER_KEY | base64 -d)" \

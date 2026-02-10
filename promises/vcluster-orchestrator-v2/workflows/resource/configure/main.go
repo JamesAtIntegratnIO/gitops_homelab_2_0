@@ -865,7 +865,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		outputs["resources/delete-etcd-merged-secret.yaml"] = deleteResource(
 			"v1",
 			"Secret",
-			fmt.Sprintf("%s-certs", config.Name),
+			fmt.Sprintf("%s-etcd-certs", config.Name),
 			config.TargetNamespace,
 		)
 	}
