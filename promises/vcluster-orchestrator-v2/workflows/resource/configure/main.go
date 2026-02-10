@@ -435,6 +435,12 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 		"ingress": map[string]interface{}{
 			"enabled": false,
 		},
+		"advanced": map[string]interface{}{
+			"podDisruptionBudget": map[string]interface{}{
+				"enabled":      true,
+				"minAvailable": 1,
+			},
+		},
 		"service": map[string]interface{}{
 			"enabled": true,
 			"annotations": map[string]interface{}{
