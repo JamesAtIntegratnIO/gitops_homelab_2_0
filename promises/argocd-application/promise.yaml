@@ -112,7 +112,6 @@ spec:
           kind: Pipeline
           metadata:
             name: argocd-app-configure
-            namespace: default
           spec:
             containers:
               - name: configure
@@ -131,7 +130,6 @@ spec:
           kind: Pipeline
           metadata:
             name: argocd-app-delete
-            namespace: default
           spec:
             containers:
               - name: delete

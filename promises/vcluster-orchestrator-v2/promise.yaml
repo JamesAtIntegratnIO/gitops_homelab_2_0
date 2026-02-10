@@ -241,7 +241,6 @@ spec:
           kind: Pipeline
           metadata:
             name: vco-v2-configure
-            namespace: default
           spec:
             containers:
               - name: configure
@@ -260,7 +259,6 @@ spec:
           kind: Pipeline
           metadata:
             name: vco-v2-delete
-            namespace: default
           spec:
             containers:
               - name: delete
