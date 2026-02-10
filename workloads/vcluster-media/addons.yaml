@@ -1,5 +1,5 @@
 globalSelectors:
-  cluster_name: media
+  cluster_name: vcluster-media
 
 useAddonNameForValues: true
 

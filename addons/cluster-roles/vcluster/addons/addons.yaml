@@ -75,6 +75,19 @@ argocd-vcluster:
                 - path:
                     type: PathPrefix
                     value: /
+      - apiVersion: v1
+        kind: Secret
+        metadata:
+          name: in-cluster-config
+          namespace: argocd
+          labels:
+            argocd.argoproj.io/secret-type: cluster
+            cluster_name: '{{ .metadata.labels.cluster_name }}'
+            environment: '{{ .metadata.labels.environment }}'
+        type: Opaque
+        stringData:
+          name: in-cluster
+          server: https://kubernetes.default.svc
       - apiVersion: argoproj.io/v1alpha1
         kind: ApplicationSet
         metadata:
