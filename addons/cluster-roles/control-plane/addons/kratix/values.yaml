@@ -242,7 +242,7 @@ additionalResources:
                 component: kratix
               annotations:
                 summary: "Kratix pipeline pod failed"
-                description: "Pipeline pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been in Failed state for more than 5 minutes."
+                description: 'Pipeline pod {{ "{{" }} $labels.pod {{ "}}" }} in namespace {{ "{{" }} $labels.namespace {{ "}}" }} has been in Failed state for more than 5 minutes.'
             - alert: KratixPipelineStuck
               expr: |
                 kube_pod_status_phase{namespace="platform-requests", phase=~"Pending|Running"}
@@ -254,7 +254,7 @@ additionalResources:
                 component: kratix
               annotations:
                 summary: "Kratix pipeline pod stuck"
-                description: "Pipeline pod {{ $labels.pod }} has been running for more than 15 minutes."
+                description: 'Pipeline pod {{ "{{" }} $labels.pod {{ "}}" }} has been running for more than 15 minutes.'
         - name: kratix.workplacement
           interval: 30s
           rules:
@@ -267,7 +267,7 @@ additionalResources:
                 component: kratix
               annotations:
                 summary: "Kratix WorkPlacement write failure"
-                description: "WorkPlacement write failed for promise {{ $labels.promise }}, resource {{ $labels.resource }} to destination {{ $labels.destination }}."
+                description: 'WorkPlacement write failed for promise {{ "{{" }} $labels.promise {{ "}}" }}, resource {{ "{{" }} $labels.resource {{ "}}" }} to destination {{ "{{" }} $labels.destination {{ "}}" }}.'
             - alert: KratixResourceUnscheduled
               expr: |
                 increase(kratix_workplacement_outcomes_total{result="unscheduled"}[10m]) > 0
@@ -277,7 +277,7 @@ additionalResources:
                 component: kratix
               annotations:
                 summary: "Kratix resource unscheduled"
-                description: "Resource {{ $labels.resource }} from promise {{ $labels.promise }} could not be scheduled to any destination."
+                description: 'Resource {{ "{{" }} $labels.resource {{ "}}" }} from promise {{ "{{" }} $labels.promise {{ "}}" }} could not be scheduled to any destination.'
         - name: kratix.statestore
           interval: 60s
           rules:
@@ -300,4 +300,4 @@ additionalResources:
                 component: kratix
               annotations:
                 summary: "Kratix state reconciler unhealthy"
-                description: "The kratix-state-reconciler ArgoCD application health is {{ $labels.health_status }}."
+                description: 'The kratix-state-reconciler ArgoCD application health is {{ "{{" }} $labels.health_status {{ "}}" }}.'
