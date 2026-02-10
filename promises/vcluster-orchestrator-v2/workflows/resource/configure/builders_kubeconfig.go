@@ -218,7 +218,7 @@ if [ -z "$ITEM_ID" ]; then
           \"id\": \"kubeconfig\",
           \"type\": \"CONCEALED\",
           \"label\": \"kubeconfig\",
-          \"value\": $(echo \"$KUBECONFIG_CONTENT\" | jq -Rs .)
+          \"value\": $(printf '%s' "$KUBECONFIG_CONTENT" | jq -Rs .)
         },
         {
           \"id\": \"argocd-name\",
@@ -236,7 +236,7 @@ if [ -z "$ITEM_ID" ]; then
           \"id\": \"argocd-config\",
           \"type\": \"CONCEALED\",
           \"label\": \"argocd-config\",
-          \"value\": $(echo \"$ARGOCD_CONFIG\" | jq -Rc .)
+          \"value\": $(printf '%s' "$ARGOCD_CONFIG" | jq -Rc .)
         }
       ]
     }")
@@ -268,7 +268,7 @@ else
           \"id\": \"kubeconfig\",
           \"type\": \"CONCEALED\",
           \"label\": \"kubeconfig\",
-          \"value\": $(echo \"$KUBECONFIG_CONTENT\" | jq -Rs .)
+          \"value\": $(printf '%s' "$KUBECONFIG_CONTENT" | jq -Rs .)
         },
         {
           \"id\": \"argocd-name\",
@@ -286,7 +286,7 @@ else
           \"id\": \"argocd-config\",
           \"type\": \"CONCEALED\",
           \"label\": \"argocd-config\",
-          \"value\": $(echo \"$ARGOCD_CONFIG\" | jq -Rc .)
+          \"value\": $(printf '%s' "$ARGOCD_CONFIG" | jq -Rc .)
         }
       ]
     }")
