@@ -179,9 +179,9 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	config.VIP, _ = getStringValue(resource, "spec.exposure.vip")
 	config.APIPort, _ = getIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
 
-	// Calculate VIP if needed
+	// Calculate VIP if needed (offset 200 aligns with MetalLB pool 10.0.4.200-253)
 	if config.Subnet != "" && config.VIP == "" {
-		vip, err := defaultVIPFromCIDR(config.Subnet, 100)
+		vip, err := defaultVIPFromCIDR(config.Subnet, 200)
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate VIP: %w", err)
 		}

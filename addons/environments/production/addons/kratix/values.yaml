@@ -136,11 +136,6 @@ additionalResources:
           namespace: vcluster-media
           jsonPointers:
             - /data/NodeHosts
-        - group: batch
-          kind: Job
-          jsonPointers:
-            - /spec
-            - /status
         - group: argoproj.io
           kind: Application
           namespace: argocd
@@ -169,10 +164,3 @@ additionalResources:
             - /metadata/annotations/argocd.argoproj.io~1tracking-id
             - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
             - /metadata/labels
-        - group: batch
-          kind: Job
-          name: vcluster-test-kubeconfig-sync
-          namespace: vcluster-test
-          jsonPointers:
-            - /spec
-            - /status

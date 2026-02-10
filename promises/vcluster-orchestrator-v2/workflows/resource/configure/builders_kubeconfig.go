@@ -197,20 +197,16 @@ EOF
 
 # Check if item exists
 echo "Checking if item exists..."
-ITEM_SEARCH=$(curl -fsS -X POST "$API_BASE/vaults/$VAULT_ID/items" \
-	-H "$AUTH_HEADER" \
-  -H "Content-Type: application/json" \
-  -d "{\"title\":\"$OP_ITEM_NAME\"}" || echo "{}")
-
-ITEM_ID=$(echo "$ITEM_SEARCH" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4 || echo "")
+ITEM_ID=$(curl -fsS -H "$AUTH_HEADER" "$API_BASE/vaults/$VAULT_ID/items" | jq -r --arg title "$OP_ITEM_NAME" '.[] | select(.title==$title) | .id' | head -n1)
 
 if [ -z "$ITEM_ID" ]; then
   echo "Creating new 1Password item..."
-	RESPONSE=$(curl -fsS -X POST "$API_BASE/vaults/$VAULT_ID/items" \
-		-H "$AUTH_HEADER" \
+  RESPONSE=$(curl -sS -w "\n%{http_code}" -X POST "$API_BASE/vaults/$VAULT_ID/items" \
+    -H "$AUTH_HEADER" \
     -H "Content-Type: application/json" \
     -d "{
       \"title\": \"$OP_ITEM_NAME\",
+      \"vault\": {\"id\": \"$VAULT_ID\"},
       \"category\": \"SERVER\",
       \"tags\": [\"vcluster\", \"kubeconfig\", \"$ARGOCD_ENVIRONMENT\"],
       \"fields\": [
@@ -240,37 +236,63 @@ if [ -z "$ITEM_ID" ]; then
         }
       ]
     }")
-  ITEM_ID=$(echo "$RESPONSE" | grep -o '"id":"[^"]*' | head -1 | cut -d'"' -f4)
-	if [ -z "$ITEM_ID" ]; then
-		echo "Failed to create 1Password item: $OP_ITEM_NAME"
-		exit 1
-	fi
+  HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+  BODY=$(echo "$RESPONSE" | sed '$d')
+  if [ "$HTTP_STATUS" -ge 400 ]; then
+    echo "Failed to create 1Password item (HTTP $HTTP_STATUS): $BODY"
+    exit 1
+  fi
+  ITEM_ID=$(echo "$BODY" | jq -r '.id')
+  if [ -z "$ITEM_ID" ] || [ "$ITEM_ID" = "null" ]; then
+    echo "Failed to extract item ID from response"
+    exit 1
+  fi
   echo "Created item with ID: $ITEM_ID"
 else
   echo "Updating existing item ID: $ITEM_ID"
-	curl -fsS -X PATCH "$API_BASE/vaults/$VAULT_ID/items/$ITEM_ID" \
-		-H "$AUTH_HEADER" \
+  RESPONSE=$(curl -sS -w "\n%{http_code}" -X PUT "$API_BASE/vaults/$VAULT_ID/items/$ITEM_ID" \
+    -H "$AUTH_HEADER" \
     -H "Content-Type: application/json" \
     -d "{
+      \"id\": \"$ITEM_ID\",
+      \"title\": \"$OP_ITEM_NAME\",
+      \"vault\": {\"id\": \"$VAULT_ID\"},
+      \"category\": \"SERVER\",
+      \"tags\": [\"vcluster\", \"kubeconfig\", \"$ARGOCD_ENVIRONMENT\"],
       \"fields\": [
         {
           \"id\": \"kubeconfig\",
+          \"type\": \"CONCEALED\",
+          \"label\": \"kubeconfig\",
           \"value\": $(echo \"$KUBECONFIG_CONTENT\" | jq -Rs .)
         },
         {
           \"id\": \"argocd-name\",
+          \"type\": \"STRING\",
+          \"label\": \"argocd-name\",
           \"value\": \"$VCLUSTER_NAME.$BASE_DOMAIN_SANITIZED\"
         },
         {
           \"id\": \"argocd-server\",
+          \"type\": \"STRING\",
+          \"label\": \"argocd-server\",
           \"value\": \"$EXTERNAL_SERVER_URL\"
         },
         {
           \"id\": \"argocd-config\",
+          \"type\": \"CONCEALED\",
+          \"label\": \"argocd-config\",
           \"value\": $(echo \"$ARGOCD_CONFIG\" | jq -Rc .)
         }
       ]
-    }"
+    }")
+  HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+  BODY=$(echo "$RESPONSE" | sed '$d')
+  if [ "$HTTP_STATUS" -ge 400 ]; then
+    echo "Failed to update 1Password item (HTTP $HTTP_STATUS): $BODY"
+    exit 1
+  fi
+  echo "Updated item successfully"
 fi
 
 echo "✓ Kubeconfig synced to 1Password successfully"`
