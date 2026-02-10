@@ -283,30 +283,6 @@ gateway-api-crds-vcluster:
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
 
-nginx-gateway-fabric-crds-vcluster:
-  enabled: true
-  type: manifest
-  namespace: kube-system
-  project: platform-services
-  path: addons/environments/production/addons/nginx-gateway-fabric-crds
-  annotationsApp:
-    argocd.argoproj.io/sync-wave: "-5"
-  selector:
-    matchExpressions:
-      - key: enable_nginx_gateway_fabric
-        operator: In
-        values: ['true']
-      - key: cluster_role
-        operator: In
-        values: ['vcluster']
-      - key: environment
-        operator: NotIn
-        values: ['production']
-  syncPolicy:
-    automated: {}
-    syncOptions:
-      - ServerSideApply=true
-
 external-secrets-vcluster:
   enabled: true
   namespace: external-secrets
@@ -520,7 +496,6 @@ nginx-gateway-fabric-vcluster:
   project: platform-services
   chartRepository: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
   defaultVersion: "2.2.2"
-  helmSkipCrds: true
   annotationsApp:
     argocd.argoproj.io/sync-wave: "10"
   selector:
