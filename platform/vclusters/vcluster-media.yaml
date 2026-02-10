@@ -4,7 +4,7 @@ metadata:
   name: vcluster-media
   namespace: platform-requests
   annotations:
-    platform.integratn.tech/reconcile-at: "2026-02-10T01:30:10Z"
+    platform.integratn.tech/reconcile-at: "2026-02-10T01:57:56Z"
 spec:
   name: vcluster-media
   targetNamespace: vcluster-media
@@ -226,7 +226,7 @@ spec:
     argocd:
       environment: production
       clusterAnnotations:
-        platform.integratn.tech/reconcile-at: "2026-02-10T01:30:10Z"
+        platform.integratn.tech/reconcile-at: "2026-02-10T01:57:56Z"
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
