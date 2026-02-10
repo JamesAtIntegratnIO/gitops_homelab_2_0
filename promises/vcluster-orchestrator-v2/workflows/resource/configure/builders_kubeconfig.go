@@ -185,15 +185,19 @@ fi
 # Read kubeconfig from secret
 KUBECONFIG_CONTENT=$(cat /kubeconfig/config)
 
-# Build ArgoCD cluster config
-ARGOCD_CONFIG=$(cat <<EOF
-{
-  "tlsClientConfig": {
-    "insecure": false
-  }
-}
-EOF
-)
+# Extract TLS data from kubeconfig for ArgoCD cluster config
+CA_DATA=$(grep 'certificate-authority-data:' /kubeconfig/config | awk '{print $2}' | tr -d '\r\n' | head -n1)
+CLIENT_CERT=$(grep 'client-certificate-data:' /kubeconfig/config | awk '{print $2}' | tr -d '\r\n' | head -n1)
+CLIENT_KEY=$(grep 'client-key-data:' /kubeconfig/config | awk '{print $2}' | tr -d '\r\n' | head -n1)
+
+# Build ArgoCD cluster config with TLS client certificates
+if [ -n "$CA_DATA" ] && [ -n "$CLIENT_CERT" ] && [ -n "$CLIENT_KEY" ]; then
+  ARGOCD_CONFIG=$(printf '{"tlsClientConfig":{"insecure":false,"caData":"%s","certData":"%s","keyData":"%s"}}' "$CA_DATA" "$CLIENT_CERT" "$CLIENT_KEY")
+  echo "ArgoCD config built with TLS certs (caData=${#CA_DATA} chars, certData=${#CLIENT_CERT} chars, keyData=${#CLIENT_KEY} chars)"
+else
+  echo "WARNING: Could not extract TLS data from kubeconfig, falling back to insecure"
+  ARGOCD_CONFIG='{"tlsClientConfig":{"insecure":true}}'
+fi
 
 # Check if item exists
 echo "Checking if item exists..."
