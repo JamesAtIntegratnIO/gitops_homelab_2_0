@@ -26,3 +26,6 @@ secrets.env
 package.json
 package-lock.json
 node_modules/
+
+# Local scratch directory
+tmp/
