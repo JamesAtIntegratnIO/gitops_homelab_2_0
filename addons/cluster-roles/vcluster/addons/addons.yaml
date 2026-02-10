@@ -247,6 +247,135 @@ promtail-vcluster:
       - CreateNamespace=true
       - ServerSideApply=true
 
+# --- Prerequisites for non-production vclusters ---
+# Production vclusters get these from the production environment addons.
+# Non-production vclusters (dev, staging) need them from the vcluster cluster role.
+gateway-api-crds-vcluster:
+  enabled: true
+  type: manifest
+  namespace: kube-system
+  project: platform-services
+  defaultVersion: v1.4.0
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "-5"
+  selector:
+    matchExpressions:
+      - key: enable_gateway_api_crds
+        operator: In
+        values: ['true']
+      - key: cluster_role
+        operator: In
+        values: ['vcluster']
+      - key: environment
+        operator: NotIn
+        values: ['production']
+  generatorValues:
+    gatewayAPIRevision: v1.4.0
+  manifestSource:
+    repoURL: https://github.com/kubernetes-sigs/gateway-api.git
+    path: config/crd/standard
+    directory:
+      recurse: true
+    targetRevisionFromValue: gatewayAPIRevision
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+
+nginx-gateway-fabric-crds-vcluster:
+  enabled: true
+  type: manifest
+  namespace: kube-system
+  project: platform-services
+  path: addons/environments/production/addons/nginx-gateway-fabric-crds
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "-5"
+  selector:
+    matchExpressions:
+      - key: enable_nginx_gateway_fabric
+        operator: In
+        values: ['true']
+      - key: cluster_role
+        operator: In
+        values: ['vcluster']
+      - key: environment
+        operator: NotIn
+        values: ['production']
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - ServerSideApply=true
+
+external-secrets-vcluster:
+  enabled: true
+  namespace: external-secrets
+  chartName: external-secrets
+  releaseName: external-secrets
+  project: platform-services
+  defaultVersion: "0.10.3"
+  chartRepository: "https://charts.external-secrets.io"
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "-3"
+  selector:
+    matchExpressions:
+      - key: enable_external_secrets
+        operator: In
+        values: ['true']
+      - key: cluster_role
+        operator: In
+        values: ['vcluster']
+      - key: environment
+        operator: NotIn
+        values: ['production']
+  valuesObject:
+    installCRDs: true
+    serviceAccount:
+      name: "external-secrets-sa"
+    extraObjects:
+      - apiVersion: external-secrets.io/v1beta1
+        kind: ClusterSecretStore
+        metadata:
+          name: onepassword-store
+          labels:
+            integratn.tech/cluster-secret-store: onepassword-store
+        spec:
+          provider:
+            onepassword:
+              connectHost: https://connect.integratn.tech
+              vaults:
+                homelab: 1
+              auth:
+                secretRef:
+                  connectTokenSecretRef:
+                    name: eso-onepassword-token
+                    namespace: external-secrets
+                    key: token
+  syncPolicy:
+    automated:
+      selfHeal: false
+      allowEmpty: true
+      prune: true
+    retry:
+      limit: -1
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 10m
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+  ignoreDifferences:
+    - kind: Secret
+      name: external-secrets-webhook
+      jsonPointers:
+        - /data
+    - kind: Service
+      name: external-secrets-webhook
+      jsonPointers:
+        - /spec/clusterIP
+        - /spec/clusterIPs
+
 cert-manager-vcluster:
   enabled: true
   releaseName: cert-manager
