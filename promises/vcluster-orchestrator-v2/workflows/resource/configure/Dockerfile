@@ -11,7 +11,6 @@ COPY go.mod ./
 
 # Copy source code
 COPY *.go ./
-COPY templates/ ./templates/
 RUN go mod tidy && go mod download
 
 # Build static binary
