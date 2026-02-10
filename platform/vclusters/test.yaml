@@ -5,7 +5,7 @@ metadata:
   namespace: platform-requests
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-    platform.integratn.tech/reconcile-at: "2026-02-10T01:06:14Z"
+    platform.integratn.tech/reconcile-at: "2026-02-10T01:15:15Z"
 spec:
   name: test
   targetNamespace: vcluster-test
@@ -32,6 +32,7 @@ spec:
   exposure:
     hostname: test.integratn.tech
     subnet: 10.0.4.0/24
+    vip: 10.0.4.201
     apiPort: 443
   integrations:
     certManager:
@@ -46,7 +47,7 @@ spec:
         integratn.tech/environment: development
         integratn.tech/cluster-type: vcluster
       clusterAnnotations:
-        platform.integratn.tech/reconcile-at: "2026-02-10T01:06:14Z"
+        platform.integratn.tech/reconcile-at: "2026-02-10T01:15:15Z"
       workloadRepo:
         url: https://github.com/jamesatintegratnio/gitops_homelab_2_0
         path: workloads
