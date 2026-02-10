@@ -71,9 +71,19 @@ No `kind: Secret` resources are generated. All credentials flow through `Externa
 | CoreDNS ConfigMap | Direct | Target namespace |
 | Etcd Certificates | Direct (conditional) | Target namespace |
 
-### Delete Handling
+### Pipeline Lifecycle
 
-The same image handles both `configure` and `delete` actions. The SDK's `WorkflowAction()` determines the action from Kratix environment variables. On delete, the pipeline logs cleanup but Kratix handles actual resource removal through the state store.
+Both the `configure` and `delete` workflows use the **same container image**. Kratix sets the `KRATIX_WORKFLOW_ACTION` environment variable to tell the code which action to perform:
+
+1. **CR created/updated** → Kratix runs the `configure` pipeline → env var set to `configure`
+2. **CR deleted** → Kratix runs the `delete` pipeline → env var set to `delete`
+
+The Go code reads this via `sdk.WorkflowAction()` and branches:
+
+- **Configure**: Builds all resources (3 ResourceRequests + direct resources), writes them to `/kratix/output/`. Kratix commits these to the git state store, and ArgoCD syncs them into the cluster.
+- **Delete**: Kratix automatically removes the previously-written resources from the state store. ArgoCD prunes the corresponding cluster resources.
+
+On delete, the pipeline logs the cleanup action but doesn't need to write output — Kratix handles resource removal by clearing the state store directory for this resource.
 
 ## Preset Defaults
 
