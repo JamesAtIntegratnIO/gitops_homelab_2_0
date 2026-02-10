@@ -30,7 +30,6 @@ WORKDIR /
 
 # Copy binary from builder
 COPY --from=builder /workspace/configure /usr/local/bin/configure
-COPY --from=builder /workspace/templates /templates
 
 # Run as non-root
 USER 65532:65532
