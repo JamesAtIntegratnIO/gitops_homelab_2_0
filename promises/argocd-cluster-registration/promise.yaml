@@ -1,0 +1,134 @@
+apiVersion: platform.kratix.io/v1alpha1
+kind: Promise
+metadata:
+  name: argocd-cluster-registration
+  labels:
+    kratix.io/promise-type: platform
+spec:
+  destinationSelectors:
+    - matchLabels:
+        capability.vcluster: "true"
+
+  api:
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: argocdclusterregistrations.platform.integratn.tech
+    spec:
+      group: platform.integratn.tech
+      scope: Namespaced
+      names:
+        plural: argocdclusterregistrations
+        singular: argocdclusterregistration
+        kind: ArgoCDClusterRegistration
+      versions:
+        - name: v1alpha1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required:
+                    - name
+                    - targetNamespace
+                    - kubeconfigSecret
+                    - externalServerURL
+                  properties:
+                    name:
+                      type: string
+                      description: Cluster name for ArgoCD registration
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    targetNamespace:
+                      type: string
+                      description: Namespace where RBAC and sync resources will be created
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    kubeconfigSecret:
+                      type: string
+                      description: Name of the Kubernetes secret containing the cluster kubeconfig
+                    kubeconfigKey:
+                      type: string
+                      description: Key within the kubeconfig secret (default config)
+                      default: config
+                    externalServerURL:
+                      type: string
+                      description: External API server URL for ArgoCD to connect to
+                    onePasswordItem:
+                      type: string
+                      description: 1Password item name for storing kubeconfig (defaults to {name}-kubeconfig)
+                    onePasswordConnectHost:
+                      type: string
+                      description: 1Password Connect server URL
+                      default: https://connect.integratn.tech
+                    environment:
+                      type: string
+                      description: Environment label for the ArgoCD cluster secret
+                      default: development
+                    baseDomain:
+                      type: string
+                      description: Base domain for cluster naming
+                      default: integratn.tech
+                    baseDomainSanitized:
+                      type: string
+                      description: Sanitized base domain (dots replaced with dashes)
+                    clusterLabels:
+                      type: object
+                      description: Labels to apply to the ArgoCD cluster secret
+                      additionalProperties:
+                        type: string
+                    clusterAnnotations:
+                      type: object
+                      description: Annotations to apply to the ArgoCD cluster secret
+                      additionalProperties:
+                        type: string
+                    syncJobName:
+                      type: string
+                      description: Override name for the kubeconfig sync job (for reconciliation)
+                status:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+
+  workflows:
+    resource:
+      configure:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: acr-configure
+            namespace: default
+          spec:
+            containers:
+              - name: configure
+                image: ghcr.io/jamesatintegratnio/argocd-cluster-registration-configure:latest
+                imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault
+      delete:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: acr-delete
+            namespace: default
+          spec:
+            containers:
+              - name: delete
+                image: ghcr.io/jamesatintegratnio/argocd-cluster-registration-configure:latest
+                imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault

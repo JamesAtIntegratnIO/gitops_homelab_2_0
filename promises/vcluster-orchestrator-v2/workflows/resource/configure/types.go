@@ -55,8 +55,6 @@ type Resource struct {
 	Spec       interface{} `json:"spec,omitempty"`
 	Data       interface{} `json:"data,omitempty"`
 	Rules      interface{} `json:"rules,omitempty"`
-	RoleRef    *RoleRef    `json:"roleRef,omitempty"`
-	Subjects   []Subject   `json:"subjects,omitempty"`
 }
 
 // ObjectMeta is a lightweight Kubernetes metadata block.
@@ -68,7 +66,7 @@ type ObjectMeta struct {
 }
 
 // ============================================================================
-// RBAC Types
+// RBAC Types (PolicyRule kept for VCluster RBAC config)
 // ============================================================================
 
 type PolicyRule struct {
@@ -76,18 +74,6 @@ type PolicyRule struct {
 	Resources     []string `json:"resources"`
 	Verbs         []string `json:"verbs"`
 	ResourceNames []string `json:"resourceNames,omitempty"`
-}
-
-type RoleRef struct {
-	APIGroup string `json:"apiGroup"`
-	Kind     string `json:"kind"`
-	Name     string `json:"name"`
-}
-
-type Subject struct {
-	Kind      string `json:"kind"`
-	Name      string `json:"name"`
-	Namespace string `json:"namespace,omitempty"`
 }
 
 // ============================================================================
@@ -195,60 +181,6 @@ type CAIssuer struct {
 }
 
 // ============================================================================
-// ExternalSecret Types
-// ============================================================================
-
-type ExternalSecretSpec struct {
-	SecretStoreRef  SecretStoreRef        `json:"secretStoreRef"`
-	Target          ExternalSecretTarget  `json:"target"`
-	Data            []ExternalSecretData  `json:"data,omitempty"`
-	DataFrom        []ExternalSecretDataFrom `json:"dataFrom,omitempty"`
-	RefreshInterval string                `json:"refreshInterval,omitempty"`
-}
-
-type SecretStoreRef struct {
-	Name string `json:"name"`
-	Kind string `json:"kind"`
-}
-
-type ExternalSecretTarget struct {
-	Name     string                  `json:"name,omitempty"`
-	Template *ExternalSecretTemplate `json:"template,omitempty"`
-}
-
-type ExternalSecretTemplate struct {
-	EngineVersion string            `json:"engineVersion,omitempty"`
-	Type          string            `json:"type,omitempty"`
-	Metadata      *TemplateMetadata `json:"metadata,omitempty"`
-	Data          map[string]string `json:"data,omitempty"`
-}
-
-type TemplateMetadata struct {
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
-type ExternalSecretData struct {
-	SecretKey string    `json:"secretKey"`
-	RemoteRef RemoteRef `json:"remoteRef"`
-}
-
-type RemoteRef struct {
-	Key      string `json:"key"`
-	Property string `json:"property,omitempty"`
-}
-
-type ExternalSecretDataFrom struct {
-	Extract *ExternalSecretExtract `json:"extract"`
-}
-
-type ExternalSecretExtract struct {
-	Key                string `json:"key"`
-	ConversionStrategy string `json:"conversionStrategy,omitempty"`
-	DecodingStrategy   string `json:"decodingStrategy,omitempty"`
-}
-
-// ============================================================================
 // ArgoCD Kratix ResourceRequest Types
 // ============================================================================
 
@@ -311,6 +243,19 @@ type SyncPolicy struct {
 type AutomatedSync struct {
 	SelfHeal bool `json:"selfHeal"`
 	Prune    bool `json:"prune"`
+}
+
+type ArgoCDClusterRegistrationSpec struct {
+	Name                string            `json:"name"`
+	TargetNamespace     string            `json:"targetNamespace"`
+	KubeconfigSecret    string            `json:"kubeconfigSecret"`
+	ExternalServerURL   string            `json:"externalServerURL"`
+	Environment         string            `json:"environment,omitempty"`
+	BaseDomain          string            `json:"baseDomain,omitempty"`
+	BaseDomainSanitized string            `json:"baseDomainSanitized,omitempty"`
+	ClusterLabels       map[string]string `json:"clusterLabels,omitempty"`
+	ClusterAnnotations  map[string]string `json:"clusterAnnotations,omitempty"`
+	SyncJobName         string            `json:"syncJobName,omitempty"`
 }
 
 // ============================================================================

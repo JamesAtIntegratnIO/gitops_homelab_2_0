@@ -644,8 +644,9 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	log.Println("--- Rendering orchestrator resources ---")
 
 	resourceRequests := map[string]Resource{
-		"resources/argocd-project-request.yaml":     buildArgoCDProjectRequest(config),
-		"resources/argocd-application-request.yaml": buildArgoCDApplicationRequest(config),
+		"resources/argocd-project-request.yaml":              buildArgoCDProjectRequest(config),
+		"resources/argocd-application-request.yaml":          buildArgoCDApplicationRequest(config),
+		"resources/argocd-cluster-registration-request.yaml": buildArgoCDClusterRegistrationRequest(config),
 	}
 
 	for path, obj := range resourceRequests {
@@ -672,27 +673,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	}
 	log.Printf("✓ Rendered: %s", "resources/coredns-configmap.yaml")
 
-	if err := writeYAMLDocuments(sdk, "resources/kubeconfig-sync-rbac.yaml", buildKubeconfigSyncRBAC(config)); err != nil {
-		return fmt.Errorf("write kubeconfig sync rbac: %w", err)
-	}
-	log.Printf("✓ Rendered: %s", "resources/kubeconfig-sync-rbac.yaml")
-
-	if err := writeYAML(sdk, "resources/kubeconfig-sync-job.yaml", buildKubeconfigSyncJob(config)); err != nil {
-		return fmt.Errorf("write kubeconfig sync job: %w", err)
-	}
-	log.Printf("✓ Rendered: %s", "resources/kubeconfig-sync-job.yaml")
-
-	if err := writeYAML(sdk, "resources/kubeconfig-external-secret.yaml", buildKubeconfigExternalSecret(config)); err != nil {
-		return fmt.Errorf("write kubeconfig external secret: %w", err)
-	}
-	log.Printf("✓ Rendered: %s", "resources/kubeconfig-external-secret.yaml")
-
-	if err := writeYAML(sdk, "resources/argocd-cluster-external-secret.yaml", buildArgoCDClusterExternalSecret(config)); err != nil {
-		return fmt.Errorf("write argocd cluster external secret: %w", err)
-	}
-	log.Printf("✓ Rendered: %s", "resources/argocd-cluster-external-secret.yaml")
-
-	directResources := 6
+	directResources := 2 // namespace + coredns configmap
 	if etcdEnabled(config) {
 		directResources++
 	}
@@ -729,22 +710,15 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 
 	outputs := map[string]Resource{}
 
+	// Delete ResourceRequests (sub-promises will handle their own cleanup)
 	createdObjects := []Resource{
 		buildArgoCDProjectRequest(config),
 		buildArgoCDApplicationRequest(config),
+		buildArgoCDClusterRegistrationRequest(config),
 		buildCorednsConfigMap(config),
-		buildKubeconfigExternalSecret(config),
-		buildArgoCDClusterExternalSecret(config),
-		buildKubeconfigSyncJob(config),
 	}
 
 	for _, obj := range createdObjects {
-		deleteObj := deleteFromResource(obj)
-		path := deleteOutputPathForResource("resources", obj)
-		outputs[path] = deleteObj
-	}
-
-	for _, obj := range buildKubeconfigSyncRBAC(config) {
 		deleteObj := deleteFromResource(obj)
 		path := deleteOutputPathForResource("resources", obj)
 		outputs[path] = deleteObj

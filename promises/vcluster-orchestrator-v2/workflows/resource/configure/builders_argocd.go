@@ -90,74 +90,33 @@ func buildArgoCDApplicationRequest(config *VClusterConfig) Resource {
 	}
 }
 
-func buildArgoCDClusterExternalSecret(config *VClusterConfig) Resource {
-	labels := mergeStringMap(map[string]string{
-		"app.kubernetes.io/name":         "external-secret",
-		"app.kubernetes.io/component":    "argocd-cluster",
-		"argocd.argoproj.io/secret-type": "cluster",
+func buildArgoCDClusterRegistrationRequest(config *VClusterConfig) Resource {
+	metadataLabels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name": "argocd-cluster-registration",
 	}, baseLabels(config, config.Name))
-	labels = mergeStringMap(labels, config.ArgoCDClusterLabels)
 
-	metadataAnnotations := map[string]string{}
-	if len(config.ArgoCDClusterAnnotations) > 0 {
-		metadataAnnotations = mergeStringMap(metadataAnnotations, config.ArgoCDClusterAnnotations)
-	}
-
-	targetLabels := mergeStringMap(map[string]string{
-		"argocd.argoproj.io/secret-type": "cluster",
-		"integratn.tech/vcluster-name":  config.Name,
-		"integratn.tech/environment":    config.ArgoCDEnvironment,
-	}, config.ArgoCDClusterLabels)
-
-	targetAnnotations := map[string]string{}
-	if len(config.ArgoCDClusterAnnotations) > 0 {
-		targetAnnotations = mergeStringMap(targetAnnotations, config.ArgoCDClusterAnnotations)
-	}
-
-	tmplMeta := &TemplateMetadata{
-		Labels: targetLabels,
-	}
-	if len(targetAnnotations) > 0 {
-		tmplMeta.Annotations = targetAnnotations
+	spec := ArgoCDClusterRegistrationSpec{
+		Name:              config.Name,
+		TargetNamespace:   config.TargetNamespace,
+		KubeconfigSecret:  fmt.Sprintf("vc-%s", config.Name),
+		ExternalServerURL: config.ExternalServerURL,
+		Environment:       config.ArgoCDEnvironment,
+		BaseDomain:        config.BaseDomain,
+		BaseDomainSanitized: config.BaseDomainSanitized,
+		ClusterLabels:     config.ArgoCDClusterLabels,
+		ClusterAnnotations: config.ArgoCDClusterAnnotations,
+		SyncJobName:       config.KubeconfigSyncJobName,
 	}
 
 	return Resource{
-		APIVersion: "external-secrets.io/v1beta1",
-		Kind:       "ExternalSecret",
+		APIVersion: "platform.integratn.tech/v1alpha1",
+		Kind:       "ArgoCDClusterRegistration",
 		Metadata: resourceMeta(
-			fmt.Sprintf("%s-argocd-cluster", config.Name),
-			"argocd",
-			labels,
-			metadataAnnotations,
+			fmt.Sprintf("%s-cluster-registration", config.Name),
+			config.Namespace,
+			metadataLabels,
+			nil,
 		),
-		Spec: ExternalSecretSpec{
-			SecretStoreRef: SecretStoreRef{
-				Name: "onepassword-store",
-				Kind: "ClusterSecretStore",
-			},
-			Target: ExternalSecretTarget{
-				Name: fmt.Sprintf("vcluster-%s", config.Name),
-				Template: &ExternalSecretTemplate{
-					EngineVersion: "v2",
-					Type:          "Opaque",
-					Metadata:      tmplMeta,
-					Data: map[string]string{
-						"name":   "{{ index . \"argocd-name\" }}",
-						"server": "{{ index . \"argocd-server\" }}",
-						"config": "{{ index . \"argocd-config\" }}",
-					},
-				},
-			},
-			DataFrom: []ExternalSecretDataFrom{
-				{
-					Extract: &ExternalSecretExtract{
-						Key:                config.OnePasswordItem,
-						ConversionStrategy: "Default",
-						DecodingStrategy:   "None",
-					},
-				},
-			},
-			RefreshInterval: "15m",
-		},
+		Spec: spec,
 	}
 }

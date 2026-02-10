@@ -2,11 +2,11 @@ package main
 
 import "fmt"
 
-func buildKubeconfigExternalSecret(config *VClusterConfig) Resource {
+func buildKubeconfigExternalSecret(config *RegistrationConfig) Resource {
 	labels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name":      "external-secret",
 		"app.kubernetes.io/component": "kubeconfig",
-	}, baseLabels(config, config.Name))
+	}, baseLabels(config))
 
 	return Resource{
 		APIVersion: "external-secrets.io/v1beta1",
@@ -23,11 +23,11 @@ func buildKubeconfigExternalSecret(config *VClusterConfig) Resource {
 				Kind: "ClusterSecretStore",
 			},
 			Target: ExternalSecretTarget{
-				Name: fmt.Sprintf("vcluster-%s-kubeconfig-external", config.Name),
+				Name: fmt.Sprintf("%s-kubeconfig-external", config.Name),
 				Template: &ExternalSecretTemplate{
 					EngineVersion: "v2",
 					Data: map[string]string{
-						"config": "{{ .kubeconfig }}\n",
+						config.KubeconfigKey: "{{ .kubeconfig }}\n",
 					},
 				},
 			},
@@ -43,17 +43,19 @@ func buildKubeconfigExternalSecret(config *VClusterConfig) Resource {
 	}
 }
 
-func buildKubeconfigSyncRBAC(config *VClusterConfig) []Resource {
+func buildKubeconfigSyncRBAC(config *RegistrationConfig) []Resource {
 	labels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name":      "external-secret",
 		"app.kubernetes.io/component": "kubeconfig-sync",
-	}, baseLabels(config, config.Name))
+	}, baseLabels(config))
+
+	onePasswordTokenName := fmt.Sprintf("%s-onepassword-token", config.Name)
 
 	externalSecret := Resource{
 		APIVersion: "external-secrets.io/v1beta1",
 		Kind:       "ExternalSecret",
 		Metadata: resourceMeta(
-			fmt.Sprintf("%s-onepassword-token", config.Name),
+			onePasswordTokenName,
 			config.TargetNamespace,
 			labels,
 			nil,
@@ -64,7 +66,7 @@ func buildKubeconfigSyncRBAC(config *VClusterConfig) []Resource {
 				Kind: "ClusterSecretStore",
 			},
 			Target: ExternalSecretTarget{
-				Name: fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+				Name: onePasswordTokenName,
 			},
 			Data: []ExternalSecretData{
 				{
@@ -87,33 +89,25 @@ func buildKubeconfigSyncRBAC(config *VClusterConfig) []Resource {
 
 	baseRBACLabels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "kubeconfig-sync",
-	}, baseLabels(config, config.Name))
+	}, baseLabels(config))
+
+	saName := fmt.Sprintf("%s-kubeconfig-sync", config.Name)
 
 	serviceAccount := Resource{
 		APIVersion: "v1",
 		Kind:       "ServiceAccount",
-		Metadata: resourceMeta(
-			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
-			config.TargetNamespace,
-			baseRBACLabels,
-			nil,
-		),
+		Metadata:   resourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
 	}
 
 	role := Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",
 		Kind:       "Role",
-		Metadata: resourceMeta(
-			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
-			config.TargetNamespace,
-			baseRBACLabels,
-			nil,
-		),
+		Metadata:   resourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
 		Rules: []PolicyRule{
 			{
 				APIGroups:     []string{""},
 				Resources:     []string{"secrets"},
-				ResourceNames: []string{fmt.Sprintf("vc-%s", config.Name), fmt.Sprintf("vcluster-%s-onepassword-token", config.Name)},
+				ResourceNames: []string{config.KubeconfigSecret, onePasswordTokenName},
 				Verbs:         []string{"get"},
 			},
 		},
@@ -122,21 +116,16 @@ func buildKubeconfigSyncRBAC(config *VClusterConfig) []Resource {
 	roleBinding := Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",
 		Kind:       "RoleBinding",
-		Metadata: resourceMeta(
-			fmt.Sprintf("%s-kubeconfig-sync", config.Name),
-			config.TargetNamespace,
-			baseRBACLabels,
-			nil,
-		),
+		Metadata:   resourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
 		RoleRef: &RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
-			Name:     fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+			Name:     saName,
 		},
 		Subjects: []Subject{
 			{
 				Kind:      "ServiceAccount",
-				Name:      fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+				Name:      saName,
 				Namespace: config.TargetNamespace,
 			},
 		},
@@ -145,24 +134,27 @@ func buildKubeconfigSyncRBAC(config *VClusterConfig) []Resource {
 	return []Resource{externalSecret, serviceAccount, role, roleBinding}
 }
 
-func buildKubeconfigSyncJob(config *VClusterConfig) Resource {
+func buildKubeconfigSyncJob(config *RegistrationConfig) Resource {
 	labels := mergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "kubeconfig-sync",
-	}, baseLabels(config, config.Name))
+	}, baseLabels(config))
 
-	initCommand := fmt.Sprintf(`echo "Waiting for secret vc-%s to exist..."
-until [ -f /kubeconfig/config ]; do
+	saName := fmt.Sprintf("%s-kubeconfig-sync", config.Name)
+	onePasswordTokenName := fmt.Sprintf("%s-onepassword-token", config.Name)
+
+	initCommand := fmt.Sprintf(`echo "Waiting for kubeconfig secret to be mounted..."
+until [ -f /kubeconfig/%s ]; do
   echo "Kubeconfig not found yet, sleeping..."
   sleep 5
 done
-echo "Kubeconfig found!"`, config.Name)
+echo "Kubeconfig found!"`, config.KubeconfigKey)
 
 	syncCommand := `set -e
 
 apk add --no-cache curl jq >/dev/null 2>&1
 
-echo "=== VCluster Kubeconfig Sync to 1Password ==="
-echo "VCluster: $VCLUSTER_NAME"
+echo "=== Kubeconfig Sync to 1Password ==="
+echo "Cluster: $CLUSTER_NAME"
 echo "1Password Item: $OP_ITEM_NAME"
 echo "Vault: $OP_VAULT"
 
@@ -183,12 +175,12 @@ if [ -z "$VAULT_ID" ]; then
 fi
 
 # Read kubeconfig from secret
-KUBECONFIG_CONTENT=$(cat /kubeconfig/config)
+KUBECONFIG_CONTENT=$(cat /kubeconfig/$KUBECONFIG_KEY)
 
 # Extract TLS data from kubeconfig for ArgoCD cluster config
-CA_DATA=$(grep 'certificate-authority-data:' /kubeconfig/config | awk '{print $2}' | tr -d '\r\n' | head -n1)
-CLIENT_CERT=$(grep 'client-certificate-data:' /kubeconfig/config | awk '{print $2}' | tr -d '\r\n' | head -n1)
-CLIENT_KEY=$(grep 'client-key-data:' /kubeconfig/config | awk '{print $2}' | tr -d '\r\n' | head -n1)
+CA_DATA=$(grep 'certificate-authority-data:' /kubeconfig/$KUBECONFIG_KEY | awk '{print $2}' | tr -d '\r\n' | head -n1)
+CLIENT_CERT=$(grep 'client-certificate-data:' /kubeconfig/$KUBECONFIG_KEY | awk '{print $2}' | tr -d '\r\n' | head -n1)
+CLIENT_KEY=$(grep 'client-key-data:' /kubeconfig/$KUBECONFIG_KEY | awk '{print $2}' | tr -d '\r\n' | head -n1)
 
 # Build ArgoCD cluster config with TLS client certificates
 if [ -n "$CA_DATA" ] && [ -n "$CLIENT_CERT" ] && [ -n "$CLIENT_KEY" ]; then
@@ -212,7 +204,7 @@ if [ -z "$ITEM_ID" ]; then
       \"title\": \"$OP_ITEM_NAME\",
       \"vault\": {\"id\": \"$VAULT_ID\"},
       \"category\": \"SERVER\",
-      \"tags\": [\"vcluster\", \"kubeconfig\", \"$ARGOCD_ENVIRONMENT\"],
+      \"tags\": [\"cluster\", \"kubeconfig\", \"$ARGOCD_ENVIRONMENT\"],
       \"fields\": [
         {
           \"id\": \"kubeconfig\",
@@ -224,7 +216,7 @@ if [ -z "$ITEM_ID" ]; then
           \"id\": \"argocd-name\",
           \"type\": \"STRING\",
           \"label\": \"argocd-name\",
-          \"value\": \"$VCLUSTER_NAME.$BASE_DOMAIN_SANITIZED\"
+          \"value\": \"$CLUSTER_NAME.$BASE_DOMAIN_SANITIZED\"
         },
         {
           \"id\": \"argocd-server\",
@@ -262,7 +254,7 @@ else
       \"title\": \"$OP_ITEM_NAME\",
       \"vault\": {\"id\": \"$VAULT_ID\"},
       \"category\": \"SERVER\",
-      \"tags\": [\"vcluster\", \"kubeconfig\", \"$ARGOCD_ENVIRONMENT\"],
+      \"tags\": [\"cluster\", \"kubeconfig\", \"$ARGOCD_ENVIRONMENT\"],
       \"fields\": [
         {
           \"id\": \"kubeconfig\",
@@ -274,7 +266,7 @@ else
           \"id\": \"argocd-name\",
           \"type\": \"STRING\",
           \"label\": \"argocd-name\",
-          \"value\": \"$VCLUSTER_NAME.$BASE_DOMAIN_SANITIZED\"
+          \"value\": \"$CLUSTER_NAME.$BASE_DOMAIN_SANITIZED\"
         },
         {
           \"id\": \"argocd-server\",
@@ -304,12 +296,7 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 	return Resource{
 		APIVersion: "batch/v1",
 		Kind:       "Job",
-		Metadata: resourceMeta(
-			config.KubeconfigSyncJobName,
-			config.TargetNamespace,
-			labels,
-			nil,
-		),
+		Metadata:   resourceMeta(config.SyncJobName, config.TargetNamespace, labels, nil),
 		Spec: JobSpec{
 			BackoffLimit:            3,
 			TTLSecondsAfterFinished: 600,
@@ -321,7 +308,7 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 					},
 				},
 				Spec: PodSpec{
-					ServiceAccountName: fmt.Sprintf("%s-kubeconfig-sync", config.Name),
+					ServiceAccountName: saName,
 					RestartPolicy:      "OnFailure",
 					InitContainers: []Container{
 						{
@@ -329,10 +316,7 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 							Image:   "busybox:1.36",
 							Command: []string{"sh", "-c", initCommand},
 							VolumeMounts: []VolumeMount{
-								{
-									Name:      "kubeconfig",
-									MountPath: "/kubeconfig",
-								},
+								{Name: "kubeconfig", MountPath: "/kubeconfig"},
 							},
 						},
 					},
@@ -341,12 +325,12 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 							Name:  "sync-to-onepassword",
 							Image: "alpine:3.20",
 							Env: []EnvVar{
-								{Name: "OP_CONNECT_HOST", Value: "https://connect.integratn.tech"},
+								{Name: "OP_CONNECT_HOST", Value: config.OnePasswordConnectHost},
 								{
 									Name: "OP_CONNECT_TOKEN",
 									ValueFrom: &EnvVarSource{
 										SecretKeyRef: &SecretKeySelector{
-											Name: fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+											Name: onePasswordTokenName,
 											Key:  "token",
 										},
 									},
@@ -355,25 +339,22 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 									Name: "OP_VAULT",
 									ValueFrom: &EnvVarSource{
 										SecretKeyRef: &SecretKeySelector{
-											Name: fmt.Sprintf("vcluster-%s-onepassword-token", config.Name),
+											Name: onePasswordTokenName,
 											Key:  "vault",
 										},
 									},
 								},
-								{Name: "VCLUSTER_NAME", Value: config.Name},
+								{Name: "CLUSTER_NAME", Value: config.Name},
+								{Name: "KUBECONFIG_KEY", Value: config.KubeconfigKey},
 								{Name: "OP_ITEM_NAME", Value: config.OnePasswordItem},
 								{Name: "BASE_DOMAIN", Value: config.BaseDomain},
 								{Name: "BASE_DOMAIN_SANITIZED", Value: config.BaseDomainSanitized},
 								{Name: "EXTERNAL_SERVER_URL", Value: config.ExternalServerURL},
-								{Name: "ARGOCD_ENVIRONMENT", Value: config.ArgoCDEnvironment},
+								{Name: "ARGOCD_ENVIRONMENT", Value: config.Environment},
 							},
 							Command: []string{"sh", "-c", syncCommand},
 							VolumeMounts: []VolumeMount{
-								{
-									Name:      "kubeconfig",
-									MountPath: "/kubeconfig",
-									ReadOnly:  true,
-								},
+								{Name: "kubeconfig", MountPath: "/kubeconfig", ReadOnly: true},
 							},
 						},
 					},
@@ -381,13 +362,87 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 						{
 							Name: "kubeconfig",
 							Secret: &SecretVolume{
-								SecretName: fmt.Sprintf("vc-%s", config.Name),
+								SecretName: config.KubeconfigSecret,
 								Optional:   false,
 							},
 						},
 					},
 				},
 			},
+		},
+	}
+}
+
+func buildArgoCDClusterExternalSecret(config *RegistrationConfig) Resource {
+	labels := mergeStringMap(map[string]string{
+		"app.kubernetes.io/name":         "external-secret",
+		"app.kubernetes.io/component":    "argocd-cluster",
+		"argocd.argoproj.io/secret-type": "cluster",
+	}, baseLabels(config))
+	if config.ClusterLabels != nil {
+		labels = mergeStringMap(labels, config.ClusterLabels)
+	}
+
+	metadataAnnotations := map[string]string{}
+	if len(config.ClusterAnnotations) > 0 {
+		metadataAnnotations = mergeStringMap(metadataAnnotations, config.ClusterAnnotations)
+	}
+
+	targetLabels := mergeStringMap(map[string]string{
+		"argocd.argoproj.io/secret-type": "cluster",
+		"integratn.tech/cluster-name":    config.Name,
+		"integratn.tech/environment":     config.Environment,
+	}, config.ClusterLabels)
+
+	targetAnnotations := map[string]string{}
+	if len(config.ClusterAnnotations) > 0 {
+		targetAnnotations = mergeStringMap(targetAnnotations, config.ClusterAnnotations)
+	}
+
+	tmplMeta := &TemplateMetadata{
+		Labels: targetLabels,
+	}
+	if len(targetAnnotations) > 0 {
+		tmplMeta.Annotations = targetAnnotations
+	}
+
+	esName := fmt.Sprintf("%s-argocd-cluster", config.Name)
+	if len(metadataAnnotations) == 0 {
+		metadataAnnotations = nil
+	}
+
+	return Resource{
+		APIVersion: "external-secrets.io/v1beta1",
+		Kind:       "ExternalSecret",
+		Metadata:   resourceMeta(esName, "argocd", labels, metadataAnnotations),
+		Spec: ExternalSecretSpec{
+			SecretStoreRef: SecretStoreRef{
+				Name: "onepassword-store",
+				Kind: "ClusterSecretStore",
+			},
+			Target: ExternalSecretTarget{
+				Name: fmt.Sprintf("cluster-%s", config.Name),
+				Template: &ExternalSecretTemplate{
+					EngineVersion: "v2",
+					Type:          "Opaque",
+					Metadata:      tmplMeta,
+					Data: map[string]string{
+						"name":   "{{ index . \"argocd-name\" }}",
+						"server": "{{ index . \"argocd-server\" }}",
+						"config": "{{ index . \"argocd-config\" }}",
+					},
+				},
+			},
+			DataFrom: []ExternalSecretDataFrom{
+				{
+					Extract: &ExternalSecretExtract{
+						Key:                config.OnePasswordItem,
+						ConversionStrategy: "Default",
+						DecodingStrategy:   "None",
+					},
+				},
+			},
+			RefreshInterval: "15m",
 		},
 	}
 }

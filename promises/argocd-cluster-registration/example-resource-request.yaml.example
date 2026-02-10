@@ -1,0 +1,36 @@
+apiVersion: platform.integratn.tech/v1alpha1
+kind: ArgoCDClusterRegistration
+metadata:
+  name: media-cluster-registration
+  namespace: platform-requests
+spec:
+  name: vcluster-media
+  targetNamespace: vcluster-media
+  kubeconfigSecret: vc-vcluster-media
+  externalServerURL: https://media.integratn.tech:443
+  environment: production
+  baseDomain: integratn.tech
+  clusterLabels:
+    argocd.argoproj.io/secret-type: cluster
+    cluster_name: vcluster-media
+    cluster_role: vcluster
+    cluster_type: vcluster
+    enable_argocd: "true"
+    enable_gateway_api_crds: "true"
+    enable_nginx_gateway_fabric: "true"
+    enable_cert_manager: "true"
+    enable_external_secrets: "true"
+    enable_external_dns: "true"
+    environment: production
+  clusterAnnotations:
+    addons_repo_url: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+    addons_repo_revision: main
+    addons_repo_basepath: addons/
+    addons_repo_path: charts/application-sets
+    workload_repo_url: https://github.com/jamesatintegratnio/gitops_homelab_2_0
+    workload_repo_path: workloads
+    workload_repo_revision: main
+    cluster_name: vcluster-media
+    environment: production
+    platform.integratn.tech/base-domain: integratn.tech
+    platform.integratn.tech/base-domain-sanitized: integratn-tech

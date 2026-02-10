@@ -1,0 +1,143 @@
+apiVersion: platform.kratix.io/v1alpha1
+kind: Promise
+metadata:
+  name: argocd-project
+  labels:
+    kratix.io/promise-type: platform
+spec:
+  destinationSelectors:
+    - matchLabels:
+        capability.vcluster: "true"
+
+  api:
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: argocdprojects.platform.integratn.tech
+    spec:
+      group: platform.integratn.tech
+      scope: Namespaced
+      names:
+        plural: argocdprojects
+        singular: argocdproject
+        kind: ArgoCDProject
+      versions:
+        - name: v1alpha1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required:
+                    - name
+                    - namespace
+                    - sourceRepos
+                    - destinations
+                  properties:
+                    name:
+                      type: string
+                      description: Name of the ArgoCD AppProject
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    namespace:
+                      type: string
+                      description: Namespace where the AppProject will be created (typically argocd)
+                      default: argocd
+                    description:
+                      type: string
+                      description: Human-readable description of the project
+                    annotations:
+                      type: object
+                      description: Annotations to apply to the AppProject
+                      additionalProperties:
+                        type: string
+                    labels:
+                      type: object
+                      description: Labels to apply to the AppProject
+                      additionalProperties:
+                        type: string
+                    sourceRepos:
+                      type: array
+                      description: Repositories that applications in this project can pull from
+                      items:
+                        type: string
+                    destinations:
+                      type: array
+                      description: Allowed deployment destinations
+                      items:
+                        type: object
+                        required:
+                          - server
+                          - namespace
+                        properties:
+                          server:
+                            type: string
+                          namespace:
+                            type: string
+                    clusterResourceWhitelist:
+                      type: array
+                      description: Cluster-scoped resources the project can manage
+                      items:
+                        type: object
+                        properties:
+                          group:
+                            type: string
+                          kind:
+                            type: string
+                    namespaceResourceWhitelist:
+                      type: array
+                      description: Namespace-scoped resources the project can manage
+                      items:
+                        type: object
+                        properties:
+                          group:
+                            type: string
+                          kind:
+                            type: string
+                status:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+
+  workflows:
+    resource:
+      configure:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: argocd-project-configure
+            namespace: default
+          spec:
+            containers:
+              - name: configure
+                image: ghcr.io/jamesatintegratnio/argocd-project-configure:latest
+                imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault
+      delete:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: argocd-project-delete
+            namespace: default
+          spec:
+            containers:
+              - name: delete
+                image: ghcr.io/jamesatintegratnio/argocd-project-configure:latest
+                imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault
