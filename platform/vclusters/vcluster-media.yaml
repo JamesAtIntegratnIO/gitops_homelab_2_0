@@ -14,31 +14,8 @@ spec:
     replicas: 3
     helmOverrides:
       controlPlane:
-        distro:
-          k8s:
-            enabled: true
-            image:
-              tag: v1.34.3
-        serviceMonitor:
-          enabled: true
-          labels:
-            vcluster_name: vcluster-media
-            vcluster_namespace: vcluster-media
-            environment: production
-            cluster_role: vcluster
         statefulSet:
-          highAvailability:
-            replicas: 3
-          scheduling:
-            podManagementPolicy: Parallel
-            priorityClassName: system-cluster-critical
-          imagePullPolicy: Always
-          image:
-            repository: loft-sh/vcluster-oss
           persistence:
-            volumeClaim:
-              enabled: true
-              size: 10Gi
             addVolumes:
               - name: etcd-certs
                 secret:
@@ -47,132 +24,6 @@ spec:
               - name: etcd-certs
                 mountPath: /etcd-certs
                 readOnly: true
-          initContainers:
-            - name: seed-vcluster-ca
-              image: alpine:3.20
-              command:
-                - sh
-                - -c
-                - |
-                  if [ ! -f /data/pki/ca.crt ] || [ ! -f /data/pki/admin.conf ]; then
-                    apk add --no-cache openssl >/dev/null 2>&1
-                    mkdir -p /data/pki
-                    if [ ! -f /data/pki/ca.crt ]; then
-                      openssl genrsa -out /data/pki/ca.key 2048
-                      openssl req -x509 -new -nodes -key /data/pki/ca.key -subj "/CN=vcluster-media-ca" -days 3650 -out /data/pki/ca.crt
-                    fi
-                    cp /data/pki/ca.crt /data/pki/server-ca.crt
-                    cp /data/pki/ca.key /data/pki/server-ca.key
-                    cp /data/pki/ca.crt /data/pki/client-ca.crt
-                    cp /data/pki/ca.key /data/pki/client-ca.key
-                    if [ ! -f /data/pki/front-proxy-ca.crt ]; then
-                      cp /data/pki/ca.crt /data/pki/front-proxy-ca.crt
-                    fi
-                    if [ ! -f /data/pki/front-proxy-ca.key ]; then
-                      cp /data/pki/ca.key /data/pki/front-proxy-ca.key
-                    fi
-                    if [ ! -f /data/pki/apiserver-etcd-client.crt ] || [ ! -f /data/pki/apiserver-etcd-client.key ]; then
-                      if [ -f /etcd-certs/etcd-ca.key ]; then
-                        openssl genrsa -out /data/pki/apiserver-etcd-client.key 2048
-                        openssl req -new -key /data/pki/apiserver-etcd-client.key -subj "/CN=apiserver-etcd-client" -out /data/pki/apiserver-etcd-client.csr
-                        openssl x509 -req -in /data/pki/apiserver-etcd-client.csr -CA /etcd-certs/etcd-ca.crt -CAkey /etcd-certs/etcd-ca.key -CAcreateserial -out /data/pki/apiserver-etcd-client.crt -days 3650
-                        rm -f /data/pki/apiserver-etcd-client.csr
-                      else
-                        cp /etcd-certs/etcd-server.crt /data/pki/apiserver-etcd-client.crt
-                        cp /etcd-certs/etcd-server.key /data/pki/apiserver-etcd-client.key
-                      fi
-                    fi
-                    if [ ! -f /data/pki/sa.key ] || [ ! -f /data/pki/sa.pub ]; then
-                      openssl genrsa -out /data/pki/sa.key 2048
-                      openssl rsa -in /data/pki/sa.key -pubout -out /data/pki/sa.pub
-                    fi
-                    if [ ! -f /data/pki/apiserver.crt ] || [ ! -f /data/pki/apiserver.key ]; then
-                      openssl genrsa -out /data/pki/apiserver.key 2048
-                      printf '%s\n' "[ req ]" "distinguished_name = req_distinguished_name" "req_extensions = v3_req" "" "[ req_distinguished_name ]" "" "[ v3_req ]" "subjectAltName = @alt_names" "" "[ alt_names ]" "DNS.1 = kubernetes" "DNS.2 = kubernetes.default" "DNS.3 = kubernetes.default.svc" "DNS.4 = kubernetes.default.svc.cluster.local" "IP.1 = 127.0.0.1" "IP.2 = 10.96.0.1" > /tmp/apiserver.cnf
-                      if [ -n "${VCLUSTER_MEDIA_SERVICE_HOST:-}" ]; then
-                        printf '%s\n' "IP.3 = ${VCLUSTER_MEDIA_SERVICE_HOST}" >> /tmp/apiserver.cnf
-                      fi
-                      openssl req -new -key /data/pki/apiserver.key -subj "/CN=kubernetes" -out /tmp/apiserver.csr -config /tmp/apiserver.cnf
-                      openssl x509 -req -in /tmp/apiserver.csr -CA /data/pki/server-ca.crt -CAkey /data/pki/server-ca.key -CAcreateserial -out /data/pki/apiserver.crt -days 3650 -extensions v3_req -extfile /tmp/apiserver.cnf
-                      rm -f /tmp/apiserver.csr /tmp/apiserver.cnf
-                    fi
-                    if [ ! -f /data/pki/front-proxy-client.crt ] || [ ! -f /data/pki/front-proxy-client.key ]; then
-                      openssl genrsa -out /data/pki/front-proxy-client.key 2048
-                      openssl req -new -key /data/pki/front-proxy-client.key -subj "/CN=front-proxy-client" -out /tmp/front-proxy-client.csr
-                      openssl x509 -req -in /tmp/front-proxy-client.csr -CA /data/pki/front-proxy-ca.crt -CAkey /data/pki/front-proxy-ca.key -CAcreateserial -out /data/pki/front-proxy-client.crt -days 3650
-                      rm -f /tmp/front-proxy-client.csr
-                    fi
-                    openssl genrsa -out /data/pki/admin.key 2048
-                    openssl req -new -key /data/pki/admin.key -subj "/CN=admin/O=system:masters" -out /data/pki/admin.csr
-                    openssl x509 -req -in /data/pki/admin.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/admin.crt -days 3650
-                    if [ ! -f /data/pki/controller-manager.crt ] || [ ! -f /data/pki/controller-manager.key ]; then
-                      openssl genrsa -out /data/pki/controller-manager.key 2048
-                      openssl req -new -key /data/pki/controller-manager.key -subj "/CN=system:kube-controller-manager/O=system:masters" -out /data/pki/controller-manager.csr
-                      openssl x509 -req -in /data/pki/controller-manager.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/controller-manager.crt -days 3650
-                      rm -f /data/pki/controller-manager.csr
-                    fi
-                    if [ ! -f /data/pki/scheduler.crt ] || [ ! -f /data/pki/scheduler.key ]; then
-                      openssl genrsa -out /data/pki/scheduler.key 2048
-                      openssl req -new -key /data/pki/scheduler.key -subj "/CN=system:kube-scheduler/O=system:masters" -out /tmp/scheduler.csr
-                      openssl x509 -req -in /tmp/scheduler.csr -CA /data/pki/ca.crt -CAkey /data/pki/ca.key -CAcreateserial -out /data/pki/scheduler.crt -days 3650
-                      rm -f /tmp/scheduler.csr
-                    fi
-                    printf '%s\n' "apiVersion: v1" "kind: Config" "clusters:" "- name: vcluster" "  cluster:" "    certificate-authority: /data/pki/ca.crt" "    server: https://127.0.0.1:6443" "users:" "- name: admin" "  user:" "    client-certificate: /data/pki/admin.crt" "    client-key: /data/pki/admin.key" "contexts:" "- name: admin@vcluster" "  context:" "    cluster: vcluster" "    user: admin" "current-context: admin@vcluster" > /data/pki/admin.conf
-                    if [ ! -f /data/pki/controller-manager.conf ]; then
-                      printf '%s\n' "apiVersion: v1" "kind: Config" "clusters:" "- name: vcluster" "  cluster:" "    certificate-authority: /data/pki/ca.crt" "    server: https://127.0.0.1:6443" "users:" "- name: system:kube-controller-manager" "  user:" "    client-certificate: /data/pki/controller-manager.crt" "    client-key: /data/pki/controller-manager.key" "contexts:" "- name: system:kube-controller-manager@vcluster" "  context:" "    cluster: vcluster" "    user: system:kube-controller-manager" "current-context: system:kube-controller-manager@vcluster" > /data/pki/controller-manager.conf
-                    fi
-                    if [ ! -f /data/pki/scheduler.conf ]; then
-                      printf '%s\n' "apiVersion: v1" "kind: Config" "clusters:" "- name: vcluster" "  cluster:" "    certificate-authority: /data/pki/ca.crt" "    server: https://127.0.0.1:6443" "users:" "- name: system:kube-scheduler" "  user:" "    client-certificate: /data/pki/scheduler.crt" "    client-key: /data/pki/scheduler.key" "contexts:" "- name: system:kube-scheduler@vcluster" "  context:" "    cluster: vcluster" "    user: system:kube-scheduler" "current-context: system:kube-scheduler@vcluster" > /data/pki/scheduler.conf
-                    fi
-                    rm -f /data/pki/admin.csr /data/pki/ca.srl
-                  fi
-              volumeMounts:
-                - name: data
-                  mountPath: /data
-                - name: etcd-certs
-                  mountPath: /etcd-certs
-                  readOnly: true
-            - name: seed-etcd-certs
-              image: busybox:1.36
-              command:
-                - sh
-                - -c
-                - |
-                  cp /etcd-certs/* /pki/ && chmod 600 /pki/*.key || true
-              volumeMounts:
-                - name: etcd-certs
-                  mountPath: /etcd-certs
-                  readOnly: true
-                - name: certs
-                  mountPath: /pki
-          resources:
-            requests:
-              cpu: 500m
-              memory: "2Gi"
-            limits:
-              cpu: "2"
-              memory: "2Gi"
-        coredns:
-          enabled: true
-          deployment:
-            replicas: 2
-          overwriteConfig: |
-            .:1053 {
-              errors
-              health
-              ready
-              kubernetes cluster.local in-addr.arpa ip6.arpa {
-                pods insecure
-                fallthrough in-addr.arpa ip6.arpa
-                ttl 30
-              }
-              prometheus 0.0.0.0:9153
-              forward . /etc/resolv.conf
-              cache 30
-              loop
-              reload
-              loadbalance
-            }
         backingStore:
           etcd:
             deploy:
@@ -184,20 +35,6 @@ spec:
                   replicas: 3
         ingress:
           enabled: false
-        proxy:
-          extraSANs:
-            - media.integratn.tech
-        service:
-          enabled: true
-          annotations:
-            external-dns.alpha.kubernetes.io/hostname: media.integratn.tech
-          spec:
-            type: LoadBalancer
-            ports:
-              - name: https
-                port: 443
-                targetPort: 8443
-                protocol: TCP
       integrations:
         metricsServer:
           enabled: false

@@ -129,6 +129,19 @@ argocd-vcluster:
                 syncOptions:
                   - CreateNamespace=true
 
+  syncPolicy:
+    automated: {}
+    retry:
+      limit: -1
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+
 external-dns-vcluster:
   enabled: true
   releaseName: external-dns
@@ -359,6 +372,12 @@ cert-manager-vcluster:
               kind: Gateway
   syncPolicy:
     automated: {}
+    retry:
+      limit: -1
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -388,6 +407,10 @@ nginx-gateway-fabric-vcluster:
       kind: Gateway
       jqPathExpressions:
         - .status
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      jsonPointers:
+        - /metadata/annotations
   valuesObject:
     gateways:
       - name: nginx-gateway
@@ -443,6 +466,12 @@ nginx-gateway-fabric-vcluster:
                   from: All
   syncPolicy:
     automated: {}
+    retry:
+      limit: -1
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
