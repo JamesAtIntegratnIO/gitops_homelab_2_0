@@ -12,6 +12,7 @@
       }
     ]
   },
+  "description": "Kratix platform controller metrics — reconciliation, pipelines, work queues, and ArgoCD sync status",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -33,9 +34,7 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 5 },
-              { "color": "red", "value": 10 }
+              { "color": "green", "value": null }
             ]
           },
           "mappings": []
@@ -46,54 +45,18 @@
       "id": 1,
       "options": {
         "colorMode": "background",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Available Promises",
+      "title": "Total Reconciles",
       "type": "stat",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "count(kratix_workplacement_outcomes_total) by (promise) or vector(0)",
-          "legendFormat": "",
-          "refId": "A",
-          "instant": true
-        }
-      ]
-    },
-    {
-      "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
-      "id": 2,
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "auto"
-      },
-      "title": "Total WorkPlacements Written",
-      "type": "stat",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(kratix_workplacement_writes_total) or vector(0)",
+          "expr": "sum(controller_runtime_reconcile_total{job=~\".*kratix.*\"}) or vector(0)",
           "legendFormat": "",
           "refId": "A",
           "instant": true
@@ -115,8 +78,8 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
-      "id": 3,
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
       "options": {
         "colorMode": "background",
         "graphMode": "area",
@@ -125,12 +88,52 @@
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "WorkPlacement Write Failures",
+      "title": "Reconcile Errors",
       "type": "stat",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(kratix_workplacement_writes_total{result=\"failure\"}) or vector(0)",
+          "expr": "sum(controller_runtime_reconcile_errors_total{job=~\".*kratix.*\"}) or vector(0)",
+          "legendFormat": "",
+          "refId": "A",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 90 },
+              { "color": "green", "value": 99 }
+            ]
+          },
+          "unit": "percent",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "title": "Reconcile Success Rate",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "(sum(controller_runtime_reconcile_total{job=~\".*kratix.*\",result!=\"error\"}) / sum(controller_runtime_reconcile_total{job=~\".*kratix.*\"})) * 100 or vector(100)",
           "legendFormat": "",
           "refId": "A",
           "instant": true
@@ -224,7 +227,8 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
             ]
           }
         },
@@ -234,18 +238,18 @@
       "id": 6,
       "options": {
         "colorMode": "background",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "textMode": "auto"
       },
-      "title": "Unscheduled Resources",
+      "title": "Queue Depth",
       "type": "stat",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(kratix_workplacement_outcomes_total{result=\"unscheduled\"}) or vector(0)",
+          "expr": "sum(workqueue_depth{job=~\".*kratix.*\"}) or vector(0)",
           "legendFormat": "",
           "refId": "A",
           "instant": true
@@ -367,7 +371,7 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
       "id": 102,
-      "title": "WorkPlacement Scheduling",
+      "title": "Controller Reconciliation",
       "type": "row"
     },
     {
@@ -384,7 +388,7 @@
             "showPoints": "auto",
             "stacking": { "group": "A", "mode": "normal" }
           },
-          "unit": "short"
+          "unit": "ops"
         },
         "overrides": [
           {
@@ -392,8 +396,16 @@
             "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
           },
           {
-            "matcher": { "id": "byName", "options": "failure" },
+            "matcher": { "id": "byName", "options": "error" },
             "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "requeue" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "requeue_after" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
           }
         ]
       },
@@ -403,12 +415,12 @@
         "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "none" }
       },
-      "title": "WorkPlacement Writes (success vs failure)",
+      "title": "Reconcile Rate by Result",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum by (result) (increase(kratix_workplacement_writes_total[5m]))",
+          "expr": "sum by (result) (rate(controller_runtime_reconcile_total{job=~\".*kratix.*\"}[5m]))",
           "legendFormat": "{{ result }}",
           "refId": "A"
         }
@@ -422,42 +434,28 @@
           "custom": {
             "axisCenteredZero": false,
             "drawStyle": "line",
-            "fillOpacity": 20,
+            "fillOpacity": 10,
             "lineWidth": 2,
             "pointSize": 5,
-            "showPoints": "auto",
-            "stacking": { "group": "A", "mode": "normal" }
+            "showPoints": "auto"
           },
-          "unit": "short"
+          "unit": "ops"
         },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "scheduled" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "unscheduled" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "misplaced" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
       "id": 21,
       "options": {
         "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi", "sort": "none" }
+        "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "WorkPlacement Outcomes",
+      "title": "Reconcile Rate by Controller",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum by (result) (increase(kratix_workplacement_outcomes_total[5m]))",
-          "legendFormat": "{{ result }}",
+          "expr": "sum by (controller) (rate(controller_runtime_reconcile_total{job=~\".*kratix.*\"}[5m])) > 0",
+          "legendFormat": "{{ controller }}",
           "refId": "A"
         }
       ]
@@ -469,12 +467,11 @@
           "color": { "mode": "palette-classic" },
           "custom": {
             "axisCenteredZero": false,
-            "drawStyle": "bars",
-            "fillOpacity": 80,
-            "lineWidth": 1,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
             "pointSize": 5,
-            "showPoints": "never",
-            "stacking": { "group": "A", "mode": "normal" }
+            "showPoints": "auto"
           },
           "unit": "short"
         },
@@ -486,13 +483,13 @@
         "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "WorkPlacement Writes by Promise",
+      "title": "Work Queue Retries by Controller",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum by (promise) (increase(kratix_workplacement_writes_total[5m]))",
-          "legendFormat": "{{ promise }}",
+          "expr": "sum by (name) (rate(workqueue_retries_total{job=~\".*kratix.*\"}[5m])) > 0",
+          "legendFormat": "{{ name }}",
           "refId": "A"
         }
       ]
@@ -504,30 +501,29 @@
           "color": { "mode": "palette-classic" },
           "custom": {
             "axisCenteredZero": false,
-            "drawStyle": "bars",
-            "fillOpacity": 80,
-            "lineWidth": 1,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
             "pointSize": 5,
-            "showPoints": "never",
-            "stacking": { "group": "A", "mode": "normal" }
+            "showPoints": "auto"
           },
-          "unit": "short"
+          "unit": "s"
         },
         "overrides": []
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
       "id": 23,
       "options": {
-        "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom" },
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "WorkPlacement Writes by Destination",
+      "title": "Work Queue Processing Time (p99)",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum by (destination) (increase(kratix_workplacement_writes_total[5m]))",
-          "legendFormat": "{{ destination }}",
+          "expr": "histogram_quantile(0.99, sum by (name, le) (rate(workqueue_work_duration_seconds_bucket{job=~\".*kratix.*\"}[5m])))",
+          "legendFormat": "{{ name }}",
           "refId": "A"
         }
       ]

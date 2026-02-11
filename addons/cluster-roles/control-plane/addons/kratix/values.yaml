@@ -255,29 +255,29 @@ additionalResources:
               annotations:
                 summary: "Kratix pipeline pod stuck"
                 description: 'Pipeline pod {{ "{{" }} $labels.pod {{ "}}" }} has been running for more than 15 minutes.'
-        - name: kratix.workplacement
+        - name: kratix.reconciliation
           interval: 30s
           rules:
-            - alert: KratixWorkPlacementFailure
+            - alert: KratixReconcileErrors
               expr: |
-                increase(kratix_workplacement_writes_total{result="failure"}[5m]) > 0
-              for: 0m
-              labels:
-                severity: critical
-                component: kratix
-              annotations:
-                summary: "Kratix WorkPlacement write failure"
-                description: 'WorkPlacement write failed for promise {{ "{{" }} $labels.promise {{ "}}" }}, resource {{ "{{" }} $labels.resource {{ "}}" }} to destination {{ "{{" }} $labels.destination {{ "}}" }}.'
-            - alert: KratixResourceUnscheduled
-              expr: |
-                increase(kratix_workplacement_outcomes_total{result="unscheduled"}[10m]) > 0
+                sum by (controller) (increase(controller_runtime_reconcile_errors_total{job=~".*kratix.*"}[10m])) > 0
               for: 5m
               labels:
                 severity: critical
                 component: kratix
               annotations:
-                summary: "Kratix resource unscheduled"
-                description: 'Resource {{ "{{" }} $labels.resource {{ "}}" }} from promise {{ "{{" }} $labels.promise {{ "}}" }} could not be scheduled to any destination.'
+                summary: "Kratix controller reconcile errors"
+                description: 'Controller {{ "{{" }} $labels.controller {{ "}}" }} has had reconcile errors in the last 10 minutes.'
+            - alert: KratixWorkQueueStuck
+              expr: |
+                workqueue_unfinished_work_seconds{job=~".*kratix.*"} > 300
+              for: 5m
+              labels:
+                severity: critical
+                component: kratix
+              annotations:
+                summary: "Kratix work queue stuck"
+                description: 'Work queue {{ "{{" }} $labels.name {{ "}}" }} has had unfinished work for more than 5 minutes.'
         - name: kratix.statestore
           interval: 60s
           rules:
