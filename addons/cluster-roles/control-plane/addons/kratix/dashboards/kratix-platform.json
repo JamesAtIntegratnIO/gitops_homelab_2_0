@@ -28,6 +28,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Cumulative count of all controller reconciliation loops. A steadily increasing number is normal — spikes may indicate config changes or resource churn.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -65,6 +66,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Total controller reconciliation errors. Any value > 0 means a controller failed to reconcile a resource. Check controller logs for root cause.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -102,6 +104,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Percentage of reconciliations completing without error. Below 99% warrants investigation; below 90% is critical and likely means promise fulfillment is impaired.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -142,6 +145,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Whether the Kratix state-reconciler ArgoCD app is synced. OutOfSync means Kratix wrote to the state repo but ArgoCD hasn't applied the changes to the cluster yet.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -183,6 +187,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Count of pipeline pods in Failed state. Failed pipelines mean promise fulfillment is broken for affected resources — check pod logs immediately.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -220,6 +225,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Items waiting to be processed across all controller work queues. Sustained high values indicate the controller can't keep up with incoming work and promises may be delayed.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -265,6 +271,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Tracks pipeline pod lifecycle phases over time. Growing 'Succeeded' count is normal — the cleanup CronJob runs daily at 04:00 to prune completed jobs. 'Failed' or stuck 'Running' pods need immediate attention.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -335,6 +342,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Shows which promises are generating the most pipeline activity. Useful for identifying noisy promises that reconcile too frequently or unexpected reconciliation loops.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -376,6 +384,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Reconciliations per second grouped by outcome. Success and requeue_after are normal. Sustained 'error' results indicate broken resources. High 'requeue' rates mean controllers are retrying due to transient failures.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -428,6 +437,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Shows which controllers are most active. Helps identify if a specific controller (e.g. Promise, Work, WorkPlacement) is doing excessive reconciliations, which may indicate a hot resource or feedback loop.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -462,6 +472,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Rate of work items being retried per controller queue. High retry rates indicate controllers are struggling — often due to resource conflicts, API throttling, or transient errors. Correlate with reconcile errors.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -496,6 +507,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "99th percentile time to process a single work item from the queue. Sustained high values may indicate resource contention, slow API calls, or complex reconciliation logic in specific controllers.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -537,6 +549,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Whether the state-reconciler ArgoCD app is synced with the git state repo. OutOfSync means Kratix wrote resources to git but ArgoCD hasn't applied them to the cluster yet — check ArgoCD for sync errors.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "fixed" },
@@ -570,6 +583,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "ArgoCD health status of the state reconciler. Unhealthy means the Kubernetes resources deployed by Kratix are in a degraded state — check the ArgoCD app for resource-level health details.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "fixed" },
@@ -603,6 +617,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Cumulative sync operation count for Kratix-managed ArgoCD applications. Correlate with sync duration to identify apps that sync frequently or take unusually long.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -639,11 +654,12 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
       "id": 104,
-      "title": "Controller Runtime",
+      "title": "Controller Runtime Health",
       "type": "row"
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Reconciliation duration by controller at p50 (median), p95, and p99. Tail latency (p99) reveals problems that averages hide. If p99 is much higher than p50, some reconciliations are getting stuck. Compare controllers to find the slowest.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -665,19 +681,32 @@
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
-      "title": "Controller Reconcile Duration (p99)",
+      "title": "Reconcile Duration (p50 / p95 / p99)",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.99, sum by (controller, le) (rate(controller_runtime_reconcile_time_seconds_bucket{job=~\".*kratix.*\"}[5m])))",
-          "legendFormat": "{{ controller }}",
+          "expr": "histogram_quantile(0.5, sum by (controller, le) (rate(controller_runtime_reconcile_time_seconds_bucket{job=~\".*kratix.*\"}[5m])))",
+          "legendFormat": "{{ controller }} p50",
           "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.95, sum by (controller, le) (rate(controller_runtime_reconcile_time_seconds_bucket{job=~\".*kratix.*\"}[5m])))",
+          "legendFormat": "{{ controller }} p95",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.99, sum by (controller, le) (rate(controller_runtime_reconcile_time_seconds_bucket{job=~\".*kratix.*\"}[5m])))",
+          "legendFormat": "{{ controller }} p99",
+          "refId": "C"
         }
       ]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Real-time queue depth per controller. Shows items waiting to be reconciled. Growing queues mean work is arriving faster than it's being processed — the controller may need more resources or there's a blocking issue.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -712,6 +741,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Controller process memory — RSS is total memory used by the process, Go Alloc is memory actively used by Go objects. If RSS grows steadily while Go Alloc stays flat, the process may have a memory leak or excessive cgo allocation.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -752,6 +782,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Active Go goroutines in the controller. Should stabilize at a steady number. A continuously increasing count without plateau indicates a goroutine leak, which will eventually crash the controller with OOM.",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -780,6 +811,112 @@
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "expr": "go_goroutines{job=~\".*kratix.*\"}",
           "legendFormat": "Goroutines",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Controller CPU usage in cores (1.0 = one full CPU core). Sustained high CPU may indicate reconciliation storms, inefficient controller logic, or excessive API calls. Correlate with reconcile rate to find the cause.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "unit": "short",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 57 },
+      "id": 44,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "title": "Controller CPU Usage (cores)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "rate(process_cpu_seconds_total{job=~\".*kratix.*\"}[5m])",
+          "legendFormat": "CPU cores",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Duration of the longest-running work item processor per queue. High values (> 60s) indicate a reconciliation is stuck or taking unusually long — possibly waiting on an external resource, blocked by a lock, or in a retry loop. Critical for detecting silent hangs.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 57 },
+      "id": 45,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "title": "Longest Running Processor",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "workqueue_longest_running_processor_seconds{job=~\".*kratix.*\"}",
+          "legendFormat": "{{ name }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "description": "Estimated seconds of unfinished work sitting in the queue. Combines queue depth with processing time to show backlog severity. A rising trend means the controller is falling behind and promises will experience increasing delays.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 57 },
+      "id": 46,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "title": "Unfinished Work Backlog",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "workqueue_unfinished_work_seconds{job=~\".*kratix.*\"}",
+          "legendFormat": "{{ name }}",
           "refId": "A"
         }
       ]

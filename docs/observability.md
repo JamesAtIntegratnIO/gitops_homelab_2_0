@@ -768,6 +768,90 @@ resources:
     memory: 2Gi
 ```
 
+## Kratix Platform Dashboard
+
+The Kratix Platform dashboard provides observability into the Kratix controller, promise pipelines, and ArgoCD state synchronization.
+
+**Dashboard location:** [addons/cluster-roles/control-plane/addons/kratix/dashboards/kratix-platform.json](../addons/cluster-roles/control-plane/addons/kratix/dashboards/kratix-platform.json)  
+**Provisioned via:** kube-prometheus-stack Grafana sidecar + inline JSON in [kube-prometheus-stack/values.yaml](../addons/cluster-roles/control-plane/addons/kube-prometheus-stack/values.yaml)
+
+### Dashboard Sections & Metrics
+
+#### Platform Overview (stat panels)
+
+| Panel | Metric | Why |
+|---|---|---|
+| Total Reconciles | `controller_runtime_reconcile_total` | Cumulative reconciliation count. Spikes indicate config changes or resource churn. |
+| Reconcile Errors | `controller_runtime_reconcile_errors_total` |  Any value > 0 means a controller failed. Check logs immediately. |
+| Reconcile Success Rate | Derived from `reconcile_total` | Below 99% warrants investigation; below 90% is critical. |
+| State Reconciler Sync | `argocd_app_info{sync_status}` | OutOfSync means Kratix wrote to git but ArgoCD hasn't applied it. |
+| Failed Pipeline Pods | `kube_pod_status_phase{phase="Failed"}` | Failed pipelines mean promise fulfillment is broken. |
+| Queue Depth | `workqueue_depth` | Sustained high values mean the controller can't keep up. |
+
+#### Pipeline Execution
+
+| Panel | Metric | Why |
+|---|---|---|
+| Pipeline Pod Status Over Time | `kube_pod_status_phase` (by phase) | Tracks lifecycle phases. 'Succeeded' grows normally — cleanup CronJob prunes daily at 04:00. |
+| Pipeline Pods by Promise | `kube_pod_labels{label_kratix_io_promise_name}` | Identifies which promises generate the most pipeline activity or unexpected loops. |
+
+#### Controller Reconciliation
+
+| Panel | Metric | Why |
+|---|---|---|
+| Reconcile Rate by Result | `rate(controller_runtime_reconcile_total)` by result | Shows success/error/requeue rates. Sustained errors are critical. |
+| Reconcile Rate by Controller | `rate(controller_runtime_reconcile_total)` by controller | Identifies which controller is doing excessive work (hot resource, feedback loop). |
+| Work Queue Retries | `rate(workqueue_retries_total)` | High retry rates indicate API conflicts, throttling, or transient errors. |
+| Work Queue Processing Time (p99) | `workqueue_work_duration_seconds` histogram | 99th percentile processing time. Sustained highs indicate contention or complex logic. |
+
+#### State Store & ArgoCD Sync
+
+| Panel | Metric | Why |
+|---|---|---|
+| State Reconciler Sync Status | `argocd_app_info{sync_status="Synced"}` | Verifies Kratix state repo changes are applied by ArgoCD. |
+| State Reconciler Health | `argocd_app_info{health_status="Healthy"}` | Verifies Kratix-deployed resources are healthy. |
+| ArgoCD Sync Duration | `argocd_app_sync_total{phase="Succeeded"}` | Tracks sync frequency. Long sync times indicate large state repos or ArgoCD pressure. |
+
+#### Controller Runtime Health
+
+| Panel | Metric | Why |
+|---|---|---|
+| Reconcile Duration (p50/p95/p99) | `controller_runtime_reconcile_time_seconds` histogram | Tail latency (p99) reveals problems averages hide. Large p99/p50 spread indicates some reconciliations getting stuck. |
+| Controller Work Queue Depth | `workqueue_depth` by controller | Per-controller queue depth. Growing queues mean work arrives faster than it's processed. |
+| Controller Memory Usage | `process_resident_memory_bytes` + `go_memstats_alloc_bytes` | RSS vs Go alloc. Growing RSS with stable Go alloc suggests memory leak or excessive cgo allocation. |
+| Controller Goroutines | `go_goroutines` | Should plateau. Continuously increasing count indicates a goroutine leak → eventual OOM crash. |
+| Controller CPU Usage | `rate(process_cpu_seconds_total)` | CPU cores used. Sustained > 0.5 cores may indicate reconciliation storms or inefficient logic. |
+| Longest Running Processor | `workqueue_longest_running_processor_seconds` | Detects stuck reconciliations. > 60s means a processor is possibly hung on an external resource. |
+| Unfinished Work Backlog | `workqueue_unfinished_work_seconds` | Estimated backlog severity. Rising trend means the controller is falling behind and promises will be delayed. |
+
+### Alerts
+
+All alerts are defined as a PrometheusRule in [kratix/values.yaml](../addons/cluster-roles/control-plane/addons/kratix/values.yaml).
+
+| Alert | Condition | Severity | Why |
+|---|---|---|---|
+| KratixPipelineFailed | Pod in Failed phase > 5m | warning | Promise fulfillment is broken for affected resources. |
+| KratixPipelineStuck | Pod Running/Pending > 15m | warning | Pipeline may be stuck on init container or waiting for resources. |
+| KratixReconcileErrors | Errors increasing over 10m | critical | Controller can't reconcile resources — may cascade to all promises. |
+| KratixWorkQueueStuck | Unfinished work > 5m | critical | Controller backlog growing — promises delayed. |
+| KratixReconcileStuck | Longest processor > 5m | warning | A reconciliation is hung — likely waiting on external resource or lock. |
+| KratixHighCPU | CPU > 0.5 cores for 15m | warning | Possible reconciliation storm or inefficient controller logic. |
+| KratixHighMemory | RSS > 512MB for 15m | warning | Possible memory leak or excessive caching. |
+| KratixGoroutineLeak | Goroutines > 500 for 30m | warning | Goroutine leak will eventually crash the controller with OOM. |
+| KratixStateReconcilerOutOfSync | Not synced > 10m | warning | Git state not applied — check ArgoCD for sync errors. |
+| KratixStateReconcilerDegraded | Unhealthy > 5m | critical | Deployed resources in bad state — check ArgoCD app health. |
+
+### Metric Sources
+
+Kratix does **not** expose custom `kratix_*` metrics. All metrics come from the standard controller-runtime and Go runtime libraries:
+
+- **`controller_runtime_*`** — Reconciliation counts, errors, durations per controller
+- **`workqueue_*`** — Work queue depth, retries, processing time, backlog
+- **`process_*`** — Process-level CPU and memory (RSS)
+- **`go_*`** — Go runtime: goroutines, memory allocation, GC stats
+- **`kube_pod_*`** — Pipeline pod status (from kube-state-metrics, not Kratix directly)
+- **`argocd_app_*`** — ArgoCD application sync/health status
+
 ## Key Files
 
 - Host stack values: [addons/cluster-roles/control-plane/addons/kube-prometheus-stack/values.yaml](../addons/cluster-roles/control-plane/addons/kube-prometheus-stack/values.yaml)

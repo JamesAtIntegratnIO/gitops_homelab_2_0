@@ -367,6 +367,46 @@ additionalResources:
               annotations:
                 summary: "Kratix work queue stuck"
                 description: 'Work queue {{ "{{" }} $labels.name {{ "}}" }} has had unfinished work for more than 5 minutes.'
+            - alert: KratixReconcileStuck
+              expr: |
+                workqueue_longest_running_processor_seconds{job=~".*kratix.*"} > 300
+              for: 5m
+              labels:
+                severity: warning
+                component: kratix
+              annotations:
+                summary: "Kratix reconciliation stuck"
+                description: 'Queue {{ "{{" }} $labels.name {{ "}}" }} has a processor running for {{ "{{" }} $value | humanizeDuration {{ "}}" }}. A reconciliation may be hung waiting on an external resource.'
+            - alert: KratixHighCPU
+              expr: |
+                rate(process_cpu_seconds_total{job=~".*kratix.*"}[5m]) > 0.5
+              for: 15m
+              labels:
+                severity: warning
+                component: kratix
+              annotations:
+                summary: "Kratix controller high CPU usage"
+                description: 'Kratix controller is using {{ "{{" }} $value | humanize {{ "}}" }} CPU cores for more than 15 minutes. May indicate a reconciliation storm.'
+            - alert: KratixHighMemory
+              expr: |
+                process_resident_memory_bytes{job=~".*kratix.*"} > 512 * 1024 * 1024
+              for: 15m
+              labels:
+                severity: warning
+                component: kratix
+              annotations:
+                summary: "Kratix controller high memory usage"
+                description: 'Kratix controller RSS is {{ "{{" }} $value | humanize1024 {{ "}}" }}B. May indicate a memory leak or excessive caching.'
+            - alert: KratixGoroutineLeak
+              expr: |
+                go_goroutines{job=~".*kratix.*"} > 500
+              for: 30m
+              labels:
+                severity: warning
+                component: kratix
+              annotations:
+                summary: "Kratix controller goroutine leak suspected"
+                description: 'Kratix controller has {{ "{{" }} $value {{ "}}" }} goroutines. A steadily increasing count indicates a goroutine leak.'
         - name: kratix.statestore
           interval: 60s
           rules:
