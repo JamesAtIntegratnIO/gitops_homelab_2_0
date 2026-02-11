@@ -207,9 +207,18 @@ additionalResources:
             spec:
               serviceAccountName: kratix-pipeline-cleanup
               restartPolicy: OnFailure
+              securityContext:
+                runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
               containers:
                 - name: cleanup
                   image: bitnami/kubectl:latest
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    capabilities:
+                      drop: ["ALL"]
+                    readOnlyRootFilesystem: true
                   command:
                     - /bin/sh
                     - -c
