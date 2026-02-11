@@ -1,6 +1,7 @@
 alertmanager:
   enabled: true
   alertmanagerSpec:
+    externalUrl: https://alertmanager.cluster.integratn.tech
     storage:
       volumeClaimTemplate:
         spec:
@@ -58,6 +59,7 @@ prometheus:
   service:
     type: ClusterIP
   prometheusSpec:
+    externalUrl: https://prometheus.cluster.integratn.tech
     enableRemoteWriteReceiver: true
     retention: 15d
     # Mount etcd client certificates for secure etcd scraping

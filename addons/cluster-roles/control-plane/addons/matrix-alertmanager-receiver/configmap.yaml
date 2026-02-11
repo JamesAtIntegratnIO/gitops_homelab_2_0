@@ -23,11 +23,6 @@ data:
         homelab-alerts: "${MATRIX_ROOM_ID}"
 
     templating:
-      external-url-mapping:
-        "http://alertmanager-operated:9093": "https://alertmanager.cluster.integratn.tech"
-      generator-url-mapping:
-        "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090": "https://prometheus.cluster.integratn.tech"
-
       firing-template: |
         {{ $color := "yellow" }}
         {{ if eq .Alert.Labels.severity "warning" }}
