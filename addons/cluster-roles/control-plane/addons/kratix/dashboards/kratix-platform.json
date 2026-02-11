@@ -539,16 +539,9 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
-            ]
-          },
+          "color": { "mode": "fixed" },
           "mappings": [
-            { "options": { "Synced": { "text": "Synced", "color": "green" }, "OutOfSync": { "text": "OutOfSync", "color": "red" } }, "type": "value" }
+            { "options": { "0": { "text": "OutOfSync", "color": "red" }, "1": { "text": "Synced", "color": "green" } }, "type": "value" }
           ]
         },
         "overrides": []
@@ -561,15 +554,15 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "name"
+        "textMode": "value"
       },
       "title": "State Reconciler Sync Status",
       "type": "stat",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "argocd_app_info{name=\"kratix-state-reconciler\"}",
-          "legendFormat": "{{ sync_status }}",
+          "expr": "count(argocd_app_info{name=\"kratix-state-reconciler\", sync_status=\"Synced\"}) or vector(0)",
+          "legendFormat": "",
           "refId": "A",
           "instant": true
         }
@@ -579,16 +572,9 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 1 }
-            ]
-          },
+          "color": { "mode": "fixed" },
           "mappings": [
-            { "options": { "Healthy": { "text": "Healthy", "color": "green" }, "Degraded": { "text": "Degraded", "color": "red" }, "Progressing": { "text": "Progressing", "color": "yellow" } }, "type": "value" }
+            { "options": { "0": { "text": "Unhealthy", "color": "red" }, "1": { "text": "Healthy", "color": "green" } }, "type": "value" }
           ]
         },
         "overrides": []
@@ -601,15 +587,15 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "textMode": "name"
+        "textMode": "value"
       },
       "title": "State Reconciler Health",
       "type": "stat",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "argocd_app_info{name=\"kratix-state-reconciler\"}",
-          "legendFormat": "{{ health_status }}",
+          "expr": "count(argocd_app_info{name=\"kratix-state-reconciler\", health_status=\"Healthy\"}) or vector(0)",
+          "legendFormat": "",
           "refId": "A",
           "instant": true
         }
