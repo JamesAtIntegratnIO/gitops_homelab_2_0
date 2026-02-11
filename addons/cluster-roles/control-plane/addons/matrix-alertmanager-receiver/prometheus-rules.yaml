@@ -1,0 +1,206 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: homelab-alerts
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # --- Node-level alerts ---
+    - name: homelab-node
+      rules:
+        - alert: NodeHighMemoryUsage
+          expr: |
+            (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.instance }} memory usage above 90%"
+            description: "Node {{ $labels.instance }} is using {{ printf \"%.1f\" $value }}% of available memory."
+
+        - alert: NodeHighCPUUsage
+          expr: |
+            100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.instance }} CPU usage above 90%"
+            description: "Node {{ $labels.instance }} CPU usage is {{ printf \"%.1f\" $value }}%."
+
+        - alert: NodeDiskPressure
+          expr: |
+            (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Node {{ $labels.instance }} disk usage above 85%"
+            description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" $value }}% full."
+
+        - alert: NodeDiskCritical
+          expr: |
+            (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) * 100 > 95
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.instance }} disk usage CRITICAL above 95%"
+            description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" $value }}% full. Immediate action required."
+
+    # --- Kubernetes workload alerts ---
+    - name: homelab-kubernetes
+      rules:
+        - alert: PodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total[15m]) * 60 * 5 > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+            description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted {{ printf \"%.0f\" $value }} times in the last 15 minutes."
+
+        - alert: PodNotReady
+          expr: |
+            kube_pod_status_phase{phase=~"Pending|Unknown"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready"
+            description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in {{ $labels.phase }} state for more than 15 minutes."
+
+        - alert: DeploymentReplicasMismatch
+          expr: |
+            kube_deployment_spec_replicas != kube_deployment_status_ready_replicas
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch"
+            description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} wants {{ $value }} replicas but doesn't have them ready."
+
+        - alert: PVCPending
+          expr: |
+            kube_persistentvolumeclaim_status_phase{phase="Pending"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} stuck in Pending"
+            description: "PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has been pending for more than 15 minutes."
+
+        - alert: PersistentVolumeFillingUp
+          expr: |
+            kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes * 100 > 85
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PV {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} filling up"
+            description: "PersistentVolume backing {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ printf \"%.1f\" $value }}% full."
+
+    # --- ArgoCD alerts ---
+    - name: homelab-argocd
+      rules:
+        - alert: ArgoCDAppOutOfSync
+          expr: |
+            argocd_app_info{sync_status!="Synced"} == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} out of sync"
+            description: "ArgoCD application {{ $labels.name }} has been out of sync for more than 30 minutes."
+
+        - alert: ArgoCDAppDegraded
+          expr: |
+            argocd_app_info{health_status=~"Degraded|Missing"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} is {{ $labels.health_status }}"
+            description: "ArgoCD application {{ $labels.name }} health status is {{ $labels.health_status }}."
+
+        - alert: ArgoCDSyncFailed
+          expr: |
+            increase(argocd_app_sync_total{phase!="Succeeded"}[30m]) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} sync failed"
+            description: "ArgoCD application {{ $labels.name }} had a failed sync in the last 30 minutes."
+
+    # --- Kratix platform alerts ---
+    - name: homelab-kratix
+      rules:
+        - alert: KratixReconcileErrors
+          expr: |
+            increase(controller_runtime_reconcile_errors_total{job=~".*kratix.*"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kratix controller reconcile errors"
+            description: "Kratix controller {{ $labels.controller }} has {{ printf \"%.0f\" $value }} reconcile errors in the last 15 minutes."
+
+        - alert: KratixPipelineFailed
+          expr: |
+            count(kube_pod_status_phase{namespace="platform-requests", phase="Failed"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kratix pipeline pod(s) in Failed state"
+            description: "{{ $value }} Kratix pipeline pod(s) are in Failed state. Check platform-requests namespace."
+
+        - alert: KratixQueueBacklog
+          expr: |
+            sum(workqueue_depth{job=~".*kratix.*"}) > 10
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Kratix work queue backlog growing"
+            description: "Kratix controller work queue depth is {{ $value }}. Controllers may not be keeping up."
+
+    # --- NFS storage alerts ---
+    - name: homelab-nfs
+      rules:
+        - alert: NFSMountErrors
+          expr: |
+            increase(node_nfs_rpc_retransmissions_total[15m]) > 100
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "NFS RPC retransmissions on {{ $labels.instance }}"
+            description: "Node {{ $labels.instance }} has {{ printf \"%.0f\" $value }} NFS RPC retransmissions in the last 15 minutes. NFS storage may be experiencing issues."
+
+    # --- Matrix alertmanager receiver health ---
+    - name: homelab-alerting
+      rules:
+        - alert: MatrixReceiverSendFailures
+          expr: |
+            increase(matrix_alertmanager_receiver_send_failure_total[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Matrix alert receiver failing to send notifications"
+            description: "matrix-alertmanager-receiver has {{ printf \"%.0f\" $value }} send failures in the last 15 minutes. Alerts may not be reaching Matrix."
+
+        - alert: MatrixReceiverDown
+          expr: |
+            up{job="matrix-alertmanager-receiver"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Matrix alert receiver is down"
+            description: "matrix-alertmanager-receiver is unreachable. Alert notifications to Matrix are not being delivered."

@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matrix-alertmanager-receiver
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: matrix-alertmanager-receiver
+    app.kubernetes.io/component: alerting
+data:
+  config.yaml: |
+    http:
+      address: "0.0.0.0"
+      port: 12345
+      alerts-path-prefix: /alerts
+      metrics-path: /metrics
+      metrics-enabled: true
+
+    matrix:
+      homeserver-url: "${MATRIX_HOMESERVER_URL}"
+      user-id: "${MATRIX_USER_ID}"
+      access-token: "${MATRIX_ACCESS_TOKEN}"
+      room-mapping:
+        homelab-alerts: "${MATRIX_ROOM_ID}"
+
+    templating:
+      external-url-mapping:
+        "http://alertmanager-operated:9093": "https://alertmanager.cluster.integratn.tech"
+      generator-url-mapping:
+        "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090": "https://prometheus.cluster.integratn.tech"
+
+      firing-template: |
+        {{ $color := "yellow" }}
+        {{ if eq .Alert.Labels.severity "warning" }}
+        {{ $color = "orange" }}
+        {{ else if eq .Alert.Labels.severity "critical" }}
+        {{ $color = "red" }}
+        {{ end }}
+        <p>
+          <strong><font color="{{ $color }}">{{ .Alert.Status | ToUpper }}</font></strong>
+          {{ if .Alert.Labels.alertname }}
+            <strong>{{ .Alert.Labels.alertname }}</strong>
+          {{ end }}
+          {{ if .Alert.Labels.severity }}
+            [{{ .Alert.Labels.severity | ToUpper }}]
+          {{ end }}
+          <br/>
+          {{ if .Alert.Annotations.description }}
+            {{ .Alert.Annotations.description }}
+          {{ else if .Alert.Annotations.summary }}
+            {{ .Alert.Annotations.summary }}
+          {{ end }}
+          <br/>
+          {{ if .Alert.Labels.namespace }}
+            <em>Namespace:</em> {{ .Alert.Labels.namespace }}
+          {{ end }}
+          {{ if .Alert.Labels.pod }}
+            | <em>Pod:</em> {{ .Alert.Labels.pod }}
+          {{ end }}
+          {{ if .Alert.Labels.node }}
+            | <em>Node:</em> {{ .Alert.Labels.node }}
+          {{ end }}
+          <br/>
+          <a href="{{ .SilenceURL }}">Silence</a>
+          {{ if .GeneratorURL }}
+            | <a href="{{ .GeneratorURL }}">Source</a>
+          {{ end }}
+        </p>
+
+      resolved-template: |
+        <p>
+          <strong><font color="green">{{ .Alert.Status | ToUpper }}</font></strong>
+          {{ if .Alert.Labels.alertname }}
+            <strong>{{ .Alert.Labels.alertname }}</strong>
+          {{ end }}
+          {{ if .Alert.Annotations.description }}
+            <br/>{{ .Alert.Annotations.description }}
+          {{ else if .Alert.Annotations.summary }}
+            <br/>{{ .Alert.Annotations.summary }}
+          {{ end }}
+        </p>

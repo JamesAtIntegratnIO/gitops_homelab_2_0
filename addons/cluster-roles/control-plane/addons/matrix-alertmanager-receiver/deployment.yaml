@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matrix-alertmanager-receiver
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: matrix-alertmanager-receiver
+    app.kubernetes.io/component: alerting
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: matrix-alertmanager-receiver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: matrix-alertmanager-receiver
+        app.kubernetes.io/component: alerting
+    spec:
+      containers:
+        - name: receiver
+          image: metio/matrix-alertmanager-receiver:2026.2.11
+          args:
+            - --config-path=/etc/config/config.yaml
+          ports:
+            - name: http
+              containerPort: 12345
+              protocol: TCP
+          env:
+            - name: MATRIX_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-alertmanager-receiver
+                  key: access-token
+            - name: MATRIX_HOMESERVER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-alertmanager-receiver
+                  key: homeserver-url
+            - name: MATRIX_USER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-alertmanager-receiver
+                  key: user-id
+            - name: MATRIX_ROOM_ID
+              valueFrom:
+                secretKeyRef:
+                  name: matrix-alertmanager-receiver
+                  key: room-id
+          volumeMounts:
+            - name: config
+              mountPath: /etc/config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: matrix-alertmanager-receiver

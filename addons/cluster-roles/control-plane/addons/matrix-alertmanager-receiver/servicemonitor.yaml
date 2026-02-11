@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: matrix-alertmanager-receiver
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: matrix-alertmanager-receiver
+    app.kubernetes.io/component: alerting
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: matrix-alertmanager-receiver
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s
