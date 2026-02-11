@@ -147,6 +147,86 @@ additionalResources:
             - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
             - /metadata/labels
 
+  # --- Pipeline Cleanup ---
+
+  # ServiceAccount for pipeline cleanup CronJob
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: kratix-pipeline-cleanup
+      namespace: platform-requests
+      labels:
+        app.kubernetes.io/part-of: kratix
+
+  # Role to delete completed Jobs in platform-requests
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: kratix-pipeline-cleanup
+      namespace: platform-requests
+      labels:
+        app.kubernetes.io/part-of: kratix
+    rules:
+      - apiGroups: ["batch"]
+        resources: ["jobs"]
+        verbs: ["list", "delete"]
+
+  # Bind the Role to the ServiceAccount
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: kratix-pipeline-cleanup
+      namespace: platform-requests
+      labels:
+        app.kubernetes.io/part-of: kratix
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: kratix-pipeline-cleanup
+    subjects:
+      - kind: ServiceAccount
+        name: kratix-pipeline-cleanup
+        namespace: platform-requests
+
+  # CronJob to delete succeeded pipeline Jobs older than 24h (keeps failed Jobs)
+  - apiVersion: batch/v1
+    kind: CronJob
+    metadata:
+      name: kratix-pipeline-cleanup
+      namespace: platform-requests
+      labels:
+        app.kubernetes.io/part-of: kratix
+    spec:
+      schedule: "0 4 * * *"
+      successfulJobsHistoryLimit: 1
+      failedJobsHistoryLimit: 3
+      jobTemplate:
+        spec:
+          ttlSecondsAfterFinished: 3600
+          template:
+            spec:
+              serviceAccountName: kratix-pipeline-cleanup
+              restartPolicy: OnFailure
+              containers:
+                - name: cleanup
+                  image: bitnami/kubectl:latest
+                  command:
+                    - /bin/sh
+                    - -c
+                    - |
+                      echo "Cleaning up succeeded pipeline Jobs older than 24h..."
+                      kubectl get jobs -n platform-requests -o json | \
+                        jq -r '.items[] |
+                          select(.status.succeeded == 1) |
+                          select(.status.completionTime != null) |
+                          select((now - (.status.completionTime | fromdateiso8601)) > 86400) |
+                          .metadata.name' | \
+                        while read -r job; do
+                          echo "Deleting completed job: $job"
+                          kubectl delete job -n platform-requests "$job" --cascade=foreground
+                        done
+                      echo "Cleanup complete."
+
   # --- Kratix Observability ---
 
   # ServiceAccount for Prometheus to authenticate to the metrics endpoint
