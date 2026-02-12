@@ -20,7 +20,7 @@ spec:
           annotations:
             summary: "Node {{ $labels.instance }} memory usage above 90%"
             description: "Node {{ $labels.instance }} is using {{ printf \"%.1f\" $value }}% of available memory."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{job=\"node-exporter\", instance=\"{{ $labels.instance }}\"}"}],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bjob%3D%5C%22node-exporter%5C%22%2C%20instance%3D%5C%22{{ $labels.instance }}%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: NodeHighCPUUsage
           expr: |
@@ -31,7 +31,7 @@ spec:
           annotations:
             summary: "Node {{ $labels.instance }} CPU usage above 90%"
             description: "Node {{ $labels.instance }} CPU usage is {{ printf \"%.1f\" $value }}%."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{job=\"node-exporter\", instance=\"{{ $labels.instance }}\"}"}],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bjob%3D%5C%22node-exporter%5C%22%2C%20instance%3D%5C%22{{ $labels.instance }}%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: NodeDiskPressure
           expr: |
@@ -42,7 +42,7 @@ spec:
           annotations:
             summary: "Node {{ $labels.instance }} disk usage above 85%"
             description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" $value }}% full."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{job=\"node-exporter\", instance=\"{{ $labels.instance }}\"}"}],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bjob%3D%5C%22node-exporter%5C%22%2C%20instance%3D%5C%22{{ $labels.instance }}%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: NodeDiskCritical
           expr: |
@@ -53,7 +53,7 @@ spec:
           annotations:
             summary: "Node {{ $labels.instance }} disk usage CRITICAL above 95%"
             description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} is {{ printf \"%.1f\" $value }}% full. Immediate action required."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{job=\"node-exporter\", instance=\"{{ $labels.instance }}\"}"}],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bjob%3D%5C%22node-exporter%5C%22%2C%20instance%3D%5C%22{{ $labels.instance }}%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
     # --- Kubernetes workload alerts ---
     - name: homelab-kubernetes
@@ -67,7 +67,7 @@ spec:
           annotations:
             summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
             description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted {{ printf \"%.0f\" $value }} times in the last 15 minutes."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"{{ $labels.namespace }}\", pod=\"{{ $labels.pod }}\"}"}],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22{{ $labels.namespace }}%5C%22%2C%20pod%3D%5C%22{{ $labels.pod }}%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: PodNotReady
           expr: |
@@ -78,7 +78,7 @@ spec:
           annotations:
             summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} not ready"
             description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has been in {{ $labels.phase }} state for more than 15 minutes."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"{{ $labels.namespace }}\", pod=\"{{ $labels.pod }}\"}"}],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22{{ $labels.namespace }}%5C%22%2C%20pod%3D%5C%22{{ $labels.pod }}%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: DeploymentReplicasMismatch
           expr: |
@@ -89,7 +89,7 @@ spec:
           annotations:
             summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} replicas mismatch"
             description: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} wants {{ $value }} replicas but doesn't have them ready."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"{{ $labels.namespace }}\"} |~ \"(?i)(error|warn|crash|restart|fail)\""  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22{{ $labels.namespace }}%5C%22%7D%20%7C~%20%5C%22%28%3Fi%29%28error%7Cwarn%7Ccrash%7Crestart%7Cfail%29%5C%22%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: PVCPending
           expr: |
@@ -100,7 +100,7 @@ spec:
           annotations:
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} stuck in Pending"
             description: "PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has been pending for more than 15 minutes."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"{{ $labels.namespace }}\"} |~ \"(?i)(pvc|volume|provision|pending|bound)\""  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22{{ $labels.namespace }}%5C%22%7D%20%7C~%20%5C%22%28%3Fi%29%28pvc%7Cvolume%7Cprovision%7Cpending%7Cbound%29%5C%22%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: PersistentVolumeFillingUp
           expr: |
@@ -111,7 +111,7 @@ spec:
           annotations:
             summary: "PV {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} filling up"
             description: "PersistentVolume backing {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ printf \"%.1f\" $value }}% full."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"{{ $labels.namespace }}\"}"  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22{{ $labels.namespace }}%5C%22%7D%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
     # --- ArgoCD alerts ---
     - name: homelab-argocd
@@ -125,7 +125,7 @@ spec:
           annotations:
             summary: "ArgoCD app {{ $labels.name }} out of sync"
             description: "ArgoCD application {{ $labels.name }} has been out of sync for more than 30 minutes."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"argocd\"} |~ \"{{ $labels.name }}\""  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22argocd%5C%22%7D%20%7C~%20%5C%22{{ $labels.name }}%5C%22%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: ArgoCDAppDegraded
           expr: |
@@ -136,7 +136,7 @@ spec:
           annotations:
             summary: "ArgoCD app {{ $labels.name }} is {{ $labels.health_status }}"
             description: "ArgoCD application {{ $labels.name }} health status is {{ $labels.health_status }}."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"argocd\"} |~ \"{{ $labels.name }}\""  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22argocd%5C%22%7D%20%7C~%20%5C%22{{ $labels.name }}%5C%22%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: ArgoCDSyncFailed
           expr: |
@@ -146,7 +146,7 @@ spec:
           annotations:
             summary: "ArgoCD app {{ $labels.name }} sync failed"
             description: "ArgoCD application {{ $labels.name }} had a failed sync in the last 30 minutes."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"argocd\"} |~ \"{{ $labels.name }}\""  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22argocd%5C%22%7D%20%7C~%20%5C%22{{ $labels.name }}%5C%22%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
     # --- Kratix platform alerts ---
     - name: homelab-kratix
@@ -160,7 +160,7 @@ spec:
           annotations:
             summary: "Kratix controller reconcile errors"
             description: "Kratix controller {{ $labels.controller }} has {{ printf \"%.0f\" $value }} reconcile errors in the last 15 minutes."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"kratix-platform-system\"} |~ \"(?i)(error|reconcil|fail)\""  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22kratix-platform-system%5C%22%7D%20%7C~%20%5C%22%28%3Fi%29%28error%7Creconcil%7Cfail%29%5C%22%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: KratixPipelineFailed
           expr: |
@@ -171,7 +171,7 @@ spec:
           annotations:
             summary: "Kratix pipeline pod(s) in Failed state"
             description: "{{ $value }} Kratix pipeline pod(s) are in Failed state. Check platform-requests namespace."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"platform-requests\"} |~ \"(?i)(error|fail|panic)\""  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22platform-requests%5C%22%7D%20%7C~%20%5C%22%28%3Fi%29%28error%7Cfail%7Cpanic%29%5C%22%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: KratixQueueBacklog
           expr: |
@@ -182,7 +182,7 @@ spec:
           annotations:
             summary: "Kratix work queue backlog growing"
             description: "Kratix controller work queue depth is {{ $value }}. Controllers may not be keeping up."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"kratix-platform-system\"} |~ \"(?i)(queue|backlog|slow|timeout)\""  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22kratix-platform-system%5C%22%7D%20%7C~%20%5C%22%28%3Fi%29%28queue%7Cbacklog%7Cslow%7Ctimeout%29%5C%22%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
     # --- NFS storage alerts ---
     - name: homelab-nfs
@@ -196,7 +196,7 @@ spec:
           annotations:
             summary: "NFS RPC retransmissions on {{ $labels.instance }}"
             description: "Node {{ $labels.instance }} has {{ printf \"%.0f\" $value }} NFS RPC retransmissions in the last 15 minutes. NFS storage may be experiencing issues."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{} |~ \"(?i)(nfs|mount|stale|rpc)\""  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7B%7D%20%7C~%20%5C%22%28%3Fi%29%28nfs%7Cmount%7Cstale%7Crpc%29%5C%22%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
     # --- Matrix alertmanager receiver health ---
     - name: homelab-alerting
@@ -210,7 +210,7 @@ spec:
           annotations:
             summary: "Matrix alert receiver failing to send notifications"
             description: "matrix-alertmanager-receiver has {{ printf \"%.0f\" $value }} send failures in the last 15 minutes. Alerts may not be reaching Matrix."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"monitoring\", pod=~\"matrix-alertmanager-receiver.*\"}"  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22monitoring%5C%22%2C%20pod%3D~%5C%22matrix-alertmanager-receiver.%2A%5C%22%7D%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
 
         - alert: MatrixReceiverDown
           expr: |
@@ -221,4 +221,4 @@ spec:
           annotations:
             summary: "Matrix alert receiver is down"
             description: "matrix-alertmanager-receiver is unreachable. Alert notifications to Matrix are not being delivered."
-            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"monitoring\", pod=~\"matrix-alertmanager-receiver.*\"}"  }],"range":{"from":"now-1h","to":"now"}}'
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22monitoring%5C%22%2C%20pod%3D~%5C%22matrix-alertmanager-receiver.%2A%5C%22%7D%22%20%20%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
