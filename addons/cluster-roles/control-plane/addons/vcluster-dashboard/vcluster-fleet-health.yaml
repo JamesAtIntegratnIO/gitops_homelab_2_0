@@ -10,7 +10,7 @@ data:
   vcluster-fleet-health.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
-      "description": "vCluster fleet health overview: resource consumption, pod status, StatefulSet readiness, and syncer performance for all virtual clusters running in vc-* namespaces",
+      "description": "vCluster fleet health overview: resource consumption, pod status, StatefulSet readiness, and syncer performance for all virtual clusters running in vcluster-* namespaces",
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
@@ -174,7 +174,7 @@ data:
       "tags": ["vcluster", "infrastructure"],
       "templating": {"list": [
         {"current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}, "hide": 0, "includeAll": false, "label": "Data Source", "multi": false, "name": "datasource", "options": [], "query": "prometheus", "queryValue": "", "refresh": 1, "regex": "", "skipUrlSync": false, "type": "datasource"},
-        {"allValue": "vc-.*", "current": {"selected": false, "text": "All", "value": "$__all"}, "datasource": {"type": "prometheus", "uid": "${datasource}"}, "definition": "label_values(kube_pod_info{namespace=~\"vc-.*\"}, namespace)", "hide": 0, "includeAll": true, "label": "vCluster Namespace", "multi": true, "name": "namespace", "options": [], "query": "label_values(kube_pod_info{namespace=~\"vc-.*\"}, namespace)", "refresh": 2, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"}
+        {"allValue": "vcluster-.*", "current": {"selected": false, "text": "All", "value": "$__all"}, "datasource": {"type": "prometheus", "uid": "${datasource}"}, "definition": "label_values(kube_pod_info{namespace=~\"vcluster-.*\"}, namespace)", "hide": 0, "includeAll": true, "label": "vCluster Namespace", "multi": true, "name": "namespace", "options": [], "query": "label_values(kube_pod_info{namespace=~\"vcluster-.*\"}, namespace)", "refresh": 2, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"}
       ]},
       "time": {"from": "now-6h", "to": "now"},
       "timepicker": {},
