@@ -10,7 +10,7 @@ env:
         name: cloudflare-api-key
         key: CF_API_EMAIL
 
-logLevel: debug
+logLevel: info
 
 domainFilters:
   - integratn.tech
