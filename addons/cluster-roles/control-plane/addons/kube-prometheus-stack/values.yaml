@@ -6,64 +6,65 @@ alertmanager:
       volumeClaimTemplate:
         spec:
           storageClassName: config-nfs-client
-          accessModes: ["ReadWriteOnce"]
+          accessModes:
+          - ReadWriteOnce
           resources:
             requests:
               storage: 5Gi
   config:
     global:
       resolve_timeout: 5m
-    # Inhibit lower-severity alerts when critical fires for the same target
     inhibit_rules:
-      - source_matchers:
-          - severity = critical
-        target_matchers:
-          - severity =~ warning|info
-        equal: ['namespace', 'alertname']
-      - source_matchers:
-          - alertname = InfoInhibitor
-        target_matchers:
-          - severity = info
+    - source_matchers:
+      - severity = critical
+      target_matchers:
+      - severity =~ warning|info
+      equal:
+      - namespace
+      - alertname
+    - source_matchers:
+      - alertname = InfoInhibitor
+      target_matchers:
+      - severity = info
     route:
       receiver: matrix
-      group_by: ['namespace', 'alertname']
+      group_by:
+      - namespace
+      - alertname
       group_wait: 30s
       group_interval: 5m
       repeat_interval: 4h
       routes:
-        # ArgoCD Notifications - event-driven, fast grouping
-        - receiver: matrix
-          matchers:
-            - source = argocd-notifications
-          group_by: ['alertname', 'app_name']
-          group_wait: 10s
-          group_interval: 1m
-          repeat_interval: 24h
-          continue: false
-        # Critical alerts - immediate, shorter repeat
-        - receiver: matrix
-          matchers:
-            - severity = critical
-          group_wait: 10s
-          repeat_interval: 1h
-          continue: false
-        # Watchdog / heartbeat - silence to avoid noise
-        - receiver: "null"
-          matchers:
-            - alertname = Watchdog
-          continue: false
-        # InfoInhibitor - silence
-        - receiver: "null"
-          matchers:
-            - alertname = InfoInhibitor
-          continue: false
+      - receiver: matrix
+        matchers:
+        - source = argocd-notifications
+        group_by:
+        - alertname
+        - app_name
+        group_wait: 10s
+        group_interval: 1m
+        repeat_interval: 24h
+        continue: false
+      - receiver: matrix
+        matchers:
+        - severity = critical
+        group_wait: 10s
+        repeat_interval: 1h
+        continue: false
+      - receiver: 'null'
+        matchers:
+        - alertname = Watchdog
+        continue: false
+      - receiver: 'null'
+        matchers:
+        - alertname = InfoInhibitor
+        continue: false
     receivers:
-      - name: "null"
-      - name: matrix
-        webhook_configs:
-          - url: "http://matrix-alertmanager-receiver.monitoring.svc.cluster.local:12345/alerts/homelab-alerts"
-            send_resolved: true
-
+    - name: 'null'
+    - name: matrix
+      webhook_configs:
+      - url: http://matrix-alertmanager-receiver.monitoring.svc.cluster.local:12345/alerts/homelab-alerts
+        send_resolved: true
 prometheus:
   service:
     type: ClusterIP
@@ -71,40 +72,34 @@ prometheus:
     externalUrl: https://prometheus.cluster.integratn.tech
     enableRemoteWriteReceiver: true
     enableFeatures:
-      - exemplar-storage
+    - exemplar-storage
     retention: 15d
-    # Mount etcd client certificates for secure etcd scraping
     secrets:
-      - etcd-client-cert
-    # Disable the behavior that makes {} selector use Helm values
+    - etcd-client-cert
     serviceMonitorSelectorNilUsesHelmValues: false
     podMonitorSelectorNilUsesHelmValues: false
     ruleSelectorNilUsesHelmValues: false
-    # Discover ServiceMonitors across all namespaces
     serviceMonitorNamespaceSelector: {}
     serviceMonitorSelector: {}
-    # Discover PodMonitors across all namespaces
     podMonitorNamespaceSelector: {}
     podMonitorSelector: {}
-    # Discover PrometheusRules across all namespaces
     ruleNamespaceSelector: {}
     ruleSelector: {}
     storageSpec:
       volumeClaimTemplate:
         spec:
           storageClassName: config-nfs-client
-          accessModes: ["ReadWriteOnce"]
+          accessModes:
+          - ReadWriteOnce
           resources:
             requests:
               storage: 30Gi
-
-# Configure ServiceMonitors for Talos control plane components
 kubeControllerManager:
   enabled: true
   endpoints:
-    - 10.0.4.101
-    - 10.0.4.102
-    - 10.0.4.103
+  - 10.0.4.101
+  - 10.0.4.102
+  - 10.0.4.103
   service:
     enabled: true
     port: 10257
@@ -113,13 +108,12 @@ kubeControllerManager:
     enabled: true
     https: true
     insecureSkipVerify: true
-
 kubeScheduler:
   enabled: true
   endpoints:
-    - 10.0.4.101
-    - 10.0.4.102
-    - 10.0.4.103
+  - 10.0.4.101
+  - 10.0.4.102
+  - 10.0.4.103
   service:
     enabled: true
     port: 10259
@@ -128,28 +122,24 @@ kubeScheduler:
     enabled: true
     https: true
     insecureSkipVerify: true
-
 kubeProxy:
   enabled: true
   endpoints:
-    - 10.0.4.101
-    - 10.0.4.102
-    - 10.0.4.103
+  - 10.0.4.101
+  - 10.0.4.102
+  - 10.0.4.103
   service:
     enabled: true
     port: 10249
     targetPort: 10249
-
 kubeEtcd:
   enabled: true
-  # Use selector workaround to auto-populate endpoints from control plane nodes
-  # See: https://github.com/siderolabs/talos/discussions/7214
   service:
     enabled: true
-    port: 2379  # etcd main port with TLS
+    port: 2379
     targetPort: 2379
     selector:
-      k8s-app: kube-controller-manager  # Reuse controller-manager selector since all CP nodes run same services
+      k8s-app: kube-controller-manager
   serviceMonitor:
     enabled: true
     scheme: https
@@ -158,11 +148,9 @@ kubeEtcd:
     caFile: /etc/prometheus/secrets/etcd-client-cert/ca.crt
     certFile: /etc/prometheus/secrets/etcd-client-cert/server.crt
     keyFile: /etc/prometheus/secrets/etcd-client-cert/server.key
-    # Remove pod label since etcd doesn't run in a pod
     metricRelabelings:
-      - action: labeldrop
-        regex: pod
-
+    - action: labeldrop
+      regex: pod
 grafana:
   defaultDashboardsEnabled: true
   defaultDashboardsTimezone: browser
@@ -172,7 +160,7 @@ grafana:
     dashboards:
       enabled: true
       label: grafana_dashboard
-      labelValue: "1"
+      labelValue: '1'
       searchNamespace: ALL
       folderAnnotation: grafana_folder
       provider:
@@ -198,22 +186,14 @@ grafana:
     dashboardproviders.yaml:
       apiVersion: 1
       providers:
-        - name: default
-          orgId: 1
-          folder: Kubernetes
-          type: file
-          disableDeletion: false
-          editable: true
-          options:
-            path: /var/lib/grafana/dashboards/default
-        - name: platform
-          orgId: 1
-          folder: Platform
-          type: file
-          disableDeletion: false
-          editable: true
-          options:
-            path: /var/lib/grafana/dashboards/platform
+      - name: default
+        orgId: 1
+        folder: Kubernetes
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
   dashboards:
     default:
       kubernetes-cluster-monitoring:
@@ -222,39 +202,30 @@ grafana:
       node-exporter-full:
         gnetId: 1860
         datasource: Prometheus
-      loki-kubernetes-logs:
-        json: |
-          {"annotations":{"list":[]},"description":"Kubernetes log viewer powered by Loki and Promtail","editable":true,"fiscalYearStartMonth":0,"graphTooltip":1,"id":null,"links":[],"panels":[{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":0},"id":100,"title":"Log Volume","type":"row"},{"datasource":{"type":"loki","uid":"${lokids}"},"description":"Log line volume over time by namespace. Helps identify noisy namespaces and spot sudden spikes in log output.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"bars","fillOpacity":80,"lineWidth":1,"pointSize":5,"showPoints":"never","stacking":{"group":"A","mode":"normal"}},"unit":"short"},"overrides":[]},"gridPos":{"h":6,"w":24,"x":0,"y":1},"id":1,"options":{"legend":{"calcs":["sum"],"displayMode":"table","placement":"right","sortBy":"Total","sortDesc":true},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Log Volume by Namespace","type":"timeseries","targets":[{"datasource":{"type":"loki","uid":"${lokids}"},"expr":"sum by (namespace) (count_over_time({namespace=~\"$namespace\"} [$__interval]))","legendFormat":"{{namespace}}","refId":"A"}]},{"datasource":{"type":"loki","uid":"${lokids}"},"description":"Log line volume by pod within the selected namespace. Useful for finding the noisiest pods.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"bars","fillOpacity":80,"lineWidth":1,"pointSize":5,"showPoints":"never","stacking":{"group":"A","mode":"normal"}},"unit":"short"},"overrides":[]},"gridPos":{"h":6,"w":24,"x":0,"y":7},"id":2,"options":{"legend":{"calcs":["sum"],"displayMode":"table","placement":"right","sortBy":"Total","sortDesc":true},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Log Volume by Pod","type":"timeseries","targets":[{"datasource":{"type":"loki","uid":"${lokids}"},"expr":"sum by (pod) (count_over_time({namespace=~\"$namespace\", pod=~\"$pod\"} [$__interval]))","legendFormat":"{{pod}}","refId":"A"}]},{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":13},"id":101,"title":"Log Stream","type":"row"},{"datasource":{"type":"loki","uid":"${lokids}"},"description":"Live log stream filtered by namespace, pod, container, and search text.","gridPos":{"h":20,"w":24,"x":0,"y":14},"id":10,"options":{"dedupStrategy":"none","enableLogDetails":true,"prettifyLogMessage":false,"showCommonLabels":false,"showLabels":false,"showTime":true,"sortOrder":"Descending","wrapLogMessage":true},"title":"Logs","type":"logs","targets":[{"datasource":{"type":"loki","uid":"${lokids}"},"expr":"{namespace=~\"$namespace\", pod=~\"$pod\", container=~\"$container\"} |~ \"$search\"","refId":"A"}]},{"collapsed":true,"gridPos":{"h":1,"w":24,"x":0,"y":34},"id":102,"panels":[{"datasource":{"type":"loki","uid":"${lokids}"},"description":"Error-level log lines over time. Spikes indicate problems worth investigating.","fieldConfig":{"defaults":{"color":{"fixedColor":"red","mode":"fixed"},"custom":{"axisCenteredZero":false,"drawStyle":"bars","fillOpacity":80,"lineWidth":1,"pointSize":5,"showPoints":"never"},"unit":"short"},"overrides":[]},"gridPos":{"h":6,"w":24,"x":0,"y":35},"id":20,"options":{"legend":{"calcs":["sum"],"displayMode":"table","placement":"right"},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Error Log Volume","type":"timeseries","targets":[{"datasource":{"type":"loki","uid":"${lokids}"},"expr":"sum by (pod) (count_over_time({namespace=~\"$namespace\", pod=~\"$pod\"} |~ \"(?i)(error|err|panic|fatal|exception)\" [$__interval]))","legendFormat":"{{pod}}","refId":"A"}]},{"datasource":{"type":"loki","uid":"${lokids}"},"description":"Only error/warning log lines for quick troubleshooting.","gridPos":{"h":16,"w":24,"x":0,"y":41},"id":21,"options":{"dedupStrategy":"none","enableLogDetails":true,"prettifyLogMessage":false,"showCommonLabels":false,"showLabels":false,"showTime":true,"sortOrder":"Descending","wrapLogMessage":true},"title":"Error Logs","type":"logs","targets":[{"datasource":{"type":"loki","uid":"${lokids}"},"expr":"{namespace=~\"$namespace\", pod=~\"$pod\", container=~\"$container\"} |~ \"(?i)(error|err|panic|fatal|exception|warn)\"","refId":"A"}]}],"title":"Errors & Warnings","type":"row"}],"refresh":"10s","schemaVersion":39,"tags":["loki","logs","kubernetes"],"templating":{"list":[{"current":{"selected":false,"text":"Loki","value":"Loki"},"hide":0,"includeAll":false,"label":"Loki","multi":false,"name":"lokids","options":[],"query":"loki","queryValue":"","refresh":1,"regex":"","skipUrlSync":false,"type":"datasource"},{"allValue":".*","current":{"selected":false,"text":"All","value":"$__all"},"datasource":{"type":"loki","uid":"${lokids}"},"definition":"label_values(namespace)","hide":0,"includeAll":true,"label":"Namespace","multi":true,"name":"namespace","options":[],"query":"label_values(namespace)","refresh":2,"regex":"","skipUrlSync":false,"sort":1,"type":"query"},{"allValue":".*","current":{"selected":false,"text":"All","value":"$__all"},"datasource":{"type":"loki","uid":"${lokids}"},"definition":"label_values({namespace=~\"$namespace\"}, pod)","hide":0,"includeAll":true,"label":"Pod","multi":true,"name":"pod","options":[],"query":"label_values({namespace=~\"$namespace\"}, pod)","refresh":2,"regex":"","skipUrlSync":false,"sort":1,"type":"query"},{"allValue":".*","current":{"selected":false,"text":"All","value":"$__all"},"datasource":{"type":"loki","uid":"${lokids}"},"definition":"label_values({namespace=~\"$namespace\", pod=~\"$pod\"}, container)","hide":0,"includeAll":true,"label":"Container","multi":true,"name":"container","options":[],"query":"label_values({namespace=~\"$namespace\", pod=~\"$pod\"}, container)","refresh":2,"regex":"","skipUrlSync":false,"sort":1,"type":"query"},{"current":{"selected":false,"text":"","value":""},"hide":0,"label":"Search","name":"search","options":[{"selected":true,"text":"","value":""}],"query":"","skipUrlSync":false,"type":"textbox"}]},"time":{"from":"now-1h","to":"now"},"timepicker":{},"timezone":"browser","title":"Loki Kubernetes Logs","uid":"loki-kubernetes-logs","version":1}
-    platform:
-      kratix-platform:
-        json: |
-          {"annotations":{"list":[{"builtIn":1,"datasource":{"type":"grafana","uid":"-- Grafana --"},"enable":true,"hide":true,"iconColor":"rgba(0, 211, 255, 1)","name":"Annotations & Alerts","type":"dashboard"}]},"description":"Kratix platform controller metrics \u2014 reconciliation, pipelines, work queues, and ArgoCD sync status","editable":true,"fiscalYearStartMonth":0,"graphTooltip":1,"id":null,"links":[],"panels":[{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":0},"id":100,"title":"Platform Overview","type":"row"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Cumulative count of all controller reconciliation loops. A steadily increasing number is normal \u2014 spikes may indicate config changes or resource churn.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null}]},"mappings":[]},"overrides":[]},"gridPos":{"h":4,"w":4,"x":0,"y":1},"id":1,"options":{"colorMode":"background","graphMode":"area","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"title":"Total Reconciles","type":"stat","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum(controller_runtime_reconcile_total{job=~\".*kratix.*\"}) or vector(0)","legendFormat":"","refId":"A","instant":true}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Total controller reconciliation errors. Any value > 0 means a controller failed to reconcile a resource. Check controller logs for root cause.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":1}]}},"overrides":[]},"gridPos":{"h":4,"w":4,"x":4,"y":1},"id":2,"options":{"colorMode":"background","graphMode":"area","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"title":"Reconcile Errors","type":"stat","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum(controller_runtime_reconcile_errors_total{job=~\".*kratix.*\"}) or vector(0)","legendFormat":"","refId":"A","instant":true}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Percentage of reconciliations completing without error. Below 99% warrants investigation; below 90% is critical and likely means promise fulfillment is impaired.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"red","value":null},{"color":"yellow","value":90},{"color":"green","value":99}]},"unit":"percent","decimals":1},"overrides":[]},"gridPos":{"h":4,"w":4,"x":8,"y":1},"id":3,"options":{"colorMode":"background","graphMode":"none","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"title":"Reconcile Success Rate","type":"stat","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"(sum(controller_runtime_reconcile_total{job=~\".*kratix.*\",result!=\"error\"}) / sum(controller_runtime_reconcile_total{job=~\".*kratix.*\"})) * 100 or vector(100)","legendFormat":"","refId":"A","instant":true}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Whether the Kratix state-reconciler ArgoCD app is synced. OutOfSync means Kratix wrote to the state repo but ArgoCD hasn't applied the changes to the cluster yet.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":1}]},"mappings":[{"options":{"0":{"text":"Synced","color":"green"}},"type":"value"},{"options":{"1":{"text":"OutOfSync","color":"red"}},"type":"value"}]},"overrides":[]},"gridPos":{"h":4,"w":4,"x":12,"y":1},"id":4,"options":{"colorMode":"background","graphMode":"none","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"title":"State Reconciler Sync","type":"stat","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"argocd_app_info{name=\"kratix-state-reconciler\", sync_status!=\"Synced\"} or vector(0)","legendFormat":"","refId":"A","instant":true}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Count of pipeline pods in Failed state. Failed pipelines mean promise fulfillment is broken for affected resources \u2014 check pod logs immediately.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"red","value":1}]}},"overrides":[]},"gridPos":{"h":4,"w":4,"x":16,"y":1},"id":5,"options":{"colorMode":"background","graphMode":"area","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"title":"Failed Pipeline Pods","type":"stat","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"count(kube_pod_status_phase{namespace=\"platform-requests\", phase=\"Failed\"}) or vector(0)","legendFormat":"","refId":"A","instant":true}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Items waiting to be processed across all controller work queues. Sustained high values indicate the controller can't keep up with incoming work and promises may be delayed.","fieldConfig":{"defaults":{"color":{"mode":"thresholds"},"thresholds":{"mode":"absolute","steps":[{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":5}]}},"overrides":[]},"gridPos":{"h":4,"w":4,"x":20,"y":1},"id":6,"options":{"colorMode":"background","graphMode":"area","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"auto"},"title":"Queue Depth","type":"stat","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum(workqueue_depth{job=~\".*kratix.*\"}) or vector(0)","legendFormat":"","refId":"A","instant":true}]},{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":5},"id":101,"title":"Pipeline Execution","type":"row"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Tracks pipeline pod lifecycle phases over time. Growing 'Succeeded' count is normal \u2014 the cleanup CronJob runs daily at 04:00 to prune completed jobs. 'Failed' or stuck 'Running' pods need immediate attention.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"axisLabel":"","drawStyle":"bars","fillOpacity":80,"lineWidth":1,"pointSize":5,"showPoints":"auto","stacking":{"group":"A","mode":"normal"}}},"overrides":[{"matcher":{"id":"byName","options":"Completed"},"properties":[{"id":"color","value":{"fixedColor":"green","mode":"fixed"}}]},{"matcher":{"id":"byName","options":"Failed"},"properties":[{"id":"color","value":{"fixedColor":"red","mode":"fixed"}}]},{"matcher":{"id":"byName","options":"Running"},"properties":[{"id":"color","value":{"fixedColor":"blue","mode":"fixed"}}]},{"matcher":{"id":"byName","options":"Pending"},"properties":[{"id":"color","value":{"fixedColor":"yellow","mode":"fixed"}}]}]},"gridPos":{"h":8,"w":12,"x":0,"y":6},"id":10,"options":{"legend":{"calcs":[],"displayMode":"list","placement":"bottom"},"tooltip":{"mode":"multi","sort":"none"}},"title":"Pipeline Pod Status Over Time","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"count(kube_pod_status_phase{namespace=\"platform-requests\", phase=\"Succeeded\"}) or vector(0)","legendFormat":"Completed","refId":"A"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"count(kube_pod_status_phase{namespace=\"platform-requests\", phase=\"Failed\"}) or vector(0)","legendFormat":"Failed","refId":"B"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"count(kube_pod_status_phase{namespace=\"platform-requests\", phase=\"Running\"}) or vector(0)","legendFormat":"Running","refId":"C"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"count(kube_pod_status_phase{namespace=\"platform-requests\", phase=\"Pending\"}) or vector(0)","legendFormat":"Pending","refId":"D"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Shows which promises are generating the most pipeline activity. Useful for identifying noisy promises that reconcile too frequently or unexpected reconciliation loops.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":2,"pointSize":5,"showPoints":"auto"},"unit":"short"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":12,"y":6},"id":11,"options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Pipeline Pods by Promise","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"count by (label_kratix_io_promise_name) (kube_pod_labels{namespace=\"platform-requests\", label_kratix_io_promise_name!=\"\"})","legendFormat":"{{ label_kratix_io_promise_name }}","refId":"A"}]},{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":14},"id":102,"title":"Controller Reconciliation","type":"row"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Reconciliations per second grouped by outcome. Success and requeue_after are normal. Sustained 'error' results indicate broken resources. High 'requeue' rates mean controllers are retrying due to transient failures.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":20,"lineWidth":2,"pointSize":5,"showPoints":"auto","stacking":{"group":"A","mode":"normal"}},"unit":"ops"},"overrides":[{"matcher":{"id":"byName","options":"success"},"properties":[{"id":"color","value":{"fixedColor":"green","mode":"fixed"}}]},{"matcher":{"id":"byName","options":"error"},"properties":[{"id":"color","value":{"fixedColor":"red","mode":"fixed"}}]},{"matcher":{"id":"byName","options":"requeue"},"properties":[{"id":"color","value":{"fixedColor":"yellow","mode":"fixed"}}]},{"matcher":{"id":"byName","options":"requeue_after"},"properties":[{"id":"color","value":{"fixedColor":"blue","mode":"fixed"}}]}]},"gridPos":{"h":8,"w":12,"x":0,"y":15},"id":20,"options":{"legend":{"calcs":["sum"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"none"}},"title":"Reconcile Rate by Result","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum by (result) (rate(controller_runtime_reconcile_total{job=~\".*kratix.*\"}[5m]))","legendFormat":"{{ result }}","refId":"A"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Shows which controllers are most active. Helps identify if a specific controller (e.g. Promise, Work, WorkPlacement) is doing excessive reconciliations, which may indicate a hot resource or feedback loop.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":2,"pointSize":5,"showPoints":"auto"},"unit":"ops"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":12,"y":15},"id":21,"options":{"legend":{"calcs":["sum"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Reconcile Rate by Controller","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum by (controller) (rate(controller_runtime_reconcile_total{job=~\".*kratix.*\"}[5m])) > 0","legendFormat":"{{ controller }}","refId":"A"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Rate of work items being retried per controller queue. High retry rates indicate controllers are struggling \u2014 often due to resource conflicts, API throttling, or transient errors. Correlate with reconcile errors.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":2,"pointSize":5,"showPoints":"auto"},"unit":"short"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":0,"y":23},"id":22,"options":{"legend":{"calcs":["sum"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Work Queue Retries by Controller","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"sum by (name) (rate(workqueue_retries_total{job=~\".*kratix.*\"}[5m])) > 0","legendFormat":"{{ name }}","refId":"A"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"99th percentile time to process a single work item from the queue. Sustained high values may indicate resource contention, slow API calls, or complex reconciliation logic in specific controllers.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":2,"pointSize":5,"showPoints":"auto"},"unit":"s"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":12,"y":23},"id":23,"options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Work Queue Processing Time (p99)","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.99, sum by (name, le) (rate(workqueue_work_duration_seconds_bucket{job=~\".*kratix.*\"}[5m])))","legendFormat":"{{ name }}","refId":"A"}]},{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":31},"id":103,"title":"State Store & ArgoCD Sync","type":"row"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Whether the state-reconciler ArgoCD app is synced with the git state repo. OutOfSync means Kratix wrote resources to git but ArgoCD hasn't applied them to the cluster yet \u2014 check ArgoCD for sync errors.","fieldConfig":{"defaults":{"color":{"mode":"fixed"},"mappings":[{"options":{"0":{"text":"OutOfSync","color":"red"},"1":{"text":"Synced","color":"green"}},"type":"value"}]},"overrides":[]},"gridPos":{"h":4,"w":6,"x":0,"y":32},"id":30,"options":{"colorMode":"background","graphMode":"none","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"value"},"title":"State Reconciler Sync Status","type":"stat","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"count(argocd_app_info{name=\"kratix-state-reconciler\", sync_status=\"Synced\"}) or vector(0)","legendFormat":"","refId":"A","instant":true}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"ArgoCD health status of the state reconciler. Unhealthy means the Kubernetes resources deployed by Kratix are in a degraded state \u2014 check the ArgoCD app for resource-level health details.","fieldConfig":{"defaults":{"color":{"mode":"fixed"},"mappings":[{"options":{"0":{"text":"Unhealthy","color":"red"},"1":{"text":"Healthy","color":"green"}},"type":"value"}]},"overrides":[]},"gridPos":{"h":4,"w":6,"x":6,"y":32},"id":31,"options":{"colorMode":"background","graphMode":"none","justifyMode":"auto","orientation":"auto","reduceOptions":{"calcs":["lastNotNull"],"fields":"","values":false},"textMode":"value"},"title":"State Reconciler Health","type":"stat","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"count(argocd_app_info{name=\"kratix-state-reconciler\", health_status=\"Healthy\"}) or vector(0)","legendFormat":"","refId":"A","instant":true}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Cumulative sync operation count for Kratix-managed ArgoCD applications. Correlate with sync duration to identify apps that sync frequently or take unusually long.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":2,"pointSize":5,"showPoints":"auto"},"unit":"s"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":12,"y":32},"id":32,"options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"none"}},"title":"ArgoCD Sync Duration (Kratix Apps)","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"argocd_app_sync_total{name=~\"kratix.*\", phase=\"Succeeded\"}","legendFormat":"{{ name }}","refId":"A"}]},{"collapsed":false,"gridPos":{"h":1,"w":24,"x":0,"y":40},"id":104,"title":"Controller Runtime Health","type":"row"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Reconciliation duration by controller at p50 (median), p95, and p99. Tail latency (p99) reveals problems that averages hide. If p99 is much higher than p50, some reconciliations are getting stuck. Compare controllers to find the slowest.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":1,"pointSize":5,"showPoints":"never"},"unit":"s"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":0,"y":41},"id":40,"options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Reconcile Duration (p50 / p95 / p99)","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.5, sum by (controller, le) (rate(controller_runtime_reconcile_time_seconds_bucket{job=~\".*kratix.*\"}[5m])))","legendFormat":"{{ controller }} p50","refId":"A"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.95, sum by (controller, le) (rate(controller_runtime_reconcile_time_seconds_bucket{job=~\".*kratix.*\"}[5m])))","legendFormat":"{{ controller }} p95","refId":"B"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"histogram_quantile(0.99, sum by (controller, le) (rate(controller_runtime_reconcile_time_seconds_bucket{job=~\".*kratix.*\"}[5m])))","legendFormat":"{{ controller }} p99","refId":"C"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Real-time queue depth per controller. Shows items waiting to be reconciled. Growing queues mean work is arriving faster than it's being processed \u2014 the controller may need more resources or there's a blocking issue.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":1,"pointSize":5,"showPoints":"never"},"unit":"short"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":12,"y":41},"id":41,"options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Controller Work Queue Depth","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"workqueue_depth{job=~\".*kratix.*\"}","legendFormat":"{{ name }}","refId":"A"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Controller process memory \u2014 RSS is total memory used by the process, Go Alloc is memory actively used by Go objects. If RSS grows steadily while Go Alloc stays flat, the process may have a memory leak or excessive cgo allocation.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":1,"pointSize":5,"showPoints":"never"},"unit":"bytes"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":0,"y":49},"id":42,"options":{"legend":{"calcs":["lastNotNull"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"none"}},"title":"Controller Memory Usage","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"process_resident_memory_bytes{job=~\".*kratix.*\"}","legendFormat":"Resident Memory","refId":"A"},{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"go_memstats_alloc_bytes{job=~\".*kratix.*\"}","legendFormat":"Go Alloc","refId":"B"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Active Go goroutines in the controller. Should stabilize at a steady number. A continuously increasing count without plateau indicates a goroutine leak, which will eventually crash the controller with OOM.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":1,"pointSize":5,"showPoints":"never"},"unit":"short"},"overrides":[]},"gridPos":{"h":8,"w":12,"x":12,"y":49},"id":43,"options":{"legend":{"calcs":["lastNotNull"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"none"}},"title":"Controller Goroutines","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"go_goroutines{job=~\".*kratix.*\"}","legendFormat":"Goroutines","refId":"A"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Controller CPU usage in cores (1.0 = one full CPU core). Sustained high CPU may indicate reconciliation storms, inefficient controller logic, or excessive API calls. Correlate with reconcile rate to find the cause.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":20,"lineWidth":2,"pointSize":5,"showPoints":"never"},"unit":"short","decimals":3},"overrides":[]},"gridPos":{"h":8,"w":8,"x":0,"y":57},"id":44,"options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"none"}},"title":"Controller CPU Usage (cores)","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"rate(process_cpu_seconds_total{job=~\".*kratix.*\"}[5m])","legendFormat":"CPU cores","refId":"A"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Duration of the longest-running work item processor per queue. High values (> 60s) indicate a reconciliation is stuck or taking unusually long \u2014 possibly waiting on an external resource, blocked by a lock, or in a retry loop. Critical for detecting silent hangs.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":2,"pointSize":5,"showPoints":"never"},"unit":"s"},"overrides":[]},"gridPos":{"h":8,"w":8,"x":8,"y":57},"id":45,"options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Longest Running Processor","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"workqueue_longest_running_processor_seconds{job=~\".*kratix.*\"}","legendFormat":"{{ name }}","refId":"A"}]},{"datasource":{"type":"prometheus","uid":"${datasource}"},"description":"Estimated seconds of unfinished work sitting in the queue. Combines queue depth with processing time to show backlog severity. A rising trend means the controller is falling behind and promises will experience increasing delays.","fieldConfig":{"defaults":{"color":{"mode":"palette-classic"},"custom":{"axisCenteredZero":false,"drawStyle":"line","fillOpacity":10,"lineWidth":2,"pointSize":5,"showPoints":"never"},"unit":"s"},"overrides":[]},"gridPos":{"h":8,"w":8,"x":16,"y":57},"id":46,"options":{"legend":{"calcs":["mean","max"],"displayMode":"table","placement":"bottom"},"tooltip":{"mode":"multi","sort":"desc"}},"title":"Unfinished Work Backlog","type":"timeseries","targets":[{"datasource":{"type":"prometheus","uid":"${datasource}"},"expr":"workqueue_unfinished_work_seconds{job=~\".*kratix.*\"}","legendFormat":"{{ name }}","refId":"A"}]}],"refresh":"30s","schemaVersion":39,"tags":["kratix","platform"],"templating":{"list":[{"current":{"selected":false,"text":"Prometheus","value":"Prometheus"},"hide":0,"includeAll":false,"label":"Data Source","multi":false,"name":"datasource","options":[],"query":"prometheus","queryValue":"","refresh":1,"regex":"","skipUrlSync":false,"type":"datasource"}]},"time":{"from":"now-6h","to":"now"},"timepicker":{},"timezone":"browser","title":"Kratix Platform","uid":"kratix-platform","version":1}
   additionalDataSources:
-    - name: Loki
-      type: loki
-      uid: loki
-      access: proxy
-      url: http://loki-gateway.loki.svc.cluster.local
-      jsonData:
-        maxLines: 5000
-        timeout: 60
-
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki-gateway.loki.svc.cluster.local
+    jsonData:
+      maxLines: 5000
+      timeout: 60
 defaultRules:
   rules:
     etcd: true
-  # Override the etcdInsufficientMembers alert to properly aggregate across all members
   additionalPrometheusRules:
-    - name: etcd-override
-      groups:
-        - name: etcd
-          rules:
-            - alert: etcdInsufficientMembers
-              annotations:
-                description: 'etcd cluster "{{ $labels.job }}": insufficient members ({{ $value }}).'
-                summary: etcd cluster has insufficient number of members.
-              expr: |
-                sum(up{job=~".*etcd.*"} == bool 1) < ((count(up{job=~".*etcd.*"}) + 1) / 2)
-              for: 3m
-              labels:
-                severity: critical
+  - name: etcd-override
+    groups:
+    - name: etcd
+      rules:
+      - alert: etcdInsufficientMembers
+        annotations:
+          description: 'etcd cluster "{{ $labels.job }}": insufficient members ({{ $value }}).'
+          summary: etcd cluster has insufficient number of members.
+        expr: 'sum(up{job=~".*etcd.*"} == bool 1) < ((count(up{job=~".*etcd.*"}) + 1) / 2)
 
+          '
+        for: 3m
+        labels:
+          severity: critical
