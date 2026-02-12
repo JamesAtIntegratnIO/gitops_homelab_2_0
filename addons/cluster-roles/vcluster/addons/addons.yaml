@@ -509,6 +509,7 @@ nginx-gateway-fabric-vcluster:
   project: platform-services
   chartRepository: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
   defaultVersion: "2.2.2"
+  helmSkipCrds: true
   annotationsApp:
     argocd.argoproj.io/sync-wave: "10"
   selector:
