@@ -151,7 +151,7 @@ spec:
 
         - alert: KratixPipelineFailed
           expr: |
-            count(kube_pod_status_phase{namespace="platform-requests", phase="Failed"}) > 0
+            count(kube_pod_status_phase{namespace="platform-requests", phase="Failed"} == 1) > 0
           for: 5m
           labels:
             severity: warning
