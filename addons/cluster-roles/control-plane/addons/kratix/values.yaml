@@ -334,7 +334,7 @@ additionalResources:
                 description: 'Pipeline pod {{ "{{" }} $labels.pod {{ "}}" }} in namespace {{ "{{" }} $labels.namespace {{ "}}" }} has been in Failed state for more than 5 minutes.'
             - alert: KratixPipelineStuck
               expr: |
-                kube_pod_status_phase{namespace="platform-requests", phase=~"Pending|Running"} == 1
+                (kube_pod_status_phase{namespace="platform-requests", phase=~"Pending|Running"} == 1)
                 * on(pod, namespace) group_left()
                 (time() - kube_pod_start_time{namespace="platform-requests"} > 900)
               for: 5m
