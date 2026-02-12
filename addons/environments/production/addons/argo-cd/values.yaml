@@ -56,6 +56,96 @@ notifications:
     serviceMonitor:
       enabled: true
 
+  # -- Alertmanager notification service
+  notifiers:
+    service.alertmanager: |
+      targets:
+        - url: http://kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093
+      scheme: http
+      apiPath: /api/v2/alerts
+
+  # -- Notification templates for Alertmanager
+  templates:
+    template.app-sync-failed: |
+      alertmanager:
+        labels:
+          alertname: ArgoCD-AppSyncFailed
+          severity: critical
+          source: argocd-notifications
+          app_name: "{{.app.metadata.name}}"
+          project: "{{.app.spec.project}}"
+          dest_namespace: "{{.app.spec.destination.namespace}}"
+        annotations:
+          summary: "Application {{.app.metadata.name}} sync failed"
+          description: "Sync operation for {{.app.metadata.name}} (project: {{.app.spec.project}}) failed with phase {{.app.status.operationState.phase}}."
+        generatorURL: "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
+
+    template.app-health-degraded: |
+      alertmanager:
+        labels:
+          alertname: ArgoCD-AppHealthDegraded
+          severity: warning
+          source: argocd-notifications
+          app_name: "{{.app.metadata.name}}"
+          project: "{{.app.spec.project}}"
+          dest_namespace: "{{.app.spec.destination.namespace}}"
+        annotations:
+          summary: "Application {{.app.metadata.name}} health degraded"
+          description: "Application {{.app.metadata.name}} (project: {{.app.spec.project}}) health status is {{.app.status.health.status}}."
+        generatorURL: "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
+
+    template.app-sync-succeeded: |
+      alertmanager:
+        labels:
+          alertname: ArgoCD-AppSyncSucceeded
+          severity: info
+          source: argocd-notifications
+          app_name: "{{.app.metadata.name}}"
+          project: "{{.app.spec.project}}"
+          dest_namespace: "{{.app.spec.destination.namespace}}"
+        annotations:
+          summary: "Application {{.app.metadata.name}} synced successfully"
+          description: "Application {{.app.metadata.name}} (project: {{.app.spec.project}}) has been synced to revision {{.app.status.sync.revision}}."
+        generatorURL: "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
+
+    template.app-deployed: |
+      alertmanager:
+        labels:
+          alertname: ArgoCD-AppDeployed
+          severity: info
+          source: argocd-notifications
+          app_name: "{{.app.metadata.name}}"
+          project: "{{.app.spec.project}}"
+          dest_namespace: "{{.app.spec.destination.namespace}}"
+        annotations:
+          summary: "Application {{.app.metadata.name}} deployed and healthy"
+          description: "Application {{.app.metadata.name}} (project: {{.app.spec.project}}) is synced and healthy."
+        generatorURL: "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
+
+  # -- Triggers that define when notifications are sent
+  triggers:
+    trigger.on-sync-failed: |
+      - when: app.status.operationState != nil and app.status.operationState.phase in ['Error', 'Failed']
+        send: [app-sync-failed]
+    trigger.on-health-degraded: |
+      - when: app.status.health.status == 'Degraded'
+        send: [app-health-degraded]
+    trigger.on-sync-succeeded: |
+      - when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded'] and app.status.health.status != 'Healthy'
+        send: [app-sync-succeeded]
+    trigger.on-deployed: |
+      - when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+        send: [app-deployed]
+
+  # -- Default subscriptions - all apps get these triggers via Alertmanager
+  subscriptions:
+    - recipients:
+        - alertmanager
+      triggers:
+        - on-sync-failed
+        - on-health-degraded
+        - on-deployed
+
 redis:
   enabled: true
   metrics:
