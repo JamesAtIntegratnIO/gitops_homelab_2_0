@@ -571,7 +571,6 @@ nginx-gateway-fabric:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      - Replace=true
 
 kyverno:
   enabled: true
