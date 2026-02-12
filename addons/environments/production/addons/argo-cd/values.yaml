@@ -94,33 +94,7 @@ notifications:
           description: "Application {{.app.metadata.name}} (project: {{.app.spec.project}}) health status is {{.app.status.health.status}}."
         generatorURL: "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
 
-    template.app-sync-succeeded: |
-      alertmanager:
-        labels:
-          alertname: ArgoCD-AppSyncSucceeded
-          severity: info
-          source: argocd-notifications
-          app_name: "{{.app.metadata.name}}"
-          project: "{{.app.spec.project}}"
-          dest_namespace: "{{.app.spec.destination.namespace}}"
-        annotations:
-          summary: "Application {{.app.metadata.name}} synced successfully"
-          description: "Application {{.app.metadata.name}} (project: {{.app.spec.project}}) has been synced to revision {{.app.status.sync.revision}}."
-        generatorURL: "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
 
-    template.app-deployed: |
-      alertmanager:
-        labels:
-          alertname: ArgoCD-AppDeployed
-          severity: info
-          source: argocd-notifications
-          app_name: "{{.app.metadata.name}}"
-          project: "{{.app.spec.project}}"
-          dest_namespace: "{{.app.spec.destination.namespace}}"
-        annotations:
-          summary: "Application {{.app.metadata.name}} deployed and healthy"
-          description: "Application {{.app.metadata.name}} (project: {{.app.spec.project}}) is synced and healthy."
-        generatorURL: "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}"
 
   # -- Triggers that define when notifications are sent
   triggers:
@@ -130,12 +104,7 @@ notifications:
     trigger.on-health-degraded: |
       - when: app.status.health.status == 'Degraded'
         send: [app-health-degraded]
-    trigger.on-sync-succeeded: |
-      - when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded'] and app.status.health.status != 'Healthy'
-        send: [app-sync-succeeded]
-    trigger.on-deployed: |
-      - when: app.status.operationState != nil and app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
-        send: [app-deployed]
+
 
   # -- Default subscriptions - all apps get these triggers via Alertmanager
   subscriptions:
@@ -144,7 +113,6 @@ notifications:
       triggers:
         - on-sync-failed
         - on-health-degraded
-        - on-deployed
 
 redis:
   enabled: true
