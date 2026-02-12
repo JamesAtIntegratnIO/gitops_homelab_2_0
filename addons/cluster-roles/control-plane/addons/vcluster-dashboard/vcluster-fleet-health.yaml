@@ -1,0 +1,185 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vcluster-fleet-health-dashboard
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Infrastructure"
+data:
+  vcluster-fleet-health.json: |
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "description": "vCluster fleet health overview: resource consumption, pod status, StatefulSet readiness, and syncer performance for all virtual clusters running in vc-* namespaces",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "id": 100, "title": "Fleet Overview", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total number of vCluster StatefulSets detected in vc-* namespaces. Each StatefulSet represents one virtual cluster. A drop in count may indicate an accidental deletion or orchestrator issue.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+          "id": 1,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Total vClusters",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(kube_statefulset_status_replicas{namespace=~\"$namespace\", statefulset=~\".*vcluster.*\"}) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of running pods across all vCluster namespaces. Each vCluster typically runs 1-3 pods (syncer, API server, etcd depending on mode). Compare with Total vClusters to estimate expected pod count.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+          "id": 2,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Running Pods",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(kube_pod_status_phase{namespace=~\"$namespace\", phase=\"Running\"} == 1) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Pods in non-Running phase (Pending, Failed, Unknown) across vCluster namespaces. Any value >0 needs investigation. Pending pods may indicate resource constraints. Failed pods suggest crash loops or configuration errors.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+          "id": 3,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Not Ready Pods",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(kube_pod_status_phase{namespace=~\"$namespace\", phase!=\"Running\", phase!=\"Succeeded\"} == 1) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total container restarts across all vCluster pods in the last hour. High restart counts indicate crash loops \u2014 check pod logs for the affected vCluster. Common causes: OOM kills (increase memory limits), certificate expiry, or connectivity issues to the host cluster API.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 3}, {"color": "red", "value": 10}]}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+          "id": 4,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Restarts (1h)",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}, "id": 101, "title": "Resource Usage", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "CPU usage per vCluster namespace. Shows how much CPU each virtual cluster consumes on the host. Spikes may indicate heavy workloads inside the vCluster. Compare with CPU requests/limits to assess if vClusters are properly sized. Consistently high usage suggests the vCluster needs more resources.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "none"}}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+          "id": 5,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "CPU Usage by vCluster",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", container!=\"\"}[5m]))", "legendFormat": "{{ namespace }}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Memory working set per vCluster namespace. This is the non-evictable memory that counts toward OOM kills. Sustained growth without leveling off indicates a memory leak in the vCluster syncer or workloads. Compare with memory limits to gauge headroom \u2014 approaching the limit triggers OOM kills and pod restarts.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "none"}}, "unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+          "id": 6,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Memory Usage by vCluster",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (container_memory_working_set_bytes{namespace=~\"$namespace\", container!=\"\"})", "legendFormat": "{{ namespace }}", "refId": "A"}]
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14}, "id": 102, "title": "Pod Health", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Container restarts over time per vCluster namespace. Spikes indicate pod crash loops or OOM kills. Correlate with memory usage to distinguish between resource exhaustion and application errors. Steady low restarts are normal during upgrades \u2014 sustained restarts require investigation.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "normal"}}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+          "id": 7,
+          "options": {"legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "sortBy": "Total", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Container Restarts Over Time",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[$__rate_interval]))", "legendFormat": "{{ namespace }}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Pod phase distribution over time across all vCluster namespaces. Running should be the dominant state. Pending pods indicate scheduling issues (resource constraints, node affinity). Failed pods indicate unrecoverable errors. Succeeded is normal for Jobs that completed.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 50, "lineWidth": 1, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "normal"}}, "unit": "short"}, "overrides": [{"matcher": {"id": "byName", "options": "Running"}, "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "Pending"}, "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "Failed"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]}, {"matcher": {"id": "byName", "options": "Succeeded"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}]},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+          "id": 8,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Pod Phase Distribution",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count by (phase) (kube_pod_status_phase{namespace=~\"$namespace\"} == 1)", "legendFormat": "{{ phase }}", "refId": "A"}]
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23}, "id": 103, "title": "StatefulSet Health", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Desired vs ready replicas for vCluster StatefulSets. Each vCluster runs as a StatefulSet. When desired != ready, the vCluster is not fully operational. Check events and pod logs for the affected namespace. Common causes: image pull failures, resource limits, or persistent volume issues.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 0, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+          "id": 9,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "StatefulSet Desired vs Ready",
+          "type": "timeseries",
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kube_statefulset_status_replicas{namespace=~\"$namespace\", statefulset=~\".*vcluster.*\"}", "legendFormat": "{{ namespace }} desired", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kube_statefulset_status_ready_replicas{namespace=~\"$namespace\", statefulset=~\".*vcluster.*\"}", "legendFormat": "{{ namespace }} ready", "refId": "B"}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Generation mismatch between observed and metadata generation for vCluster StatefulSets. A mismatch means the StatefulSet controller hasn't yet processed the latest configuration change. Sustained mismatches indicate a stuck rollout \u2014 check controller-manager logs and StatefulSet events.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+          "id": 10,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Generation Mismatch",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(kube_statefulset_status_observed_generation{namespace=~\"$namespace\", statefulset=~\".*vcluster.*\"} != kube_statefulset_metadata_generation{namespace=~\"$namespace\", statefulset=~\".*vcluster.*\"}) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32}, "id": 104, "title": "Syncer Metrics", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Controller-runtime reconciliation rate for vCluster syncers. This measures how actively the syncer is synchronizing resources between the virtual and host clusters. High rates during steady state may indicate thrashing. Zero rates when the cluster should be active indicate the syncer is stuck or not running.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+          "id": 11,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Syncer Reconcile Rate",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (rate(controller_runtime_reconcile_total{namespace=~\"$namespace\"}[5m]))", "legendFormat": "{{ namespace }}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Controller-runtime reconciliation errors for vCluster syncers. Any errors indicate the syncer failed to synchronize a resource. Check syncer pod logs for the affected namespace. Common causes: RBAC issues, resource conflicts, or connectivity problems between virtual and host clusters.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2, "pointSize": 5, "showPoints": "auto"}, "unit": "ops"}, "overrides": [{"matcher": {"id": "byRegexp", "options": ".*"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]}]},
+          "gridPos": {"h": 8, "w": 8, "x": 12, "y": 33},
+          "id": 12,
+          "options": {"legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Syncer Reconcile Errors",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (rate(controller_runtime_reconcile_errors_total{namespace=~\"$namespace\"}[5m]))", "legendFormat": "{{ namespace }}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Work queue depth for vCluster syncer controllers. A growing queue depth means the syncer is falling behind processing resource changes. Temporary spikes during bulk operations are normal. Sustained depth >0 indicates the syncer is overloaded and may need more CPU/memory resources.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "auto"}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 4, "x": 20, "y": 33},
+          "id": 13,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Queue Depth",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (workqueue_depth{namespace=~\"$namespace\"})", "legendFormat": "{{ namespace }}", "refId": "A"}]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["vcluster", "infrastructure"],
+      "templating": {"list": [
+        {"current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}, "hide": 0, "includeAll": false, "label": "Data Source", "multi": false, "name": "datasource", "options": [], "query": "prometheus", "queryValue": "", "refresh": 1, "regex": "", "skipUrlSync": false, "type": "datasource"},
+        {"allValue": "vc-.*", "current": {"selected": false, "text": "All", "value": "$__all"}, "datasource": {"type": "prometheus", "uid": "${datasource}"}, "definition": "label_values(kube_pod_info{namespace=~\"vc-.*\"}, namespace)", "hide": 0, "includeAll": true, "label": "vCluster Namespace", "multi": true, "name": "namespace", "options": [], "query": "label_values(kube_pod_info{namespace=~\"vc-.*\"}, namespace)", "refresh": 2, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"}
+      ]},
+      "time": {"from": "now-6h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "vCluster Fleet Health",
+      "uid": "vcluster-fleet-health",
+      "version": 1
+    }

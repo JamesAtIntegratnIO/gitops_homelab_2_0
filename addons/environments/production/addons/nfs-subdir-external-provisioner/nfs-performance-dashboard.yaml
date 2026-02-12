@@ -1,0 +1,172 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nfs-performance-dashboard
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Infrastructure"
+data:
+  nfs-performance.json: |
+    {
+      "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
+      "description": "NFS storage performance, RPC retransmissions, filesystem utilization, and PersistentVolume health for all NFS-backed storage in the cluster",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "id": 100, "title": "NFS Overview", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total NFS operations per second across all nodes and methods. This is the aggregate I/O pressure on your NFS server. Sudden spikes correlate with workload changes \u2014 use the Operations by Method panel below to identify which operations are driving load.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 500}, {"color": "red", "value": 2000}]}, "unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1},
+          "id": 1,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "NFS Ops/sec",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(rate(node_nfs_requests_total{instance=~\"$instance\"}[5m]))", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "RPC retransmissions per second across all nodes. This is a CRITICAL metric \u2014 retransmissions indicate NFS timeout issues where the client had to resend requests. Any sustained value >0 needs investigation: check network connectivity, NFS server load, and mount options (timeo, retrans). This was the root cause of the talos-1jv-u7d node issues.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.1}]}, "unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1},
+          "id": 2,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "RPC Retransmissions/sec",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(rate(node_nfs_rpc_retransmissions_total{instance=~\"$instance\"}[5m]))", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of NFS filesystem mounts detected across all nodes. Each mount represents a connection to the NFS server. A drop in mount count may indicate connectivity issues or unmounted filesystems.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
+          "id": 3,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "NFS Mounts",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(node_filesystem_size_bytes{fstype=~\"nfs.*\", instance=~\"$instance\"})", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Average NFS filesystem utilization percentage across all mounts and nodes. When this exceeds 80%, plan capacity expansion. At 90%+, workloads may fail to write \u2014 urgently free space or expand the NFS share.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 75}, {"color": "red", "value": 90}]}, "unit": "percent", "min": 0, "max": 100}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+          "id": 4,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Avg NFS Usage %",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "avg((1 - node_filesystem_avail_bytes{fstype=~\"nfs.*\", instance=~\"$instance\"} / node_filesystem_size_bytes{fstype=~\"nfs.*\", instance=~\"$instance\"}) * 100)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}, "id": 101, "title": "NFS Operations", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "NFS operations broken down by method (READ, WRITE, GETATTR, ACCESS, LOOKUP, etc.). GETATTR is typically the highest volume as it fetches file metadata. High WRITE rates indicate active data ingestion. High READ rates indicate active data serving. Use this to understand the I/O pattern of your workloads.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "none"}}, "unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+          "id": 5,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Operations by Method",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (method) (rate(node_nfs_requests_total{instance=~\"$instance\"}[5m]))", "legendFormat": "{{ method }}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total NFS operations per second grouped by node. Identifies which nodes are generating the most NFS traffic. Uneven distribution may indicate workload placement issues \u2014 pods doing heavy I/O should ideally be spread across nodes. If one node dominates, check what's running there.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "normal"}}, "unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+          "id": 6,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Operations by Node",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (instance) (rate(node_nfs_requests_total{instance=~\"$instance\"}[5m]))", "legendFormat": "{{ instance }}", "refId": "A"}]
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14}, "id": 102, "title": "NFS Errors & Retransmissions", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "RPC retransmission rate over time per node. This is the KEY health indicator for NFS connectivity. Any sustained retransmissions indicate the NFS client is timing out and resending requests. Common causes: NFS server overload, network congestion, MTU mismatches, or firewall issues. The talos-1jv-u7d incident was caused by excessive retransmissions leading to I/O hangs.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2, "pointSize": 5, "showPoints": "auto"}, "unit": "ops"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+          "id": 7,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "RPC Retransmissions Over Time",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "rate(node_nfs_rpc_retransmissions_total{instance=~\"$instance\"}[5m])", "legendFormat": "{{ instance }}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total RPC retransmissions in the last hour per node. Identifies which nodes are experiencing the most NFS timeout issues. High values on specific nodes suggest node-level network or NFS mount problems. Compare with the operations-by-node panel to see if high-traffic nodes also have high retransmissions.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 10}]}, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+          "id": 8,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "minVizWidth": 0, "minVizHeight": 10, "valueMode": "color"},
+          "title": "Retransmissions per Node (1h)",
+          "type": "bargauge",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "increase(node_nfs_rpc_retransmissions_total{instance=~\"$instance\"}[1h])", "legendFormat": "{{ instance }}", "refId": "A", "instant": true}]
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23}, "id": 103, "title": "PersistentVolume Usage", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Utilization percentage of each PersistentVolumeClaim backed by NFS. Sorted by usage so you can quickly see which PVCs are running out of space. Above 80% (yellow): plan expansion. Above 90% (red): immediate action required \u2014 pods may fail to write or evict.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 80}, {"color": "red", "value": 90}]}, "unit": "percent", "min": 0, "max": 100}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+          "id": 9,
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "minVizWidth": 0, "minVizHeight": 10, "valueMode": "color"},
+          "title": "PV Utilization %",
+          "type": "bargauge",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kubelet_volume_stats_used_bytes{namespace=~\"$namespace\"} / kubelet_volume_stats_capacity_bytes{namespace=~\"$namespace\"} * 100", "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }}", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "PersistentVolume utilization over time as a percentage. Tracks growth trends for capacity planning. Steeply rising lines indicate workloads consuming storage faster than expected. Use this to forecast when you'll need to expand NFS shares or add new storage classes.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "percent", "min": 0, "max": 100}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+          "id": 10,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "sortBy": "Last *", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "PV Usage Over Time",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kubelet_volume_stats_used_bytes{namespace=~\"$namespace\"} / kubelet_volume_stats_capacity_bytes{namespace=~\"$namespace\"} * 100", "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }}", "refId": "A"}]
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32}, "id": 104, "title": "NFS Filesystem", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Available space on NFS-mounted filesystems over time per node. Shows raw available bytes to track actual free space. Correlate with PV utilization \u2014 the NFS server filesystem may be shared across many PVCs. If this drops toward zero the NFS server itself is running out of space.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "bytes"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+          "id": 11,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "NFS Mount Available Space",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "node_filesystem_avail_bytes{fstype=~\"nfs.*\", instance=~\"$instance\"}", "legendFormat": "{{ instance }} {{ mountpoint }}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Inode utilization for NFS-backed PersistentVolumeClaims. Inodes represent the number of files/directories that can be created. Even with free space, inode exhaustion prevents file creation. Most NFS PVs have abundant inodes, but workloads that create millions of small files (logs, caches) can exhaust them.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "percent", "min": 0, "max": 100}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
+          "id": 12,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "PV Inode Usage %",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kubelet_volume_stats_inodes_used{namespace=~\"$namespace\"} / kubelet_volume_stats_inodes{namespace=~\"$namespace\"} * 100 > 0", "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }}", "refId": "A"}]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["nfs", "storage", "infrastructure"],
+      "templating": {"list": [
+        {"current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}, "hide": 0, "includeAll": false, "label": "Data Source", "multi": false, "name": "datasource", "options": [], "query": "prometheus", "queryValue": "", "refresh": 1, "regex": "", "skipUrlSync": false, "type": "datasource"},
+        {"allValue": ".*", "current": {"selected": false, "text": "All", "value": "$__all"}, "datasource": {"type": "prometheus", "uid": "${datasource}"}, "definition": "label_values(node_nfs_requests_total, instance)", "hide": 0, "includeAll": true, "label": "Node", "multi": true, "name": "instance", "options": [], "query": "label_values(node_nfs_requests_total, instance)", "refresh": 2, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"},
+        {"allValue": ".*", "current": {"selected": false, "text": "All", "value": "$__all"}, "datasource": {"type": "prometheus", "uid": "${datasource}"}, "definition": "label_values(kubelet_volume_stats_used_bytes, namespace)", "hide": 0, "includeAll": true, "label": "Namespace", "multi": true, "name": "namespace", "options": [], "query": "label_values(kubelet_volume_stats_used_bytes, namespace)", "refresh": 2, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"}
+      ]},
+      "time": {"from": "now-6h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "NFS Performance",
+      "uid": "nfs-performance",
+      "version": 1
+    }

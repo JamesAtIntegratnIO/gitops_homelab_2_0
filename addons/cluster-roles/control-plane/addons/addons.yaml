@@ -109,6 +109,25 @@ matrix-alertmanager-receiver:
     syncOptions:
       - CreateNamespace=true
 
+vcluster-dashboard:
+  enabled: true
+  type: manifest
+  namespace: monitoring
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/vcluster-dashboard
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+
 kube-prometheus-stack:
   enabled: true
   namespace: monitoring

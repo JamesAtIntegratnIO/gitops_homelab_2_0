@@ -6,6 +6,9 @@ argocd:
   project: platform
   defaultVersion: "9.0.3"
   chartRepository: "https://argoproj.github.io/argo-helm"
+  additionalResources:
+    type: manifest
+    path: addons/environments/production/addons/argo-cd-dashboards
   selector:
     matchExpressions:
       - key: enable_argocd
