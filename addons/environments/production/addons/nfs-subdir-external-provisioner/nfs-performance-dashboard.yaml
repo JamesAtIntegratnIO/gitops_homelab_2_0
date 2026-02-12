@@ -10,7 +10,7 @@ data:
   nfs-performance.json: |
     {
       "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "iconColor": "rgba(0, 211, 255, 1)", "name": "Annotations & Alerts", "type": "dashboard"}]},
-      "description": "NFS storage performance, RPC retransmissions, filesystem utilization, and PersistentVolume health for all NFS-backed storage in the cluster",
+      "description": "NFS storage performance, RPC retransmissions, NFS connections, and PersistentVolume inventory for all NFS-backed storage in the cluster",
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 1,
@@ -42,25 +42,25 @@ data:
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "description": "Number of NFS filesystem mounts detected across all nodes. Each mount represents a connection to the NFS server. A drop in mount count may indicate connectivity issues or unmounted filesystems.",
+          "description": "Active NFS connections across all nodes. Each node maintains a connection to the NFS server. Should equal the number of nodes with NFS mounts. A drop means a node has lost its NFS connection \u2014 check node health and network connectivity to the NFS server (10.0.0.12).",
           "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}}, "overrides": []},
           "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1},
           "id": 3,
           "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
-          "title": "NFS Mounts",
+          "title": "NFS Connections",
           "type": "stat",
-          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(node_filesystem_size_bytes{fstype=~\"nfs.*\", instance=~\"$instance\"})", "legendFormat": "", "refId": "A", "instant": true}]
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(node_nfs_connections_total{instance=~\"$instance\"})", "legendFormat": "", "refId": "A", "instant": true}]
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "description": "Average NFS filesystem utilization percentage across all mounts and nodes. When this exceeds 80%, plan capacity expansion. At 90%+, workloads may fail to write \u2014 urgently free space or expand the NFS share.",
-          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 75}, {"color": "red", "value": 90}]}, "unit": "percent", "min": 0, "max": 100}, "overrides": []},
+          "description": "Total number of PersistentVolumeClaims backed by NFS storage classes (config-nfs-client, data-nfs-client, vcluster-*-nfs-client). Tracks how many volumes are consuming NFS server capacity. Growth over time means more workloads depending on NFS.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}}, "overrides": []},
           "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
           "id": 4,
           "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
-          "title": "Avg NFS Usage %",
+          "title": "NFS-backed PVCs",
           "type": "stat",
-          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "avg((1 - node_filesystem_avail_bytes{fstype=~\"nfs.*\", instance=~\"$instance\"} / node_filesystem_size_bytes{fstype=~\"nfs.*\", instance=~\"$instance\"}) * 100)", "legendFormat": "", "refId": "A", "instant": true}]
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(kube_persistentvolumeclaim_info{storageclass=~\".*nfs.*\"})", "legendFormat": "", "refId": "A", "instant": true}]
         },
         {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}, "id": 101, "title": "NFS Operations", "type": "row"},
         {
@@ -108,51 +108,78 @@ data:
           "type": "bargauge",
           "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "increase(node_nfs_rpc_retransmissions_total{instance=~\"$instance\"}[1h])", "legendFormat": "{{ instance }}", "refId": "A", "instant": true}]
         },
-        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23}, "id": 103, "title": "PersistentVolume Usage", "type": "row"},
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23}, "id": 103, "title": "NFS Traffic", "type": "row"},
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "description": "Utilization percentage of each PersistentVolumeClaim backed by NFS. Sorted by usage so you can quickly see which PVCs are running out of space. Above 80% (yellow): plan expansion. Above 90% (red): immediate action required \u2014 pods may fail to write or evict.",
-          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 80}, {"color": "red", "value": 90}]}, "unit": "percent", "min": 0, "max": 100}, "overrides": []},
+          "description": "Total NFS RPC calls per second per node. This is the raw RPC rate including retransmissions. Compare with the request rate to see the retransmission overhead. If RPCs/sec is significantly higher than Ops/sec, many requests are being retransmitted.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "ops"}, "overrides": []},
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
           "id": 9,
-          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "minVizWidth": 0, "minVizHeight": 10, "valueMode": "color"},
-          "title": "PV Utilization %",
-          "type": "bargauge",
-          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kubelet_volume_stats_used_bytes{namespace=~\"$namespace\"} / kubelet_volume_stats_capacity_bytes{namespace=~\"$namespace\"} * 100", "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }}", "refId": "A", "instant": true}]
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "NFS RPC Rate",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "rate(node_nfs_rpcs_total{instance=~\"$instance\"}[5m])", "legendFormat": "{{ instance }}", "refId": "A"}]
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "description": "PersistentVolume utilization over time as a percentage. Tracks growth trends for capacity planning. Steeply rising lines indicate workloads consuming storage faster than expected. Use this to forecast when you'll need to expand NFS shares or add new storage classes.",
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "percent", "min": 0, "max": 100}, "overrides": []},
+          "description": "NFS network packets per second per node. Tracks the network-level traffic to/from the NFS server. Helpful for correlating NFS issues with network saturation. If packet rate is high but ops/sec is low, packets may be fragmented or the NFS server is sending many small responses.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "pps"}, "overrides": []},
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
           "id": 10,
-          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "sortBy": "Last *", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
-          "title": "PV Usage Over Time",
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "NFS Packets/sec",
           "type": "timeseries",
-          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kubelet_volume_stats_used_bytes{namespace=~\"$namespace\"} / kubelet_volume_stats_capacity_bytes{namespace=~\"$namespace\"} * 100", "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }}", "refId": "A"}]
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "rate(node_nfs_packets_total{instance=~\"$instance\"}[5m])", "legendFormat": "{{ instance }}", "refId": "A"}]
         },
-        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32}, "id": 104, "title": "NFS Filesystem", "type": "row"},
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32}, "id": 104, "title": "PersistentVolume Inventory", "type": "row"},
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "description": "Available space on NFS-mounted filesystems over time per node. Shows raw available bytes to track actual free space. Correlate with PV utilization \u2014 the NFS server filesystem may be shared across many PVCs. If this drops toward zero the NFS server itself is running out of space.",
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "bytes"}, "overrides": []},
+          "description": "Requested storage capacity per NFS storage class. Shows how much storage each class has provisioned. Growth indicates increasing storage demand. The NFS server must have enough raw capacity to back all provisioned volumes \u2014 NFS subdir provisioner does not enforce quotas, so over-provisioning is possible.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "normal"}}, "unit": "bytes"}, "overrides": []},
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
           "id": 11,
-          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
-          "title": "NFS Mount Available Space",
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "sortBy": "Last *", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Requested Storage by Class",
           "type": "timeseries",
-          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "node_filesystem_avail_bytes{fstype=~\"nfs.*\", instance=~\"$instance\"}", "legendFormat": "{{ instance }} {{ mountpoint }}", "refId": "A"}]
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (storageclass) (kube_persistentvolumeclaim_resource_requests_storage_bytes{storageclass=~\".*nfs.*\"})", "legendFormat": "{{ storageclass }}", "refId": "A"}]
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "description": "Inode utilization for NFS-backed PersistentVolumeClaims. Inodes represent the number of files/directories that can be created. Even with free space, inode exhaustion prevents file creation. Most NFS PVs have abundant inodes, but workloads that create millions of small files (logs, caches) can exhaust them.",
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "percent", "min": 0, "max": 100}, "overrides": []},
+          "description": "Status of all NFS-backed PersistentVolumes. Bound is the healthy state. Pending means the PV is waiting for a PVC claim. Released means the PVC was deleted but the PV hasn't been reclaimed. Failed indicates the automatic reclamation failed. Any non-Bound PVs need attention.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}, "overrides": [{"matcher": {"id": "byName", "options": "Phase"}, "properties": [{"id": "mappings", "value": [{"type": "value", "options": {"Bound": {"text": "\u2713 Bound", "color": "green", "index": 0}, "Pending": {"text": "\u231b Pending", "color": "yellow", "index": 1}, "Released": {"text": "\u21a9 Released", "color": "orange", "index": 2}, "Failed": {"text": "\u2717 Failed", "color": "red", "index": 3}, "Available": {"text": "\u25cb Available", "color": "blue", "index": 4}}}]}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}}]}, {"matcher": {"id": "byName", "options": "Capacity"}, "properties": [{"id": "unit", "value": "bytes"}]}]},
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
           "id": 12,
-          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
-          "title": "PV Inode Usage %",
-          "type": "timeseries",
-          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kubelet_volume_stats_inodes_used{namespace=~\"$namespace\"} / kubelet_volume_stats_inodes{namespace=~\"$namespace\"} * 100 > 0", "legendFormat": "{{ namespace }}/{{ persistentvolumeclaim }}", "refId": "A"}]
+          "options": {"showHeader": true, "sortBy": [{"desc": false, "displayName": "Phase"}], "cellHeight": "sm", "footer": {"show": true, "countRows": true, "reducer": ["count"]}},
+          "title": "NFS PersistentVolume Status",
+          "type": "table",
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kube_persistentvolume_status_phase{persistentvolume=~\"pvc-.*\"} * on(persistentvolume) group_left() (kube_persistentvolume_info{storageclass=~\".*nfs.*\"} > 0) == 1", "format": "table", "instant": true, "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kube_persistentvolume_capacity_bytes * on(persistentvolume) group_left() (kube_persistentvolume_info{storageclass=~\".*nfs.*\"} > 0)", "format": "table", "instant": true, "refId": "B"}
+          ],
+          "transformations": [
+            {"id": "filterByValue", "options": {"filters": [{"fieldName": "Value #A", "config": {"id": "equal", "options": {"value": 1}}}], "match": "any", "type": "include"}},
+            {"id": "merge", "options": {}},
+            {"id": "organize", "options": {"excludeByName": {"Time": true, "Time 1": true, "Time 2": true, "Value #A": true, "__name__": true, "container": true, "endpoint": true, "instance": true, "job": true, "namespace": true, "pod": true, "service": true, "uid": true, "storageclass": true, "csi_driver": true, "csi_volume_handle": true, "local_path": true}, "indexByName": {"persistentvolume": 0, "phase": 1, "Value #B": 2}, "renameByName": {"persistentvolume": "PersistentVolume", "phase": "Phase", "Value #B": "Capacity"}}}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "All NFS-backed PersistentVolumeClaims with their namespace, storage class, and requested capacity. Provides a complete inventory of what's consuming NFS storage. Use for capacity planning and identifying which namespaces are the heaviest consumers.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}, "overrides": [{"matcher": {"id": "byName", "options": "Requested"}, "properties": [{"id": "unit", "value": "bytes"}]}, {"matcher": {"id": "byName", "options": "Status"}, "properties": [{"id": "mappings", "value": [{"type": "value", "options": {"Bound": {"text": "\u2713 Bound", "color": "green", "index": 0}, "Pending": {"text": "\u231b Pending", "color": "yellow", "index": 1}, "Lost": {"text": "\u2717 Lost", "color": "red", "index": 2}}}]}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}}]}]},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 41},
+          "id": 13,
+          "options": {"showHeader": true, "sortBy": [{"desc": true, "displayName": "Requested"}], "cellHeight": "sm", "footer": {"show": true, "countRows": true, "reducer": ["count"]}},
+          "title": "NFS PVC Inventory",
+          "type": "table",
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kube_persistentvolumeclaim_info{storageclass=~\".*nfs.*\"}", "format": "table", "instant": true, "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kube_persistentvolumeclaim_resource_requests_storage_bytes * on(namespace, persistentvolumeclaim) group_left() (kube_persistentvolumeclaim_info{storageclass=~\".*nfs.*\"} > 0)", "format": "table", "instant": true, "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "kube_persistentvolumeclaim_status_phase * on(namespace, persistentvolumeclaim) group_left() (kube_persistentvolumeclaim_info{storageclass=~\".*nfs.*\"} > 0) == 1", "format": "table", "instant": true, "refId": "C"}
+          ],
+          "transformations": [
+            {"id": "merge", "options": {}},
+            {"id": "organize", "options": {"excludeByName": {"Time": true, "Time 1": true, "Time 2": true, "Time 3": true, "Value #A": true, "Value #C": true, "__name__": true, "container": true, "endpoint": true, "instance": true, "job": true, "pod": true, "service": true, "uid": true, "volumename": true, "access_mode": true}, "indexByName": {"namespace": 0, "persistentvolumeclaim": 1, "storageclass": 2, "phase": 3, "Value #B": 4}, "renameByName": {"namespace": "Namespace", "persistentvolumeclaim": "PVC", "storageclass": "Storage Class", "phase": "Status", "Value #B": "Requested"}}}
+          ]
         }
       ],
       "refresh": "30s",
@@ -160,13 +187,12 @@ data:
       "tags": ["nfs", "storage", "infrastructure"],
       "templating": {"list": [
         {"current": {"selected": false, "text": "Prometheus", "value": "Prometheus"}, "hide": 0, "includeAll": false, "label": "Data Source", "multi": false, "name": "datasource", "options": [], "query": "prometheus", "queryValue": "", "refresh": 1, "regex": "", "skipUrlSync": false, "type": "datasource"},
-        {"allValue": ".*", "current": {"selected": false, "text": "All", "value": "$__all"}, "datasource": {"type": "prometheus", "uid": "${datasource}"}, "definition": "label_values(node_nfs_requests_total, instance)", "hide": 0, "includeAll": true, "label": "Node", "multi": true, "name": "instance", "options": [], "query": "label_values(node_nfs_requests_total, instance)", "refresh": 2, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"},
-        {"allValue": ".*", "current": {"selected": false, "text": "All", "value": "$__all"}, "datasource": {"type": "prometheus", "uid": "${datasource}"}, "definition": "label_values(kubelet_volume_stats_used_bytes, namespace)", "hide": 0, "includeAll": true, "label": "Namespace", "multi": true, "name": "namespace", "options": [], "query": "label_values(kubelet_volume_stats_used_bytes, namespace)", "refresh": 2, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"}
+        {"allValue": ".*", "current": {"selected": false, "text": "All", "value": "$__all"}, "datasource": {"type": "prometheus", "uid": "${datasource}"}, "definition": "label_values(node_nfs_requests_total, instance)", "hide": 0, "includeAll": true, "label": "Node", "multi": true, "name": "instance", "options": [], "query": "label_values(node_nfs_requests_total, instance)", "refresh": 2, "regex": "", "skipUrlSync": false, "sort": 1, "type": "query"}
       ]},
       "time": {"from": "now-6h", "to": "now"},
       "timepicker": {},
       "timezone": "browser",
       "title": "NFS Performance",
       "uid": "nfs-performance",
-      "version": 1
+      "version": 2
     }
