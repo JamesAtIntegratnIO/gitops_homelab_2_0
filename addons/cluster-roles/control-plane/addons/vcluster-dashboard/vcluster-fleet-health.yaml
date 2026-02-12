@@ -137,33 +137,33 @@ data:
         {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32}, "id": 104, "title": "Syncer Metrics", "type": "row"},
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "description": "Controller-runtime reconciliation rate for vCluster syncers. This measures how actively the syncer is synchronizing resources between the virtual and host clusters. High rates during steady state may indicate thrashing. Zero rates when the cluster should be active indicate the syncer is stuck or not running.",
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "ops"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+          "description": "API request rate from the vCluster syncer to the host cluster. Measures how actively each vCluster is synchronizing resources. High sustained rates may indicate thrashing or heavy workload churn inside the vCluster.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never"}, "unit": "reqps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 33},
           "id": 11,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
-          "title": "Syncer Reconcile Rate",
+          "title": "Syncer API Request Rate",
           "type": "timeseries",
-          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (rate(controller_runtime_reconcile_total{namespace=~\"$namespace\"}[5m]))", "legendFormat": "{{ namespace }}", "refId": "A"}]
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (rate(rest_client_requests_total{namespace=~\"$namespace\"}[5m]))", "legendFormat": "{{ namespace }}", "refId": "A"}]
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "description": "Controller-runtime reconciliation errors for vCluster syncers. Any errors indicate the syncer failed to synchronize a resource. Check syncer pod logs for the affected namespace. Common causes: RBAC issues, resource conflicts, or connectivity problems between virtual and host clusters.",
-          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2, "pointSize": 5, "showPoints": "auto"}, "unit": "ops"}, "overrides": [{"matcher": {"id": "byRegexp", "options": ".*"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]}]},
-          "gridPos": {"h": 8, "w": 8, "x": 12, "y": 33},
+          "description": "API error rate (5xx and connection errors) from the vCluster syncer. Any sustained errors indicate the syncer is failing to synchronize resources. Check syncer pod logs for the affected namespace. Common causes: RBAC issues, resource conflicts, or connectivity problems.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2, "pointSize": 5, "showPoints": "auto"}, "unit": "reqps"}, "overrides": [{"matcher": {"id": "byRegexp", "options": ".*"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]}]},
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 33},
           "id": 12,
           "options": {"legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
-          "title": "Syncer Reconcile Errors",
+          "title": "Syncer API Errors",
           "type": "timeseries",
-          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (rate(controller_runtime_reconcile_errors_total{namespace=~\"$namespace\"}[5m]))", "legendFormat": "{{ namespace }}", "refId": "A"}]
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (rate(rest_client_requests_total{namespace=~\"$namespace\", code=~\"5..|<error>\"}[5m]))", "legendFormat": "{{ namespace }}", "refId": "A"}]
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "description": "Work queue depth for vCluster syncer controllers. A growing queue depth means the syncer is falling behind processing resource changes. Temporary spikes during bulk operations are normal. Sustained depth >0 indicates the syncer is overloaded and may need more CPU/memory resources.",
+          "description": "Work queue depth for vCluster controllers. A growing queue depth means the syncer is falling behind processing resource changes. Temporary spikes during bulk operations are normal. Sustained depth >0 indicates the syncer is overloaded and may need more CPU/memory resources.",
           "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "auto"}, "unit": "short"}, "overrides": []},
-          "gridPos": {"h": 8, "w": 4, "x": 20, "y": 33},
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 33},
           "id": 13,
-          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "title": "Queue Depth",
           "type": "timeseries",
           "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum by (namespace) (workqueue_depth{namespace=~\"$namespace\"})", "legendFormat": "{{ namespace }}", "refId": "A"}]
