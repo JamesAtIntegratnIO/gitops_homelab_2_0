@@ -60,7 +60,7 @@ notifications:
   notifiers:
     service.alertmanager: |
       targets:
-        - url: http://kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093
+        - kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093
       scheme: http
       apiPath: /api/v2/alerts
 
