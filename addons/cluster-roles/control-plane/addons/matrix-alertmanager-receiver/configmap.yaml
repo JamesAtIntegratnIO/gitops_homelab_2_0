@@ -59,6 +59,9 @@ data:
           {{ if .GeneratorURL }}
             | <a href="{{ .GeneratorURL }}">Source</a>
           {{ end }}
+          {{ if .Alert.Annotations.logs_url }}
+            | <a href="{{ .Alert.Annotations.logs_url }}">Logs</a>
+          {{ end }}
         </p>
 
       resolved-template: |

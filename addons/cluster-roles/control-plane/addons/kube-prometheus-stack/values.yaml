@@ -61,6 +61,8 @@ prometheus:
   prometheusSpec:
     externalUrl: https://prometheus.cluster.integratn.tech
     enableRemoteWriteReceiver: true
+    enableFeatures:
+      - exemplar-storage
     retention: 15d
     # Mount etcd client certificates for secure etcd scraping
     secrets:
@@ -156,6 +158,8 @@ grafana:
   defaultDashboardsEnabled: true
   defaultDashboardsTimezone: browser
   sidecar:
+    datasources:
+      uid: prometheus
     dashboards:
       enabled: true
       label: grafana_dashboard
@@ -219,8 +223,12 @@ grafana:
   additionalDataSources:
     - name: Loki
       type: loki
+      uid: loki
       access: proxy
       url: http://loki-gateway.loki.svc.cluster.local
+      jsonData:
+        maxLines: 5000
+        timeout: 60
 
 defaultRules:
   rules:

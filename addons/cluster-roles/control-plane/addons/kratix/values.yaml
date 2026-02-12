@@ -332,6 +332,7 @@ additionalResources:
               annotations:
                 summary: "Kratix pipeline pod failed"
                 description: 'Pipeline pod {{ "{{" }} $labels.pod {{ "}}" }} in namespace {{ "{{" }} $labels.namespace {{ "}}" }} has been in Failed state for more than 5 minutes.'
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"platform-requests\", pod=\"{{ "{{" }} $labels.pod {{ "}}" }}\"}"}],"range":{"from":"now-1h","to":"now"}}'
             - alert: KratixPipelineStuck
               expr: |
                 (kube_pod_status_phase{namespace="platform-requests", phase=~"Pending|Running"} == 1)
@@ -344,6 +345,7 @@ additionalResources:
               annotations:
                 summary: "Kratix pipeline pod stuck"
                 description: 'Pipeline pod {{ "{{" }} $labels.pod {{ "}}" }} has been running for more than 15 minutes.'
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"platform-requests\", pod=\"{{ "{{" }} $labels.pod {{ "}}" }}\"}"}],"range":{"from":"now-1h","to":"now"}}'
         - name: kratix.reconciliation
           interval: 30s
           rules:
@@ -357,6 +359,7 @@ additionalResources:
               annotations:
                 summary: "Kratix controller reconcile errors"
                 description: 'Controller {{ "{{" }} $labels.controller {{ "}}" }} has had reconcile errors in the last 10 minutes.'
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"kratix-platform-system\"} |~ \"(?i)(error|reconcil|fail)\""  }],"range":{"from":"now-1h","to":"now"}}'
             - alert: KratixWorkQueueStuck
               expr: |
                 workqueue_unfinished_work_seconds{job=~".*kratix.*"} > 300
@@ -367,6 +370,7 @@ additionalResources:
               annotations:
                 summary: "Kratix work queue stuck"
                 description: 'Work queue {{ "{{" }} $labels.name {{ "}}" }} has had unfinished work for more than 5 minutes.'
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"kratix-platform-system\"} |~ \"(?i)(queue|stuck|timeout|slow)\""  }],"range":{"from":"now-1h","to":"now"}}'
             - alert: KratixReconcileStuck
               expr: |
                 workqueue_longest_running_processor_seconds{job=~".*kratix.*"} > 300
@@ -377,6 +381,7 @@ additionalResources:
               annotations:
                 summary: "Kratix reconciliation stuck"
                 description: 'Queue {{ "{{" }} $labels.name {{ "}}" }} has a processor running for {{ "{{" }} $value | humanizeDuration {{ "}}" }}. A reconciliation may be hung waiting on an external resource.'
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"kratix-platform-system\"} |~ \"(?i)(reconcil|stuck|timeout|slow)\""  }],"range":{"from":"now-1h","to":"now"}}'
             - alert: KratixHighCPU
               expr: |
                 rate(process_cpu_seconds_total{job=~".*kratix.*"}[5m]) > 0.5
@@ -387,6 +392,7 @@ additionalResources:
               annotations:
                 summary: "Kratix controller high CPU usage"
                 description: 'Kratix controller is using {{ "{{" }} $value | humanize {{ "}}" }} CPU cores for more than 15 minutes. May indicate a reconciliation storm.'
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"kratix-platform-system\"}"  }],"range":{"from":"now-1h","to":"now"}}'
             - alert: KratixHighMemory
               expr: |
                 process_resident_memory_bytes{job=~".*kratix.*"} > 512 * 1024 * 1024
@@ -397,6 +403,7 @@ additionalResources:
               annotations:
                 summary: "Kratix controller high memory usage"
                 description: 'Kratix controller RSS is {{ "{{" }} $value | humanize1024 {{ "}}" }}B. May indicate a memory leak or excessive caching.'
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"kratix-platform-system\"}"  }],"range":{"from":"now-1h","to":"now"}}'
             - alert: KratixGoroutineLeak
               expr: |
                 go_goroutines{job=~".*kratix.*"} > 500
@@ -407,6 +414,7 @@ additionalResources:
               annotations:
                 summary: "Kratix controller goroutine leak suspected"
                 description: 'Kratix controller has {{ "{{" }} $value {{ "}}" }} goroutines. A steadily increasing count indicates a goroutine leak.'
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"kratix-platform-system\"}"  }],"range":{"from":"now-1h","to":"now"}}'
         - name: kratix.statestore
           interval: 60s
           rules:
@@ -420,6 +428,7 @@ additionalResources:
               annotations:
                 summary: "Kratix state reconciler out of sync"
                 description: "The kratix-state-reconciler ArgoCD application has been out of sync for more than 10 minutes."
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"argocd\"} |~ \"kratix-state-reconciler\""  }],"range":{"from":"now-1h","to":"now"}}'
             - alert: KratixStateReconcilerDegraded
               expr: |
                 argocd_app_info{name="kratix-state-reconciler", health_status!="Healthy"} == 1
@@ -430,3 +439,4 @@ additionalResources:
               annotations:
                 summary: "Kratix state reconciler unhealthy"
                 description: 'The kratix-state-reconciler ArgoCD application health is {{ "{{" }} $labels.health_status {{ "}}" }}.'
+                logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left={"datasource":"loki","queries":[{"refId":"A","expr":"{namespace=\"argocd\"} |~ \"kratix-state-reconciler\""  }],"range":{"from":"now-1h","to":"now"}}'
