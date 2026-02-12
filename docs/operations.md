@@ -30,7 +30,7 @@ This guide covers **day-to-day operations** for the GitOps homelab platform, inc
 
 | Service | URL | Access Method |
 |---------|-----|---------------|
-| **ArgoCD** | https://argocd.media.integratn.tech | External via Gateway |
+| **ArgoCD** | https://argocd.cluster.integratn.tech | External via Gateway |
 | **Grafana** | https://grafana.cluster.integratn.tech | External via Gateway ✓ |
 | **Prometheus** | https://prometheus.cluster.integratn.tech | External via Gateway ✓ |
 | **Alertmanager** | https://alertmanager.cluster.integratn.tech | External via Gateway ✓ |
@@ -185,7 +185,7 @@ kubectl get validatingwebhookconfigurations | grep kyverno
 # 1. Create ResourceRequest YAML
 cat > platform/vclusters/dev-team-1.yaml <<EOF
 apiVersion: platform.integratn.tech/v1alpha1
-kind: VClusterOrchestrator
+kind: VClusterOrchestratorV2
 metadata:
   name: dev-team-1
   namespace: platform-requests
@@ -195,7 +195,6 @@ spec:
   projectName: vcluster-dev-team-1
   vcluster:
     preset: dev  # Lightweight for development
-    k8sVersion: "v1.34.3"
   integrations:
     certManager:
       clusterIssuerSelectorLabels:
@@ -210,7 +209,7 @@ spec:
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
-    targetRevision: 0.30.4
+    targetRevision: 0.31.0
 EOF
 
 # 2. Commit and push
@@ -221,8 +220,8 @@ git push
 # 3. Sync platform-vclusters Application
 argocd app sync platform-vclusters
 
-# 4. Watch Kratix pipeline execution
-kubectl get pods -n platform-requests | grep dev-team-1-configure
+# 4. Watch Kratix pipeline execution (v2 single pipeline)
+kubectl get pods -n platform-requests | grep dev-team-1-vco-v2-configure
 kubectl logs -n platform-requests <pipeline-pod> -f
 
 # 5. Sync state reconciler
@@ -256,19 +255,19 @@ op document create ~/.kube/dev-team-1 \
 
 ### Workflow 4: Update Promise Pipeline
 
-**Scenario:** Fix bug in vCluster orchestrator pipeline.
+**Scenario:** Fix bug in vCluster orchestrator v2 pipeline.
 
 **Steps:**
 ```bash
-# 1. Edit pipeline script
-vi promises/vcluster-orchestrator/pipelines/configure-pipeline.sh
+# 1. Edit pipeline code (v2 uses single pipeline image)
+vi promises/vcluster-orchestrator-v2/workflows/...
 
 # Make code changes
 # ...
 
 # 2. Commit and push
-git add promises/vcluster-orchestrator/
-git commit -m "Fix vCluster orchestrator pipeline subnet calculation bug"
+git add promises/vcluster-orchestrator-v2/
+git commit -m "Fix vCluster orchestrator v2 pipeline bug"
 git push
 
 # 3. Wait for GitHub Actions to build new image
@@ -276,17 +275,17 @@ gh run watch
 # ✓ Build promise pipeline images (main) 3m 45s
 
 # 4. Refresh Promise (forces image pull)
-kubectl annotate promise vcluster-orchestrator \
+kubectl annotate promise vcluster-orchestrator-v2 \
   kratix.io/refresh-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --overwrite
 
 # 5. Trigger re-execution of existing ResourceRequests
-kubectl annotate vclusterorchestrator media -n platform-requests \
+kubectl annotate vclusterorchestratorv2 vcluster-media -n platform-requests \
   platform.integratn.tech/reconcile-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --overwrite
 
-# 6. Watch new pipeline pod
-kubectl get pods -n platform-requests | grep media-configure
+# 6. Watch new pipeline pod (v2 single pipeline)
+kubectl get pods -n platform-requests | grep vcluster-media-vco-v2-configure
 kubectl logs -n platform-requests <new-pipeline-pod> -f
 
 # 7. Verify fix applied
@@ -643,7 +642,7 @@ argocd app sync kube-prometheus-stack-the-cluster
 - Git: Continuous (GitHub provides backup)
 - Secrets: Weekly (via Velero or 1Password export)
 - PVs: Daily (via Velero or snapshot)
-- Terraform state: After every `apply` (S3 versioning)
+- Terraform state: After every `apply` (PostgreSQL backend with versioning)
 
 ### Velero Backup (Future Implementation)
 
@@ -993,10 +992,130 @@ kratix:
         value: "5"  # From default 3
 ```
 
+## Matrix Alerting
+
+### Alert Flow Architecture
+
+Alerts flow through the following path:
+
+```
+Prometheus → Alertmanager → matrix-alertmanager-receiver → Matrix Room
+```
+
+1. **Prometheus** evaluates alert rules every 60s
+2. **Alertmanager** groups and routes firing alerts to the receiver webhook
+3. **matrix-alertmanager-receiver** (deployed as a Deployment in `monitoring` namespace) converts alerts to Matrix messages with rich HTML formatting
+4. Alert messages include:
+   - Alert name, severity, and description
+   - Source link to Prometheus
+   - **Logs link** - clickable URL to Grafana Explore with pre-filtered Loki query (see [Loki Log Correlation](#loki-log-correlation))
+
+### Checking Receiver Health
+
+```bash
+# Verify receiver pod is running
+kubectl get pods -n monitoring -l app=matrix-alertmanager-receiver
+
+# Check receiver logs for delivery status
+kubectl logs -n monitoring -l app=matrix-alertmanager-receiver --tail=50
+
+# Verify ExternalSecret for Matrix credentials
+kubectl get externalsecret -n monitoring matrix-alertmanager-receiver-secrets
+# Should show READY: True
+
+# Test connectivity to Matrix server
+kubectl exec -n monitoring deploy/matrix-alertmanager-receiver -- \
+  wget -qO- --spider https://matrix.integratn.tech/_matrix/client/versions
+```
+
+### Troubleshooting Alert Delivery
+
+**Alerts not appearing in Matrix room:**
+
+```bash
+# 1. Check Alertmanager is routing to receiver
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9093
+# Open http://localhost:9093/#/status - check receiver config
+
+# 2. Check for firing alerts
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090
+# Open http://localhost:9090/alerts - verify alerts are firing
+
+# 3. Check receiver logs for errors
+kubectl logs -n monitoring -l app=matrix-alertmanager-receiver -f
+# Look for: HTTP errors, auth failures, room ID issues
+
+# 4. Verify Matrix credentials are current
+kubectl get secret -n monitoring matrix-alertmanager-receiver-secrets \
+  -o jsonpath='{.data.MATRIX_HOMESERVER}' | base64 -d
+```
+
+**Common issues:**
+- ExternalSecret not synced → Check 1Password Connect is healthy
+- Matrix token expired → Rotate token in 1Password, delete ExternalSecret to force re-sync
+- Room ID wrong → Verify room ID in 1Password matches the intended Matrix room
+
+## Loki Log Correlation
+
+### How It Works
+
+All 25 Prometheus alert rules include a `logs_url` annotation that generates a clickable link to Grafana Explore with a pre-filtered Loki query. When an alert fires:
+
+1. Prometheus templates the `logs_url` with the alert's namespace/pod labels
+2. Alertmanager passes the URL to the Matrix receiver
+3. The Matrix message includes a **"Logs"** link
+4. Clicking opens Grafana Explore with a LogQL query scoped to the relevant namespace/pod
+
+### URL Pattern
+
+Alert rules use URL-encoded `logs_url` annotations:
+
+```yaml
+annotations:
+  logs_url: >-
+    https://grafana.cluster.integratn.tech/explore?schemaVersion=1&panes=%7B%22pane%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22{{ $labels.namespace }}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%7D%7D&orgId=1
+```
+
+The `left=` parameter is **URL-encoded** so that Alertmanager and Matrix clients correctly auto-detect the full URL as a single clickable link.
+
+### Verifying Log Correlation
+
+```bash
+# Check that alert rules have logs_url annotations
+kubectl get prometheusrule -n monitoring kube-prometheus-stack-custom-alerts \
+  -o yaml | grep -c logs_url
+# Should return 25 (all rules have logs_url)
+
+# Verify Loki datasource is available in Grafana
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+# Open http://localhost:3000/connections/datasources - verify "loki" datasource exists with UID "loki"
+```
+
+### Adding logs_url to New Alert Rules
+
+When creating new PrometheusRules, include the `logs_url` annotation:
+
+```yaml
+- alert: MyNewAlert
+  expr: my_metric > threshold
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Description of {{ $labels.pod }}"
+    logs_url: >-
+      https://grafana.cluster.integratn.tech/explore?schemaVersion=1&panes=%7B%22pane%22%3A%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22{{ $labels.namespace }}%5C%22%7D%22%2C%22queryType%22%3A%22range%22%7D%5D%7D%7D&orgId=1
+```
+
+> **Important:** The `left=` JSON value must be URL-encoded. Raw JSON characters (`{`, `}`, `"`, etc.) break URL auto-detection in Alertmanager UI and Matrix HTML messages.
+
 ## Key Files Reference
 
 - **ArgoCD Configuration**: [terraform/cluster/main.tf](../terraform/cluster/main.tf)
 - **Prometheus Values**: [addons/cluster-roles/control-plane/addons/kube-prometheus-stack/values.yaml](../addons/cluster-roles/control-plane/addons/kube-prometheus-stack/values.yaml)
 - **Grafana Dashboards**: [addons/cluster-roles/control-plane/addons/kube-prometheus-stack/dashboards/](../addons/cluster-roles/control-plane/addons/kube-prometheus-stack/dashboards/)
-- **AlertManager Config**: Check `kube-prometheus-stack` addon values
+- **Alert Rules (Custom)**: Check `kube-prometheus-stack` addon values (`additionalPrometheusRulesMap`)
+- **Matrix Alertmanager Receiver**: [addons/cluster-roles/control-plane/addons/matrix-alertmanager-receiver/](../addons/cluster-roles/control-plane/addons/matrix-alertmanager-receiver/)
+- **Loki Values**: [addons/cluster-roles/control-plane/addons/loki/values.yaml](../addons/cluster-roles/control-plane/addons/loki/values.yaml)
+- **Promtail Values**: [addons/cluster-roles/control-plane/addons/promtail/values.yaml](../addons/cluster-roles/control-plane/addons/promtail/values.yaml)
 - **Backup Schedules**: (Future: Velero addon configuration)

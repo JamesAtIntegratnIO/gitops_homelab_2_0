@@ -74,21 +74,37 @@ graph TB
 
 ### Phase 1: Request Submission
 
-**Developer creates ResourceRequest** ([platform/vclusters/media.yaml](../platform/vclusters/media.yaml)):
+**Developer creates ResourceRequest** ([platform/vclusters/vcluster-media.yaml](../platform/vclusters/vcluster-media.yaml)):
+
+> **v2 Architecture Note:** The `VClusterOrchestratorV2` CRD replaced the original `VClusterOrchestrator`. The v2 uses a single consolidated pipeline (`vco-v2-configure`) instead of the v1's 6 sub-promise decomposition. The original v1 promises are archived in `promises/_archived/`. See [Architecture Evolution](#architecture-evolution-v1-to-v2) below.
+
 ```yaml
 apiVersion: platform.integratn.tech/v1alpha1
-kind: VClusterOrchestrator
+kind: VClusterOrchestratorV2
 metadata:
-  name: media
+  name: vcluster-media
   namespace: platform-requests
 spec:
-  name: media
+  name: vcluster-media
   targetNamespace: vcluster-media
   projectName: vcluster-media
   vcluster:
     preset: prod                    # Resource sizing preset
     replicas: 3                     # Control plane HA
-    k8sVersion: "v1.34.3"           # Kubernetes version
+    helmOverrides:                  # Direct Helm value overrides
+      controlPlane:
+        backingStore:
+          etcd:
+            deploy:
+              enabled: true
+              statefulSet:
+                highAvailability:
+                  replicas: 3
+        ingress:
+          enabled: false
+      integrations:
+        metricsServer:
+          enabled: false
     resources:
       requests:
         memory: "2Gi"               # Control plane memory
@@ -97,14 +113,10 @@ spec:
     backingStore:
       etcd:
         deploy:
-          enabled: true             # Embedded etcd (vs external database)
+          enabled: true
           statefulSet:
             highAvailability:
               replicas: 3           # etcd HA
-    persistence:
-      enabled: true
-      size: 10Gi
-      storageClass: config-nfs-client
   exposure:
     hostname: media.integratn.tech  # External access hostname
     apiPort: 443                    # API server port
@@ -117,24 +129,23 @@ spec:
         integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production
-      clusterLabels:
-        team: media
-        cost-center: engineering
       clusterAnnotations:
-        backup-enabled: "true"
-      workloadRepo:                 # Optional: Auto-install apps
-        repoURL: https://github.com/org/media-apps
-        path: apps/
-        targetRevision: main
+        platform.integratn.tech/reconcile-at: "2026-02-10T01:57:56Z"
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
-    targetRevision: 0.30.4
+    targetRevision: 0.31.0
+    syncPolicy:
+      automated:
+        selfHeal: true
+        prune: true
+      syncOptions:
+        - CreateNamespace=true
 ```
 
 **Commit and push:**
 ```bash
-git add platform/vclusters/media.yaml
+git add platform/vclusters/vcluster-media.yaml
 git commit -m "Add media vCluster for video processing workloads"
 git push
 ```
@@ -143,37 +154,39 @@ git push
 
 ArgoCD `platform-vclusters` Application syncs the request:
 ```bash
-# ArgoCD creates VClusterOrchestrator resource
-kubectl apply -f platform/vclusters/media.yaml
+# ArgoCD creates VClusterOrchestratorV2 resource
+kubectl apply -f platform/vclusters/vcluster-media.yaml
 
 # Verify resource created
-kubectl get vclusterorchestrators -n platform-requests
-# NAME    AGE
-# media   5s
+kubectl get vclusterorchestratorv2s -n platform-requests
+# NAME              AGE
+# vcluster-media    5s
 ```
 
 ### Phase 3: Orchestrator Pipeline Executes
 
-Kratix detects the new VClusterOrchestrator and runs the orchestrator pipeline:
+Kratix detects the new VClusterOrchestratorV2 and runs the configure pipeline:
 
 **Pipeline pod starts:**
 ```bash
-kubectl get pods -n platform-requests | grep media
-# media-configure-xyz   1/1   Running   0   10s
+kubectl get pods -n platform-requests | grep vcluster-media
+# vcluster-media-vco-v2-configure-xyz   1/1   Running   0   10s
 ```
 
-**Pipeline logic** ([promises/vcluster-orchestrator/internal/configure-pipeline/scripts/render.sh](../promises/vcluster-orchestrator/internal/configure-pipeline/scripts/render.sh)):
-1. Reads `/kratix/input/object.yaml` (VClusterOrchestrator spec)
-2. Applies defaults (k8sVersion, resources, etc.)
-3. Generates unique IDs for sub-resources
-4. Renders 6 sub-ResourceRequests:
-   - VClusterCore
-   - VClusterCoreDNS
-   - VClusterKubeconfigSync
-   - VClusterKubeconfigExternalSecret
-   - VClusterArgocdClusterRegistration
-   - ArgocdApplication
-5. Writes YAML files to `/kratix/output/`
+**Pipeline logic** (image: `ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure:latest`):
+
+> **v2 simplification:** The v1 orchestrator decomposed into 6 sub-promises (VClusterCore, VClusterCoreDNS, VClusterKubeconfigSync, etc.), each with its own CRD and pipeline. The v2 consolidates everything into a **single pipeline** (`vco-v2-configure`) that directly renders all final Kubernetes resources.
+
+1. Reads `/kratix/input/object.yaml` (VClusterOrchestratorV2 spec)
+2. Applies defaults (resources, replicas, etc.)
+3. Renders all resources directly (no sub-promises):
+   - Namespace
+   - ArgoCD Application (vCluster Helm chart)
+   - ArgoCD Cluster Secret (cluster registration)
+   - ExternalSecrets for kubeconfig sync
+   - CoreDNS configuration patches
+   - Certificates and HTTPRoutes
+4. Writes YAML files to `/kratix/output/`
 
 **Example sub-request (VClusterCore):**
 ```yaml
@@ -222,130 +235,66 @@ Kratix GitStateStore controller commits pipeline outputs:
 ```bash
 # GitStateStore pushes to kratix-platform-state repo
 git log --oneline -1
-# abc1234 Kratix: VClusterOrchestrator media fulfilled
+# abc1234 Kratix: VClusterOrchestratorV2 vcluster-media fulfilled
 
-# Files created
-ls -la clusters/the-cluster/media-vclusterorchestrator/
-# vclustercore-media.yaml
-# vclustercoredns-media.yaml
-# vclusterkubeconfigsync-media.yaml
-# vclusterkubeconfigexternalsecret-media.yaml
-# vclusterargocdclusterregistration-media.yaml
-# argocdapplication-media.yaml
+# Files created (v2 outputs all resources directly)
+ls -la clusters/the-cluster/vcluster-media-vclusterorchestratorv2/
+# namespace.yaml
+# argocd-application.yaml
+# argocd-cluster-secret.yaml
+# externalsecret-kubeconfig.yaml
+# coredns-config.yaml
+# certificate.yaml
+# httproute.yaml
 ```
 
-### Phase 5: Sub-ResourceRequests Applied
+### Phase 5: ArgoCD Applies Resources
 
-ArgoCD `kratix-state-reconciler` Application syncs the state repo:
+ArgoCD `kratix-state-reconciler` Application syncs the state repo and applies all resources directly:
 ```bash
-# ArgoCD creates 6 new ResourceRequests
-kubectl get vclustercore,vclustercoredns,argocdapplication -n platform-requests
-# NAME                              AGE
-# vclustercore.platform...    media   15s
-# vclustercoredns.platform... media   15s
-# argocdapplication.platform... media 15s
-```
-
-### Phase 6: Sub-Pipelines Execute
-
-Each sub-ResourceRequest triggers its own pipeline:
-
-**VClusterCore pipeline:**
-- Creates Namespace: `vcluster-media`
-- Creates ConfigMap: `media-vcluster-values` (Helm values)
-- Outputs to GitStateStore
-
-**VClusterCoreDNS pipeline:**
-- Creates CoreDNS ConfigMap patch for host cluster
-- Enables `media.svc.cluster.local` DNS resolution
-- Outputs to GitStateStore
-
-**VClusterKubeconfigSync pipeline:**
-- Creates CronJob to sync kubeconfig to 1Password every 5 minutes
-- Stores in vault: `homelab`, item: `vcluster-media-kubeconfig`
-- Outputs to GitStateStore
-
-**VClusterKubeconfigExternalSecret pipeline:**
-- Creates ExternalSecret that fetches kubeconfig from 1Password
-- Target Secret: `media-kubeconfig` in `vcluster-media` namespace
-- Outputs to GitStateStore
-
-**VClusterArgocdClusterRegistration pipeline:**
-- Creates ArgoCD Cluster Secret in `argocd` namespace
-- Labels: `cluster_name=media`, `cluster_role=vcluster`, `environment=production`
-- Server URL: `https://media.vcluster-media.svc`
-- Outputs to GitStateStore
-
-**ArgocdApplication pipeline:**
-- Creates ArgoCD Application: `media`
-- Sources:
-  - Helm chart: `https://charts.loft.sh/vcluster:0.30.4`
-  - Values: ConfigMap `media-vcluster-values`
-- Destination: `vcluster-media` namespace
-- Outputs to GitStateStore
-
-### Phase 7: Final Resources Applied
-
-ArgoCD syncs final resources from state repo:
-```bash
-# Namespace created
+# ArgoCD applies rendered resources
 kubectl get namespace vcluster-media
-# NAME              STATUS   AGE
-# vcluster-media   Active   30s
-
-# ConfigMap with Helm values
-kubectl get configmap -n vcluster-media media-vcluster-values
-# NAME                     DATA   AGE
-# media-vcluster-values   1      30s
-
-# ArgoCD Application created
-kubectl get application -n argocd media
-# NAME    SYNC STATUS   HEALTH STATUS
-# media   Synced        Healthy
-
-# ArgoCD Cluster Secret
-kubectl get secret -n argocd media-cluster
-# NAME            TYPE     DATA   AGE
-# media-cluster   Opaque   3      30s
+kubectl get application -n argocd vcluster-media
+kubectl get secret -n argocd vcluster-media-cluster
 ```
 
-### Phase 8: vCluster Deployment
+### Phase 6: vCluster Deployment
 
-ArgoCD Application `media` deploys the vCluster Helm chart:
+ArgoCD Application `vcluster-media` deploys the vCluster Helm chart:
 
 **StatefulSet created:**
 ```bash
 kubectl get statefulset -n vcluster-media
-# NAME    READY   AGE
-# media   3/3     2m
+# NAME              READY   AGE
+# vcluster-media    3/3     2m
 ```
 
 **Pods running:**
 ```bash
 kubectl get pods -n vcluster-media
-# NAME      READY   STATUS    RESTARTS   AGE
-# media-0   4/4     Running   0          2m
-# media-1   4/4     Running   0          90s
-# media-2   4/4     Running   0          60s
+# NAME                READY   STATUS    RESTARTS   AGE
+# vcluster-media-0    4/4     Running   0          2m
+# vcluster-media-1    4/4     Running   0          90s
+# vcluster-media-2    4/4     Running   0          60s
 ```
 
 **Services created:**
 ```bash
 kubectl get svc -n vcluster-media
-# NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)
-# media           ClusterIP   10.43.100.50   <none>        443/TCP,6443/TCP
-# media-headless  ClusterIP   None           <none>        443/TCP
+# NAME                      TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)
+# vcluster-media            ClusterIP   10.43.100.50   <none>        443/TCP,6443/TCP
+# vcluster-media-headless   ClusterIP   None           <none>        443/TCP
 ```
 
-### Phase 9: Developer Access
+### Phase 7: Developer Access
 
 **Retrieve kubeconfig:**
 ```bash
 # Option 1: From ExternalSecret (automated)
-kubectl get secret -n vcluster-media media-kubeconfig -o jsonpath='{.data.kubeconfig}' | base64 -d > ~/.kube/media
+kubectl get secret -n vcluster-media vcluster-media-kubeconfig -o jsonpath='{.data.kubeconfig}' | base64 -d > ~/.kube/media
 
 # Option 2: Directly from vCluster (manual)
-vcluster connect media --namespace vcluster-media --print-kubeconfig > ~/.kube/media
+vcluster connect vcluster-media --namespace vcluster-media --print-kubeconfig > ~/.kube/media
 
 # Set context
 export KUBECONFIG=~/.kube/media
@@ -393,10 +342,10 @@ kubectl get pods
 export KUBECONFIG=~/.kube/config-the-cluster
 
 # View synced pods (admin sees rewritten names)
-kubectl get pods -n vcluster-media -l vcluster.loft.sh/managed-by=media
-# NAME                                      READY   STATUS    RESTARTS   AGE
-# nginx-abc123-xyz-x-default-x-media        1/1     Running   0          10s
-# nginx-abc123-def-x-default-x-media        1/1     Running   0          10s
+kubectl get pods -n vcluster-media -l vcluster.loft.sh/managed-by=vcluster-media
+# NAME                                                READY   STATUS    RESTARTS   AGE
+# nginx-abc123-xyz-x-default-x-vcluster-media         1/1     Running   0          10s
+# nginx-abc123-def-x-default-x-vcluster-media         1/1     Running   0          10s
 ```
 
 ## vCluster Presets
@@ -647,6 +596,41 @@ spec:
         namespace: monitoring
 ```
 
+## Architecture Evolution: v1 to v2
+
+### v1 Architecture (Archived)
+
+The original `VClusterOrchestrator` (v1) used a **6 sub-promise decomposition**:
+
+| Sub-Promise | Purpose |
+|-------------|---------|
+| `VClusterCore` | Namespace + Helm values ConfigMap |
+| `VClusterCoreDNS` | Host CoreDNS config patch |
+| `VClusterKubeconfigSync` | CronJob to sync kubeconfig to 1Password |
+| `VClusterKubeconfigExternalSecret` | ExternalSecret for kubeconfig |
+| `VClusterArgocdClusterRegistration` | ArgoCD Cluster Secret |
+| `ArgocdApplication` | ArgoCD Application for Helm chart |
+
+Each sub-promise had its own CRD, pipeline image, and Kratix Promise definition. This created **7 separate pipeline executions** per vCluster request (1 orchestrator + 6 sub-promises).
+
+**v1 promises are archived at:** `promises/_archived/vcluster*/` and `promises/_archived/argocd-*/`
+
+### v2 Architecture (Current)
+
+The `VClusterOrchestratorV2` replaces the entire decomposition with a **single pipeline** (`vco-v2-configure`):
+
+- **One CRD**: `VClusterOrchestratorV2`
+- **One pipeline image**: `ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure:latest`
+- **One delete pipeline**: `vco-v2-delete`
+- **Direct resource rendering**: All Kubernetes resources rendered in one pass
+
+**Benefits of v2:**
+- ✅ **Simpler debugging**: One pipeline pod to check instead of 7
+- ✅ **Faster provisioning**: Single pipeline execution vs 7 sequential
+- ✅ **Easier maintenance**: One pipeline image to build and update
+- ✅ **Atomic operations**: All resources succeed or fail together
+- ✅ **Cleaner state repo**: One directory per vCluster in state repo
+
 ## Exposure Patterns
 
 ### Internal Only (Default)
@@ -721,10 +705,10 @@ exposure:
 **Diagnosis:**
 ```bash
 kubectl get pods -n vcluster-media
-# NAME      READY   STATUS             RESTARTS   AGE
-# media-0   2/4     CrashLoopBackOff   5          3m
+# NAME                READY   STATUS             RESTARTS   AGE
+# vcluster-media-0    2/4     CrashLoopBackOff   5          3m
 
-kubectl logs -n vcluster-media media-0 -c k8s-api
+kubectl logs -n vcluster-media vcluster-media-0 -c k8s-api
 # Error: unable to create storage backend: etcd client failed
 ```
 
@@ -745,7 +729,7 @@ kubectl get storageclass config-nfs-client
 # If missing, install NFS provisioner addon
 
 # Increase resources
-yq eval '.spec.vcluster.resources.limits.memory = "4Gi"' -i platform/vclusters/media.yaml
+yq eval '.spec.vcluster.resources.limits.memory = "4Gi"' -i platform/vclusters/vcluster-media.yaml
 git commit -am "Increase media vCluster memory"
 git push
 ```
@@ -765,7 +749,7 @@ kubectl get pods
 # No pods listed
 
 # Check syncer logs in host cluster
-kubectl logs -n vcluster-media media-0 -c syncer
+kubectl logs -n vcluster-media vcluster-media-0 -c syncer
 # Error: failed to sync Pod nginx-abc: admission webhook denied
 ```
 
@@ -787,7 +771,7 @@ kubectl label namespace vcluster-media \
   --overwrite
 
 # Verify syncer has permissions
-kubectl auth can-i create pods --as=system:serviceaccount:vcluster-media:vc-media -n vcluster-media
+kubectl auth can-i create pods --as=system:serviceaccount:vcluster-media:vc-vcluster-media -n vcluster-media
 ```
 
 ### DNS Resolution Failing Between vCluster and Host
@@ -816,8 +800,8 @@ kubectl get configmap -n kube-system coredns-custom
 # Check if media vCluster section exists
 kubectl get configmap -n kube-system coredns-custom -o yaml | grep media
 
-# If missing, trigger VClusterCoreDNS pipeline re-run
-kubectl annotate vclustercoredns media -n platform-requests \
+# If missing, trigger VClusterOrchestratorV2 pipeline re-run
+kubectl annotate vclusterorchestratorv2 vcluster-media -n platform-requests \
   platform.integratn.tech/reconcile-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --overwrite
 
@@ -831,11 +815,11 @@ kubectl rollout restart deployment -n kube-system coredns
 
 **Diagnosis:**
 ```bash
-kubectl get externalsecret -n vcluster-media media-kubeconfig
-# NAME               STORE                   READY   STATUS
-# media-kubeconfig   onepassword-connect     False   SecretSyncedError
+kubectl get externalsecret -n vcluster-media vcluster-media-kubeconfig
+# NAME                       STORE                   READY   STATUS
+# vcluster-media-kubeconfig  onepassword-connect     False   SecretSyncedError
 
-kubectl describe externalsecret -n vcluster-media media-kubeconfig
+kubectl describe externalsecret -n vcluster-media vcluster-media-kubeconfig
 # Error: item "vcluster-media-kubeconfig" not found in vault "homelab"
 ```
 
@@ -847,12 +831,12 @@ kubectl describe externalsecret -n vcluster-media media-kubeconfig
 **Fix:**
 ```bash
 # Check CronJob status
-kubectl get cronjob -n vcluster-media media-kubeconfig-sync
+kubectl get cronjob -n vcluster-media vcluster-media-kubeconfig-sync
 # If suspended, resume
-kubectl patch cronjob -n vcluster-media media-kubeconfig-sync -p '{"spec":{"suspend":false}}'
+kubectl patch cronjob -n vcluster-media vcluster-media-kubeconfig-sync -p '{"spec":{"suspend":false}}'
 
 # Manually trigger sync job
-kubectl create job -n vcluster-media manual-sync --from=cronjob/media-kubeconfig-sync
+kubectl create job -n vcluster-media manual-sync --from=cronjob/vcluster-media-kubeconfig-sync
 
 # Watch job logs
 kubectl logs -n vcluster-media job/manual-sync -f
@@ -871,7 +855,7 @@ curl -k https://media.integratn.tech
 # curl: (7) Failed to connect to media.integratn.tech port 443: Connection refused
 
 # Check HTTPRoute status
-kubectl get httproute -n vcluster-media media-api -o yaml | yq eval '.status'
+kubectl get httproute -n vcluster-media vcluster-media-api -o yaml | yq eval '.status'
 # conditions:
 #   - type: Accepted
 #     status: False
@@ -909,8 +893,8 @@ kubectl describe certificate -n vcluster-media media-api-cert
 ### Scaling vCluster Control Plane
 
 ```bash
-# Edit VClusterOrchestrator
-yq eval '.spec.vcluster.replicas = 5' -i platform/vclusters/media.yaml
+# Edit VClusterOrchestratorV2
+yq eval '.spec.vcluster.replicas = 5' -i platform/vclusters/vcluster-media.yaml
 
 git commit -am "Scale media vCluster control plane to 5 replicas"
 git push
@@ -918,31 +902,31 @@ git push
 # ArgoCD will sync changes
 argocd app sync platform-vclusters
 argocd app sync kratix-state-reconciler
-argocd app sync media
+argocd app sync vcluster-media
 
 # Verify scaling
-kubectl get statefulset -n vcluster-media media
-# NAME    READY   AGE
-# media   5/5     10m
+kubectl get statefulset -n vcluster-media vcluster-media
+# NAME              READY   AGE
+# vcluster-media    5/5     10m
 ```
 
 ### Upgrading vCluster Version
 
 ```bash
-# Update chart version in VClusterOrchestrator
-yq eval '.spec.argocdApplication.targetRevision = "0.31.0"' -i platform/vclusters/media.yaml
+# Update chart version in VClusterOrchestratorV2
+yq eval '.spec.argocdApplication.targetRevision = "0.32.0"' -i platform/vclusters/vcluster-media.yaml
 
-git commit -am "Upgrade media vCluster to v0.31.0"
+git commit -am "Upgrade media vCluster to v0.32.0"
 git push
 
 # ArgoCD applies upgrade
 argocd app sync platform-vclusters
 # Wait for pipeline to regenerate Application
 argocd app sync kratix-state-reconciler
-argocd app sync media
+argocd app sync vcluster-media
 
 # Watch rollout
-kubectl rollout status statefulset -n vcluster-media media -w
+kubectl rollout status statefulset -n vcluster-media vcluster-media -w
 ```
 
 ### Deleting vCluster
@@ -951,15 +935,15 @@ kubectl rollout status statefulset -n vcluster-media media -w
 
 ```bash
 # Delete ResourceRequest
-git rm platform/vclusters/media.yaml
+git rm platform/vclusters/vcluster-media.yaml
 git commit -m "Remove media vCluster"
 git push
 
-# ArgoCD deletes VClusterOrchestrator
+# ArgoCD deletes VClusterOrchestratorV2
 argocd app sync platform-vclusters
 
-# Kratix delete pipeline runs
-kubectl get pods -n platform-requests | grep media-delete
+# Kratix delete pipeline runs (vco-v2-delete)
+kubectl get pods -n platform-requests | grep vcluster-media-vco-v2-delete
 
 # Verify resources cleaned up
 kubectl get namespace vcluster-media
@@ -975,10 +959,14 @@ kubectl get secret -n argocd media-cluster
 ## Key Files Reference
 
 - **Request schema**: [platform/vclusters/README.md](../platform/vclusters/README.md)
-- **Example request**: [platform/vclusters/media.yaml](../platform/vclusters/media.yaml)
-- **Orchestrator Promise**: [promises/vcluster-orchestrator/promise.yaml](../promises/vcluster-orchestrator/promise.yaml)
-- **Core Promise**: [promises/vcluster-core/promise.yaml](../promises/vcluster-core/promise.yaml)
-- **CoreDNS Promise**: [promises/vcluster-coredns/promise.yaml](../promises/vcluster-coredns/promise.yaml)
-- **Kubeconfig sync Promise**: [promises/vcluster-kubeconfig-sync/promise.yaml](../promises/vcluster-kubeconfig-sync/promise.yaml)
-- **ArgoCD registration Promise**: [promises/vcluster-argocd-cluster-registration/promise.yaml](../promises/vcluster-argocd-cluster-registration/promise.yaml)
+- **Example request (current)**: [platform/vclusters/vcluster-media.yaml](../platform/vclusters/vcluster-media.yaml)
+- **Orchestrator Promise (v2)**: [promises/vcluster-orchestrator-v2/promise.yaml](../promises/vcluster-orchestrator-v2/promise.yaml)
 - **vCluster Helm chart values**: Check ConfigMap in vCluster namespace
+
+**Archived v1 Promises** (kept for reference, no longer active):
+- [promises/_archived/vcluster-orchestrator/](../promises/_archived/vcluster/)
+- [promises/_archived/vcluster-core/](../promises/_archived/vcluster-core/)
+- [promises/_archived/vcluster-coredns/](../promises/_archived/vcluster-coredns/)
+- [promises/_archived/vcluster-kubeconfig-sync/](../promises/_archived/vcluster-kubeconfig-sync/)
+- [promises/_archived/vcluster-kubeconfig-external-secret/](../promises/_archived/vcluster-kubeconfig-external-secret/)
+- [promises/_archived/vcluster-argocd-cluster-registration/](../promises/_archived/vcluster-argocd-cluster-registration/)

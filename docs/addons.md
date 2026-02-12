@@ -539,18 +539,26 @@ argocd-projects:
 
 | Addon | Purpose | Cluster Role | Version | Chart Repository |
 |-------|---------|--------------|---------|------------------|
-| **argocd** | GitOps CD engine | control-plane | 9.0.3 | https://argoproj.github.io/argo-helm |
+| **argocd** | GitOps CD engine | all | 9.0.3 | https://argoproj.github.io/argo-helm |
 | **cert-manager** | TLS automation | all | v1.16.2 | https://charts.jetstack.io |
 | **external-secrets** | 1Password sync | all | 0.10.3 | https://charts.external-secrets.io |
-| **nginx-gateway-fabric** | Gateway API | control-plane | latest | https://github.com/nginxinc/nginx-gateway-fabric |
-| **external-dns** | Cloudflare DNS | control-plane | latest | https://kubernetes-sigs.github.io/external-dns/ |
-| **metallb** | LoadBalancer IPs | control-plane | latest | https://metallb.github.io/metallb |
+| **nginx-gateway-fabric** | Gateway API ingress | all | 2.2.2 | https://github.com/nginxinc/nginx-gateway-fabric |
+| **gateway-api-crds** | Gateway API CRDs | all | v1.4.0 | Manifest (OCI) |
+| **external-dns** | Cloudflare DNS automation | all | 1.19.0 | https://kubernetes-sigs.github.io/external-dns/ |
+| **metallb** | LoadBalancer IPs (L2 mode) | all | 0.14.5 | https://metallb.github.io/metallb |
+| **metallb-config** | MetalLB IP pool config | all | Manifest | N/A (raw YAML) |
 | **kyverno** | Policy engine | all | 3.2.6 | https://kyverno.github.io/kyverno/ |
-| **kube-prometheus-stack** | Full observability | control-plane | 58.2.1 | https://prometheus-community.github.io/helm-charts |
-| **kube-prometheus-stack-agent** | Metrics agent | vcluster | 58.2.1 | https://prometheus-community.github.io/helm-charts |
-| **loki** | Log aggregation | control-plane | 6.9.0 | https://grafana.github.io/helm-charts |
-| **promtail** | Log collection | control-plane | 6.9.0 | https://grafana.github.io/helm-charts |
-| **kratix** | Platform API | control-plane | latest | https://github.com/syntasso/kratix |
+| **nfs-subdir-external-provisioner** | NFS StorageClass | all | 4.0.18 | https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/ |
+| **kube-prometheus-stack** | Full observability (Prometheus, Grafana, Alertmanager) | control-plane | 58.2.1 | https://prometheus-community.github.io/helm-charts |
+| **kube-prometheus-stack-agent** | Metrics agent (remote-write) | vcluster | 58.2.1 | https://prometheus-community.github.io/helm-charts |
+| **loki** | Log aggregation (SingleBinary) | control-plane | 6.49.0 | https://grafana.github.io/helm-charts |
+| **promtail** | Log collection (DaemonSet) | control-plane | 6.9.0 | https://grafana.github.io/helm-charts |
+| **kratix** | Platform API framework | control-plane | 0.0.1 | https://github.com/syntasso/kratix |
+| **kratix-promises** | Kratix Promise definitions | control-plane | Manifest | N/A (raw YAML) |
+| **platform-vclusters** | vCluster resource requests | control-plane | Manifest | N/A (raw YAML) |
+| **observability-secrets** | Grafana/Alertmanager ExternalSecrets | control-plane | Manifest | N/A (raw YAML) |
+| **matrix-alertmanager-receiver** | Alert → Matrix room bridge | control-plane | Manifest | N/A (raw YAML) |
+| **vcluster-coredns-config** | CoreDNS patches for vClusters | vcluster | Manifest | N/A (raw YAML) |
 
 ## Adding a New Addon (Complete Walkthrough)
 

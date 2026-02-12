@@ -18,6 +18,8 @@ The bootstrap process transforms bare metal machines into a fully operational Ta
 - ✅ **Easy upgrades**: Change boot profile, reboot, done
 - ✅ **Consistent hardware**: All nodes run identical OS image
 
+> **Current Versions:** Talos Linux **1.11.3** ships with Kubernetes **1.34.1**. The Kubernetes version is determined by the Talos release and cannot be changed independently for the host cluster. vClusters can run different Kubernetes versions.
+
 **Tradeoffs:**
 - ❌ Network boot dependency (DHCP + Matchbox must be operational)
 - ❌ More complex initial setup vs traditional installers

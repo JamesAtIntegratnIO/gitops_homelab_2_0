@@ -26,9 +26,9 @@ This folder is the **comprehensive, deep-dive knowledge base** for the homelab p
   - Includes: iPXE boot sequence, control plane bootstrap, machine config generation
   - External refs: Talos Linux docs, Matchbox docs, iPXE
   
-- **[Terraform & Infrastructure](terraform.md)**: Infrastructure as Code, module usage, backend config
+- **[Terraform & Infrastructure](terraform.md)**: Infrastructure as Code, module usage, PostgreSQL backend config
   - Includes: Prerequisites, backend setup, variable management, workflow
-  - External refs: OpenTofu/Terraform docs, Helm provider
+  - External refs: OpenTofu/Terraform docs, Helm provider, 1Password provider
 
 ### Platform Services
 - **[Addons & ApplicationSets](addons.md)**: How platform services are deployed via ArgoCD
@@ -36,7 +36,7 @@ This folder is the **comprehensive, deep-dive knowledge base** for the homelab p
   - External refs: ArgoCD ApplicationSets, Helm, Stakater chart
   
 - **[vCluster Platform Requests](vclusters.md)**: Requesting and managing virtual Kubernetes clusters
-  - Includes: VClusterOrchestrator CRD, promise workflow, networking
+  - Includes: VClusterOrchestratorV2 CRD, promise workflow, networking, v1→v2 evolution
   - External refs: vcluster docs, Kratix docs
   
 - **[Kratix Promises & Pipelines](promises.md)**: Promise development, pipeline execution, state repo
@@ -82,10 +82,14 @@ All secrets live in 1Password. ExternalSecrets Operator pulls them into Kubernet
 
 ## Repository Anchors
 - Root overview: [../README.md](../README.md)
-- Terraform changes log: [../TERRAFORM_CHANGES.md](../TERRAFORM_CHANGES.md)
 - Promise directory: [../promises/](../promises/)
 - Addons directory: [../addons/](../addons/)
 - Platform requests: [../platform/](../platform/)
+
+## Additional Documentation
+- **[Monitoring Summary](MONITORING_SUMMARY.md)**: Overview of observability stack implementation
+- **[Kratix Troubleshooting](kratix-troubleshooting.md)**: Kratix-specific debugging guide
+- **[Phase 2 Verification](phase2-verification.md)**: Platform phase 2 verification checklist
 
 ## Non‑Negotiables
 
@@ -150,6 +154,6 @@ When updating documentation:
 
 ---
 
-**Last Updated**: January 2026  
+**Last Updated**: February 2026  
 **Maintainer**: Platform Team  
 **Repository**: https://github.com/jamesatintegratnio/gitops_homelab_2_0

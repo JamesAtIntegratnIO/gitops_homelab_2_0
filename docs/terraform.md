@@ -5,6 +5,7 @@
 > - [Terraform Kubernetes Provider](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs) - Kubernetes resource management
 > - [Terraform Helm Provider](https://registry.terraform.io/providers/hashicorp/helm/latest/docs) - Helm chart deployment
 > - [Cloudflare Provider](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs) - DNS management
+> - [1Password Provider](https://registry.terraform.io/providers/1Password/onepassword/latest/docs) - Secret management via 1Password Connect
 
 ## Overview
 
@@ -47,7 +48,7 @@ GitOps Territory (ArgoCD manages):
 flowchart TB
     subgraph Workstation["💻 Workstation (Developer/CI)"]
         TFVars["📄 terraform.tfvars<br/>(git-ignored)<br/>cluster_name<br/>cloudflare_api_key<br/>onepassword_token"]
-        Backend["🗄️ Remote Backend<br/>S3/Consul<br/>terraform.tfstate<br/>State locking"]
+        Backend["🗄️ Remote Backend<br/>PostgreSQL (pg)<br/>terraform.tfstate<br/>State locking"]
         
         TFVars -->|"tofu init<br/>-backend-config=backend.hcl"| Backend
     end
@@ -156,42 +157,14 @@ cd terraform/cluster/
 cp backend.hcl.example backend.hcl
 
 # Edit backend.hcl
+# This project uses a PostgreSQL (pg) backend for state storage
 cat > backend.hcl <<EOF
-# S3-compatible backend (MinIO, AWS S3, etc.)
-bucket = "terraform-state"
-key    = "homelab/the-cluster/terraform.tfstate"
-region = "us-east-1"
-
-# For MinIO/self-hosted S3:
-endpoint                    = "https://minio.integratn.tech"
-skip_credentials_validation = true
-skip_metadata_api_check     = true
-skip_region_validation      = true
-force_path_style            = true
-
-# Credentials from environment variables:
-# export AWS_ACCESS_KEY_ID=minioadmin
-# export AWS_SECRET_ACCESS_KEY=minioadmin
+# PostgreSQL backend
+conn_str = "postgres://user:password@postgres.integratn.tech/terraform_state?sslmode=disable"
 EOF
 ```
 
-**Alternative Backends:**
-
-**Consul:**
-```hcl
-# backend.hcl
-address = "consul.integratn.tech:8500"
-scheme  = "https"
-path    = "terraform/the-cluster"
-```
-
-**Kubernetes:**
-```hcl
-# backend.hcl
-secret_suffix    = "the-cluster"
-namespace        = "terraform-state"
-in_cluster_config = false  # Use kubeconfig
-```
+> **Note:** The actual backend type is `pg` (PostgreSQL), configured in [terraform/cluster/versions.tf](../terraform/cluster/versions.tf). The connection string is provided via `backend.hcl` at init time.
 
 ### Step 3: Configure Variables
 
@@ -260,15 +233,17 @@ tofu init -backend-config=backend.hcl
 
 # Output:
 # Initializing the backend...
-# Successfully configured the backend "s3"!
+# Successfully configured the backend "pg"!
 #
 # Initializing provider plugins...
-# - Finding hashicorp/kubernetes versions matching "~> 2.35.0"...
-# - Finding hashicorp/helm versions matching "~> 2.17.0"...
-# - Finding cloudflare/cloudflare versions matching "~> 4.0"...
-# - Installing hashicorp/kubernetes v2.35.1...
-# - Installing hashicorp/helm v2.17.0...
-# - Installing cloudflare/cloudflare v4.45.0...
+# - Finding hashicorp/kubernetes versions matching "2.31.0"...
+# - Finding hashicorp/helm versions matching "= 2.10.1"...
+# - Finding cloudflare/cloudflare versions matching "4.39.0"...
+# - Finding 1password/onepassword versions matching "~> 3.0.2"...
+# - Installing hashicorp/kubernetes v2.31.0...
+# - Installing hashicorp/helm v2.10.1...
+# - Installing cloudflare/cloudflare v4.39.0...
+# - Installing 1password/onepassword v3.0.2...
 #
 # Terraform has been successfully initialized!
 ```
@@ -637,15 +612,13 @@ kubectl get application -n argocd
 
 ### Changing Backend Location
 
-**Scenario:** Moving from MinIO to AWS S3
+**Scenario:** Moving from PostgreSQL to a different backend
 
 **Steps:**
 1. **Update backend.hcl:**
    ```hcl
-   bucket = "my-terraform-state"
-   key    = "homelab/the-cluster/terraform.tfstate"
-   region = "us-east-1"
-   # Remove MinIO-specific settings
+   # New backend connection string
+   conn_str = "postgres://user:password@new-host/terraform_state?sslmode=require"
    ```
 
 2. **Reinitialize with migration:**
@@ -848,7 +821,7 @@ provider "cloudflare" {
 ## Best Practices
 
 ### State Management
-- ✅ Always use remote backend (S3, Consul, etc.)
+- ✅ Always use remote backend (PostgreSQL, S3, Consul, etc.)
 - ✅ Enable state locking (prevent concurrent modifications)
 - ✅ Enable state versioning (rollback capability)
 - ✅ Never commit terraform.tfstate to Git
@@ -899,4 +872,3 @@ provider "cloudflare" {
 - **Bootstrap ApplicationSets**: [terraform/cluster/bootstrap/](../terraform/cluster/bootstrap/)
 - **Cloudflare module**: [terraform/modules/cloudflare/](../terraform/modules/cloudflare/)
 - **ESO bootstrap**: [terraform/cluster/external_secrets_operator.tf](../terraform/cluster/external_secrets_operator.tf)
-- **Change log**: [TERRAFORM_CHANGES.md](../TERRAFORM_CHANGES.md)
