@@ -119,6 +119,17 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+    # Hubble UI
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: hubble-ui
+      ports:
+        - protocol: TCP
+          port: 8081
     # vCluster media workloads (future)
     - to:
         - namespaceSelector:
