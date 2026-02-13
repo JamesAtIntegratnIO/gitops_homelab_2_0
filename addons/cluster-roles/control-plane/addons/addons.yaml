@@ -180,7 +180,8 @@ kube-prometheus-stack:
         operator: NotIn
         values: ['vcluster']
   syncPolicy:
-    automated: {}
+    automated:
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -207,7 +208,8 @@ loki:
         - /spec/volumeClaimTemplates/0/metadata/creationTimestamp
         - /spec/volumeClaimTemplates/0/status
   syncPolicy:
-    automated: {}
+    automated:
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -226,7 +228,8 @@ promtail:
         operator: NotIn
         values: ['vcluster']
   syncPolicy:
-    automated: {}
+    automated:
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
