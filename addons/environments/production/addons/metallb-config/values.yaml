@@ -8,6 +8,8 @@ metadata:
 spec:
   ipAddressPools:
     - default
+  interfaces:
+    - eno1
   nodeSelectors:
     - matchExpressions:
         - key: kubernetes.io/hostname
