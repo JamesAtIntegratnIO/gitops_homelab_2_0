@@ -599,8 +599,7 @@ cilium:
       - key: cluster_role
         operator: NotIn
         values: ['vcluster']
-  annotationsApp:
-    argocd.argoproj.io/compare-options: ServerSideDiff=true
+  annotationsApp: {}
   ignoreDifferences:
     - kind: Secret
       name: cilium-ca
@@ -619,3 +618,4 @@ cilium:
       prune: true
     syncOptions:
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
