@@ -34,22 +34,16 @@ spec:
         - protocol: TCP
           port: 53
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
   name: allow-kube-api
   namespace: nfs-provisioner
 spec:
-  podSelector: {}
-  policyTypes:
-    - Egress
+  endpointSelector: {}
   egress:
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
-      ports:
-        - protocol: TCP
-          port: 6443
+    - toEntities:
+        - kube-apiserver
 ---
 # NFS provisioners: need access to NFS server
 apiVersion: networking.k8s.io/v1

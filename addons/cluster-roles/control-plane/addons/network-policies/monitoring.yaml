@@ -37,22 +37,16 @@ spec:
           port: 53
 ---
 # Baseline: allow K8s API for controllers
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
   name: allow-kube-api
   namespace: monitoring
 spec:
-  podSelector: {}
-  policyTypes:
-    - Egress
+  endpointSelector: {}
   egress:
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
-      ports:
-        - protocol: TCP
-          port: 6443
+    - toEntities:
+        - kube-apiserver
 ---
 # Prometheus: scrape targets across ALL namespaces
 apiVersion: networking.k8s.io/v1

@@ -13,6 +13,20 @@ spec:
     - Ingress
     - Egress
 ---
+# Allow all kube-system pods to reach the K8s API server
+# Uses CiliumNetworkPolicy because Cilium's kube-proxy replacement translates
+# ClusterIP at the socket level, making ipBlock rules unreliable for service IPs
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-api
+  namespace: kube-system
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+---
 # CoreDNS must accept DNS queries from ALL pods in the cluster
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -42,13 +56,6 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # K8s API for service discovery
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
-      ports:
-        - protocol: TCP
-          port: 6443
     # CoreDNS metrics (self, prometheus scraping)
     - to:
         - podSelector:
@@ -94,13 +101,6 @@ spec:
           port: 9964
   egress:
     # Cilium needs broad egress for CNI duties
-    # K8s API
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
-      ports:
-        - protocol: TCP
-          port: 6443
     # Node network (health checks, VXLAN/Geneve tunneling)
     - to:
         - ipBlock:
@@ -144,13 +144,6 @@ spec:
         - protocol: TCP
           port: 9963
   egress:
-    # K8s API
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
-      ports:
-        - protocol: TCP
-          port: 6443
     # DNS
     - to:
         - podSelector:
@@ -201,13 +194,6 @@ spec:
       ports:
         - protocol: TCP
           port: 4244
-    # K8s API
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
-      ports:
-        - protocol: TCP
-          port: 6443
     # DNS
     - to:
         - podSelector:
@@ -250,13 +236,6 @@ spec:
       ports:
         - protocol: TCP
           port: 4245
-    # K8s API (for UI backend)
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
-      ports:
-        - protocol: TCP
-          port: 6443
     # DNS
     - to:
         - podSelector:
