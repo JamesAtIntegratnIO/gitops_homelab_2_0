@@ -46,7 +46,7 @@ spec:
         - kube-apiserver
 ---
 # vCluster CoreDNS pods forward DNS to Talos node-local DNS (169.254.116.108)
-# This is a link-local address on the host, needs CiliumNetworkPolicy with host entity
+# This is a link-local address classified as 'world' by Cilium, not 'host'
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -55,8 +55,8 @@ metadata:
 spec:
   endpointSelector: {}
   egress:
-    - toEntities:
-        - host
+    - toCIDR:
+        - 169.254.116.108/32
       toPorts:
         - ports:
             - port: "53"

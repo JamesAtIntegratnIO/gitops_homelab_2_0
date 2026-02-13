@@ -45,8 +45,15 @@ metadata:
 spec:
   endpointSelector: {}
   ingress:
+    # kube-apiserver webhook calls; remote-node needed because cross-node
+    # kube-apiserver traffic arrives via cilium_host with remote-node identity
     - fromEntities:
         - kube-apiserver
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
   egress:
     - toEntities:
         - kube-apiserver
@@ -94,6 +101,9 @@ spec:
     - to:
         - ipBlock:
             cidr: 10.244.0.0/16
+    # Scrape targets via namespace selector (ipBlock unreliable with Cilium kube-proxy replacement)
+    - to:
+        - namespaceSelector: {}
     # Scrape node endpoints (kubelet metrics)
     - to:
         - ipBlock:
@@ -150,6 +160,17 @@ spec:
           port: 8080
         - protocol: TCP
           port: 3100
+    # External HTTPS (plugin catalog, Gravatar, update checks)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 # Alertmanager
 apiVersion: networking.k8s.io/v1

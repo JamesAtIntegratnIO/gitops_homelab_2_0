@@ -42,8 +42,15 @@ metadata:
 spec:
   endpointSelector: {}
   ingress:
+    # kube-apiserver webhook calls; remote-node needed because cross-node
+    # kube-apiserver traffic arrives via cilium_host with remote-node identity
     - fromEntities:
         - kube-apiserver
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9443"
+              protocol: TCP
   egress:
     - toEntities:
         - kube-apiserver
