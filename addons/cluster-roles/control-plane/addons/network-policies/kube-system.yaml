@@ -1,0 +1,149 @@
+# kube-system: CoreDNS, kube-proxy, metrics-server, kube-flannel
+# Talos manages kube-apiserver, kube-controller-manager, kube-scheduler as static pods
+# on the host network — they are NOT affected by NetworkPolicies
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: kube-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# CoreDNS must accept DNS queries from ALL pods in the cluster
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-server
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: kube-dns
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Accept DNS from all namespaces
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+  egress:
+    # Upstream DNS (if CoreDNS forwards externally)
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # K8s API for service discovery
+    - to:
+        - ipBlock:
+            cidr: 10.96.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    # CoreDNS metrics (self, prometheus scraping)
+    - to:
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: TCP
+          port: 9153
+---
+# kube-proxy needs K8s API access and inter-node communication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kube-proxy
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: kube-proxy
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Prometheus scraping metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 10249
+  egress:
+    # K8s API
+    - to:
+        - ipBlock:
+            cidr: 10.96.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    # Node IPs for proxy rules
+    - to:
+        - ipBlock:
+            cidr: 10.0.4.0/24
+    # Pod CIDR
+    - to:
+        - ipBlock:
+            cidr: 10.244.0.0/16
+---
+# kube-flannel needs inter-node VXLAN and K8s API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kube-flannel
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      app: flannel
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # VXLAN from other flannel pods
+    - from:
+        - podSelector:
+            matchLabels:
+              app: flannel
+      ports:
+        - protocol: UDP
+          port: 8472
+  egress:
+    # K8s API
+    - to:
+        - ipBlock:
+            cidr: 10.96.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    # VXLAN to other nodes
+    - to:
+        - ipBlock:
+            cidr: 10.0.4.0/24
+      ports:
+        - protocol: UDP
+          port: 8472
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

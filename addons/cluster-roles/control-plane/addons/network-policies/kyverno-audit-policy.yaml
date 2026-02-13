@@ -1,0 +1,49 @@
+# Kyverno ClusterPolicy: Audit namespaces missing a default-deny NetworkPolicy
+# This runs in Audit mode — no enforcement, only reports violations
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-default-deny-netpol
+  annotations:
+    policies.kyverno.io/title: Require Default Deny NetworkPolicy
+    policies.kyverno.io/category: Networking
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Every namespace should have a default-deny NetworkPolicy that blocks
+      all ingress and egress by default. This policy audits namespaces for
+      compliance without blocking anything.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: check-default-deny-exists
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-public
+                - kube-node-lease
+                - tigera-operator
+                - calico-system
+                - calico-apiserver
+      context:
+        - name: netpols
+          apiCall:
+            urlPath: "/apis/networking.k8s.io/v1/namespaces/{{request.object.metadata.name}}/networkpolicies"
+            jmesPath: "items[?metadata.name == 'default-deny-all'] | length(@)"
+      validate:
+        message: >-
+          Namespace {{request.object.metadata.name}} is missing a 'default-deny-all'
+          NetworkPolicy. All namespaces should have a default-deny policy with
+          explicit allowlists for required traffic.
+        deny:
+          conditions:
+            all:
+              - key: "{{ netpols }}"
+                operator: LessThan
+                value: 1

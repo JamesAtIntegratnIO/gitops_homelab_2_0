@@ -8,27 +8,6 @@ kind: Namespace
 metadata:
   name: loki
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-nginx-gateway-to-prometheus-receiver
-  namespace: monitoring
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: prometheus
-      prometheus: kube-prometheus-stack-prometheus
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: nginx-gateway
-      ports:
-        - protocol: TCP
-          port: 9090
----
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

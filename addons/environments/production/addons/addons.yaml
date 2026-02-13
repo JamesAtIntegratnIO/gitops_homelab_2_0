@@ -588,3 +588,23 @@ kyverno:
       - CreateNamespace=true
       - ServerSideApply=true
 
+calico:
+  enabled: true
+  namespace: tigera-operator
+  releaseName: calico
+  chartName: tigera-operator
+  project: platform-services
+  chartRepository: https://projectcalico.docs.tigera.io/charts
+  defaultVersion: "v3.29.2"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+

@@ -1,0 +1,148 @@
+# metallb-system: L2 load balancer — controller + speaker DaemonSet
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: metallb-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: metallb-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kube-api
+  namespace: metallb-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.96.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# MetalLB controller: assigns IPs, handles webhook
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-metallb-controller
+  namespace: metallb-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: controller
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Webhook from API server
+    - from:
+        - ipBlock:
+            cidr: 10.0.4.101/32
+        - ipBlock:
+            cidr: 10.0.4.102/32
+        - ipBlock:
+            cidr: 10.0.4.103/32
+      ports:
+        - protocol: TCP
+          port: 9443
+    - from:
+        - ipBlock:
+            cidr: 10.244.0.0/16
+      ports:
+        - protocol: TCP
+          port: 9443
+    # Prometheus metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 7472
+  egress:
+    # Memberlist communication with speakers
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: speaker
+      ports:
+        - protocol: TCP
+          port: 7946
+        - protocol: UDP
+          port: 7946
+---
+# MetalLB speaker: DaemonSet, L2 ARP announcements, memberlist
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-metallb-speaker
+  namespace: metallb-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: speaker
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Memberlist from other speakers and controller
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 7946
+        - protocol: UDP
+          port: 7946
+    # Prometheus metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 7472
+  egress:
+    # Memberlist inter-speaker communication
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 7946
+        - protocol: UDP
+          port: 7946
+    # L2 ARP — speaker uses hostNetwork so this is mostly covered,
+    # but allow node subnet for gratuitous ARP
+    - to:
+        - ipBlock:
+            cidr: 10.0.4.0/24
