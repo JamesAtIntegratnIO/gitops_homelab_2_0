@@ -1,4 +1,4 @@
-# kube-system: CoreDNS, kube-proxy, metrics-server, kube-flannel
+# kube-system: CoreDNS, Cilium, metrics-server
 # Talos manages kube-apiserver, kube-controller-manager, kube-scheduler as static pods
 # on the host network — they are NOT affected by NetworkPolicies
 ---
@@ -58,29 +58,42 @@ spec:
         - protocol: TCP
           port: 9153
 ---
-# kube-proxy needs K8s API access and inter-node communication
+# Cilium agent needs broad network access for CNI + kube-proxy replacement
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-kube-proxy
+  name: allow-cilium-agent
   namespace: kube-system
 spec:
   podSelector:
     matchLabels:
-      k8s-app: kube-proxy
+      k8s-app: cilium
   policyTypes:
     - Ingress
     - Egress
   ingress:
-    # Prometheus scraping metrics
+    # Health checks and Hubble peering from other Cilium agents
+    - from:
+        - podSelector:
+            matchLabels:
+              k8s-app: cilium
+      ports:
+        - protocol: TCP
+          port: 4244
+    # Prometheus scraping
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
-          port: 10249
+          port: 9962
+        - protocol: TCP
+          port: 9963
+        - protocol: TCP
+          port: 9964
   egress:
+    # Cilium needs broad egress for CNI duties
     # K8s API
     - to:
         - ipBlock:
@@ -88,7 +101,7 @@ spec:
       ports:
         - protocol: TCP
           port: 443
-    # Node IPs for proxy rules
+    # Node network (health checks, VXLAN/Geneve tunneling)
     - to:
         - ipBlock:
             cidr: 10.0.4.0/24
@@ -96,29 +109,40 @@ spec:
     - to:
         - ipBlock:
             cidr: 10.244.0.0/16
+    # DNS
+    - to:
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
 ---
-# kube-flannel needs inter-node VXLAN and K8s API
+# Cilium operator needs K8s API access
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-kube-flannel
+  name: allow-cilium-operator
   namespace: kube-system
 spec:
   podSelector:
     matchLabels:
-      app: flannel
+      io.cilium/app: operator
+      name: cilium-operator
   policyTypes:
     - Ingress
     - Egress
   ingress:
-    # VXLAN from other flannel pods
+    # Prometheus scraping
     - from:
-        - podSelector:
+        - namespaceSelector:
             matchLabels:
-              app: flannel
+              kubernetes.io/metadata.name: monitoring
       ports:
-        - protocol: UDP
-          port: 8472
+        - protocol: TCP
+          port: 9963
   egress:
     # K8s API
     - to:
@@ -127,19 +151,115 @@ spec:
       ports:
         - protocol: TCP
           port: 443
-    # VXLAN to other nodes
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.0/24
-      ports:
-        - protocol: UDP
-          port: 8472
     # DNS
     - to:
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Hubble Relay needs access to Cilium agents and K8s API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-hubble-relay
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: hubble-relay
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Hubble UI connects to relay
+    - from:
+        - podSelector:
+            matchLabels:
+              k8s-app: hubble-ui
+      ports:
+        - protocol: TCP
+          port: 4245
+    # Prometheus scraping
+    - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9966
+  egress:
+    # Connect to Cilium agent Hubble server on each node
+    - to:
+        - podSelector:
+            matchLabels:
+              k8s-app: cilium
+      ports:
+        - protocol: TCP
+          port: 4244
+    # K8s API
+    - to:
+        - ipBlock:
+            cidr: 10.96.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    # DNS
+    - to:
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Hubble UI needs access to Hubble Relay
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-hubble-ui
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: hubble-ui
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow access to the UI (via gateway/ingress)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+      ports:
+        - protocol: TCP
+          port: 8081
+  egress:
+    # Hubble Relay
+    - to:
+        - podSelector:
+            matchLabels:
+              k8s-app: hubble-relay
+      ports:
+        - protocol: TCP
+          port: 4245
+    # K8s API (for UI backend)
+    - to:
+        - ipBlock:
+            cidr: 10.96.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    # DNS
+    - to:
+        - podSelector:
             matchLabels:
               k8s-app: kube-dns
       ports:

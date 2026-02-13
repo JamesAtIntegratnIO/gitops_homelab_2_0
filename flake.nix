@@ -122,6 +122,8 @@
               krew
               k9s
               talosctl
+              cilium-cli
+              hubble
               jq
               yq
               minio-client

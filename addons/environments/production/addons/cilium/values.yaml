@@ -1,0 +1,78 @@
+# Cilium CNI with kube-proxy replacement for Talos Linux
+# Replaces both Flannel (CNI) and kube-proxy
+
+# Use Kubernetes IPAM (preserves existing pod CIDR 10.244.0.0/16)
+ipam:
+  mode: kubernetes
+
+# Replace kube-proxy with Cilium eBPF-based service routing
+kubeProxyReplacement: true
+
+# KubePrism endpoint (Talos local API server load balancer)
+k8sServiceHost: localhost
+k8sServicePort: 7445
+
+# Talos-specific: cgroup settings (Talos pre-mounts cgroupv2)
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+# Talos-specific: drop SYS_MODULE (Talos doesn't allow kernel module loading from pods)
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+# Hubble observability
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+    prometheus:
+      serviceMonitor:
+        enabled: true
+  ui:
+    enabled: true
+  metrics:
+    enableOpenMetrics: true
+    enabled:
+      - dns:query;ignoreAAAA;destinationContext=pod-short
+      - drop:sourceContext=pod;destinationContext=pod
+      - tcp
+      - flow
+      - port-distribution
+      - icmp
+      - httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction
+    serviceMonitor:
+      enabled: true
+
+# Operator settings
+operator:
+  replicas: 1
+  prometheus:
+    serviceMonitor:
+      enabled: true
+
+# Cilium agent Prometheus metrics
+prometheus:
+  serviceMonitor:
+    enabled: true
+
+# Avoid known Talos issue: forwardKubeDNSToHost + bpf.masquerade conflict
+bpf:
+  masquerade: false

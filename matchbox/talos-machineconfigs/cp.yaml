@@ -18,9 +18,11 @@ cluster:
   scheduler:
     extraArgs:
       bind-address: "0.0.0.0"
+  network:
+    cni:
+      name: none
   proxy:
-    extraArgs:
-      metrics-bind-address: "0.0.0.0:10249"
+    disabled: true
   etcd:
     extraArgs:
       listen-metrics-urls: "https://0.0.0.0:2381"

@@ -28,9 +28,7 @@ spec:
               namespaces:
                 - kube-public
                 - kube-node-lease
-                - tigera-operator
-                - calico-system
-                - calico-apiserver
+                - kube-system
       context:
         - name: netpols
           apiCall:

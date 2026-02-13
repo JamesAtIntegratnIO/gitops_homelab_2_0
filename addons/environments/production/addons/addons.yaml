@@ -588,14 +588,12 @@ kyverno:
       - CreateNamespace=true
       - ServerSideApply=true
 
-calico:
+cilium:
   enabled: true
-  namespace: tigera-operator
-  releaseName: calico
-  chartName: tigera-operator
+  namespace: kube-system
   project: platform-services
-  chartRepository: https://projectcalico.docs.tigera.io/charts
-  defaultVersion: "v3.29.2"
+  chartRepository: https://helm.cilium.io/
+  defaultVersion: "1.17.3"
   selector:
     matchExpressions:
       - key: cluster_role
@@ -607,13 +605,4 @@ calico:
     automated:
       prune: true
     syncOptions:
-      - CreateNamespace=true
       - ServerSideApply=true
-      - RespectIgnoreDifferences=true
-    managedNamespaceMetadata:
-      labels:
-        kubernetes.io/metadata.name: tigera-operator
-        pod-security.kubernetes.io/audit: privileged
-        pod-security.kubernetes.io/enforce: privileged
-        pod-security.kubernetes.io/enforce-version: latest
-        pod-security.kubernetes.io/warn: privileged
