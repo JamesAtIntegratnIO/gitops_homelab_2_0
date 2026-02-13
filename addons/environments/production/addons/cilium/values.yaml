@@ -5,6 +5,11 @@
 # Remove this once all NetworkPolicies are validated via Hubble
 policyAuditMode: true
 
+# Explicit device list — prevents Cilium from picking up flannel.1 leftover
+# flannel.1 VXLAN interface from pre-migration CNI still exists on nodes
+devices:
+  - eno1
+
 # Use Kubernetes IPAM (preserves existing pod CIDR 10.244.0.0/16)
 ipam:
   mode: kubernetes
