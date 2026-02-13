@@ -122,16 +122,9 @@ kubeScheduler:
     enabled: true
     https: true
     insecureSkipVerify: true
+# kube-proxy is replaced by Cilium eBPF — nothing to monitor
 kubeProxy:
-  enabled: true
-  endpoints:
-  - 10.0.4.101
-  - 10.0.4.102
-  - 10.0.4.103
-  service:
-    enabled: true
-    port: 10249
-    targetPort: 10249
+  enabled: false
 kubeEtcd:
   enabled: true
   service:
