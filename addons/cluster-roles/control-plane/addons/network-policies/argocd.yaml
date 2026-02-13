@@ -129,6 +129,13 @@ spec:
           port: 8443
         - protocol: TCP
           port: 443
+    # vCluster API endpoints via MetalLB gateway LB (10.0.4.200-253)
+    - to:
+        - ipBlock:
+            cidr: 10.0.4.192/26
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 # Repo Server: clones git repos, renders manifests
 apiVersion: networking.k8s.io/v1

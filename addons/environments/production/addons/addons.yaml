@@ -601,6 +601,19 @@ cilium:
         values: ['vcluster']
   annotationsApp:
     argocd.argoproj.io/compare-options: ServerSideDiff=true
+  ignoreDifferences:
+    - kind: Secret
+      name: cilium-ca
+      jsonPointers:
+        - /data
+    - kind: Secret
+      name: hubble-relay-client-certs
+      jsonPointers:
+        - /data
+    - kind: Secret
+      name: hubble-server-certs
+      jsonPointers:
+        - /data
   syncPolicy:
     automated:
       prune: true
