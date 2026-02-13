@@ -601,12 +601,15 @@ calico:
       - key: cluster_role
         operator: NotIn
         values: ['vcluster']
+  annotationsApp:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
   syncPolicy:
     automated:
       prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     managedNamespaceMetadata:
       labels:
         kubernetes.io/metadata.name: tigera-operator
