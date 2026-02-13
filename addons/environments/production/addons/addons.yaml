@@ -612,6 +612,11 @@ cilium:
       name: hubble-server-certs
       jsonPointers:
         - /data
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+      name: hubble
+      jsonPointers:
+        - /spec/endpoints/0/relabelings/0/action
   syncPolicy:
     automated:
       prune: true
