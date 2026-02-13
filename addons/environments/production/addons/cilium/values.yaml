@@ -1,6 +1,10 @@
 # Cilium CNI with kube-proxy replacement for Talos Linux
 # Replaces both Flannel (CNI) and kube-proxy
 
+# TEMPORARY: Audit mode — policies log violations but don't block traffic
+# Remove this once all NetworkPolicies are validated via Hubble
+policyAuditMode: true
+
 # Use Kubernetes IPAM (preserves existing pod CIDR 10.244.0.0/16)
 ipam:
   mode: kubernetes
