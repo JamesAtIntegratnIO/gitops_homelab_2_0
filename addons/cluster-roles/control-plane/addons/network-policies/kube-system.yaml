@@ -45,10 +45,10 @@ spec:
     # K8s API for service discovery
     - to:
         - ipBlock:
-            cidr: 10.96.0.1/32
+            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
       ports:
         - protocol: TCP
-          port: 443
+          port: 6443
     # CoreDNS metrics (self, prometheus scraping)
     - to:
         - podSelector:
@@ -97,10 +97,10 @@ spec:
     # K8s API
     - to:
         - ipBlock:
-            cidr: 10.96.0.1/32
+            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
       ports:
         - protocol: TCP
-          port: 443
+          port: 6443
     # Node network (health checks, VXLAN/Geneve tunneling)
     - to:
         - ipBlock:
@@ -147,10 +147,10 @@ spec:
     # K8s API
     - to:
         - ipBlock:
-            cidr: 10.96.0.1/32
+            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
       ports:
         - protocol: TCP
-          port: 443
+          port: 6443
     # DNS
     - to:
         - podSelector:
@@ -204,10 +204,10 @@ spec:
     # K8s API
     - to:
         - ipBlock:
-            cidr: 10.96.0.1/32
+            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
       ports:
         - protocol: TCP
-          port: 443
+          port: 6443
     # DNS
     - to:
         - podSelector:
@@ -253,10 +253,10 @@ spec:
     # K8s API (for UI backend)
     - to:
         - ipBlock:
-            cidr: 10.96.0.1/32
+            cidr: 10.0.4.0/24  # API server nodes (Cilium translates ClusterIP before policy eval)
       ports:
         - protocol: TCP
-          port: 443
+          port: 6443
     # DNS
     - to:
         - podSelector:
