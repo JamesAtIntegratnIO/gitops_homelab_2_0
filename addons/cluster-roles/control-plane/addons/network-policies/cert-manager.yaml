@@ -41,6 +41,9 @@ metadata:
   namespace: cert-manager
 spec:
   endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - kube-apiserver
   egress:
     - toEntities:
         - kube-apiserver

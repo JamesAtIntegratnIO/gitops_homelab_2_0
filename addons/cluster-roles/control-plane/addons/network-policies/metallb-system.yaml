@@ -41,6 +41,9 @@ metadata:
   namespace: metallb-system
 spec:
   endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - kube-apiserver
   egress:
     - toEntities:
         - kube-apiserver

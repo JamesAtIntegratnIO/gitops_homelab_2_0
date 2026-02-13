@@ -36,7 +36,7 @@ spec:
         - protocol: TCP
           port: 53
 ---
-# Baseline: allow K8s API for controllers
+# Baseline: allow K8s API for controllers + webhook ingress from API server
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -44,6 +44,9 @@ metadata:
   namespace: monitoring
 spec:
   endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - kube-apiserver
   egress:
     - toEntities:
         - kube-apiserver
