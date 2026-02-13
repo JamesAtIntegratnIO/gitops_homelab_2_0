@@ -1,5 +1,5 @@
-# loki: Loki single-binary + Loki gateway
 ---
+# loki: Loki single-binary + Loki gateway
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -44,6 +44,7 @@ spec:
   egress:
     - toEntities:
         - kube-apiserver
+  podSelector: {}
 ---
 # Loki gateway: receives logs from promtail, queries from Grafana
 apiVersion: networking.k8s.io/v1
