@@ -51,7 +51,7 @@ hubble:
   metrics:
     enableOpenMetrics: true
     enabled:
-      - dns:query;ignoreAAAA;destinationContext=pod-short
+      - dns:query;ignoreAAAA;destinationContext=pod
       - drop:sourceContext=pod;destinationContext=pod
       - tcp
       - flow
