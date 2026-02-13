@@ -75,6 +75,16 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # vCluster API LB: ArgoCD app-controller + external clients (10.0.4.200:443)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+        - ipBlock:
+            cidr: 10.0.0.0/8
+      ports:
+        - protocol: TCP
+          port: 443
     # nginx-gateway routes traffic to vCluster workloads
     - from:
         - namespaceSelector:
