@@ -599,7 +599,6 @@ cilium:
       - key: cluster_role
         operator: NotIn
         values: ['vcluster']
-  annotationsApp: {}
   ignoreDifferences:
     - kind: Secret
       name: cilium-ca
