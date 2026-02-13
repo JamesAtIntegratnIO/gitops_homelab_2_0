@@ -69,6 +69,16 @@ spec:
           port: 80
         - protocol: TCP
           port: 8080
+    # Loki canary pushes test logs
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: canary
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8080
     # Grafana queries logs
     - from:
         - namespaceSelector:
@@ -97,9 +107,35 @@ spec:
         - protocol: TCP
           port: 3100
         - protocol: TCP
+          port: 8080
+        - protocol: TCP
           port: 9095
         - protocol: TCP
           port: 7946
+---
+# Loki canary: pushes test logs to loki-gateway and reads them back
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-loki-canary
+  namespace: loki
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: canary
+  policyTypes:
+    - Egress
+  egress:
+    # Push logs to loki-gateway
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 80
 ---
 # Loki backend: storage, compactor, ingester, querier
 apiVersion: networking.k8s.io/v1
@@ -118,7 +154,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Gateway forwards requests
+    # Gateway and canary push logs
     - from:
         - podSelector: {}
       ports:

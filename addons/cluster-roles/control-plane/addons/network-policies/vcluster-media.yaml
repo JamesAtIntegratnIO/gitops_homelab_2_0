@@ -45,6 +45,25 @@ spec:
     - toEntities:
         - kube-apiserver
 ---
+# vCluster CoreDNS pods forward DNS to Talos node-local DNS (169.254.116.108)
+# This is a link-local address on the host, needs CiliumNetworkPolicy with host entity
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-coredns-to-host-dns
+  namespace: vcluster-media
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
 # Allow all intra-namespace traffic for vCluster components
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -82,6 +101,8 @@ spec:
               kubernetes.io/metadata.name: argocd
         - ipBlock:
             cidr: 10.0.0.0/8
+        - ipBlock:
+            cidr: 192.168.0.0/16
       ports:
         - protocol: TCP
           port: 443

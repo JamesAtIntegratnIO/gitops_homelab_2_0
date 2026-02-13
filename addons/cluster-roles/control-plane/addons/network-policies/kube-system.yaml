@@ -49,6 +49,14 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    # Prometheus scrapes CoreDNS metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9153
   egress:
     # Upstream DNS (if CoreDNS forwards externally)
     - ports:
