@@ -167,7 +167,15 @@ spec:
         - protocol: TCP
           port: 8084
   egress:
-    # Clone from GitHub
+    # Internal: Redis (manifest cache)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Clone from GitHub / Helm chart repos (external)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -180,15 +188,6 @@ spec:
           port: 443
         - protocol: TCP
           port: 22
-    # Helm chart repos (external)
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
-      ports:
         - protocol: TCP
           port: 80
 ---

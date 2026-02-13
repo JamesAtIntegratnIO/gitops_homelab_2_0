@@ -86,6 +86,13 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
   egress:
+    # 1Password Connect server on local network (kubeconfig-sync job)
+    - to:
+        - ipBlock:
+            cidr: 10.0.1.139/32
+      ports:
+        - protocol: TCP
+          port: 443
     # External HTTPS (container registries, APIs)
     - to:
         - ipBlock:
