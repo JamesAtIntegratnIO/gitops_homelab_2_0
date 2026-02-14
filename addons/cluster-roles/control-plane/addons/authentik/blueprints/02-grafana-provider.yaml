@@ -1,0 +1,61 @@
+# Authentik Blueprint: Grafana OAuth2 Provider
+# Creates OAuth2/OIDC provider for Grafana integration
+version: 1
+metadata:
+  name: grafana-provider
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+context:
+  client_id: !Env GRAFANA_CLIENT_ID
+  client_secret: !Env GRAFANA_CLIENT_SECRET
+entries:
+  # OAuth2/OIDC Provider
+  - model: authentik_providers_oauth2.oauth2provider
+    identifiers:
+      name: grafana-provider
+    id: grafana-provider
+    attrs:
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      client_type: confidential
+      client_id: !Context client_id
+      client_secret: !Context client_secret
+      redirect_uris: |
+        https://grafana.cluster.integratn.tech/login/generic_oauth
+      signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+      property_mappings:
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "openid"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "email"]]
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "profile"]]
+        - !KeyOf groups-scope
+      include_claims_in_id_token: true
+      issuer_mode: per_provider
+      sub_mode: hashed_user_id
+      access_code_validity: minutes=10
+      access_token_validity: minutes=60
+      refresh_token_validity: days=30
+  
+  # Custom scope mapping for groups
+  - model: authentik_providers_oauth2.scopemapping
+    identifiers:
+      name: Grafana Groups Scope
+      scope_name: groups
+    id: groups-scope
+    attrs:
+      expression: |
+        return {
+          "groups": [group.name for group in user.ak_groups.all()],
+        }
+  
+  # Application
+  - model: authentik_core.application
+    identifiers:
+      slug: grafana
+    attrs:
+      name: Grafana
+      provider: !KeyOf grafana-provider
+      open_in_new_tab: true
+      launch_url: https://grafana.cluster.integratn.tech
+      group: Platform Services
+      meta_icon: https://grafana.com/static/img/menu/grafana2.svg
+      meta_description: Observability & Monitoring Dashboards
+      policy_engine_mode: any

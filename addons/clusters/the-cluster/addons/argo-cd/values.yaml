@@ -5,6 +5,34 @@ configs:
   params:
     server.insecure: true
     server.url: https://argocd.cluster.integratn.tech
+  
+  cm:
+    # Authentik OIDC configuration
+    oidc.config: |
+      name: Authentik
+      issuer: https://auth.cluster.integratn.tech/application/o/argocd/
+      clientID: $argocd-oidc-config:client-id
+      clientSecret: $argocd-oidc-config:client-secret
+      requestedScopes:
+        - openid
+        - profile
+        - email
+        - groups
+  
+  rbac:
+    policy.csv: |
+      # Default policy: read-only for authenticated users
+      p, role:readonly, applications, get, */*, allow
+      p, role:readonly, certificates, get, *, allow
+      p, role:readonly, clusters, get, *, allow
+      p, role:readonly, repositories, get, *, allow
+      p, role:readonly, projects, get, *, allow
+      p, role:readonly, accounts, get, *, allow
+      p, role:readonly, gpgkeys, get, *, allow
+      g, role:readonly, role:readonly
+      
+      # Map Authentik Admins group to ArgoCD admin role
+      g, authentik Admins, role:admin
 
 dex:
   enabled: false

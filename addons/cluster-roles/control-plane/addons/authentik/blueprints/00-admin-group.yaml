@@ -1,0 +1,15 @@
+# Authentik Blueprint: Admin Group
+# Creates a superuser admin group for platform administrators
+version: 1
+metadata:
+  name: admin-group
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  - model: authentik_core.group
+    identifiers:
+      name: authentik Admins
+    attrs:
+      is_superuser: true
+      parent: null
+    id: admin-group

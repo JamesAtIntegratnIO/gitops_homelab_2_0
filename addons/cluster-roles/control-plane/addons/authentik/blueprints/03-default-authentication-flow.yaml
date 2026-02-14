@@ -1,0 +1,89 @@
+# Authentik Blueprint: Default Authentication Flow
+# Creates a standard authentication flow with username/password
+version: 1
+metadata:
+  name: default-authentication-flow
+  labels:
+    blueprints.goauthentik.io/instantiate: "true"
+entries:
+  # Authentication Flow
+  - model: authentik_flows.flow
+    identifiers:
+      slug: default-authentication-flow
+    id: flow
+    attrs:
+      name: Default Authentication Flow
+      title: Welcome to the Platform
+      designation: authentication
+      authentication: require_unauthenticated
+      layout: stacked
+      denied_action: message_continue
+  
+  # Stage 1: Identification (username/email)
+  - model: authentik_stages_identification.identificationstage
+    identifiers:
+      name: default-authentication-identification
+    id: identification-stage
+    attrs:
+      user_fields:
+        - username
+        - email
+      password_stage: !KeyOf password-stage
+      sources: []
+      show_matched_user: true
+      show_source_labels: false
+  
+  # Stage 2: Password
+  - model: authentik_stages_password.passwordstage
+    identifiers:
+      name: default-authentication-password
+    id: password-stage
+    attrs:
+      backends:
+        - authentik.core.auth.InbuiltBackend
+        - authentik.core.auth.TokenBackend
+      configure_flow: null
+      failed_attempts_before_cancel: 5
+  
+  # Stage 3: User Login
+  - model: authentik_stages_user_login.userloginstage
+    identifiers:
+      name: default-authentication-login
+    id: user-login-stage
+    attrs:
+      session_duration: seconds=0
+      remember_me_offset: seconds=0
+  
+  # Flow Stage Bindings
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf identification-stage
+      order: 10
+    attrs:
+      evaluate_on_plan: true
+      re_evaluate_policies: false
+      policy_engine_mode: any
+      invalid_response_action: retry
+  
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf password-stage
+      order: 20
+    attrs:
+      evaluate_on_plan: true
+      re_evaluate_policies: false
+      policy_engine_mode: any
+      invalid_response_action: retry
+  
+  - model: authentik_flows.flowstagebinding
+    identifiers:
+      target: !KeyOf flow
+      stage: !KeyOf user-login-stage
+      order: 30
+    attrs:
+      evaluate_on_plan: true
+      re_evaluate_policies: false
+      policy_engine_mode: any
+      invalid_response_action: retry

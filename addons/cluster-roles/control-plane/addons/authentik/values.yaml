@@ -1,0 +1,274 @@
+# Authentik Helm Chart Values
+# Chart: https://github.com/goauthentik/helm
+# Docs: https://goauthentik.io/docs/
+
+global:
+  # Environment settings
+  env:
+    - name: AUTHENTIK_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: secret-key
+    - name: AUTHENTIK_POSTGRESQL__HOST
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: postgres-host
+    - name: AUTHENTIK_POSTGRESQL__PORT
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: postgres-port
+    - name: AUTHENTIK_POSTGRESQL__NAME
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: postgres-database
+    - name: AUTHENTIK_POSTGRESQL__USER
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: postgres-user
+    - name: AUTHENTIK_POSTGRESQL__PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: postgres-password
+    - name: AUTHENTIK_REDIS__HOST
+      value: "authentik-redis-master"
+    - name: AUTHENTIK_ERROR_REPORTING__ENABLED
+      value: "false"
+    - name: AUTHENTIK_LOG_LEVEL
+      value: "info"
+    # Bootstrap admin account from secret
+    - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: authentik-bootstrap-admin
+          key: password
+    - name: AUTHENTIK_BOOTSTRAP_EMAIL
+      valueFrom:
+        secretKeyRef:
+          name: authentik-bootstrap-admin
+          key: email
+    - name: AUTHENTIK_BOOTSTRAP_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: authentik-bootstrap-admin
+          key: token
+    # ArgoCD OAuth2 client credentials for blueprint configuration
+    - name: ARGOCD_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-argocd-oidc
+          key: client-id
+    - name: ARGOCD_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-argocd-oidc
+          key: client-secret
+    # Grafana OAuth2 client credentials for blueprint configuration
+    - name: GRAFANA_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-grafana-oidc
+          key: client-id
+    - name: GRAFANA_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-grafana-oidc
+          key: client-secret
+
+authentik:
+  # Disable error reporting for privacy
+  error_reporting:
+    enabled: false
+  
+  # PostgreSQL configuration (using external database)
+  postgresql:
+    host: ""  # Set via env var
+    port: 5432
+    name: ""  # Set via env var
+    user: ""  # Set via env var
+    password: ""  # Set via env var
+  
+  # Email configuration (optional - configure if SMTP available)
+  email:
+    host: ""
+    port: 587
+    use_tls: true
+    use_ssl: false
+    from: "authentik@cluster.integratn.tech"
+  
+  # Outpost configuration
+  outposts:
+    container_image_base: ghcr.io/goauthentik/%(type)s:%(version)s
+
+# Server (API/Frontend) configuration
+server:
+  name: server
+  replicas: 2  # HA deployment
+  
+  # Resource limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  
+  # Pod disruption budget for HA
+  pdb:
+    enabled: true
+    minAvailable: 1
+  
+  # Autoscaling (optional)
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 75
+  
+  # Metrics
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+  
+  # Ingress disabled - using Gateway API HTTPRoute
+  ingress:
+    enabled: false
+  
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  
+  # Volume mounts for blueprints
+  volumes:
+    - name: blueprints
+      configMap:
+        name: authentik-blueprints
+  
+  volumeMounts:
+    - name: blueprints
+      mountPath: /blueprints/custom
+      readOnly: true
+
+# Worker configuration (background tasks)
+worker:
+  name: worker
+  replicas: 1
+  
+  # Resource limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  
+  # Volume mounts for blueprints
+  volumes:
+    - name: blueprints
+      configMap:
+        name: authentik-blueprints
+  
+  volumeMounts:
+    - name: blueprints
+      mountPath: /blueprints/custom
+      readOnly: true
+
+# Redis configuration (using subchart)
+redis:
+  enabled: true
+  
+  # Architecture
+  architecture: standalone
+  
+  auth:
+    enabled: true
+    password: ""  # Auto-generated if empty
+  
+  master:
+    # Persistence
+    persistence:
+      enabled: true
+      storageClass: "config-nfs-client"
+      size: 8Gi
+    
+    # Resources
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  
+  # Metrics
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# PostgreSQL configuration (disabled - using external)
+postgresql:
+  enabled: false
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC
+rbac:
+  create: true
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Pod security context
+podSecurityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsGroup: 1000
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity:
+  # Spread server pods across nodes for HA
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - authentik
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - server
+          topologyKey: kubernetes.io/hostname
+
+# GeoIP (optional)
+geoip:
+  enabled: false

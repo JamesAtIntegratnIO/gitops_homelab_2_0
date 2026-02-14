@@ -1,0 +1,242 @@
+---
+# ConfigMap containing Authentik blueprints for code-driven configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints
+  namespace: authentik
+data:
+  00-admin-group.yaml: |
+    # Authentik Blueprint: Admin Group
+    # Creates a superuser admin group for platform administrators
+    version: 1
+    metadata:
+      name: admin-group
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_core.group
+        identifiers:
+          name: authentik Admins
+        attrs:
+          is_superuser: true
+          parent: null
+        id: admin-group
+
+  01-argocd-provider.yaml: |
+    # Authentik Blueprint: ArgoCD OAuth2 Provider
+    # Creates OAuth2/OIDC provider for ArgoCD integration
+    version: 1
+    metadata:
+      name: argocd-provider
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    context:
+      client_id: !Env ARGOCD_CLIENT_ID
+      client_secret: !Env ARGOCD_CLIENT_SECRET
+    entries:
+      # OAuth2/OIDC Provider
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: argocd-provider
+        id: argocd-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          client_type: confidential
+          client_id: !Context client_id
+          client_secret: !Context client_secret
+          redirect_uris: |
+            https://argocd.cluster.integratn.tech/auth/callback
+            https://argocd.cluster.integratn.tech/api/dex/callback
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "openid"]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "email"]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "profile"]]
+            - !KeyOf groups-scope
+          include_claims_in_id_token: true
+          issuer_mode: per_provider
+          sub_mode: hashed_user_id
+          access_code_validity: minutes=10
+          access_token_validity: minutes=60
+          refresh_token_validity: days=30
+      
+      # Custom scope mapping for groups
+      - model: authentik_providers_oauth2.scopemapping
+        identifiers:
+          name: ArgoCD Groups Scope
+          scope_name: groups
+        id: groups-scope
+        attrs:
+          expression: |
+            return {
+              "groups": [group.name for group in user.ak_groups.all()],
+            }
+      
+      # Application
+      - model: authentik_core.application
+        identifiers:
+          slug: argocd
+        attrs:
+          name: ArgoCD
+          provider: !KeyOf argocd-provider
+          open_in_new_tab: true
+          launch_url: https://argocd.cluster.integratn.tech
+          group: Platform Services
+          meta_icon: https://cncf-branding.netlify.app/img/projects/argo/icon/color/argo-icon-color.png
+          meta_description: GitOps Continuous Delivery
+          policy_engine_mode: any
+
+  02-grafana-provider.yaml: |
+    # Authentik Blueprint: Grafana OAuth2 Provider
+    # Creates OAuth2/OIDC provider for Grafana integration
+    version: 1
+    metadata:
+      name: grafana-provider
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    context:
+      client_id: !Env GRAFANA_CLIENT_ID
+      client_secret: !Env GRAFANA_CLIENT_SECRET
+    entries:
+      # OAuth2/OIDC Provider
+      - model: authentik_providers_oauth2.oauth2provider
+        identifiers:
+          name: grafana-provider
+        id: grafana-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          client_type: confidential
+          client_id: !Context client_id
+          client_secret: !Context client_secret
+          redirect_uris: |
+            https://grafana.cluster.integratn.tech/login/generic_oauth
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "openid"]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "email"]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "profile"]]
+            - !KeyOf groups-scope
+          include_claims_in_id_token: true
+          issuer_mode: per_provider
+          sub_mode: hashed_user_id
+          access_code_validity: minutes=10
+          access_token_validity: minutes=60
+          refresh_token_validity: days=30
+      
+      # Custom scope mapping for groups
+      - model: authentik_providers_oauth2.scopemapping
+        identifiers:
+          name: Grafana Groups Scope
+          scope_name: groups
+        id: groups-scope
+        attrs:
+          expression: |
+            return {
+              "groups": [group.name for group in user.ak_groups.all()],
+            }
+      
+      # Application
+      - model: authentik_core.application
+        identifiers:
+          slug: grafana
+        attrs:
+          name: Grafana
+          provider: !KeyOf grafana-provider
+          open_in_new_tab: true
+          launch_url: https://grafana.cluster.integratn.tech
+          group: Platform Services
+          meta_icon: https://grafana.com/static/img/menu/grafana2.svg
+          meta_description: Observability & Monitoring Dashboards
+          policy_engine_mode: any
+
+  03-default-authentication-flow.yaml: |
+    # Authentik Blueprint: Default Authentication Flow
+    # Creates a standard authentication flow with username/password
+    version: 1
+    metadata:
+      name: default-authentication-flow
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # Authentication Flow
+      - model: authentik_flows.flow
+        identifiers:
+          slug: default-authentication-flow
+        id: flow
+        attrs:
+          name: Default Authentication Flow
+          title: Welcome to the Platform
+          designation: authentication
+          authentication: require_unauthenticated
+          layout: stacked
+          denied_action: message_continue
+      
+      # Stage 1: Identification (username/email)
+      - model: authentik_stages_identification.identificationstage
+        identifiers:
+          name: default-authentication-identification
+        id: identification-stage
+        attrs:
+          user_fields:
+            - username
+            - email
+          password_stage: !KeyOf password-stage
+          sources: []
+          show_matched_user: true
+          show_source_labels: false
+      
+      # Stage 2: Password
+      - model: authentik_stages_password.passwordstage
+        identifiers:
+          name: default-authentication-password
+        id: password-stage
+        attrs:
+          backends:
+            - authentik.core.auth.InbuiltBackend
+            - authentik.core.auth.TokenBackend
+          configure_flow: null
+          failed_attempts_before_cancel: 5
+      
+      # Stage 3: User Login
+      - model: authentik_stages_user_login.userloginstage
+        identifiers:
+          name: default-authentication-login
+        id: user-login-stage
+        attrs:
+          session_duration: seconds=0
+          remember_me_offset: seconds=0
+      
+      # Flow Stage Bindings
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf identification-stage
+          order: 10
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          policy_engine_mode: any
+          invalid_response_action: retry
+      
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf password-stage
+          order: 20
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          policy_engine_mode: any
+          invalid_response_action: retry
+      
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf user-login-stage
+          order: 30
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          policy_engine_mode: any
+          invalid_response_action: retry

@@ -183,6 +183,31 @@ network-policies:
       selfHeal: true
       prune: true
 
+authentik:
+  enabled: true
+  namespace: authentik
+  releaseName: authentik
+  chartName: authentik
+  project: platform-services
+  chartRepository: https://charts.goauthentik.io
+  defaultVersion: "2026.2.1"
+  additionalResources:
+    type: manifests
+    path: cluster-roles/control-plane
+    manifestPath: addons/authentik
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
 kube-prometheus-stack:
   enabled: true
   namespace: monitoring

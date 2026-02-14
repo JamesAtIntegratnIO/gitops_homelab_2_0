@@ -1,4 +1,8 @@
 argocd:
+  additionalResources:
+    type: manifests
+    path: clusters
+    manifestPath: addons/argo-cd
   ignoreDifferences:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
@@ -32,3 +36,5 @@ external-dns:
     path: clusters
     manifestPath: addons/external-dns-resources
 
+authentik:
+  enabled: true

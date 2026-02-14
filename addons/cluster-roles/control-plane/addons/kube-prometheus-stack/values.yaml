@@ -162,6 +162,36 @@ grafana:
     existingSecret: grafana-admin
     userKey: admin-user
     passwordKey: admin-password
+  # Authentik OAuth2/OIDC configuration
+  envValueFrom:
+    GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+      secretKeyRef:
+        name: grafana-oidc-config
+        key: client-id
+    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+      secretKeyRef:
+        name: grafana-oidc-config
+        key: client-secret
+  grafana.ini:
+    server:
+      root_url: https://grafana.cluster.integratn.tech
+    auth:
+      oauth_auto_login: false
+      disable_login_form: false
+    auth.generic_oauth:
+      enabled: true
+      name: Authentik
+      client_id: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_ID}
+      client_secret: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
+      scopes: openid profile email groups
+      auth_url: https://auth.cluster.integratn.tech/application/o/grafana/authorize
+      token_url: https://auth.cluster.integratn.tech/application/o/grafana/token
+      api_url: https://auth.cluster.integratn.tech/application/o/grafana/userinfo
+      use_pkce: true
+      use_refresh_token: true
+      allow_sign_up: true
+      role_attribute_path: contains(groups[*], 'authentik Admins') && 'Admin' || contains(groups[*], 'authentik Users') && 'Editor' || 'Viewer'
+      allowed_groups:
   initChownData:
     enabled: false
   podSecurityContext:
