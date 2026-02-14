@@ -4,8 +4,9 @@ import "fmt"
 
 func buildNamespace(config *VClusterConfig) Resource {
 	labels := mergeStringMap(map[string]string{
-		"app.kubernetes.io/name":     "vcluster-namespace",
-		"vcluster.loft.sh/namespace": "true",
+		"app.kubernetes.io/name":        "vcluster-namespace",
+		"vcluster.loft.sh/namespace":    "true",
+		"platform.integratn.tech/type":  "vcluster",
 	}, baseLabels(config, config.Name))
 
 	return Resource{

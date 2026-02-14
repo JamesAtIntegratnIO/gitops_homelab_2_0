@@ -130,11 +130,11 @@ spec:
       ports:
         - protocol: TCP
           port: 8081
-    # vCluster media workloads (future)
+    # vCluster namespaces: route traffic to workloads in any vcluster
     - to:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: vcluster-media
+              platform.integratn.tech/type: vcluster
     # Control plane pod for config reload
     - to:
         - podSelector:

@@ -74,3 +74,10 @@ spec:
         prune: true
       syncOptions:
         - CreateNamespace=true
+  networkPolicies:
+    enableNFS: true
+    extraEgress:
+      - name: postgresql
+        cidr: 10.0.3.1/32
+        port: 5432
+        protocol: TCP

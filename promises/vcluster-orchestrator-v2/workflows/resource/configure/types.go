@@ -499,6 +499,18 @@ type ClusterRoleConfig struct {
 }
 
 // ============================================================================
+// Network Policy Types
+// ============================================================================
+
+// ExtraEgressRule defines a custom egress rule for the vcluster namespace.
+type ExtraEgressRule struct {
+	Name     string `json:"name"`
+	CIDR     string `json:"cidr"`
+	Port     int    `json:"port"`
+	Protocol string `json:"protocol"`
+}
+
+// ============================================================================
 // Preset Types
 // ============================================================================
 

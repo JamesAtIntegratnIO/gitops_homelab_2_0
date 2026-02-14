@@ -63,6 +63,10 @@ type VClusterConfig struct {
 	ArgoCDDestServer     string
 	ArgoCDSyncPolicy     map[string]interface{}
 
+	// Network policy configuration
+	EnableNFS   bool
+	ExtraEgress []ExtraEgressRule
+
 	// Derived values
 	OnePasswordItem     string
 	KubeconfigSyncJobName string
@@ -334,6 +338,12 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	} else {
 		config.ArgoCDSyncPolicy = mergeMaps(defaultSyncPolicy, config.ArgoCDSyncPolicy)
 	}
+
+	// Extract network policy configuration
+	if val, err := getBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
+		config.EnableNFS = val
+	}
+	config.ExtraEgress = extractExtraEgress(resource)
 
 	// Set derived values
 	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
@@ -673,8 +683,20 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	}
 	log.Printf("✓ Rendered: %s", "resources/coredns-configmap.yaml")
 
+	// Per-vcluster network policies (NFS, extra egress)
+	netPolicies := buildNetworkPolicies(config)
+	if len(netPolicies) > 0 {
+		if err := writeYAMLDocuments(sdk, "resources/network-policies.yaml", netPolicies); err != nil {
+			return fmt.Errorf("write network policies: %w", err)
+		}
+		log.Printf("✓ Rendered: resources/network-policies.yaml (%d policies)", len(netPolicies))
+	}
+
 	directResources := 2 // namespace + coredns configmap
 	if etcdEnabled(config) {
+		directResources++
+	}
+	if len(netPolicies) > 0 {
 		directResources++
 	}
 
@@ -710,15 +732,22 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 
 	outputs := map[string]Resource{}
 
-	// Delete ResourceRequests (sub-promises will handle their own cleanup)
-	createdObjects := []Resource{
+	// Delete all created resources
+	allResources := []Resource{
 		buildArgoCDProjectRequest(config),
 		buildArgoCDApplicationRequest(config),
 		buildArgoCDClusterRegistrationRequest(config),
 		buildCorednsConfigMap(config),
 	}
 
-	for _, obj := range createdObjects {
+	for _, obj := range allResources {
+		deleteObj := deleteFromResource(obj)
+		path := deleteOutputPathForResource("resources", obj)
+		outputs[path] = deleteObj
+	}
+
+	// Delete per-vcluster network policies
+	for _, obj := range buildNetworkPolicies(config) {
 		deleteObj := deleteFromResource(obj)
 		path := deleteOutputPathForResource("resources", obj)
 		outputs[path] = deleteObj
@@ -893,4 +922,42 @@ func ipToInt(ip net.IP) uint32 {
 
 func intToIP(n uint32) net.IP {
 	return net.IPv4(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+}
+
+func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {
+	val, err := resource.GetValue("spec.networkPolicies.extraEgress")
+	if err != nil {
+		return nil
+	}
+	arr, ok := val.([]interface{})
+	if !ok {
+		return nil
+	}
+
+	var rules []ExtraEgressRule
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		rule := ExtraEgressRule{
+			Protocol: "TCP", // default
+		}
+		if v, ok := m["name"].(string); ok {
+			rule.Name = v
+		}
+		if v, ok := m["cidr"].(string); ok {
+			rule.CIDR = v
+		}
+		if v, ok := m["port"].(float64); ok {
+			rule.Port = int(v)
+		}
+		if v, ok := m["protocol"].(string); ok && v != "" {
+			rule.Protocol = v
+		}
+		if rule.Name != "" && rule.CIDR != "" && rule.Port > 0 {
+			rules = append(rules, rule)
+		}
+	}
+	return rules
 }

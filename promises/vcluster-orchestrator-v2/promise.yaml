@@ -230,6 +230,45 @@ spec:
                           type: object
                           description: ArgoCD sync policy settings
                           x-kubernetes-preserve-unknown-fields: true
+                    networkPolicies:
+                      type: object
+                      description: Host-cluster network policy settings for the vcluster namespace
+                      properties:
+                        enableNFS:
+                          type: boolean
+                          description: Enable NFS egress (10.0.0.0/8 port 2049) for the vcluster namespace
+                          default: false
+                        extraEgress:
+                          type: array
+                          description: Additional egress rules for the vcluster namespace (e.g., database access)
+                          items:
+                            type: object
+                            required:
+                              - name
+                              - cidr
+                              - port
+                            properties:
+                              name:
+                                type: string
+                                description: Descriptive name for the egress rule (used in policy name)
+                                pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                                maxLength: 63
+                              cidr:
+                                type: string
+                                description: Destination CIDR for the egress rule
+                                pattern: '^([0-9]{1,3}\.){3}[0-9]{1,3}\/(\d|[12]\d|3[0-2])$'
+                              port:
+                                type: integer
+                                description: Destination port for the egress rule
+                                minimum: 1
+                                maximum: 65535
+                              protocol:
+                                type: string
+                                description: Protocol for the egress rule
+                                default: TCP
+                                enum:
+                                  - TCP
+                                  - UDP
                 status:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
