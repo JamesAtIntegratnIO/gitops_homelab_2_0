@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -23,7 +25,12 @@ func NewCmd() *cobra.Command {
 		Long: `List, enable, disable, and check status of platform addons.
 
 Addons are deployed via ArgoCD ApplicationSets with layered value files
-(environment → cluster-role → cluster-specific).`,
+(environment → cluster-role → cluster-specific).
+
+Addon values are resolved in three layers (last wins):
+  1. environments/<env>/addons/<addon>/values.yaml
+  2. cluster-roles/<role>/addons/<addon>/values.yaml
+  3. clusters/<cluster>/addons/<addon>/values.yaml`,
 	}
 
 	cmd.AddCommand(newAddonListCmd())
@@ -37,8 +44,8 @@ Addons are deployed via ArgoCD ApplicationSets with layered value files
 func newAddonListCmd() *cobra.Command {
 	var env string
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List available addons",
+		Use:     "list",
+		Short:   "List available addons",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Get()
@@ -51,28 +58,14 @@ func newAddonListCmd() *cobra.Command {
 				env = "production"
 			}
 
-			// Read addons.yaml
-			addonsFile := filepath.Join(repoPath, "addons", "environments", env, "addons", "addons.yaml")
-			data, err := os.ReadFile(addonsFile)
+			entries, err := readAddonsYAML(filepath.Join(repoPath, "addons", "environments", env, "addons", "addons.yaml"))
 			if err != nil {
-				return fmt.Errorf("reading addons.yaml: %w", err)
+				return err
 			}
 
-			var addonsConfig map[string]interface{}
-			if err := yaml.Unmarshal(data, &addonsConfig); err != nil {
-				return fmt.Errorf("parsing addons.yaml: %w", err)
-			}
-
-			// Extract addon entries
-			addons, ok := addonsConfig["addons"]
-			if !ok {
+			if len(entries) == 0 {
 				fmt.Println(tui.DimStyle.Render("No addons defined"))
 				return nil
-			}
-
-			addonMap, ok := addons.(map[string]interface{})
-			if !ok {
-				return fmt.Errorf("unexpected addons format")
 			}
 
 			// Try to get ArgoCD app status
@@ -93,7 +86,14 @@ func newAddonListCmd() *cobra.Command {
 			}
 
 			var rows [][]string
-			for name := range addonMap {
+			for name, entry := range entries {
+				enabled := "yes"
+				if e, ok := entry["enabled"]; ok {
+					if b, ok := e.(bool); ok && !b {
+						enabled = tui.DimStyle.Render("no")
+					}
+				}
+
 				status := tui.DimStyle.Render("—")
 				if appStatus != nil {
 					if s, ok := appStatus[name]; ok {
@@ -104,10 +104,10 @@ func newAddonListCmd() *cobra.Command {
 						}
 					}
 				}
-				rows = append(rows, []string{name, env, status})
+				rows = append(rows, []string{name, enabled, env, status})
 			}
 
-			fmt.Println(tui.Table([]string{"ADDON", "ENVIRONMENT", "STATUS"}, rows))
+			fmt.Println(tui.Table([]string{"ADDON", "ENABLED", "ENVIRONMENT", "STATUS"}, rows))
 			return nil
 		},
 	}
@@ -154,27 +154,372 @@ func newAddonStatusCmd() *cobra.Command {
 }
 
 func newAddonEnableCmd() *cobra.Command {
-	return &cobra.Command{
+	var (
+		env        string
+		cluster    string
+		clusterRole string
+		namespace  string
+		chartRepo  string
+		chartName  string
+		version    string
+		layer      string
+	)
+	cmd := &cobra.Command{
 		Use:   "enable [addon]",
 		Short: "Enable an addon",
-		Long:  "Add an addon entry to addons.yaml and scaffold value directories.",
-		Args:  cobra.ExactArgs(1),
+		Long: `Enable an addon by adding it to addons.yaml and scaffolding value directories.
+
+Addons can be enabled at different layers:
+  --layer environment   (default) — affects all clusters in the environment
+  --layer cluster-role  — affects all clusters with a specific role
+  --layer cluster       — affects a single cluster
+
+If the addon already exists in addons.yaml, its 'enabled' field is set to true.
+If it doesn't exist, a new entry is created with Stakater Application chart defaults.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println(tui.WarningStyle.Render("⚠  addon enable is not yet implemented"))
-			fmt.Println(tui.DimStyle.Render("  Will add addon to addons.yaml and scaffold value file directories"))
+			addonName := args[0]
+			cfg := config.Get()
+			if cfg.RepoPath == "" {
+				return fmt.Errorf("repo path not set — run 'hctl init'")
+			}
+
+			if env == "" {
+				env = "production"
+			}
+			if namespace == "" {
+				namespace = addonName
+			}
+			if layer == "" {
+				layer = "environment"
+			}
+
+			// Determine addons.yaml path based on layer
+			addonsPath, valuesDir, err := resolveLayerPaths(cfg.RepoPath, layer, env, clusterRole, cluster, addonName)
+			if err != nil {
+				return err
+			}
+
+			// Read or create addons.yaml
+			entries, err := readAddonsYAML(addonsPath)
+			if err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			if entries == nil {
+				entries = make(map[string]map[string]interface{})
+			}
+
+			var changedPaths []string
+
+			if existing, ok := entries[addonName]; ok {
+				// Addon exists — set enabled: true
+				existing["enabled"] = true
+				entries[addonName] = existing
+				fmt.Printf("%s Enabled %s in %s\n", tui.SuccessStyle.Render("✓"), addonName, addonsPath)
+			} else {
+				// Create new addon entry
+				entry := map[string]interface{}{
+					"enabled":         true,
+					"namespace":       namespace,
+					"chartRepository": chartRepo,
+					"chartName":       chartName,
+					"defaultVersion":  version,
+				}
+
+				// Clean up empty defaults
+				if chartRepo == "" {
+					entry["chartRepository"] = "https://stakater.github.io/stakater-charts"
+				}
+				if chartName == "" {
+					entry["chartName"] = "application"
+				}
+				if version == "" {
+					entry["defaultVersion"] = "6.14.0"
+				}
+
+				entries[addonName] = entry
+				fmt.Printf("%s Added %s to %s\n", tui.SuccessStyle.Render("✓"), addonName, filepath.Base(filepath.Dir(addonsPath)))
+			}
+
+			// Write addons.yaml
+			if err := writeAddonsYAML(addonsPath, entries); err != nil {
+				return err
+			}
+			changedPaths = append(changedPaths, addonsPath)
+
+			// Scaffold values directory
+			if err := os.MkdirAll(valuesDir, 0o755); err != nil {
+				return fmt.Errorf("creating values directory: %w", err)
+			}
+
+			valuesFile := filepath.Join(valuesDir, "values.yaml")
+			if _, err := os.Stat(valuesFile); os.IsNotExist(err) {
+				scaffold := fmt.Sprintf("# %s values\n# Layer: %s\n# See: https://github.com/stakater/application\n", addonName, layer)
+				if err := os.WriteFile(valuesFile, []byte(scaffold), 0o644); err != nil {
+					return fmt.Errorf("writing values scaffold: %w", err)
+				}
+				changedPaths = append(changedPaths, valuesFile)
+				fmt.Printf("%s Scaffolded %s\n", tui.SuccessStyle.Render("✓"), valuesFile)
+			}
+
+			// Git operations
+			repo, err := git.DetectRepo(cfg.RepoPath)
+			if err != nil {
+				return nil
+			}
+
+			// Convert to relative paths
+			var relPaths []string
+			for _, p := range changedPaths {
+				rp, err := repo.RelPath(p)
+				if err == nil {
+					relPaths = append(relPaths, rp)
+				}
+			}
+
+			switch cfg.GitMode {
+			case "auto":
+				msg := git.FormatCommitMessage("enable addon", addonName, layer+"/"+env)
+				if err := repo.CommitAndPush(relPaths, msg); err != nil {
+					return fmt.Errorf("git commit/push: %w", err)
+				}
+				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+
+			case "generate":
+				if err := repo.Add(relPaths...); err == nil {
+					msg := git.FormatCommitMessage("enable addon", addonName, layer+"/"+env)
+					_ = repo.Commit(msg)
+				}
+				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render("✓"))
+
+			case "prompt":
+				ok, _ := tui.Confirm("Commit and push changes?")
+				if ok {
+					msg := git.FormatCommitMessage("enable addon", addonName, layer+"/"+env)
+					if err := repo.CommitAndPush(relPaths, msg); err != nil {
+						return fmt.Errorf("git commit/push: %w", err)
+					}
+					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+				}
+			}
+
+			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will sync the addon on next reconciliation."))
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&env, "environment", "", "target environment (default: production)")
+	cmd.Flags().StringVar(&cluster, "cluster", "", "target cluster (for --layer cluster)")
+	cmd.Flags().StringVar(&clusterRole, "cluster-role", "", "cluster role (for --layer cluster-role)")
+	cmd.Flags().StringVar(&namespace, "namespace", "", "namespace for the addon (default: addon name)")
+	cmd.Flags().StringVar(&chartRepo, "chart-repo", "", "Helm chart repository URL")
+	cmd.Flags().StringVar(&chartName, "chart-name", "", "Helm chart name")
+	cmd.Flags().StringVar(&version, "version", "", "chart version")
+	cmd.Flags().StringVar(&layer, "layer", "environment", "config layer: environment, cluster-role, or cluster")
+	return cmd
 }
 
 func newAddonDisableCmd() *cobra.Command {
-	return &cobra.Command{
+	var (
+		env        string
+		cluster    string
+		clusterRole string
+		layer      string
+		remove     bool
+	)
+	cmd := &cobra.Command{
 		Use:   "disable [addon]",
 		Short: "Disable an addon",
-		Args:  cobra.ExactArgs(1),
+		Long: `Disable an addon by setting enabled: false in addons.yaml.
+
+With --remove, the addon entry and its values directory are deleted entirely.
+Without --remove, the entry remains but is marked disabled.`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println(tui.WarningStyle.Render("⚠  addon disable is not yet implemented"))
+			addonName := args[0]
+			cfg := config.Get()
+			if cfg.RepoPath == "" {
+				return fmt.Errorf("repo path not set — run 'hctl init'")
+			}
+
+			if env == "" {
+				env = "production"
+			}
+			if layer == "" {
+				layer = "environment"
+			}
+
+			addonsPath, valuesDir, err := resolveLayerPaths(cfg.RepoPath, layer, env, clusterRole, cluster, addonName)
+			if err != nil {
+				return err
+			}
+
+			entries, err := readAddonsYAML(addonsPath)
+			if err != nil {
+				return fmt.Errorf("reading addons.yaml: %w", err)
+			}
+
+			if _, ok := entries[addonName]; !ok {
+				return fmt.Errorf("addon %q not found in %s", addonName, addonsPath)
+			}
+
+			if cfg.Interactive {
+				action := "disable"
+				if remove {
+					action = "remove"
+				}
+				label := strings.ToUpper(action[:1]) + action[1:]
+				ok, _ := tui.Confirm(fmt.Sprintf("%s addon %q from %s?", label, addonName, filepath.Base(filepath.Dir(addonsPath))))
+				if !ok {
+					fmt.Println(tui.DimStyle.Render("Cancelled"))
+					return nil
+				}
+			}
+
+			var changedPaths []string
+
+			if remove {
+				delete(entries, addonName)
+				fmt.Printf("%s Removed %s from addons.yaml\n", tui.SuccessStyle.Render("✓"), addonName)
+
+				// Remove values directory
+				if _, err := os.Stat(valuesDir); err == nil {
+					if err := os.RemoveAll(valuesDir); err != nil {
+						fmt.Printf("%s Could not remove values directory: %v\n", tui.WarningStyle.Render("⚠"), err)
+					} else {
+						fmt.Printf("%s Removed %s\n", tui.SuccessStyle.Render("✓"), valuesDir)
+						changedPaths = append(changedPaths, valuesDir)
+					}
+				}
+			} else {
+				entries[addonName]["enabled"] = false
+				fmt.Printf("%s Disabled %s\n", tui.SuccessStyle.Render("✓"), addonName)
+			}
+
+			if err := writeAddonsYAML(addonsPath, entries); err != nil {
+				return err
+			}
+			changedPaths = append(changedPaths, addonsPath)
+
+			// Git operations
+			repo, err := git.DetectRepo(cfg.RepoPath)
+			if err != nil {
+				return nil
+			}
+
+			var relPaths []string
+			for _, p := range changedPaths {
+				rp, err := repo.RelPath(p)
+				if err == nil {
+					relPaths = append(relPaths, rp)
+				}
+			}
+
+			action := "disable addon"
+			if remove {
+				action = "remove addon"
+			}
+
+			switch cfg.GitMode {
+			case "auto":
+				msg := git.FormatCommitMessage(action, addonName, layer+"/"+env)
+				if err := repo.CommitAndPush(relPaths, msg); err != nil {
+					return fmt.Errorf("git commit/push: %w", err)
+				}
+				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+
+			case "generate":
+				if err := repo.Add(relPaths...); err == nil {
+					msg := git.FormatCommitMessage(action, addonName, layer+"/"+env)
+					_ = repo.Commit(msg)
+				}
+				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render("✓"))
+
+			case "prompt":
+				ok, _ := tui.Confirm("Commit and push changes?")
+				if ok {
+					msg := git.FormatCommitMessage(action, addonName, layer+"/"+env)
+					if err := repo.CommitAndPush(relPaths, msg); err != nil {
+						return fmt.Errorf("git commit/push: %w", err)
+					}
+					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+				}
+			}
+
+			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will reflect the change on next sync."))
 			return nil
 		},
 	}
+
+	cmd.Flags().StringVar(&env, "environment", "", "target environment (default: production)")
+	cmd.Flags().StringVar(&cluster, "cluster", "", "target cluster (for --layer cluster)")
+	cmd.Flags().StringVar(&clusterRole, "cluster-role", "", "cluster role (for --layer cluster-role)")
+	cmd.Flags().StringVar(&layer, "layer", "environment", "config layer: environment, cluster-role, or cluster")
+	cmd.Flags().BoolVar(&remove, "remove", false, "completely remove the addon entry and values")
+	return cmd
+}
+
+// --- Helpers ---
+
+// resolveLayerPaths returns the addons.yaml path and values directory for a given layer.
+func resolveLayerPaths(repoPath, layer, env, clusterRole, cluster, addonName string) (string, string, error) {
+	var base string
+	switch layer {
+	case "environment":
+		base = filepath.Join(repoPath, "addons", "environments", env, "addons")
+	case "cluster-role":
+		if clusterRole == "" {
+			return "", "", fmt.Errorf("--cluster-role is required for layer 'cluster-role'")
+		}
+		base = filepath.Join(repoPath, "addons", "cluster-roles", clusterRole, "addons")
+	case "cluster":
+		if cluster == "" {
+			return "", "", fmt.Errorf("--cluster is required for layer 'cluster'")
+		}
+		base = filepath.Join(repoPath, "addons", "clusters", cluster, "addons")
+	default:
+		return "", "", fmt.Errorf("invalid layer %q (must be environment, cluster-role, or cluster)", layer)
+	}
+
+	addonsFile := filepath.Join(base, "addons.yaml")
+	valuesDir := filepath.Join(base, addonName)
+	return addonsFile, valuesDir, nil
+}
+
+// readAddonsYAML reads and parses an addons.yaml file into a map of addon entries.
+func readAddonsYAML(path string) (map[string]map[string]interface{}, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var raw map[string]interface{}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parsing addons.yaml: %w", err)
+	}
+
+	entries := make(map[string]map[string]interface{})
+	for name, val := range raw {
+		if m, ok := val.(map[string]interface{}); ok {
+			entries[name] = m
+		}
+	}
+	return entries, nil
+}
+
+// writeAddonsYAML writes addon entries back to addons.yaml.
+func writeAddonsYAML(path string, entries map[string]map[string]interface{}) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating addons directory: %w", err)
+	}
+
+	data, err := yaml.Marshal(entries)
+	if err != nil {
+		return fmt.Errorf("marshaling addons.yaml: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("writing addons.yaml: %w", err)
+	}
+	return nil
 }
