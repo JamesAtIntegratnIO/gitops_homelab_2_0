@@ -21,7 +21,7 @@ entries:
       provider_type: google
       consumer_key: !Context google_client_id
       consumer_secret: !Context google_client_secret
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
       enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
       user_matching_mode: email_link
       enabled: true
