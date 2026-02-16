@@ -199,9 +199,10 @@ data:
             - username
             - email
           password_stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
-          sources: []
+          sources:
+            - !Find [authentik_sources_oauth.oauthsource, [slug, google]]
           show_matched_user: true
-          show_source_labels: false
+          show_source_labels: true
       
       # Stage 3: User Login
       - model: authentik_stages_user_login.userloginstage
@@ -245,3 +246,35 @@ data:
           re_evaluate_policies: false
           policy_engine_mode: any
           invalid_response_action: retry
+
+  04-google-oauth-source.yaml: |
+    # Authentik Blueprint: Google OAuth Source
+    # Configures Google as a social login / federation source
+    # Callback URL to configure in Google Cloud Console:
+    #   https://auth.cluster.integratn.tech/source/oauth/callback/google/
+    version: 1
+    metadata:
+      name: google-oauth-source
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    context:
+      google_client_id: !Env GOOGLE_CLIENT_ID
+      google_client_secret: !Env GOOGLE_CLIENT_SECRET
+    entries:
+      # Google OAuth Source
+      - model: authentik_sources_oauth.oauthsource
+        identifiers:
+          slug: google
+        id: google-source
+        attrs:
+          name: Google
+          provider_type: google
+          consumer_key: !Context google_client_id
+          consumer_secret: !Context google_client_secret
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
+          user_matching_mode: email_link
+          enabled: true
+          oidc_well_known_url: "https://accounts.google.com/.well-known/openid-configuration"
+          oidc_jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
+          additional_scopes: ""

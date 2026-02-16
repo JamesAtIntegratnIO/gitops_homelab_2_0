@@ -81,6 +81,17 @@ global:
         secretKeyRef:
           name: authentik-grafana-oidc
           key: client-secret
+    # Google OAuth credentials for social login source
+    - name: GOOGLE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-google-oauth
+          key: client-id
+    - name: GOOGLE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-google-oauth
+          key: client-secret
 
   # Affinity preset (new format for 2025.x chart)
   affinity:

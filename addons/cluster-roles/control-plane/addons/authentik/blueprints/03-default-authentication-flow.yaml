@@ -41,9 +41,10 @@ entries:
         - username
         - email
       password_stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
-      sources: []
+      sources:
+        - !Find [authentik_sources_oauth.oauthsource, [slug, google]]
       show_matched_user: true
-      show_source_labels: false
+      show_source_labels: true
   
   # Stage 3: User Login
   - model: authentik_stages_user_login.userloginstage
