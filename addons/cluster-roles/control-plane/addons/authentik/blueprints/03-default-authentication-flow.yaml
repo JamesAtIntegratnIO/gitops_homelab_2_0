@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/goauthentik/authentik/main/blueprints/schema.json
 # Authentik Blueprint: Default Authentication Flow
 # Creates a standard authentication flow with username/password
 version: 1

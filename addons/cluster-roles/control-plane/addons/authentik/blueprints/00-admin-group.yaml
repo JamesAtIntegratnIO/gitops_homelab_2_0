@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/goauthentik/authentik/main/blueprints/schema.json
 # Authentik Blueprint: Admin Group
 # Creates a superuser admin group for platform administrators
 version: 1
