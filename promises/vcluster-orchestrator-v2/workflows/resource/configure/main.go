@@ -497,7 +497,7 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 					},
 				},
 			},
-			MetricsServer: EnabledFlag{Enabled: true},
+			MetricsServer: EnabledFlag{Enabled: false},
 			CertManager: IntegrationCertManager{
 				Enabled: true,
 				Sync: CMSyncConfig{
