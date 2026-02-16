@@ -32,8 +32,7 @@ entries:
                 response = requests.get(
                     "https://cloudidentity.googleapis.com/v1/groups/-/memberships:searchDirectGroups",
                     params={
-                        "query": f"member_key_id=='{email}'",
-                        "orderKey": "ORDER_KEY_UNSPECIFIED",
+                        "query": f"member_key_id=='{email}' && 'cloudidentity.googleapis.com/groups.discussion_forum' in labels",
                         "pageSize": 200,
                     },
                     headers={"Authorization": f"Bearer {access_token}"},
