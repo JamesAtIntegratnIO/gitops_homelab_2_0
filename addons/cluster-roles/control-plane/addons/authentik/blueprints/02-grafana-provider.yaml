@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/goauthentik/authentik/main/blueprints/schema.json
 # Authentik Blueprint: Grafana OAuth2 Provider
 # Creates OAuth2/OIDC provider for Grafana integration
 version: 1

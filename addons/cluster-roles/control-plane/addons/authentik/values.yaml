@@ -1,9 +1,9 @@
-# Authentik Helm Chart Values
+# Authentik Helm Chart Values (2025.12.x)
 # Chart: https://github.com/goauthentik/helm
 # Docs: https://goauthentik.io/docs/
 
 global:
-  # Environment settings
+  # Environment variables for all components (server + worker)
   env:
     - name: AUTHENTIK_SECRET_KEY
       valueFrom:
@@ -36,12 +36,14 @@ global:
           name: authentik-secrets
           key: postgres-password
     - name: AUTHENTIK_REDIS__HOST
-      value: "authentik-redis-master"
+      value: "authentik-redis-master.authentik.svc.cluster.local"
+    - name: AUTHENTIK_REDIS__PORT
+      value: "6379"
     - name: AUTHENTIK_ERROR_REPORTING__ENABLED
       value: "false"
     - name: AUTHENTIK_LOG_LEVEL
       value: "info"
-    # Bootstrap admin account from secret
+    # Bootstrap admin account
     - name: AUTHENTIK_BOOTSTRAP_PASSWORD
       valueFrom:
         secretKeyRef:
@@ -80,195 +82,101 @@ global:
           name: authentik-grafana-oidc
           key: client-secret
 
+  # Affinity preset (new format for 2025.x chart)
+  affinity:
+    podAntiAffinity: soft
+
 authentik:
   # Disable error reporting for privacy
   error_reporting:
     enabled: false
-  
-  # PostgreSQL configuration (using external database)
+
+  # PostgreSQL connection (overridden by env vars from ExternalSecret)
   postgresql:
-    host: ""  # Set via env var
+    host: ""
     port: 5432
-    name: ""  # Set via env var
-    user: ""  # Set via env var
-    password: ""  # Set via env var
-  
-  # Email configuration (optional - configure if SMTP available)
+    name: ""
+    user: ""
+    password: ""
+
+  # Email configuration (optional)
   email:
     host: ""
     port: 587
-    use_tls: true
+    use_tls: false
     use_ssl: false
-    from: "authentik@cluster.integratn.tech"
-  
+    from: ""
+
   # Outpost configuration
   outposts:
     container_image_base: ghcr.io/goauthentik/%(type)s:%(version)s
 
+# Blueprints configMaps (chart-native blueprint mounting)
+blueprints:
+  configMaps:
+    - authentik-blueprints
+  secrets: []
+
 # Server (API/Frontend) configuration
 server:
-  name: server
-  replicas: 2  # HA deployment
-  
-  # Resource limits
+  replicas: 2
+
   resources:
     requests:
       cpu: 100m
       memory: 512Mi
     limits:
-      cpu: 1000m
       memory: 1Gi
-  
-  # Pod disruption budget for HA
+
   pdb:
     enabled: true
-    minAvailable: 1
-  
-  # Autoscaling (optional)
+    minAvailable: "1"
+
   autoscaling:
     enabled: false
-    minReplicas: 2
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 75
-  
-  # Metrics
+
+  # Metrics / ServiceMonitor
   metrics:
     enabled: true
     serviceMonitor:
       enabled: true
       interval: 30s
-      scrapeTimeout: 10s
-  
+      scrapeTimeout: 3s
+
   # Ingress disabled - using Gateway API HTTPRoute
   ingress:
     enabled: false
-  
-  # Service configuration
+
   service:
     type: ClusterIP
-    port: 80
-    annotations: {}
-  
-  # Volume mounts for blueprints
-  volumes:
-    - name: blueprints
-      configMap:
-        name: authentik-blueprints
-  
-  volumeMounts:
-    - name: blueprints
-      mountPath: /blueprints/custom
-      readOnly: true
 
 # Worker configuration (background tasks)
 worker:
-  name: worker
   replicas: 1
-  
-  # Resource limits
+
   resources:
     requests:
       cpu: 100m
       memory: 512Mi
     limits:
-      cpu: 1000m
       memory: 1Gi
-  
-  # Volume mounts for blueprints
-  volumes:
-    - name: blueprints
-      configMap:
-        name: authentik-blueprints
-  
-  volumeMounts:
-    - name: blueprints
-      mountPath: /blueprints/custom
-      readOnly: true
 
-# Redis configuration (using subchart)
-redis:
-  enabled: true
-  
-  # Architecture
-  architecture: standalone
-  
-  auth:
-    enabled: true
-    password: ""  # Auto-generated if empty
-  
-  master:
-    # Persistence
-    persistence:
-      enabled: true
-      storageClass: "config-nfs-client"
-      size: 8Gi
-    
-    # Resources
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-  
-  # Metrics
+  # Worker metrics / ServiceMonitor
   metrics:
     enabled: true
     serviceMonitor:
       enabled: true
+      interval: 30s
+      scrapeTimeout: 3s
 
-# PostgreSQL configuration (disabled - using external)
+# PostgreSQL subchart disabled (using external)
 postgresql:
   enabled: false
 
-# Service account
+# Service account (needed for managed outposts)
 serviceAccount:
   create: true
-  annotations: {}
-  name: ""
 
-# RBAC
-rbac:
-  create: true
-
-# Security context
-securityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
-  fsGroup: 1000
-
-# Pod security context
-podSecurityContext:
-  fsGroup: 1000
-  runAsUser: 1000
-  runAsGroup: 1000
-
-# Node selector
-nodeSelector: {}
-
-# Tolerations
-tolerations: []
-
-# Affinity
-affinity:
-  # Spread server pods across nodes for HA
-  podAntiAffinity:
-    preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        podAffinityTerm:
-          labelSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/name
-                operator: In
-                values:
-                  - authentik
-              - key: app.kubernetes.io/component
-                operator: In
-                values:
-                  - server
-          topologyKey: kubernetes.io/hostname
-
-# GeoIP (optional)
+# GeoIP disabled
 geoip:
   enabled: false
