@@ -207,7 +207,12 @@ func DiagnoseVCluster(ctx context.Context, client *kube.Client, namespace, name 
 		targetNs = ns
 	}
 
-	argoApp, err := client.GetArgoApp(ctx, "argocd", targetNs)
+	argoAppName := "vcluster-" + name
+	argoApp, err := client.GetArgoApp(ctx, "argocd", argoAppName)
+	if err != nil {
+		// Fallback: try just the name in case naming convention differs
+		argoApp, err = client.GetArgoApp(ctx, "argocd", name)
+	}
 	if err != nil {
 		result.Steps = append(result.Steps, DiagnosticStep{
 			Name:    "ArgoCD App",

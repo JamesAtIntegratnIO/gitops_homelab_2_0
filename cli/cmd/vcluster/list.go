@@ -46,7 +46,11 @@ func newListCmd() *cobra.Command {
 				age := time.Since(vc.GetCreationTimestamp().Time).Round(time.Minute)
 
 				// Check ArgoCD app health
-				argoApp, err := client.GetArgoApp(ctx, "argocd", name)
+				argoApp, err := client.GetArgoApp(ctx, "argocd", "vcluster-"+name)
+				if err != nil {
+					// Fallback: try just the name
+					argoApp, err = client.GetArgoApp(ctx, "argocd", name)
+				}
 				health := tui.DimStyle.Render("unknown")
 				if err == nil {
 					syncStatus, _, _ := platform.UnstructuredNestedString(argoApp.Object, "status", "sync", "status")
