@@ -3,6 +3,20 @@ argocd:
     type: manifests
     path: clusters
     manifestPath: addons/argo-cd/manifests
+  syncPolicy:
+    automated:
+      selfHeal: true
+      allowEmpty: true
+      prune: true
+    retry:
+      limit: -1
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 10m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
   ignoreDifferences:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
