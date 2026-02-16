@@ -1,8 +1,12 @@
 package tui
 
 import (
+	"encoding/base64"
 	"fmt"
+	"os/exec"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -40,6 +44,7 @@ type tableKeyMap struct {
 	Escape key.Binding
 	Filter key.Binding
 	Help   key.Binding
+	Yank   key.Binding
 }
 
 func (k tableKeyMap) ShortHelp() []key.Binding {
@@ -50,7 +55,7 @@ func (k tableKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.LineUp, k.LineDown, k.PageUp, k.PageDown},
 		{k.GotoTop, k.GotoBottom},
-		{k.Enter, k.Filter, k.Escape, k.Quit},
+		{k.Enter, k.Filter, k.Yank, k.Escape, k.Quit},
 	}
 }
 
@@ -71,7 +76,12 @@ type interactiveTableModel struct {
 	allRows     []btable.Row
 	headers     []string
 	onSelect    func([]string, int) string
+	// copy flash
+	copyStatus string
 }
+
+// clearCopyMsg is sent after a delay to clear the copy status flash.
+type clearCopyMsg struct{}
 
 func newInteractiveTableModel(cfg InteractiveTableConfig) interactiveTableModel {
 	// Build columns with auto-sizing
@@ -143,6 +153,10 @@ func newInteractiveTableModel(cfg InteractiveTableConfig) interactiveTableModel 
 			key.WithKeys("?"),
 			key.WithHelp("?", "help"),
 		),
+		Yank: key.NewBinding(
+			key.WithKeys("y"),
+			key.WithHelp("y", "copy"),
+		),
 	}
 
 	h := help.New()
@@ -166,6 +180,11 @@ func (m interactiveTableModel) Init() tea.Cmd {
 
 func (m interactiveTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case clearCopyMsg:
+		m.copyStatus = ""
+		m.initDetailViewport()
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -248,6 +267,18 @@ func (m interactiveTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Help):
 			m.help.ShowAll = !m.help.ShowAll
 			return m, nil
+
+		case key.Matches(msg, m.keys.Yank):
+			if m.detail != "" {
+				clean := stripAnsi(m.detail)
+				if copyToClipboard(clean) {
+					m.copyStatus = SuccessStyle.Render("✓ Copied to clipboard")
+				} else {
+					m.copyStatus = WarningStyle.Render("⚠ Could not copy (install xclip/xsel/wl-copy)")
+				}
+				m.initDetailViewport()
+				return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg { return clearCopyMsg{} })
+			}
 		}
 	}
 
@@ -298,7 +329,11 @@ func (m *interactiveTableModel) initDetailViewport() {
 
 	// Wrap the detail text to contentW and set it in the viewport
 	wrapped := lipgloss.NewStyle().Width(contentW).Render(m.detail)
-	footer := DimStyle.Render("esc to close · ↑↓ scroll")
+	footerParts := []string{"esc to close", "↑↓ scroll", "y copy"}
+	if m.copyStatus != "" {
+		footerParts = append(footerParts, m.copyStatus)
+	}
+	footer := DimStyle.Render(strings.Join(footerParts, " · "))
 	fullContent := wrapped + "\n\n" + footer
 
 	lines := strings.Count(fullContent, "\n") + 1
@@ -418,4 +453,41 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+// stripAnsi removes ANSI escape sequences (colors, bold, etc.) from a string.
+func stripAnsi(s string) string {
+	return ansiRe.ReplaceAllString(s, "")
+}
+
+// copyToClipboard tries to copy text to the system clipboard.
+// It attempts OSC 52 first, then falls back to common clipboard tools.
+func copyToClipboard(text string) bool {
+	// Try system clipboard tools first (more reliable)
+	for _, tool := range []struct {
+		name string
+		args []string
+	}{
+		{"xclip", []string{"-selection", "clipboard"}},
+		{"xsel", []string{"--clipboard", "--input"}},
+		{"wl-copy", nil},
+		{"pbcopy", nil},
+	} {
+		path, err := exec.LookPath(tool.name)
+		if err != nil {
+			continue
+		}
+		cmd := exec.Command(path, tool.args...)
+		cmd.Stdin = strings.NewReader(text)
+		if cmd.Run() == nil {
+			return true
+		}
+	}
+
+	// Fallback: OSC 52 escape sequence (works in many modern terminals)
+	encoded := base64.StdEncoding.EncodeToString([]byte(text))
+	fmt.Printf("\x1b]52;c;%s\x07", encoded)
+	return true
 }
