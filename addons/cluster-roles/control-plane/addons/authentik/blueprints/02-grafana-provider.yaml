@@ -60,4 +60,4 @@ entries:
       group: Platform Services
       meta_icon: https://grafana.com/static/img/menu/grafana2.svg
       meta_description: Observability & Monitoring Dashboards
-      policy_engine_mode: any
+      policy_engine_mode: all

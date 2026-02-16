@@ -88,7 +88,7 @@ data:
           group: Platform Services
           meta_icon: https://cncf-branding.netlify.app/img/projects/argo/icon/color/argo-icon-color.png
           meta_description: GitOps Continuous Delivery
-          policy_engine_mode: any
+          policy_engine_mode: all
 
   02-grafana-provider.yaml: |
     # Authentik Blueprint: Grafana OAuth2 Provider
@@ -153,7 +153,7 @@ data:
           group: Platform Services
           meta_icon: https://grafana.com/static/img/menu/grafana2.svg
           meta_description: Observability & Monitoring Dashboards
-          policy_engine_mode: any
+          policy_engine_mode: all
 
   03-default-authentication-flow.yaml: |
     # Authentik Blueprint: Default Authentication Flow

@@ -62,4 +62,4 @@ entries:
       group: Platform Services
       meta_icon: https://cncf-branding.netlify.app/img/projects/argo/icon/color/argo-icon-color.png
       meta_description: GitOps Continuous Delivery
-      policy_engine_mode: any
+      policy_engine_mode: all
