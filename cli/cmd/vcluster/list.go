@@ -3,6 +3,7 @@ package vcluster
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
@@ -60,8 +61,44 @@ func newListCmd() *cobra.Command {
 				rows = append(rows, []string{name, preset, hostname, health, formatAge(age)})
 			}
 
-			fmt.Println(tui.Table([]string{"NAME", "PRESET", "HOSTNAME", "STATUS", "AGE"}, rows))
-			return nil
+			// Interactive table: enter to show diagnostics
+			action, err := tui.InteractiveTable(tui.InteractiveTableConfig{
+				Title:   "vClusters",
+				Headers: []string{"NAME", "PRESET", "HOSTNAME", "STATUS", "AGE"},
+				Rows:    rows,
+				OnSelect: func(row []string, index int) string {
+					vcName := row[0]
+					ctx2, cancel2 := context.WithTimeout(context.Background(), 15*time.Second)
+					defer cancel2()
+
+					result, err := platform.DiagnoseVCluster(ctx2, client, cfg.Platform.PlatformNamespace, vcName)
+					if err != nil {
+						return tui.ErrorStyle.Render("Error: " + err.Error())
+					}
+
+					var sb strings.Builder
+					sb.WriteString(tui.TitleStyle.Render("Diagnostics: "+vcName) + "\n\n")
+					for i, step := range result.Steps {
+						isLast := i == len(result.Steps)-1
+						sb.WriteString(tui.TreeNode(
+							fmt.Sprintf("%-15s", step.Name),
+							step.Status.String(),
+							step.Message,
+							isLast,
+						) + "\n")
+						if step.Details != "" {
+							indent := "  │   "
+							if isLast {
+								indent = "      "
+							}
+							sb.WriteString(indent + tui.DimStyle.Render(step.Details) + "\n")
+						}
+					}
+					return sb.String()
+				},
+			})
+			_ = action
+			return err
 		},
 	}
 }

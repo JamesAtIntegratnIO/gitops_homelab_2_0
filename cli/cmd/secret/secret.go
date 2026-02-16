@@ -3,6 +3,7 @@ package secret
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
@@ -95,8 +96,30 @@ func newSecretListCmd() *cobra.Command {
 				})
 			}
 
-			fmt.Println(tui.Table([]string{"NAME", "TYPE", "KEYS"}, rows))
-			return nil
+			// Interactive table: enter to view secret data
+			action, err := tui.InteractiveTable(tui.InteractiveTableConfig{
+				Title:   fmt.Sprintf("Secrets in %s", ns),
+				Headers: []string{"NAME", "TYPE", "KEYS"},
+				Rows:    rows,
+				OnSelect: func(row []string, index int) string {
+					secretName := row[0]
+					ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel2()
+					data, err := client.GetSecretData(ctx2, ns, secretName)
+					if err != nil {
+						return tui.ErrorStyle.Render("Error: " + err.Error())
+					}
+					var sb fmt.Stringer = &strings.Builder{}
+					w := sb.(*strings.Builder)
+					w.WriteString(tui.TitleStyle.Render(secretName) + "\n")
+					for k, v := range data {
+						w.WriteString(fmt.Sprintf("  %s: %s\n", tui.HeaderStyle.Render(k), string(v)))
+					}
+					return w.String()
+				},
+			})
+			_ = action
+			return err
 		},
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	deploylib "github.com/jamesatintegratnio/hctl/internal/deploy"
@@ -182,32 +183,53 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 				return fmt.Errorf("repo path not set — run 'hctl init'")
 			}
 
-			// Parse Score workload
-			workload, err := score.LoadWorkload(scoreFile)
+			// Phase 1: Parse and translate (spinner)
+			var workload *score.Workload
+			var result *deploylib.TranslateResult
+
+			results, err := tui.RunSteps("Preparing deployment", []tui.Step{
+				{
+					Title: "Parsing " + scoreFile,
+					Run: func() (string, error) {
+						w, err := score.LoadWorkload(scoreFile)
+						if err != nil {
+							return "", fmt.Errorf("loading score workload: %w", err)
+						}
+						workload = w
+						return workload.Metadata.Name, nil
+					},
+				},
+				{
+					Title: "Translating to platform resources",
+					Run: func() (string, error) {
+						r, err := deploylib.Translate(workload, cluster)
+						if err != nil {
+							return "", fmt.Errorf("translating workload: %w", err)
+						}
+						result = r
+						resources := []string{}
+						for name, res := range workload.Resources {
+							resources = append(resources, fmt.Sprintf("%s(%s)", name, res.Type))
+						}
+						detail := fmt.Sprintf("cluster=%s ns=%s", r.TargetCluster, r.Namespace)
+						if len(resources) > 0 {
+							detail += " resources=" + strings.Join(resources, ",")
+						}
+						return detail, nil
+					},
+				},
+			})
 			if err != nil {
-				return fmt.Errorf("loading score workload: %w", err)
+				return err
 			}
-
-			fmt.Printf("%s Loaded workload %s\n", tui.SuccessStyle.Render("✓"), tui.TitleStyle.Render(workload.Metadata.Name))
-
-			// Translate to platform resources
-			result, err := deploylib.Translate(workload, cluster)
-			if err != nil {
-				return fmt.Errorf("translating workload: %w", err)
-			}
-
-			fmt.Printf("%s Translated for cluster %s (namespace: %s)\n",
-				tui.SuccessStyle.Render("✓"), tui.TitleStyle.Render(result.TargetCluster), result.Namespace)
-
-			// Show what will be generated
-			if len(workload.Resources) > 0 {
-				fmt.Printf("\n  Resources:\n")
-				for name, res := range workload.Resources {
-					fmt.Printf("    %s %s (%s)\n", tui.SuccessStyle.Render("•"), name, res.Type)
+			for _, r := range results {
+				if r.Err != nil {
+					return r.Err
 				}
 			}
 
-			fmt.Printf("\n  Files:\n")
+			// Show what will be generated
+			fmt.Printf("\n  Files to write:\n")
 			for path := range result.Files {
 				fmt.Printf("    %s %s\n", tui.SuccessStyle.Render("•"), path)
 			}
@@ -230,51 +252,83 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 				}
 			}
 
-			// Write files
-			writtenPaths, err := deploylib.WriteResult(result, cfg.RepoPath)
-			if err != nil {
-				return fmt.Errorf("writing files: %w", err)
+			// Phase 2: Write and commit (spinner)
+			var writtenPaths []string
+			deploySteps := []tui.Step{
+				{
+					Title: "Writing files",
+					Run: func() (string, error) {
+						wp, err := deploylib.WriteResult(result, cfg.RepoPath)
+						if err != nil {
+							return "", fmt.Errorf("writing files: %w", err)
+						}
+						writtenPaths = wp
+						return fmt.Sprintf("%d files", len(wp)), nil
+					},
+				},
 			}
 
-			fmt.Printf("\n%s Wrote %d files\n", tui.SuccessStyle.Render("✓"), len(writtenPaths))
-
-			// Git operations
-			repo, err := git.DetectRepo(cfg.RepoPath)
-			if err != nil {
-				fmt.Printf("%s Git not available — files written but not committed\n", tui.WarningStyle.Render("⚠"))
-				return nil
+			// Add git step based on mode
+			repo, gitErr := git.DetectRepo(cfg.RepoPath)
+			if gitErr == nil {
+				switch cfg.GitMode {
+				case "auto":
+					deploySteps = append(deploySteps, tui.Step{
+						Title: "Committing and pushing",
+						Run: func() (string, error) {
+							msg := git.FormatCommitMessage("deploy", workload.Metadata.Name, result.TargetCluster)
+							if err := repo.CommitAndPush(writtenPaths, msg); err != nil {
+								return "", err
+							}
+							return msg, nil
+						},
+					})
+				case "generate":
+					deploySteps = append(deploySteps, tui.Step{
+						Title: "Committing changes",
+						Run: func() (string, error) {
+							if err := repo.Add(writtenPaths...); err != nil {
+								return "", err
+							}
+							msg := git.FormatCommitMessage("deploy", workload.Metadata.Name, result.TargetCluster)
+							if err := repo.Commit(msg); err != nil {
+								return "", err
+							}
+							return msg + " (push manually)", nil
+						},
+					})
+				case "prompt":
+					ok, _ := tui.Confirm("Commit and push changes?")
+					if ok {
+						deploySteps = append(deploySteps, tui.Step{
+							Title: "Committing and pushing",
+							Run: func() (string, error) {
+								msg := git.FormatCommitMessage("deploy", workload.Metadata.Name, result.TargetCluster)
+								if err := repo.CommitAndPush(writtenPaths, msg); err != nil {
+									return "", err
+								}
+								return msg, nil
+							},
+						})
+					} else {
+						deploySteps = append(deploySteps, tui.Step{
+							Title: "Staging files",
+							Run: func() (string, error) {
+								_ = repo.Add(writtenPaths...)
+								return "staged — commit manually", nil
+							},
+						})
+					}
+				}
 			}
 
-			switch cfg.GitMode {
-			case "auto":
-				msg := git.FormatCommitMessage("deploy", workload.Metadata.Name, result.TargetCluster)
-				if err := repo.CommitAndPush(writtenPaths, msg); err != nil {
-					return fmt.Errorf("git commit/push: %w", err)
-				}
-				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
-
-			case "generate":
-				if err := repo.Add(writtenPaths...); err != nil {
-					return fmt.Errorf("git add: %w", err)
-				}
-				msg := git.FormatCommitMessage("deploy", workload.Metadata.Name, result.TargetCluster)
-				if err := repo.Commit(msg); err != nil {
-					return fmt.Errorf("git commit: %w", err)
-				}
-				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render("✓"))
-
-			case "prompt":
-				ok, _ := tui.Confirm("Commit and push changes?")
-				if ok {
-					msg := git.FormatCommitMessage("deploy", workload.Metadata.Name, result.TargetCluster)
-					if err := repo.CommitAndPush(writtenPaths, msg); err != nil {
-						return fmt.Errorf("git commit/push: %w", err)
-					}
-					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
-				} else {
-					if err := repo.Add(writtenPaths...); err == nil {
-						fmt.Printf("%s Files staged — commit manually\n", tui.DimStyle.Render("→"))
-					}
+			results, err = tui.RunSteps("Deploying "+workload.Metadata.Name, deploySteps)
+			if err != nil {
+				return err
+			}
+			for _, r := range results {
+				if r.Err != nil {
+					return fmt.Errorf("deploy failed at %q: %w", r.Title, r.Err)
 				}
 			}
 
@@ -494,8 +548,61 @@ func newDeployListCmd() *cobra.Command {
 				rows = append(rows, []string{name, cluster})
 			}
 
-			fmt.Println(tui.Table([]string{"WORKLOAD", "CLUSTER"}, rows))
-			return nil
+			_, err = tui.InteractiveTable(tui.InteractiveTableConfig{
+				Title:   "Workloads (" + cluster + ")",
+				Headers: []string{"WORKLOAD", "CLUSTER"},
+				Rows:    rows,
+				OnSelect: func(row []string, index int) string {
+					if len(row) == 0 {
+						return ""
+					}
+					workloadName := row[0]
+
+					client, cErr := kube.NewClient(cfg.KubeContext)
+					if cErr != nil {
+						return tui.ErrorStyle.Render("Cannot connect: " + cErr.Error())
+					}
+					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer cancel()
+
+					var sb strings.Builder
+					sb.WriteString(tui.HeaderStyle.Render("Workload: "+workloadName) + "\n\n")
+
+					// ArgoCD status
+					app, aErr := client.GetArgoApp(ctx, "argocd", workloadName)
+					if aErr != nil {
+						app, aErr = client.GetArgoApp(ctx, "argocd", cluster+"-"+workloadName)
+					}
+					if aErr == nil {
+						syncStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "status")
+						healthStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "health", "status")
+						statusStr := syncStatus + "/" + healthStatus
+						if syncStatus == "Synced" && healthStatus == "Healthy" {
+							sb.WriteString("  Status: " + tui.SuccessStyle.Render(statusStr) + "\n")
+						} else {
+							sb.WriteString("  Status: " + tui.WarningStyle.Render(statusStr) + "\n")
+						}
+					} else {
+						sb.WriteString("  Status: " + tui.DimStyle.Render("not found in ArgoCD") + "\n")
+					}
+
+					// Pods
+					pods, pErr := client.ListPods(ctx, cluster, fmt.Sprintf("app.kubernetes.io/name=%s", workloadName))
+					if pErr == nil && len(pods) > 0 {
+						sb.WriteString("\n  Pods:\n")
+						for _, p := range pods {
+							status := tui.SuccessStyle.Render(p.Phase)
+							if p.Phase != "Running" || p.ReadyContainers < p.TotalContainers {
+								status = tui.WarningStyle.Render(p.Phase)
+							}
+							sb.WriteString(fmt.Sprintf("    %s  %d/%d  %s\n", p.Name, p.ReadyContainers, p.TotalContainers, status))
+						}
+					}
+
+					return sb.String()
+				},
+			})
+			return err
 		},
 	}
 	cmd.Flags().StringVar(&cluster, "cluster", "", "target vCluster")

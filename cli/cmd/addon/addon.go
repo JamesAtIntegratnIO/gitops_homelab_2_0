@@ -107,8 +107,45 @@ func newAddonListCmd() *cobra.Command {
 				rows = append(rows, []string{name, enabled, env, status})
 			}
 
-			fmt.Println(tui.Table([]string{"ADDON", "ENABLED", "ENVIRONMENT", "STATUS"}, rows))
-			return nil
+			_, err = tui.InteractiveTable(tui.InteractiveTableConfig{
+				Title:   "Addons (" + env + ")",
+				Headers: []string{"ADDON", "ENABLED", "ENVIRONMENT", "STATUS"},
+				Rows:    rows,
+				OnSelect: func(row []string, index int) string {
+					if len(row) == 0 {
+						return ""
+					}
+					addonName := row[0]
+					var sb strings.Builder
+					sb.WriteString(tui.HeaderStyle.Render("Addon: "+addonName) + "\n\n")
+
+					// Show value file layers
+					sb.WriteString("  Value layers:\n")
+					layers := []struct {
+						label string
+						path  string
+					}{
+						{"environment", filepath.Join(repoPath, "addons", "environments", env, "addons", addonName, "values.yaml")},
+						{"cluster-role", filepath.Join(repoPath, "addons", "cluster-roles", "control-plane", "addons", addonName, "values.yaml")},
+					}
+					for _, l := range layers {
+						if _, err := os.Stat(l.path); err == nil {
+							sb.WriteString(fmt.Sprintf("    ✓ %s: %s\n", l.label, l.path))
+						} else {
+							sb.WriteString(fmt.Sprintf("    ○ %s: %s\n", l.label, tui.DimStyle.Render("not found")))
+						}
+					}
+
+					// Show ArgoCD status if available
+					if appStatus != nil {
+						if s, ok := appStatus[addonName]; ok {
+							sb.WriteString(fmt.Sprintf("\n  ArgoCD: %s\n", s))
+						}
+					}
+					return sb.String()
+				},
+			})
+			return err
 		},
 	}
 
