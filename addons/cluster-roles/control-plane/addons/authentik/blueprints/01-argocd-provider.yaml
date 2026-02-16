@@ -28,12 +28,13 @@ entries:
     id: argocd-provider
     attrs:
       authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       client_type: confidential
       client_id: !Context client_id
       client_secret: !Context client_secret
-      redirect_uris: |
-        https://argocd.cluster.integratn.tech/auth/callback
-        https://argocd.cluster.integratn.tech/api/dex/callback
+      redirect_uris:
+        - url: https://argocd.cluster.integratn.tech/auth/callback
+        - url: https://argocd.cluster.integratn.tech/api/dex/callback
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
       property_mappings:
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "openid"]]

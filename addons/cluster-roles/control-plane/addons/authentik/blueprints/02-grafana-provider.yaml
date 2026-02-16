@@ -28,11 +28,12 @@ entries:
     id: grafana-provider
     attrs:
       authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
       client_type: confidential
       client_id: !Context client_id
       client_secret: !Context client_secret
-      redirect_uris: |
-        https://grafana.cluster.integratn.tech/login/generic_oauth
+      redirect_uris:
+        - url: https://grafana.cluster.integratn.tech/login/generic_oauth
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
       property_mappings:
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "openid"]]
