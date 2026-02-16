@@ -2,7 +2,7 @@ argocd:
   additionalResources:
     type: manifests
     path: clusters
-    manifestPath: addons/argo-cd
+    manifestPath: addons/argo-cd/manifests
   ignoreDifferences:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
