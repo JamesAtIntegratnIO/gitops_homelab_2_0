@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 )
 
 var (
@@ -36,12 +37,6 @@ var (
 	SelectedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("12")).
 			Bold(true)
-
-	TableHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("12")).
-				BorderBottom(true).
-				BorderStyle(lipgloss.NormalBorder())
 )
 
 // StatusIcon returns a colored status icon string.
@@ -52,44 +47,49 @@ func StatusIcon(ok bool) string {
 	return ErrorStyle.Render("✗")
 }
 
-// Table renders a simple table with headers and rows.
+// Table renders a styled table with headers and rows using lipgloss/table.
 func Table(headers []string, rows [][]string) string {
 	if len(rows) == 0 {
 		return DimStyle.Render("  (no data)")
 	}
 
-	// Calculate column widths
-	widths := make([]int, len(headers))
-	for i, h := range headers {
-		widths[i] = len(h)
-	}
-	for _, row := range rows {
-		for i, cell := range row {
-			if i < len(widths) && len(cell) > widths[i] {
-				widths[i] = len(cell)
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("12")).
+		Padding(0, 1)
+
+	cellStyle := lipgloss.NewStyle().
+		Padding(0, 1)
+
+	dimCellStyle := lipgloss.NewStyle().
+		Padding(0, 1).
+		Foreground(lipgloss.Color("8"))
+
+	borderStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("8"))
+
+	t := table.New().
+		Headers(headers...).
+		Rows(rows...).
+		Border(lipgloss.RoundedBorder()).
+		BorderStyle(borderStyle).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			if row == table.HeaderRow {
+				return headerStyle
 			}
-		}
-	}
-
-	var sb strings.Builder
-
-	// Header row
-	for i, h := range headers {
-		sb.WriteString(TableHeaderStyle.Render(padRight(h, widths[i]+2)))
-	}
-	sb.WriteString("\n")
-
-	// Data rows
-	for _, row := range rows {
-		for i, cell := range row {
-			if i < len(widths) {
-				sb.WriteString(padRight(cell, widths[i]+2))
+			// Dim the last column if it looks like a count or status placeholder
+			if col == len(headers)-1 {
+				if len(rows) > 0 && row-1 < len(rows) && row > 0 {
+					cell := rows[row-1][col]
+					if cell == "—" || cell == "0" {
+						return dimCellStyle
+					}
+				}
 			}
-		}
-		sb.WriteString("\n")
-	}
+			return cellStyle
+		})
 
-	return sb.String()
+	return t.Render()
 }
 
 // TreeNode renders a tree-style status display.
@@ -251,11 +251,4 @@ func IsInteractive() bool {
 		return false
 	}
 	return fi.Mode()&os.ModeCharDevice != 0
-}
-
-func padRight(s string, width int) string {
-	if len(s) >= width {
-		return s
-	}
-	return s + strings.Repeat(" ", width-len(s))
 }
