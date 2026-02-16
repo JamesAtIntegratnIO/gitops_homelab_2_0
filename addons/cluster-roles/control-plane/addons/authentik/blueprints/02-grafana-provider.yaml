@@ -38,7 +38,7 @@ entries:
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "openid"]]
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "email"]]
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "profile"]]
-        - !KeyOf groups-scope
+        - !Find [authentik_providers_oauth2.scopemapping, [name, "Grafana Groups Scope"]]
       include_claims_in_id_token: true
       issuer_mode: per_provider
       sub_mode: hashed_user_id
@@ -52,7 +52,7 @@ entries:
       slug: grafana
     attrs:
       name: Grafana
-      provider: !KeyOf grafana-provider
+      provider: !Find [authentik_providers_oauth2.oauth2provider, [name, grafana-provider]]
       open_in_new_tab: true
       launch_url: https://grafana.cluster.integratn.tech
       group: Platform Services

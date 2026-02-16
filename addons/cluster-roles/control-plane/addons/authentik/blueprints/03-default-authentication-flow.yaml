@@ -40,7 +40,7 @@ entries:
       user_fields:
         - username
         - email
-      password_stage: !KeyOf password-stage
+      password_stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
       sources: []
       show_matched_user: true
       show_source_labels: false
@@ -57,8 +57,8 @@ entries:
   # Flow Stage Bindings
   - model: authentik_flows.flowstagebinding
     identifiers:
-      target: !KeyOf flow
-      stage: !KeyOf identification-stage
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      stage: !Find [authentik_stages_identification.identificationstage, [name, default-authentication-identification]]
       order: 10
     attrs:
       evaluate_on_plan: true
@@ -68,8 +68,8 @@ entries:
   
   - model: authentik_flows.flowstagebinding
     identifiers:
-      target: !KeyOf flow
-      stage: !KeyOf password-stage
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
       order: 20
     attrs:
       evaluate_on_plan: true
@@ -79,8 +79,8 @@ entries:
   
   - model: authentik_flows.flowstagebinding
     identifiers:
-      target: !KeyOf flow
-      stage: !KeyOf user-login-stage
+      target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+      stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
       order: 30
     attrs:
       evaluate_on_plan: true
