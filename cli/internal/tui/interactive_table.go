@@ -322,7 +322,7 @@ func (m interactiveTableModel) View() string {
 			BorderForeground(lipgloss.Color("62")).
 			Background(lipgloss.Color("235")).
 			Padding(1, 2).
-			MaxWidth(maxOverlayW).
+			Width(maxOverlayW).
 			Render(m.detail + "\n\n" + DimStyle.Render("esc to close"))
 
 		return lipgloss.Place(
