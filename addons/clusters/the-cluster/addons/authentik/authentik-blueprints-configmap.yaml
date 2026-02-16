@@ -279,32 +279,25 @@ data:
             groups = []
             if email and access_token:
                 try:
-                    # Try with discussion_forum label first, fall back to security label
-                    labels_to_try = [
-                        "cloudidentity.googleapis.com/groups.discussion_forum",
-                        "cloudidentity.googleapis.com/groups.security",
-                    ]
-                    for label in labels_to_try:
-                        query = f"member_key_id == '{email}' && '{label}' in labels"
-                        response = requests.get(
-                            "https://cloudidentity.googleapis.com/v1/groups/-/memberships:searchDirectGroups",
-                            params={"query": query, "pageSize": 200},
-                            headers={"Authorization": f"Bearer {access_token}"},
-                            timeout=10,
+                    query = f"member_key_id == '{email}'"
+                    response = requests.get(
+                        "https://cloudidentity.googleapis.com/v1/groups/-/memberships:searchDirectGroups",
+                        params={"query": query, "pageSize": 200},
+                        headers={"Authorization": f"Bearer {access_token}"},
+                        timeout=10,
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        for membership in data.get("memberships", []):
+                            name = membership.get("displayName", "")
+                            if name:
+                                groups.append(name)
+                    else:
+                        ak_logger.warning(
+                            "Google Groups API error",
+                            status=response.status_code,
+                            body=response.text[:500],
                         )
-                        if response.status_code == 200:
-                            data = response.json()
-                            for membership in data.get("memberships", []):
-                                name = membership.get("displayName", "")
-                                if name and name not in groups:
-                                    groups.append(name)
-                        else:
-                            ak_logger.warning(
-                                "Google Groups API error",
-                                label=label,
-                                status=response.status_code,
-                                body=response.text[:500],
-                            )
                 except Exception as e:
                     ak_logger.warning("Google Groups API exception", error=str(e))
             return {"groups": groups}
