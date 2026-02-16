@@ -17,7 +17,7 @@
             pname = "hctl";
             version = "0.1.0";
             src = pkgs.lib.cleanSource ./cli;
-            vendorHash = "sha256-x5gwDpuVuNqDCR14QmXeW2wXMALyc0BjRmdu8vTob6I=";
+            vendorHash = "sha256-c5RQoqS8Zs3Ugm2iN4e3mzlJ+XPkvYVWyo7ZLYgqnFk=";
             ldflags = [
               "-s" "-w"
               "-X github.com/jamesatintegratnio/hctl/cmd.Version=0.1.0"
