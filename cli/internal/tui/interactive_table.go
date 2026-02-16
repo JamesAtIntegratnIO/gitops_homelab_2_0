@@ -170,9 +170,6 @@ func (m interactiveTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.help.Width = msg.Width
 		// Resize table height to fill window (title + help + padding)
 		tableHeight := msg.Height - 6
-		if m.detail != "" {
-			tableHeight -= strings.Count(m.detail, "\n") + 3
-		}
 		if tableHeight < 3 {
 			tableHeight = 3
 		}
@@ -296,18 +293,6 @@ func (m interactiveTableModel) View() string {
 	sb.WriteString(m.table.View())
 	sb.WriteString("\n")
 
-	// Detail pane
-	if m.detail != "" {
-		detailBox := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("8")).
-			Padding(0, 1).
-			MarginTop(1).
-			Render(m.detail)
-		sb.WriteString(detailBox)
-		sb.WriteString("\n")
-	}
-
 	// Row count
 	rowCount := fmt.Sprintf("  %d items", len(m.table.Rows()))
 	if m.filterText != "" {
@@ -319,7 +304,37 @@ func (m interactiveTableModel) View() string {
 	// Help
 	sb.WriteString(m.help.View(m.keys))
 
-	return sb.String()
+	base := sb.String()
+
+	// Detail overlay — render as a centered modal on top of the table
+	if m.detail != "" {
+		// Constrain overlay width
+		maxOverlayW := m.width - 8
+		if maxOverlayW < 40 {
+			maxOverlayW = 40
+		}
+		if maxOverlayW > 100 {
+			maxOverlayW = 100
+		}
+
+		overlay := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("62")).
+			Background(lipgloss.Color("235")).
+			Padding(1, 2).
+			MaxWidth(maxOverlayW).
+			Render(m.detail + "\n\n" + DimStyle.Render("esc to close"))
+
+		return lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			overlay,
+			lipgloss.WithWhitespaceChars(" "),
+			lipgloss.WithWhitespaceForeground(lipgloss.Color("0")),
+		)
+	}
+
+	return base
 }
 
 // InteractiveTable runs a full-screen interactive table. Returns the selected row or nil if cancelled.
