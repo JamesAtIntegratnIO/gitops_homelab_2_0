@@ -1,0 +1,11 @@
+# Build output
+bin/
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+vendor/

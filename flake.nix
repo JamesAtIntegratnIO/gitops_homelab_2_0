@@ -13,6 +13,21 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
 
+          hctl = pkgs.buildGoModule {
+            pname = "hctl";
+            version = "0.1.0";
+            src = pkgs.lib.cleanSource ./cli;
+            vendorHash = "sha256-x5gwDpuVuNqDCR14QmXeW2wXMALyc0BjRmdu8vTob6I=";
+            ldflags = [
+              "-s" "-w"
+              "-X github.com/jamesatintegratnio/hctl/cmd.Version=0.1.0"
+            ];
+            meta = {
+              description = "Homelab platform CLI";
+              mainProgram = "hctl";
+            };
+          };
+
           scaleDownNamespace = pkgs.writeShellScriptBin "scale-down-namespace" ''
             #!/usr/bin/env bash
             set -euo pipefail
@@ -103,6 +118,9 @@
 
 
         in {
+          packages.hctl = hctl;
+          packages.default = hctl;
+
           devShells.default = pkgs.mkShell {
             myScript = pkgs.writeShellScriptBin "my-script" ''
               #!/usr/bin/env bash
@@ -111,6 +129,7 @@
 
             buildInputs = with pkgs; [
               argocd
+              go
               opentofu
               tflint
               terraform-docs
@@ -131,6 +150,7 @@
               nodejs_22
 
               # Custom tools
+              hctl
               scaleDownNamespace
               scaleUpNamespace
 
@@ -175,6 +195,7 @@
               source <(argocd completion bash)
               source <(kustomize completion bash)
               source <(talosctl completion bash)
+              source <(hctl completion bash)
               set +a
             '';
           };

@@ -1,0 +1,45 @@
+version: 2
+
+project_name: hctl
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: hctl
+    ldflags:
+      - -s -w
+      - -X github.com/jamesatintegratnio/hctl/cmd.Version={{.Version}}
+      - -X github.com/jamesatintegratnio/hctl/cmd.Commit={{.ShortCommit}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: jamesatintegratnio
+    name: gitops_homelab_2_0
+  draft: false
+  prerelease: auto
