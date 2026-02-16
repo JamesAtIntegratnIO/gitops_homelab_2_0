@@ -53,7 +53,7 @@ data:
           name: argocd-provider
         id: argocd-provider
         attrs:
-          authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
           invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           client_type: confidential
           client_id: !Context client_id
@@ -120,7 +120,7 @@ data:
           name: grafana-provider
         id: grafana-provider
         attrs:
-          authorization_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
           invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           client_type: confidential
           client_id: !Context client_id
