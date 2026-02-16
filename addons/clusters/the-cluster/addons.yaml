@@ -38,3 +38,7 @@ external-dns:
 
 authentik:
   enabled: true
+  additionalResources:
+    type: manifests
+    path: clusters
+    manifestPath: addons/authentik

@@ -191,10 +191,6 @@ authentik:
   project: platform-services
   chartRepository: https://charts.goauthentik.io
   defaultVersion: "2025.12.4"
-  additionalResources:
-    type: manifests
-    path: cluster-roles/control-plane
-    manifestPath: addons/authentik
   selector:
     matchExpressions:
       - key: cluster_role
