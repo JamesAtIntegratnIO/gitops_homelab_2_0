@@ -2,6 +2,11 @@
 # Configures Google as a social login / federation source
 # Callback URL to configure in Google Cloud Console:
 #   https://auth.cluster.integratn.tech/source/oauth/callback/google/
+#
+# Prerequisites in Google Cloud Console:
+#   1. Enable the "Admin SDK API" at https://console.cloud.google.com/apis/library/admin.googleapis.com
+#   2. The authenticating user must be a Google Workspace admin (or grant domain-wide delegation)
+#   3. Add the callback URL above as an authorized redirect URI
 version: 1
 metadata:
   name: google-oauth-source
@@ -11,6 +16,42 @@ context:
   google_client_id: !Env GOOGLE_CLIENT_ID
   google_client_secret: !Env GOOGLE_CLIENT_SECRET
 entries:
+  # Property mapping to sync Google Workspace group memberships
+  - model: authentik_sources_oauth.oauthsourcepropertymapping
+    identifiers:
+      name: "Google Workspace Groups Sync"
+    id: google-groups-mapping
+    attrs:
+      expression: |
+        # Fetch the user's Google Workspace group memberships via Admin SDK
+        email = info.get("email", "")
+        access_token = token.get("access_token", "")
+        groups = []
+        if email and access_token:
+            try:
+                response = requests.get(
+                    "https://admin.googleapis.com/admin/directory/v1/groups",
+                    params={"userKey": email},
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    timeout=10,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    for group in data.get("groups", []):
+                        # Use the group name (e.g., "members") as the Authentik group name
+                        name = group.get("name", "")
+                        if name:
+                            groups.append(name)
+                else:
+                    ak_logger.warning(
+                        "Google Groups API error",
+                        status=response.status_code,
+                        body=response.text[:200],
+                    )
+            except Exception as e:
+                ak_logger.warning("Google Groups API exception", error=str(e))
+        return {"groups": groups}
+
   # Google OAuth Source
   - model: authentik_sources_oauth.oauthsource
     identifiers:
@@ -27,4 +68,6 @@ entries:
       enabled: true
       oidc_well_known_url: "https://accounts.google.com/.well-known/openid-configuration"
       oidc_jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
-      additional_scopes: ""
+      additional_scopes: "https://www.googleapis.com/auth/admin.directory.group.readonly"
+      user_property_mappings:
+        - !Find [authentik_sources_oauth.oauthsourcepropertymapping, [name, "Google Workspace Groups Sync"]]
