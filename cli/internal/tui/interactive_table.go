@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	btable "github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -59,6 +60,7 @@ type interactiveTableModel struct {
 	keys     tableKeyMap
 	help     help.Model
 	detail   string
+	detailVP viewport.Model
 	selected *TableAction
 	quit     bool
 	width    int
@@ -209,6 +211,10 @@ func (m interactiveTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case key.Matches(msg, m.keys.Enter):
+			if m.detail != "" {
+				// Enter while detail is open does nothing
+				return m, nil
+			}
 			row := m.table.SelectedRow()
 			if row != nil {
 				m.selected = &TableAction{
@@ -218,6 +224,7 @@ func (m interactiveTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.onSelect != nil {
 					m.detail = m.onSelect(m.selected.Row, m.selected.Index)
 					if m.detail != "" {
+						m.initDetailViewport()
 						return m, nil
 					}
 				}
@@ -244,6 +251,13 @@ func (m interactiveTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	// Route keys to viewport when detail overlay is open
+	if m.detail != "" {
+		var cmd tea.Cmd
+		m.detailVP, cmd = m.detailVP.Update(msg)
+		return m, cmd
+	}
+
 	var cmd tea.Cmd
 	m.table, cmd = m.table.Update(msg)
 	return m, cmd
@@ -266,6 +280,46 @@ func (m *interactiveTableModel) applyFilter() {
 	}
 	m.table.SetRows(filtered)
 	m.table.SetCursor(0)
+}
+
+// initDetailViewport sets up the viewport sized for the current terminal.
+func (m *interactiveTableModel) initDetailViewport() {
+	// Content width inside the overlay (account for border + padding: 2 border + 2*2 padding = 6)
+	contentW := m.overlayWidth() - 6
+	if contentW < 20 {
+		contentW = 20
+	}
+
+	// Max viewport height (leave room for border + padding + footer)
+	maxH := m.height - 8
+	if maxH < 5 {
+		maxH = 5
+	}
+
+	// Wrap the detail text to contentW and set it in the viewport
+	wrapped := lipgloss.NewStyle().Width(contentW).Render(m.detail)
+	footer := DimStyle.Render("esc to close · ↑↓ scroll")
+	fullContent := wrapped + "\n\n" + footer
+
+	lines := strings.Count(fullContent, "\n") + 1
+	vpHeight := lines
+	if vpHeight > maxH {
+		vpHeight = maxH
+	}
+
+	m.detailVP = viewport.New(contentW, vpHeight)
+	m.detailVP.SetContent(fullContent)
+}
+
+func (m interactiveTableModel) overlayWidth() int {
+	w := m.width - 8
+	if w < 40 {
+		w = 40
+	}
+	if w > 100 {
+		w = 100
+	}
+	return w
 }
 
 func (m interactiveTableModel) View() string {
@@ -308,13 +362,12 @@ func (m interactiveTableModel) View() string {
 
 	// Detail overlay — render as a centered modal on top of the table
 	if m.detail != "" {
-		// Constrain overlay width
-		maxOverlayW := m.width - 8
-		if maxOverlayW < 40 {
-			maxOverlayW = 40
-		}
-		if maxOverlayW > 100 {
-			maxOverlayW = 100
+		w := m.overlayWidth()
+
+		// Scroll indicator
+		scrollInfo := ""
+		if m.detailVP.TotalLineCount() > m.detailVP.VisibleLineCount() {
+			scrollInfo = DimStyle.Render(fmt.Sprintf(" %d%%", int(m.detailVP.ScrollPercent()*100)))
 		}
 
 		overlay := lipgloss.NewStyle().
@@ -322,8 +375,8 @@ func (m interactiveTableModel) View() string {
 			BorderForeground(lipgloss.Color("62")).
 			Background(lipgloss.Color("235")).
 			Padding(1, 2).
-			Width(maxOverlayW).
-			Render(m.detail + "\n\n" + DimStyle.Render("esc to close"))
+			Width(w).
+			Render(m.detailVP.View() + scrollInfo)
 
 		return lipgloss.Place(
 			m.width, m.height,
