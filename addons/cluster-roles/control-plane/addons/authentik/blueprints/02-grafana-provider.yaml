@@ -9,6 +9,18 @@ context:
   client_id: !Env GRAFANA_CLIENT_ID
   client_secret: !Env GRAFANA_CLIENT_SECRET
 entries:
+  # Custom scope mapping for groups (must come before provider that references it)
+  - model: authentik_providers_oauth2.scopemapping
+    identifiers:
+      name: Grafana Groups Scope
+      scope_name: groups
+    id: groups-scope
+    attrs:
+      expression: |
+        return {
+          "groups": [group.name for group in user.ak_groups.all()],
+        }
+  
   # OAuth2/OIDC Provider
   - model: authentik_providers_oauth2.oauth2provider
     identifiers:
@@ -33,18 +45,6 @@ entries:
       access_code_validity: minutes=10
       access_token_validity: minutes=60
       refresh_token_validity: days=30
-  
-  # Custom scope mapping for groups
-  - model: authentik_providers_oauth2.scopemapping
-    identifiers:
-      name: Grafana Groups Scope
-      scope_name: groups
-    id: groups-scope
-    attrs:
-      expression: |
-        return {
-          "groups": [group.name for group in user.ak_groups.all()],
-        }
   
   # Application
   - model: authentik_core.application

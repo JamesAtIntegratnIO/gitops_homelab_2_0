@@ -35,6 +35,18 @@ data:
       client_id: !Env ARGOCD_CLIENT_ID
       client_secret: !Env ARGOCD_CLIENT_SECRET
     entries:
+      # Custom scope mapping for groups (must come before provider that references it)
+      - model: authentik_providers_oauth2.scopemapping
+        identifiers:
+          name: ArgoCD Groups Scope
+          scope_name: groups
+        id: groups-scope
+        attrs:
+          expression: |
+            return {
+              "groups": [group.name for group in user.ak_groups.all()],
+            }
+      
       # OAuth2/OIDC Provider
       - model: authentik_providers_oauth2.oauth2provider
         identifiers:
@@ -60,18 +72,6 @@ data:
           access_code_validity: minutes=10
           access_token_validity: minutes=60
           refresh_token_validity: days=30
-      
-      # Custom scope mapping for groups
-      - model: authentik_providers_oauth2.scopemapping
-        identifiers:
-          name: ArgoCD Groups Scope
-          scope_name: groups
-        id: groups-scope
-        attrs:
-          expression: |
-            return {
-              "groups": [group.name for group in user.ak_groups.all()],
-            }
       
       # Application
       - model: authentik_core.application
@@ -99,6 +99,18 @@ data:
       client_id: !Env GRAFANA_CLIENT_ID
       client_secret: !Env GRAFANA_CLIENT_SECRET
     entries:
+      # Custom scope mapping for groups (must come before provider that references it)
+      - model: authentik_providers_oauth2.scopemapping
+        identifiers:
+          name: Grafana Groups Scope
+          scope_name: groups
+        id: groups-scope
+        attrs:
+          expression: |
+            return {
+              "groups": [group.name for group in user.ak_groups.all()],
+            }
+      
       # OAuth2/OIDC Provider
       - model: authentik_providers_oauth2.oauth2provider
         identifiers:
@@ -123,18 +135,6 @@ data:
           access_code_validity: minutes=10
           access_token_validity: minutes=60
           refresh_token_validity: days=30
-      
-      # Custom scope mapping for groups
-      - model: authentik_providers_oauth2.scopemapping
-        identifiers:
-          name: Grafana Groups Scope
-          scope_name: groups
-        id: groups-scope
-        attrs:
-          expression: |
-            return {
-              "groups": [group.name for group in user.ak_groups.all()],
-            }
       
       # Application
       - model: authentik_core.application
@@ -172,6 +172,18 @@ data:
           layout: stacked
           denied_action: message_continue
       
+      # Stage 2: Password (must come before identification stage that references it)
+      - model: authentik_stages_password.passwordstage
+        identifiers:
+          name: default-authentication-password
+        id: password-stage
+        attrs:
+          backends:
+            - authentik.core.auth.InbuiltBackend
+            - authentik.core.auth.TokenBackend
+          configure_flow: null
+          failed_attempts_before_cancel: 5
+      
       # Stage 1: Identification (username/email)
       - model: authentik_stages_identification.identificationstage
         identifiers:
@@ -185,18 +197,6 @@ data:
           sources: []
           show_matched_user: true
           show_source_labels: false
-      
-      # Stage 2: Password
-      - model: authentik_stages_password.passwordstage
-        identifiers:
-          name: default-authentication-password
-        id: password-stage
-        attrs:
-          backends:
-            - authentik.core.auth.InbuiltBackend
-            - authentik.core.auth.TokenBackend
-          configure_flow: null
-          failed_attempts_before_cancel: 5
       
       # Stage 3: User Login
       - model: authentik_stages_user_login.userloginstage

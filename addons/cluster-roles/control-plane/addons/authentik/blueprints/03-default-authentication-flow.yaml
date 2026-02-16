@@ -19,6 +19,18 @@ entries:
       layout: stacked
       denied_action: message_continue
   
+  # Stage 2: Password (must come before identification stage that references it)
+  - model: authentik_stages_password.passwordstage
+    identifiers:
+      name: default-authentication-password
+    id: password-stage
+    attrs:
+      backends:
+        - authentik.core.auth.InbuiltBackend
+        - authentik.core.auth.TokenBackend
+      configure_flow: null
+      failed_attempts_before_cancel: 5
+  
   # Stage 1: Identification (username/email)
   - model: authentik_stages_identification.identificationstage
     identifiers:
@@ -32,18 +44,6 @@ entries:
       sources: []
       show_matched_user: true
       show_source_labels: false
-  
-  # Stage 2: Password
-  - model: authentik_stages_password.passwordstage
-    identifiers:
-      name: default-authentication-password
-    id: password-stage
-    attrs:
-      backends:
-        - authentik.core.auth.InbuiltBackend
-        - authentik.core.auth.TokenBackend
-      configure_flow: null
-      failed_attempts_before_cancel: 5
   
   # Stage 3: User Login
   - model: authentik_stages_user_login.userloginstage
