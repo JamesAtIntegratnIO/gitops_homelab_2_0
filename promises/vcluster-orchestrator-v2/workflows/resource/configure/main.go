@@ -274,7 +274,6 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		"enable_cert_manager":             "true",
 		"enable_external_secrets":         "true",
 		"enable_external_dns":             "true",
-		"enable_metrics_server":           "true",
 		"environment":                     config.ArgoCDEnvironment,
 	}
 	defaultClusterAnnotations := map[string]string{
