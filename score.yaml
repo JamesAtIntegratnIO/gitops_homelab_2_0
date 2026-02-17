@@ -1,0 +1,72 @@
+apiVersion: score.dev/v1b1
+
+metadata:
+  name: gitops_homelab_2_0
+  annotations:
+    # Target vCluster for deployment
+    hctl.integratn.tech/cluster: ""
+
+containers:
+  app:
+    image: "."
+    variables:
+      # Reference resource outputs with ${resources.<name>.<key>}
+      # DB_HOST: "${resources.db.host}"
+      # DB_PORT: "${resources.db.port}"
+      # DB_NAME: "${resources.db.name}"
+      # DB_USER: "${resources.db.username}"
+      # DB_PASS: "${resources.db.password}"
+      PORT: "8080"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+    livenessProbe:
+      httpGet:
+        path: /healthz
+        port: 8080
+    readinessProbe:
+      httpGet:
+        path: /readyz
+        port: 8080
+
+service:
+  ports:
+    http:
+      port: 8080
+      protocol: TCP
+
+resources:
+  # Uncomment resources as needed:
+  #
+  # PostgreSQL database (credentials from 1Password via ExternalSecret)
+  # db:
+  #   type: postgres
+  #   class: shared
+  #
+  # HTTP route (creates Gateway API HTTPRoute + TLS Certificate)
+  # web:
+  #   type: route
+  #   params:
+  #     host: gitops_homelab_2_0.cluster.integratn.tech
+  #     path: /
+  #     port: 8080
+  #
+  # Persistent volume (NFS via democratic-csi)
+  # data:
+  #   type: volume
+  #   params:
+  #     size: 1Gi
+  #
+  # Redis (credentials from 1Password via ExternalSecret)
+  # cache:
+  #   type: redis
+  #
+  # DNS record (handled by external-dns)
+  # dns:
+  #   type: dns
+  #   params:
+  #     host: gitops_homelab_2_0.cluster.integratn.tech
