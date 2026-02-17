@@ -298,8 +298,7 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 		Kind:       "Job",
 		Metadata:   resourceMeta(config.SyncJobName, config.TargetNamespace, labels, nil),
 		Spec: JobSpec{
-			BackoffLimit:            3,
-			TTLSecondsAfterFinished: 600,
+			BackoffLimit: 3,
 			Template: PodTemplateSpec{
 				Metadata: &ObjectMeta{
 					Labels: map[string]string{
