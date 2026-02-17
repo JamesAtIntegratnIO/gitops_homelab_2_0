@@ -531,33 +531,6 @@ gateway-api-crds:
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
 
-nginx-gateway-fabric-crds:
-  enabled: true
-  type: manifest
-  namespace: kube-system
-  project: platform-services
-  defaultVersion: v2.2.2
-  annotationsApp:
-    argocd.argoproj.io/sync-wave: "0"
-  selector:
-    matchExpressions:
-      - key: enable_nginx_gateway_fabric
-        operator: In
-        values: ['true']
-  generatorValues:
-    nginxGatewayFabricRevision: v2.2.2
-  manifestSource:
-    repoURL: https://github.com/nginx/nginx-gateway-fabric.git
-    path: config/crd/bases
-    directory:
-      recurse: true
-    targetRevisionFromValue: nginxGatewayFabricRevision
-  syncPolicy:
-    automated: {}
-    syncOptions:
-      - ApplyOutOfSyncOnly=true
-      - ServerSideApply=true
-
 nginx-gateway-fabric:
   enabled: true
   namespace: nginx-gateway
@@ -566,7 +539,6 @@ nginx-gateway-fabric:
   project: platform-services
   chartRepository: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
   defaultVersion: "2.2.2"
-  helmSkipCrds: true
   annotationsApp:
     argocd.argoproj.io/sync-wave: "10"
   selector:
