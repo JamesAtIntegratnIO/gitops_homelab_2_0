@@ -265,6 +265,107 @@ func DiagnoseVCluster(ctx context.Context, client *kube.Client, namespace, name 
 		})
 	}
 
+	// Step 7: Check pod resource allocation (memory)
+	podResources, err := client.GetPodResourceInfo(ctx, targetNs, "app=vcluster")
+	if err == nil && len(podResources) > 0 {
+		for _, pr := range podResources {
+			status := StatusOK
+			details := ""
+			if pr.Restarts > 0 {
+				status = StatusWarning
+				details = fmt.Sprintf("%d restart(s) — may indicate OOM or crash-loop", pr.Restarts)
+			}
+			result.Steps = append(result.Steps, DiagnosticStep{
+				Name:    "Resources",
+				Status:  status,
+				Message: fmt.Sprintf("%s: mem req=%s lim=%s, cpu req=%s lim=%s, restarts=%d",
+					pr.Name, pr.MemoryRequest, pr.MemoryLimit, pr.CPURequest, pr.CPULimit, pr.Restarts),
+				Details: details,
+			})
+		}
+	} else if err == nil && len(podResources) == 0 {
+		// Try without label selector for broader match
+		podResources, err = client.GetPodResourceInfo(ctx, targetNs, "")
+		if err == nil {
+			for _, pr := range podResources {
+				if !strings.Contains(pr.Name, name) && !strings.Contains(pr.Name, "vcluster") {
+					continue
+				}
+				status := StatusOK
+				details := ""
+				if pr.Restarts > 0 {
+					status = StatusWarning
+					details = fmt.Sprintf("%d restart(s) — may indicate OOM or crash-loop", pr.Restarts)
+				}
+				result.Steps = append(result.Steps, DiagnosticStep{
+					Name:    "Resources",
+					Status:  status,
+					Message: fmt.Sprintf("%s: mem req=%s lim=%s, restarts=%d",
+						pr.Name, pr.MemoryRequest, pr.MemoryLimit, pr.Restarts),
+					Details: details,
+				})
+			}
+		}
+	}
+
+	// Step 8: Check sub-app health (ArgoCD apps targeting this vcluster)
+	subApps, err := client.ListArgoAppsForCluster(ctx, "argocd", name)
+	if err == nil && len(subApps) > 0 {
+		healthyApps, unhealthyApps, noSelfHealApps := 0, 0, 0
+		var unhealthyDetails []string
+		var selfHealWarnings []string
+
+		for _, app := range subApps {
+			if app.SyncStatus == "Synced" && app.HealthStatus == "Healthy" {
+				healthyApps++
+			} else {
+				unhealthyApps++
+				detail := fmt.Sprintf("%s: %s/%s", app.Name, app.SyncStatus, app.HealthStatus)
+				if app.OpPhase == "Failed" || app.OpPhase == "Error" {
+					detail += fmt.Sprintf(" (%s, retries:%d)", app.OpPhase, app.RetryCount)
+				}
+				unhealthyDetails = append(unhealthyDetails, detail)
+			}
+			if !app.HasSelfHeal {
+				noSelfHealApps++
+				selfHealWarnings = append(selfHealWarnings, app.Name)
+			}
+		}
+
+		subAppStatus := StatusOK
+		subAppMsg := fmt.Sprintf("%d/%d healthy", healthyApps, len(subApps))
+		subAppDetails := ""
+
+		if unhealthyApps > 0 {
+			subAppStatus = StatusWarning
+			subAppMsg += fmt.Sprintf(", %d unhealthy", unhealthyApps)
+			subAppDetails = strings.Join(unhealthyDetails, "; ")
+		}
+
+		result.Steps = append(result.Steps, DiagnosticStep{
+			Name:    "Sub-Apps",
+			Status:  subAppStatus,
+			Message: subAppMsg,
+			Details: subAppDetails,
+		})
+
+		// Step 9: selfHeal policy check
+		if noSelfHealApps > 0 {
+			result.Steps = append(result.Steps, DiagnosticStep{
+				Name:    "SelfHeal",
+				Status:  StatusWarning,
+				Message: fmt.Sprintf("%d/%d apps missing selfHeal policy", noSelfHealApps, len(subApps)),
+				Details: "Apps without selfHeal won't auto-recover from sync failures: " + strings.Join(selfHealWarnings, ", "),
+			})
+		} else {
+			result.Steps = append(result.Steps, DiagnosticStep{
+				Name:    "SelfHeal",
+				Status:  StatusOK,
+				Message: fmt.Sprintf("All %d apps have selfHeal enabled", len(subApps)),
+			})
+		}
+	}
+
 	return result, nil
 }
 

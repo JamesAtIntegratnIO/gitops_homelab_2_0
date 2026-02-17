@@ -19,6 +19,8 @@ func NewCmd() *cobra.Command {
 	cmd.AddCommand(newKubeconfigCmd())
 	cmd.AddCommand(newDeleteCmd())
 	cmd.AddCommand(newConnectCmd())
+	cmd.AddCommand(newAppsCmd())
+	cmd.AddCommand(newSyncCmd())
 
 	return cmd
 }

@@ -106,11 +106,11 @@ type ResourceMetadata struct {
 var Presets = map[string]PresetConfig{
 	"dev": {
 		Replicas: 1,
-		Memory:   "512Mi",
+		Memory:   "768Mi",
 		BackingStore: nil,
 		Resources: &ResourceRequirements{
-			Requests: map[string]string{"memory": "512Mi"},
-			Limits:   map[string]string{"memory": "512Mi"},
+			Requests: map[string]string{"memory": "768Mi"},
+			Limits:   map[string]string{"memory": "1536Mi"},
 		},
 	},
 	"prod": {

@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -223,6 +224,220 @@ func (c *Client) SetReconcileAnnotation(ctx context.Context, gvr schema.GroupVer
 		return fmt.Errorf("updating annotation: %w", err)
 	}
 	return nil
+}
+
+// SetManualReconciliationLabel sets the kratix.io/manual-reconciliation=true label to trigger pipeline re-execution.
+func (c *Client) SetManualReconciliationLabel(ctx context.Context, gvr schema.GroupVersionResource, namespace, name string) error {
+	obj, err := c.Dynamic.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("getting resource: %w", err)
+	}
+
+	labels := obj.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels["kratix.io/manual-reconciliation"] = "true"
+	obj.SetLabels(labels)
+
+	_, err = c.Dynamic.Resource(gvr).Namespace(namespace).Update(ctx, obj, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("updating label: %w", err)
+	}
+	return nil
+}
+
+// ArgoAppInfo holds parsed ArgoCD application status for display.
+type ArgoAppInfo struct {
+	Name         string
+	SyncStatus   string
+	HealthStatus string
+	OpPhase      string
+	RetryCount   int64
+	OpStartedAt  string
+	Message      string
+	HasSelfHeal  bool
+	DestName     string
+}
+
+// ListArgoAppsForCluster returns all ArgoCD applications targeting a specific cluster destination.
+func (c *Client) ListArgoAppsForCluster(ctx context.Context, namespace, clusterName string) ([]ArgoAppInfo, error) {
+	apps, err := c.ListArgoApps(ctx, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []ArgoAppInfo
+	for _, app := range apps {
+		destName, _, _ := unstructuredNestedString(app.Object, "spec", "destination", "name")
+		if destName != clusterName {
+			continue
+		}
+
+		info := ArgoAppInfo{
+			Name:     app.GetName(),
+			DestName: destName,
+		}
+
+		info.SyncStatus, _, _ = unstructuredNestedString(app.Object, "status", "sync", "status")
+		info.HealthStatus, _, _ = unstructuredNestedString(app.Object, "status", "health", "status")
+
+		// Check operation state
+		info.OpPhase, _, _ = unstructuredNestedString(app.Object, "status", "operationState", "phase")
+		info.OpStartedAt, _, _ = unstructuredNestedString(app.Object, "status", "operationState", "startedAt")
+		info.Message, _, _ = unstructuredNestedString(app.Object, "status", "operationState", "message")
+
+		// Check retry count
+		retryVal, found, _ := nestedFieldInt64(app.Object, "status", "operationState", "retryCount")
+		if found {
+			info.RetryCount = retryVal
+		}
+
+		// Check selfHeal policy
+		selfHeal, found, _ := nestedFieldBool(app.Object, "spec", "syncPolicy", "automated", "selfHeal")
+		info.HasSelfHeal = found && selfHeal
+
+		result = append(result, info)
+	}
+	return result, nil
+}
+
+// ClearArgoAppOperationState removes the operationState from an ArgoCD application.
+func (c *Client) ClearArgoAppOperationState(ctx context.Context, namespace, name string) error {
+	patch := []byte(`[{"op": "remove", "path": "/status/operationState"}]`)
+	_, err := c.Dynamic.Resource(ArgoCDApplicationGVR).Namespace(namespace).Patch(
+		ctx, name, types.JSONPatchType, patch, metav1.PatchOptions{}, "status",
+	)
+	if err != nil {
+		return fmt.Errorf("clearing operation state on %s: %w", name, err)
+	}
+	return nil
+}
+
+// TriggerArgoAppSync triggers a sync operation on an ArgoCD application.
+func (c *Client) TriggerArgoAppSync(ctx context.Context, namespace, name string) error {
+	// Get current app to read its target revision
+	app, err := c.Dynamic.Resource(ArgoCDApplicationGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("getting app %s: %w", name, err)
+	}
+
+	revision, _, _ := unstructuredNestedString(app.Object, "spec", "source", "targetRevision")
+
+	patch := fmt.Sprintf(`{"operation":{"initiatedBy":{"username":"hctl"},"sync":{"revision":"%s"}}}`, revision)
+	_, err = c.Dynamic.Resource(ArgoCDApplicationGVR).Namespace(namespace).Patch(
+		ctx, name, types.MergePatchType, []byte(patch), metav1.PatchOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("triggering sync on %s: %w", name, err)
+	}
+	return nil
+}
+
+// GetPodResourceInfo returns resource allocation info for pods matching a selector.
+func (c *Client) GetPodResourceInfo(ctx context.Context, namespace, labelSelector string) ([]PodResourceInfo, error) {
+	pods, err := c.Clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing pods: %w", err)
+	}
+
+	var result []PodResourceInfo
+	for _, p := range pods.Items {
+		info := PodResourceInfo{
+			Name:      p.Name,
+			Namespace: p.Namespace,
+			Phase:     string(p.Status.Phase),
+		}
+
+		// Get resource requests/limits from spec
+		for _, container := range p.Spec.Containers {
+			if req, ok := container.Resources.Requests["memory"]; ok {
+				info.MemoryRequest = req.String()
+			}
+			if lim, ok := container.Resources.Limits["memory"]; ok {
+				info.MemoryLimit = lim.String()
+			}
+			if req, ok := container.Resources.Requests["cpu"]; ok {
+				info.CPURequest = req.String()
+			}
+			if lim, ok := container.Resources.Limits["cpu"]; ok {
+				info.CPULimit = lim.String()
+			}
+		}
+
+		// Restart count
+		for _, cs := range p.Status.ContainerStatuses {
+			info.Restarts += int(cs.RestartCount)
+		}
+
+		result = append(result, info)
+	}
+	return result, nil
+}
+
+// PodResourceInfo holds pod resource allocation info.
+type PodResourceInfo struct {
+	Name          string
+	Namespace     string
+	Phase         string
+	MemoryRequest string
+	MemoryLimit   string
+	CPURequest    string
+	CPULimit      string
+	Restarts      int
+}
+
+// helper functions for nested field access on unstructured objects
+func unstructuredNestedString(obj map[string]interface{}, fields ...string) (string, bool, error) {
+	val, found, err := nestedFieldGeneric(obj, fields...)
+	if !found || err != nil {
+		return "", found, err
+	}
+	s, ok := val.(string)
+	return s, ok, nil
+}
+
+func nestedFieldInt64(obj map[string]interface{}, fields ...string) (int64, bool, error) {
+	val, found, err := nestedFieldGeneric(obj, fields...)
+	if !found || err != nil {
+		return 0, found, err
+	}
+	switch v := val.(type) {
+	case int64:
+		return v, true, nil
+	case float64:
+		return int64(v), true, nil
+	case int:
+		return int64(v), true, nil
+	default:
+		return 0, false, nil
+	}
+}
+
+func nestedFieldBool(obj map[string]interface{}, fields ...string) (bool, bool, error) {
+	val, found, err := nestedFieldGeneric(obj, fields...)
+	if !found || err != nil {
+		return false, found, err
+	}
+	b, ok := val.(bool)
+	return b, ok, nil
+}
+
+func nestedFieldGeneric(obj map[string]interface{}, fields ...string) (interface{}, bool, error) {
+	var current interface{} = obj
+	for _, f := range fields {
+		m, ok := current.(map[string]interface{})
+		if !ok {
+			return nil, false, nil
+		}
+		current, ok = m[f]
+		if !ok {
+			return nil, false, nil
+		}
+	}
+	return current, true, nil
 }
 
 // ListPods returns pods matching a label selector in a namespace.

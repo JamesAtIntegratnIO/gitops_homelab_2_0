@@ -288,13 +288,12 @@ func runReconcile(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	timestamp := git.ReconcileAnnotation()
-	err = client.SetReconcileAnnotation(ctx, kube.VClusterOrchestratorV2GVR, cfg.Platform.PlatformNamespace, name, timestamp)
+	err = client.SetManualReconciliationLabel(ctx, kube.VClusterOrchestratorV2GVR, cfg.Platform.PlatformNamespace, name)
 	if err != nil {
-		return fmt.Errorf("setting reconcile annotation: %w", err)
+		return fmt.Errorf("setting reconciliation label: %w", err)
 	}
 
-	fmt.Printf("%s Set reconcile-at=%s on %s\n", tui.SuccessStyle.Render("✓"), timestamp, name)
+	fmt.Printf("%s Set kratix.io/manual-reconciliation=true on %s\n", tui.SuccessStyle.Render("✓"), name)
 	return nil
 }
 
