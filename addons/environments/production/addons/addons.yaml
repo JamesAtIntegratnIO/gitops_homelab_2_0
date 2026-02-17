@@ -213,7 +213,7 @@ aws-load-balancer-controller:
       kind: ValidatingWebhookConfiguration
       jqPathExpressions: ['.webhooks[].clientConfig.caBundle']
 metrics-server:
-  enabled: false
+  enabled: true
   namespace: kube-system
   project: platform-services
   defaultVersion: "3.11.0"

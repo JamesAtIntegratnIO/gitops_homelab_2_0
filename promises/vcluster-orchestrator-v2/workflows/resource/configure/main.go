@@ -274,6 +274,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		"enable_cert_manager":             "true",
 		"enable_external_secrets":         "true",
 		"enable_external_dns":             "true",
+		"enable_metrics_server":           "true",
 		"environment":                     config.ArgoCDEnvironment,
 	}
 	defaultClusterAnnotations := map[string]string{
@@ -497,7 +498,7 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 					},
 				},
 			},
-			MetricsServer: EnabledFlag{Enabled: false},
+			MetricsServer: EnabledFlag{Enabled: true},
 			CertManager: IntegrationCertManager{
 				Enabled: true,
 				Sync: CMSyncConfig{

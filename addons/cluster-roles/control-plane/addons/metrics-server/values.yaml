@@ -1,0 +1,5 @@
+# metrics-server values for Talos Linux clusters
+# Talos uses self-signed kubelet serving certificates, so we need
+# --kubelet-insecure-tls to allow metrics-server to scrape kubelets
+args:
+  - --kubelet-insecure-tls
