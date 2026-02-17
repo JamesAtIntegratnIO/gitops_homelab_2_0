@@ -597,9 +597,9 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 		"dev": {
 			Replicas:           1,
 			CPURequest:         "200m",
-			MemoryRequest:      "512Mi",
+			MemoryRequest:      "768Mi",
 			CPULimit:           "1000m",
-			MemoryLimit:        "1Gi",
+			MemoryLimit:        "1536Mi",
 			PersistenceEnabled: false,
 			PersistenceSize:    "5Gi",
 			CorednsReplicas:    1,

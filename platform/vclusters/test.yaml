@@ -10,11 +10,6 @@ spec:
     vcluster:
         preset: dev
         replicas: 1
-        resources:
-            requests:
-                memory: 512Mi
-            limits:
-                memory: 512Mi
     exposure:
         hostname: test.cluster.integratn.tech
         apiPort: 443
