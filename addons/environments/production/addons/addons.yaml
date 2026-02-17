@@ -142,12 +142,13 @@ route53-chart:
         eks.amazonaws.com/role-arn: '{{default "" (index .metadata.annotations "ack_route53_controller_role_arn")}}'
 external-secrets:
   enabled: true
-  enableAckPodIdentity: false
   namespace: external-secrets
   chartName: external-secrets
   project: platform-services
   defaultVersion: "0.10.3"
   chartRepository: "https://charts.external-secrets.io"
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "-3"
   selector:
     matchExpressions:
       - key: enable_external_secrets
@@ -157,8 +158,6 @@ external-secrets:
     installCRDs: true
     serviceAccount:
       name: "external-secrets-sa"
-      annotations:
-        eks.amazonaws.com/role-arn: '{{default "" (index .metadata.annotations "external_secrets_iam_role_arn")}}'
     extraObjects:
       - apiVersion: external-secrets.io/v1beta1
         kind: ClusterSecretStore
@@ -180,7 +179,7 @@ external-secrets:
                     key: token
   syncPolicy:
     automated:
-      selfHeal: false
+      selfHeal: true
       allowEmpty: true
       prune: true
     retry:
