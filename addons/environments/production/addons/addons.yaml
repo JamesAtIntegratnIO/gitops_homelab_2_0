@@ -536,15 +536,26 @@ nginx-gateway-fabric-crds:
   type: manifest
   namespace: kube-system
   project: platform-services
-  path: addons/environments/production/addons/nginx-gateway-fabric-crds
+  defaultVersion: v2.2.2
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "0"
   selector:
     matchExpressions:
       - key: enable_nginx_gateway_fabric
         operator: In
         values: ['true']
+  generatorValues:
+    nginxGatewayFabricRevision: v2.2.2
+  manifestSource:
+    repoURL: https://github.com/nginx/nginx-gateway-fabric.git
+    path: config/crd/bases
+    directory:
+      recurse: true
+    targetRevisionFromValue: nginxGatewayFabricRevision
   syncPolicy:
     automated: {}
     syncOptions:
+      - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
 
 nginx-gateway-fabric:
