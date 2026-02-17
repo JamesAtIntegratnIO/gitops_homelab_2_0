@@ -142,6 +142,7 @@ argocd-vcluster:
                 syncOptions:
                   - CreateNamespace=true
 
+  # Remove ServerSideApply - incompatible with ArgoCD chart's PreSync hooks (--force + --server-side)
   syncPolicy:
     automated: {}
     retry:
@@ -152,7 +153,6 @@ argocd-vcluster:
         maxDuration: 5m
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
       - SkipDryRunOnMissingResource=true
 
 external-dns-vcluster:
