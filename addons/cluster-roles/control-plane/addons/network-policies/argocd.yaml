@@ -90,15 +90,11 @@ spec:
           port: 5556
     # OIDC provider (Authentik) via gateway LB for token verification
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: nginx-gateway
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: nginx-gateway-fabric
+        - ipBlock:
+            cidr: 10.0.4.205/32
       ports:
         - protocol: TCP
-          port: 8443
+          port: 443
 ---
 # Application Controller: reconciles desired vs live state
 apiVersion: networking.k8s.io/v1
