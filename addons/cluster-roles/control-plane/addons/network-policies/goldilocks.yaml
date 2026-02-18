@@ -1,5 +1,11 @@
 # NetworkPolicies for goldilocks namespace
 ---
+# Create the namespace so the default-deny policy exists before Goldilocks app syncs
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: goldilocks
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
