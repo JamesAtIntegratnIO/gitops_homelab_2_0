@@ -107,76 +107,15 @@ This plan captures the current maturity of the platform across seven production 
 
 ---
 
-## Phase 2: Backup & Recovery
+## Phase 2: Backup & Recovery — SKIPPED
 
-**Goal:** Implement automated backup/restore so the DR plan isn't just documentation.
-**Effort:** Medium | **Impact:** High
-**Timeline:** 1-2 sessions
+**Reason:** All PVs persist on the NFS server, and the cluster is fully declarative via GitOps. The NFS server provides data persistence, and the cluster can be rebuilt from git. Velero adds complexity without proportional value for this homelab setup.
 
-### 2.1 Deploy Velero
-
-**Current State:** Documented as "Future Implementation" in [docs/operations.md](../docs/operations.md). No backup tool deployed.
-
-**Steps:**
-1. Choose storage backend (options for homelab):
-   - **MinIO** (self-hosted S3-compatible) — run on NFS-backed PV
-   - **Backblaze B2** — cheap off-site ($0.005/GB/month)
-   - **NFS direct** — Velero file-system backup via Restic/Kopia to NFS share
-2. Add Velero as a control-plane addon:
-   ```
-   addons/cluster-roles/control-plane/addons/velero/
-   ├── values.yaml
-   ```
-3. Configure backup schedules:
-   ```yaml
-   schedules:
-     daily-cluster:
-       schedule: "0 2 * * *"          # 2am daily
-       template:
-         includedNamespaces: ["*"]
-         excludedNamespaces: ["kube-system", "kube-public"]
-         snapshotMoveData: true
-         ttl: 168h                     # 7 day retention
-     weekly-full:
-       schedule: "0 3 * * 0"          # 3am Sunday
-       template:
-         includedNamespaces: ["*"]
-         ttl: 720h                     # 30 day retention
-   ```
-4. Store Velero credentials in 1Password → ExternalSecret (never in git)
-5. Test restore to a scratch namespace
-6. Add PrometheusRule for backup failure alerting:
-   ```yaml
-   - alert: VeleroBackupFailed
-     expr: velero_backup_failure_total > velero_backup_success_total
-     for: 1h
-     labels:
-       severity: critical
-   ```
-
-**Acceptance Criteria:**
-- [ ] Velero deployed and synced via ArgoCD
-- [ ] Daily + weekly scheduled backups running
-- [ ] Successful test restore verified
-- [ ] Backup failure alert configured
-- [ ] DR runbook in operations.md updated with restore commands
-
-### 2.2 Backup etcd Snapshots
-
-**Current State:** Talos manages etcd but no scheduled snapshot export.
-
-**Steps:**
-1. Create a CronJob or Talos scheduled task to export etcd snapshots:
-   ```bash
-   talosctl etcd snapshot /tmp/etcd-snapshot.db --nodes 10.0.4.101
-   ```
-2. Upload snapshots to the same backup storage as Velero
-3. Document restore procedure in operations.md
-
-**Acceptance Criteria:**
-- [ ] Automated etcd snapshot every 6 hours
-- [ ] Snapshots stored off-cluster
-- [ ] Restore procedure documented and tested
+**Mitigations already in place:**
+- PV data survives cluster rebuilds (NFS-backed storage classes)
+- All cluster state is in git (ArgoCD + GitOps)
+- Talos machine configs are versioned in git
+- etcd can be rebuilt from Talos bootstrap
 
 ---
 
