@@ -1,0 +1,45 @@
+# Kyverno ClusterPolicy: Disallow privileged containers
+# Privileged containers have full access to the host — only Cilium needs this.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged-containers
+  annotations:
+    policies.kyverno.io/title: Disallow Privileged Containers
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Privileged containers have unrestricted host access including all
+      devices and kernel capabilities. This policy blocks pods with
+      securityContext.privileged set to true.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: deny-privileged-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          # Cilium requires privileged init container for BPF filesystem mount
+          - resources:
+              namespaces:
+                - kube-system
+      validate:
+        message: >-
+          Privileged containers are not allowed. Container {{request.object.spec.containers[].name}}
+          in namespace {{request.namespace}} is running in privileged mode.
+        pattern:
+          spec:
+            =(ephemeralContainers):
+              - =(securityContext):
+                  =(privileged): "false"
+            =(initContainers):
+              - =(securityContext):
+                  =(privileged): "false"
+            containers:
+              - =(securityContext):
+                  =(privileged): "false"

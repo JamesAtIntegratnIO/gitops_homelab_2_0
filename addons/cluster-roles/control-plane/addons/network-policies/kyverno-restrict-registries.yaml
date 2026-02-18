@@ -1,0 +1,54 @@
+# Kyverno ClusterPolicy: Restrict image registries (Audit mode)
+# Audit-only — reports violations without blocking, allowing discovery of
+# any unexpected registries before switching to Enforce.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registries
+  annotations:
+    policies.kyverno.io/title: Restrict Image Registries
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Only images from approved registries should be deployed to the cluster.
+      This policy audits container images to ensure they come from known,
+      trusted sources.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: validate-registries
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+      validate:
+        message: >-
+          Image '{{request.object.spec.containers[].image}}' is from an unapproved
+          registry. Allowed registries: docker.io, ghcr.io, quay.io,
+          registry.k8s.io, mirror.gcr.io, ecr-public.aws.com, lscr.io,
+          syntasso-community.docker.reo.dev
+        foreach:
+          - list: "request.object.spec.[initContainers, ephemeralContainers, containers][]"
+            deny:
+              conditions:
+                all:
+                  - key: "{{ element.image }}"
+                    operator: AnyNotIn
+                    value:
+                      - "docker.io/*"
+                      - "ghcr.io/*"
+                      - "quay.io/*"
+                      - "registry.k8s.io/*"
+                      - "mirror.gcr.io/*"
+                      - "ecr-public.aws.com/*"
+                      - "lscr.io/*"
+                      - "syntasso-community.docker.reo.dev/*"

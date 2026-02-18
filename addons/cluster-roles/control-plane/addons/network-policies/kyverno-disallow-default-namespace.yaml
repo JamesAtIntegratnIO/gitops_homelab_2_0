@@ -1,0 +1,58 @@
+# Kyverno ClusterPolicy: Disallow workloads in default namespace
+# The default namespace should not contain application workloads.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-default-namespace
+  annotations:
+    policies.kyverno.io/title: Disallow Default Namespace
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Kubernetes best practices recommend not using the default namespace for
+      application workloads. This policy blocks Pods, Deployments,
+      StatefulSets, DaemonSets, Jobs, and CronJobs in the default namespace.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: deny-default-namespace
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+                - Deployment
+                - StatefulSet
+                - DaemonSet
+                - Job
+                - CronJob
+              namespaces:
+                - default
+      exclude:
+        any:
+          # Allow Kratix promise pipeline resources in default namespace
+          - resources:
+              kinds:
+                - Pod
+                - Job
+              selector:
+                matchExpressions:
+                  - key: kratix-promise-id
+                    operator: Exists
+          # Allow Kratix-managed resources (promise installations)
+          - resources:
+              kinds:
+                - Pod
+                - Job
+              selector:
+                matchExpressions:
+                  - key: app.kubernetes.io/managed-by
+                    operator: In
+                    values:
+                      - kratix
+      validate:
+        message: >-
+          Deploying workloads to the 'default' namespace is not allowed.
+          Please create a dedicated namespace for your application.
+        deny: {}

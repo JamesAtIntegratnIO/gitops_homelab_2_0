@@ -1,5 +1,5 @@
-# Kyverno ClusterPolicy: Audit namespaces missing a default-deny NetworkPolicy
-# This runs in Audit mode — no enforcement, only reports violations
+# Kyverno ClusterPolicy: Enforce namespaces have a default-deny NetworkPolicy
+# Switched from Audit to Enforce as part of Phase 1.3
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -10,10 +10,10 @@ metadata:
     policies.kyverno.io/severity: medium
     policies.kyverno.io/description: >-
       Every namespace should have a default-deny NetworkPolicy that blocks
-      all ingress and egress by default. This policy audits namespaces for
-      compliance without blocking anything.
+      all ingress and egress by default. This policy blocks namespace creation
+      if no default-deny NetworkPolicy exists.
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   background: true
   rules:
     - name: check-default-deny-exists
@@ -29,6 +29,8 @@ spec:
                 - kube-public
                 - kube-node-lease
                 - kube-system
+                - cilium-secrets
+                - kratix-worker-system
       context:
         - name: netpols
           apiCall:
