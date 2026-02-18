@@ -161,7 +161,7 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-    # Control plane pod for config reload
+    # Control plane pod for config reload (pod listens on 8443, service maps 443→8443)
     - to:
         - podSelector:
             matchLabels:
@@ -169,6 +169,8 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+        - protocol: TCP
+          port: 8443
 ---
 # nginx-gateway-fabric control plane: watches Gateway API resources, configures nginx
 apiVersion: networking.k8s.io/v1
@@ -184,7 +186,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Data plane requests config
+    # Data plane requests config (pod listens on 8443, service maps 443→8443)
     - from:
         - podSelector:
             matchLabels:
@@ -192,6 +194,8 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+        - protocol: TCP
+          port: 8443
     # Prometheus metrics scraping
     - from:
         - namespaceSelector:
