@@ -1,0 +1,44 @@
+# Kyverno ClusterPolicy: Auto-generate default-deny NetworkPolicy for new namespaces
+# This ensures every namespace gets a baseline network isolation policy automatically.
+# The companion audit policy (require-default-deny-netpol) reports compliance status.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: generate-default-deny-netpol
+  annotations:
+    policies.kyverno.io/title: Generate Default Deny NetworkPolicy
+    policies.kyverno.io/category: Networking
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Automatically creates a default-deny-all NetworkPolicy in every new
+      namespace. This blocks all ingress and egress by default, requiring
+      explicit allow rules for legitimate traffic.
+spec:
+  rules:
+    - name: generate-default-deny
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      exclude:
+        any:
+          - resources:
+              names:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - cilium-secrets
+                - kratix-worker-system
+      generate:
+        synchronize: true
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        name: default-deny-all
+        namespace: "{{request.object.metadata.name}}"
+        data:
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Ingress
+              - Egress

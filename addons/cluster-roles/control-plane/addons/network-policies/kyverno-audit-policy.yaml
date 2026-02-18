@@ -1,5 +1,7 @@
-# Kyverno ClusterPolicy: Enforce namespaces have a default-deny NetworkPolicy
-# Switched from Audit to Enforce as part of Phase 1.3
+# Kyverno ClusterPolicy: Audit namespaces for default-deny NetworkPolicy
+# Cannot use Enforce: namespace must exist before its NetworkPolicy can be created,
+# but this policy blocks namespace creation without a pre-existing NetworkPolicy.
+# A companion generate policy auto-creates default-deny for new namespaces.
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -13,7 +15,7 @@ metadata:
       all ingress and egress by default. This policy blocks namespace creation
       if no default-deny NetworkPolicy exists.
 spec:
-  validationFailureAction: Enforce
+  validationFailureAction: Audit
   background: true
   rules:
     - name: check-default-deny-exists
