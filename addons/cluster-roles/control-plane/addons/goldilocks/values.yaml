@@ -18,6 +18,8 @@ controller:
     on-by-default: "true"
     # Exclude system namespaces that shouldn't be auto-tuned
     exclude-namespaces: "kube-system,kube-public,kube-node-lease,goldilocks"
+    # Set VPA update mode to Auto so VPA actively adjusts resources
+    vpa-update-mode: "Auto"
   resources:
     requests:
       cpu: 25m
