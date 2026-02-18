@@ -16,7 +16,7 @@ This plan captures the current maturity of the platform across seven production 
 | Infra Lifecycling | Moderate | Terraform/OpenTofu, DR plan documented, GitOps rollback | Velero not deployed, limited autoscaling |
 | Change Management | Moderate | ArgoCD sync waves, selfHeal, retry policies, CI secret scanning | No progressive delivery, no approval gates, minimal CI |
 | Team Readiness | Strong | 12 docs (1000s of lines), hctl CLI, Matrix alerts with Grafana links | Single notification channel, no structured playbooks |
-| Cost Controls | Weak | NFS SSD/HDD tiers | No ResourceQuota, LimitRange, or cost monitoring |
+| Cost Controls | Moderate | NFS SSD/HDD tiers, VPA Auto mode, Goldilocks dashboard | No ResourceQuota, LimitRange, or cost monitoring |
 | Cultural Readiness | Strong | Git-first discipline, platform engineering patterns (Kratix) | — |
 
 ---
@@ -116,6 +116,53 @@ This plan captures the current maturity of the platform across seven production 
 - All cluster state is in git (ArgoCD + GitOps)
 - Talos machine configs are versioned in git
 - etcd can be rebuilt from Talos bootstrap
+
+---
+
+## Phase 2.5: Resource Right-Sizing with Goldilocks + VPA — COMPLETE
+
+**Goal:** Deploy VPA in Auto mode with Goldilocks dashboard for resource right-sizing across all workloads. ArgoCD configured to ignore VPA-managed resource drift.
+**Effort:** Low-Medium | **Impact:** High
+**Timeline:** Completed February 18, 2026
+
+### What Was Deployed
+
+- **Goldilocks** (chart 10.2.0, app v4.14.1) — creates VPA objects for every workload, provides web dashboard
+- **VPA** (all 3 components via subchart):
+  - **Recommender**: Calculates resource recommendations from metrics
+  - **Updater**: Evicts pods when resources need adjustment
+  - **Admission Controller**: Mutates pod resource requests/limits on creation
+
+### Configuration
+
+- **VPA Auto mode**: All namespaces labeled `goldilocks.fairwinds.com/vpa-update-mode=auto` (except kube-system, kube-public, kube-node-lease, goldilocks)
+- **On-by-default**: Controller monitors all namespaces without requiring opt-in labels
+- **ArgoCD ignoreDifferences**: Global `resource.customizations.ignoreDifferences` configured for Deployment, StatefulSet, DaemonSet `.spec.template.spec.containers[].resources` and `.spec.template.spec.initContainers[]?.resources`
+- **Kyverno mutate policy**: `mutate-ns-vpa-auto-mode` automatically labels new namespaces for VPA Auto mode
+- **Network policies**: default-deny + allow-dns + allow-kube-api + allow-dashboard-ingress + allow-vpa-webhook
+- **Dashboard**: `https://goldilocks.cluster.integratn.tech/` via Gateway API HTTPRoute
+
+### Key Files
+
+- [addons/cluster-roles/control-plane/addons/goldilocks/values.yaml](../addons/cluster-roles/control-plane/addons/goldilocks/values.yaml) — Helm values
+- [addons/cluster-roles/control-plane/addons/network-policies/goldilocks.yaml](../addons/cluster-roles/control-plane/addons/network-policies/goldilocks.yaml) — Network policies
+- [addons/cluster-roles/control-plane/addons/network-policies/kyverno-mutate-vpa-auto.yaml](../addons/cluster-roles/control-plane/addons/network-policies/kyverno-mutate-vpa-auto.yaml) — Auto-label namespaces
+- [addons/clusters/the-cluster/addons/argo-cd/values.yaml](../addons/clusters/the-cluster/addons/argo-cd/values.yaml) — ignoreDifferences config
+
+### Issues Encountered & Resolved
+
+1. **Kyverno enforce chicken-and-egg**: `require-default-deny-netpol` blocked namespace creation (switched to Audit + generate policy)
+2. **Dashboard CrashLoop**: `--exclude-namespaces` is controller-only flag, not supported by dashboard binary
+3. **VPA update mode**: No `--vpa-update-mode` controller flag exists — uses namespace label instead
+4. **nginx-gateway connectivity**: Controller pod listens on 8443 but NetworkPolicy specified 443 — needed both ports for Cilium DNAT handling
+
+**Acceptance Criteria:**
+- [x] 107 VPA objects created across all namespaces in Auto mode
+- [x] VPA recommender generating resource recommendations
+- [x] VPA updater + admission controller actively adjusting resources
+- [x] ArgoCD not reverting VPA-managed resource changes
+- [x] Goldilocks dashboard accessible at `https://goldilocks.cluster.integratn.tech/`
+- [x] New namespaces automatically labeled for VPA Auto mode (Kyverno mutate policy)
 
 ---
 
