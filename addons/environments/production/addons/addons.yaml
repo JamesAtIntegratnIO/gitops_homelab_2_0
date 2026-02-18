@@ -580,19 +580,11 @@ kyverno:
   defaultVersion: "3.2.6"
   annotationsApp:
     argocd.argoproj.io/compare-options: ServerSideDiff=true,IncludeMutationWebhook=true
-  ignoreDifferences:
-    - group: apps
-      kind: Deployment
-      jqPathExpressions:
-        - .spec.replicas
-        - .spec.template.spec.containers[].env[]?.valueFrom.fieldRef.apiVersion
-        - .spec.template.spec.initContainers[]?.env[]?.valueFrom.fieldRef.apiVersion
   syncPolicy:
     automated: {}
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      - RespectIgnoreDifferences=true
 
 cilium:
   enabled: true
