@@ -1,0 +1,38 @@
+# Kyverno mutate policy: automatically set VPA update mode to Auto on new namespaces
+# This enables VPA to actively adjust pod resource requests/limits.
+# Combined with ArgoCD ignoreDifferences for resource fields,
+# VPA will auto-tune workloads without fighting GitOps.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: mutate-ns-vpa-auto-mode
+  annotations:
+    policies.kyverno.io/title: Set VPA Auto Mode on Namespaces
+    policies.kyverno.io/description: >-
+      Automatically labels namespaces with goldilocks.fairwinds.com/vpa-update-mode=auto
+      so that Goldilocks-created VPAs use Auto mode instead of Off (recommendation-only).
+spec:
+  rules:
+    - name: add-vpa-auto-label
+      match:
+        any:
+          - resources:
+              kinds:
+                - Namespace
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - goldilocks
+          - resources:
+              selector:
+                matchLabels:
+                  goldilocks.fairwinds.com/vpa-update-mode: "Off"
+      mutate:
+        patchStrategicMerge:
+          metadata:
+            labels:
+              goldilocks.fairwinds.com/vpa-update-mode: auto
