@@ -4,6 +4,11 @@
 # Exclude system namespaces that run trusted images and would generate noise
 excludeNamespaces: "kube-system,kube-public,kube-node-lease"
 
+# Disable node collector — requires hostPID and hostPath which violate
+# PodSecurity "baseline" and are unnecessary on Talos (immutable OS)
+nodeCollector:
+  enabled: false
+
 operator:
   # Conservative concurrency for homelab resource constraints
   scanJobsConcurrentLimit: 3
