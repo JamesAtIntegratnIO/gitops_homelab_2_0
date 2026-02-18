@@ -101,9 +101,9 @@ This plan captures the current maturity of the platform across seven production 
 4. Switch existing namespace-NetworkPolicy audit policy to `Enforce` after Phase 1.1
 
 **Acceptance Criteria:**
-- [ ] At least 3 enforce-mode ClusterPolicies active
-- [ ] System namespaces exempted
-- [ ] No legitimate workloads blocked
+- [x] At least 3 enforce-mode ClusterPolicies active _(require-default-deny-netpol, disallow-privileged-containers, disallow-default-namespace — commits e3e96ba, 6cdad3b)_
+- [x] System namespaces exempted _(kube-system, kube-public, kube-node-lease, cilium-secrets, kratix-worker-system excluded per policy)_
+- [x] No legitimate workloads blocked _(zero ClusterPolicyReport failures, restrict-image-registries in Audit mode for discovery)_
 
 ---
 
@@ -461,3 +461,4 @@ Use GitHub Issues to track each phase. Suggested labels:
 | 2026-02-18 | Initial assessment and plan creation | — |
 | 2026-02-18 | Phase 1.1 complete: Cilium enforce mode active, 5 NetworkPolicy gaps fixed | — |
 | 2026-02-18 | Phase 1.2 complete: Trivy Operator deployed with dashboard + alerts | — |
+| 2026-02-19 | Phase 1.3 complete: 3 enforce-mode + 1 audit-mode Kyverno policies deployed | — |
