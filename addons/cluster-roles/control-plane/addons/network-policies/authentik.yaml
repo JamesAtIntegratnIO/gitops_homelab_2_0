@@ -55,7 +55,7 @@ spec:
     - toEntities:
         - kube-apiserver
 ---
-# Authentik Server: Allow ingress from nginx-gateway
+# Authentik Server: Allow ingress from nginx-gateway and Prometheus
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -69,19 +69,27 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # From nginx-gateway for HTTPS traffic
+    # From nginx-gateway data plane for HTTPS traffic
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: nginx-gateway
           podSelector:
             matchLabels:
-              app.kubernetes.io/name: nginx-gateway-fabric
+              app.kubernetes.io/name: nginx-gateway-nginx
       ports:
         - protocol: TCP
           port: 9443  # HTTPS
         - protocol: TCP
-          port: 9000  # HTTP (metrics)
+          port: 9000  # HTTP
+    # From Prometheus for metrics scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9300
 ---
 # Authentik Server: Allow egress to Redis and PostgreSQL
 apiVersion: networking.k8s.io/v1
@@ -105,15 +113,17 @@ spec:
       ports:
         - protocol: TCP
           port: 6379
-    # To PostgreSQL (external - allow all internet)
+    # To PostgreSQL (external at 10.0.3.0/24)
     - to:
-        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 10.0.3.0/24
       ports:
         - protocol: TCP
           port: 5432
     # Allow egress to internet for external integrations (webhooks, email, etc.)
     - to:
-        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 443
@@ -121,6 +131,28 @@ spec:
           port: 587
         - protocol: TCP
           port: 25
+---
+# Authentik Worker: Allow ingress from Prometheus for metrics scraping
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: authentik-worker-ingress
+  namespace: authentik
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: authentik
+      app.kubernetes.io/component: worker
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9300
 ---
 # Authentik Worker: Allow egress to Redis and PostgreSQL
 apiVersion: networking.k8s.io/v1
@@ -144,15 +176,17 @@ spec:
       ports:
         - protocol: TCP
           port: 6379
-    # To PostgreSQL (external - allow all internet)
+    # To PostgreSQL (external at 10.0.3.0/24)
     - to:
-        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 10.0.3.0/24
       ports:
         - protocol: TCP
           port: 5432
     # Allow egress to internet for external integrations (webhooks, email, etc.)
     - to:
-        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 443

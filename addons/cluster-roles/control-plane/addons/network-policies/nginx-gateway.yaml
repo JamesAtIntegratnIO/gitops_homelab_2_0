@@ -130,6 +130,20 @@ spec:
       ports:
         - protocol: TCP
           port: 8081
+    # Authentik SSO
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: authentik
+              app.kubernetes.io/component: server
+      ports:
+        - protocol: TCP
+          port: 9443
+        - protocol: TCP
+          port: 9000
     # vCluster namespaces: route traffic to workloads in any vcluster
     - to:
         - namespaceSelector:
