@@ -51,9 +51,9 @@ This plan captures the current maturity of the platform across seven production 
 6. Roll back to audit if critical traffic is blocked
 
 **Acceptance Criteria:**
-- [ ] `policyAuditMode: false` committed and synced
-- [ ] No legitimate traffic dropped (verified via Hubble)
-- [ ] All namespaces have at least a default-deny + allow-needed policy
+- [x] `policyAuditMode: false` committed and synced _(commit ee491b2)_
+- [x] No legitimate traffic dropped (verified via Hubble) _(zero drops post-enforce)_
+- [x] All namespaces have at least a default-deny + allow-needed policy _(5 NetworkPolicy gaps fixed: commits 3444757, 4948f60, 3b7125f)_
 
 ### 1.2 Deploy Trivy Operator for Image Scanning
 
@@ -78,9 +78,9 @@ This plan captures the current maturity of the platform across seven production 
    ```
 
 **Acceptance Criteria:**
-- [ ] Trivy Operator scanning all namespaces
-- [ ] Grafana dashboard showing vulnerability summary
-- [ ] Alert fires for Critical CVEs
+- [x] Trivy Operator scanning all namespaces _(excludes kube-system, kube-public, kube-node-lease)_
+- [x] Grafana dashboard showing vulnerability summary _(Security/Trivy Operator Dashboard)_
+- [x] Alert fires for Critical CVEs _(TrivyCriticalVulnerabilityDetected, TrivyHighVulnerabilityCount, TrivyOperatorDown)_
 
 ### 1.3 Strengthen Kyverno to Enforce Mode
 
@@ -459,3 +459,5 @@ Use GitHub Issues to track each phase. Suggested labels:
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-02-18 | Initial assessment and plan creation | — |
+| 2026-02-18 | Phase 1.1 complete: Cilium enforce mode active, 5 NetworkPolicy gaps fixed | — |
+| 2026-02-18 | Phase 1.2 complete: Trivy Operator deployed with dashboard + alerts | — |
