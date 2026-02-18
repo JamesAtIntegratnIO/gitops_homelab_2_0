@@ -1,9 +1,9 @@
 # Cilium CNI with kube-proxy replacement for Talos Linux
 # Replaces both Flannel (CNI) and kube-proxy
 
-# TEMPORARY: Audit mode — policies log violations but don't block traffic
-# Remove this once all NetworkPolicies are validated via Hubble
-policyAuditMode: true
+# NetworkPolicy enforcement enabled — audit violations validated 2026-02-18
+# All namespaces have default-deny + explicit allow policies verified via Hubble
+policyAuditMode: false
 
 # Explicit device list — prevents Cilium from picking up flannel.1 leftover
 # flannel.1 VXLAN interface from pre-migration CNI still exists on nodes
