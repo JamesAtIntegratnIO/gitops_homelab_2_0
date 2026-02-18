@@ -289,6 +289,27 @@ promtail:
       - CreateNamespace=true
       - ServerSideApply=true
 
+goldilocks:
+  enabled: true
+  namespace: goldilocks
+  releaseName: goldilocks
+  chartName: goldilocks
+  project: platform-services
+  chartRepository: https://charts.fairwinds.com/stable
+  defaultVersion: "10.2.0"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
 trivy-operator:
   enabled: true
   namespace: trivy-system

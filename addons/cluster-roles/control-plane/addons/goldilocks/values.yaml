@@ -1,0 +1,53 @@
+# Goldilocks - VPA-based resource recommendation and auto-tuning
+# VPA runs in Auto mode: it will actually set requests/limits on pods
+# ArgoCD is configured to ignore resource drift so it doesn't fight VPA
+
+# VPA subchart — enables all 3 components for Auto mode
+vpa:
+  enabled: true
+  admissionController:
+    enabled: true
+  updater:
+    enabled: true
+
+# Controller — creates VPA objects for workloads automatically
+controller:
+  enabled: true
+  flags:
+    # Monitor all namespaces without requiring opt-in labels
+    on-by-default: "true"
+    # Exclude system namespaces that shouldn't be auto-tuned
+    exclude-namespaces: "kube-system,kube-public,kube-node-lease,goldilocks"
+  resources:
+    requests:
+      cpu: 25m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+# Dashboard — web UI for viewing resource recommendations
+dashboard:
+  enabled: true
+  replicaCount: 1
+  flags:
+    on-by-default: "true"
+    exclude-namespaces: "kube-system,kube-public,kube-node-lease,goldilocks"
+  resources:
+    requests:
+      cpu: 25m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  # Expose via Gateway API HTTPRoute
+  httpRoute:
+    enabled: true
+    parentRefs:
+      - name: nginx-gateway
+        namespace: nginx-gateway
+        sectionName: https
+    hostnames:
+      - goldilocks.cluster.integratn.tech
+    matches:
+      - path:
+          type: PathPrefix
+          value: /
