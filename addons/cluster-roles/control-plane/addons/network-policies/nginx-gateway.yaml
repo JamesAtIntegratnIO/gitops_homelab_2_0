@@ -149,6 +149,18 @@ spec:
         - namespaceSelector:
             matchLabels:
               platform.integratn.tech/type: vcluster
+    # Goldilocks dashboard
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: goldilocks
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: dashboard
+              app.kubernetes.io/name: goldilocks
+      ports:
+        - protocol: TCP
+          port: 8080
     # Control plane pod for config reload
     - to:
         - podSelector:
