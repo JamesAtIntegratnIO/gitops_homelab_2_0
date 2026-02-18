@@ -139,6 +139,14 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
+    # Prometheus scrapes Grafana metrics
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 3000
   egress:
     # Query Prometheus
     - to:
@@ -194,6 +202,14 @@ spec:
       ports:
         - protocol: TCP
           port: 9093
+    # Prometheus scrapes config-reloader sidecar metrics
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 8080
     # nginx-gateway for UI access
     - from:
         - namespaceSelector:
@@ -283,6 +299,14 @@ spec:
     - from:
         - ipBlock:
             cidr: 10.0.4.0/24
+      ports:
+        - protocol: TCP
+          port: 10250
+    # Prometheus scrapes operator metrics
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
       ports:
         - protocol: TCP
           port: 10250
