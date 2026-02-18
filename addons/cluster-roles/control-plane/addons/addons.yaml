@@ -288,3 +288,43 @@ promtail:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+
+trivy-operator:
+  enabled: true
+  namespace: trivy-system
+  releaseName: trivy-operator
+  chartName: trivy-operator
+  project: platform-services
+  chartRepository: https://aquasecurity.github.io/helm-charts/
+  defaultVersion: "0.32.0"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+trivy-dashboard:
+  enabled: true
+  type: manifest
+  namespace: monitoring
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/trivy-dashboard
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

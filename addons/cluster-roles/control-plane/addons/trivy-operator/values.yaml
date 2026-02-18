@@ -1,0 +1,33 @@
+# trivy-operator values for control-plane clusters
+# Scans workload images for vulnerabilities, misconfigurations, and exposed secrets.
+
+# Exclude system namespaces that run trusted images and would generate noise
+excludeNamespaces: "kube-system,kube-public,kube-node-lease"
+
+operator:
+  # Conservative concurrency for homelab resource constraints
+  scanJobsConcurrentLimit: 3
+  scanJobTimeout: 10m
+  # Clean up completed scan jobs after 30s
+  scanJobTTL: 30s
+
+trivy:
+  # Standalone mode — no Trivy server needed
+  mode: Standalone
+  # Only report actionable severities
+  severity: LOW,MEDIUM,HIGH,CRITICAL
+  # Resource limits for scan jobs
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100M
+    limits:
+      cpu: 500m
+      memory: 500M
+
+# Enable Prometheus ServiceMonitor for metrics scraping
+serviceMonitor:
+  enabled: true
+  labels:
+    release: kube-prometheus-stack
+  honorLabels: true

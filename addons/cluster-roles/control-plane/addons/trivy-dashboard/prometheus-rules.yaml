@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: trivy-operator-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+    app: kube-prometheus-stack
+spec:
+  groups:
+    - name: trivy-operator
+      rules:
+        - alert: TrivyCriticalVulnerabilityDetected
+          expr: sum(trivy_image_vulnerabilities{severity="Critical"}) > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Critical vulnerabilities detected in cluster images"
+            description: >-
+              {{ $value }} critical vulnerabilities found across cluster workloads.
+              Check the Trivy Operator dashboard in Grafana for details.
+            runbook_url: "https://grafana.cluster.integratn.tech/d/trivy-operator/trivy-operator-dashboard"
+
+        - alert: TrivyHighVulnerabilityCount
+          expr: sum(trivy_image_vulnerabilities{severity="High"}) > 50
+          for: 24h
+          labels:
+            severity: info
+          annotations:
+            summary: "Large number of high-severity vulnerabilities"
+            description: >-
+              {{ $value }} high-severity vulnerabilities found across cluster
+              workloads. Review and triage in the Trivy Operator dashboard.
+
+        - alert: TrivyOperatorDown
+          expr: absent(up{job=~".*trivy-operator.*"} == 1)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Trivy Operator is not running"
+            description: >-
+              The Trivy Operator metrics endpoint has been unreachable for 15 minutes.
+              Image vulnerability scanning is not functioning.
