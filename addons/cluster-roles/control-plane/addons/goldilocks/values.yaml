@@ -31,7 +31,6 @@ dashboard:
   replicaCount: 1
   flags:
     on-by-default: "true"
-    exclude-namespaces: "kube-system,kube-public,kube-node-lease,goldilocks"
   resources:
     requests:
       cpu: 25m
