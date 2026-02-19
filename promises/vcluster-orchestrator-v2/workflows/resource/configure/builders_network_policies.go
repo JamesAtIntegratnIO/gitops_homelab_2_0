@@ -209,6 +209,9 @@ func buildVClusterExternalPolicy(config *VClusterConfig) Resource {
 			"policyTypes": []string{"Ingress", "Egress"},
 			"ingress": []map[string]interface{}{
 				// vCluster API LB: ArgoCD app-controller + LAN clients
+				// NOTE: vCluster Service maps port 443 → targetPort 8443.
+				// Cilium (kube-proxy replacement) DNATs to the targetPort before
+				// policy evaluation, so the ingress port must be 8443.
 				{
 					"from": []map[string]interface{}{
 						{
@@ -222,7 +225,7 @@ func buildVClusterExternalPolicy(config *VClusterConfig) Resource {
 						{"ipBlock": map[string]interface{}{"cidr": "192.168.0.0/16"}},
 					},
 					"ports": []map[string]interface{}{
-						{"protocol": "TCP", "port": 443},
+						{"protocol": "TCP", "port": 8443},
 					},
 				},
 				// nginx-gateway routes traffic to vCluster workloads
