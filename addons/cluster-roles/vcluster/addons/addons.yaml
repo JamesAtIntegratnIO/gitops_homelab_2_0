@@ -387,19 +387,7 @@ cert-manager-vcluster:
             kind: ClusterIssuer
           dnsNames:
             - '*.{{ .metadata.labels.cluster_name }}.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}'
-      - |
-        apiVersion: cert-manager.io/v1
-        kind: Certificate
-        metadata:
-          name: wildcard-{{ index .metadata.annotations "platform.integratn.tech/base-domain-sanitized" }}
-          namespace: nginx-gateway
-        spec:
-          secretName: wildcard-{{ index .metadata.annotations "platform.integratn.tech/base-domain-sanitized" }}-tls
-          issuerRef:
-            name: letsencrypt-prod
-            kind: ClusterIssuer
-          dnsNames:
-            - '*.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}'
+
       - |
         apiVersion: gateway.networking.k8s.io/v1beta1
         kind: ReferenceGrant
@@ -414,6 +402,9 @@ cert-manager-vcluster:
             - group: gateway.networking.k8s.io
               kind: HTTPRoute
               namespace: argocd
+            - group: gateway.networking.k8s.io
+              kind: HTTPRoute
+              namespace: media
           to:
             - group: ""
               kind: Service
@@ -497,26 +488,7 @@ nginx-gateway-fabric-vcluster:
               allowedRoutes:
                 namespaces:
                   from: All
-            - name: http-public
-              port: 80
-              protocol: HTTP
-              hostname: '{{ printf "*.%s" (index .metadata.annotations "platform.integratn.tech/base-domain") }}'
-              allowedRoutes:
-                namespaces:
-                  from: All
-            - name: https-public
-              port: 443
-              protocol: HTTPS
-              hostname: '{{ printf "*.%s" (index .metadata.annotations "platform.integratn.tech/base-domain") }}'
-              tls:
-                mode: Terminate
-                certificateRefs:
-                  - group: ""
-                    kind: Secret
-                    name: 'wildcard-{{ index .metadata.annotations "platform.integratn.tech/base-domain-sanitized" }}-tls'
-              allowedRoutes:
-                namespaces:
-                  from: All
+
   syncPolicy:
     automated:
       selfHeal: true

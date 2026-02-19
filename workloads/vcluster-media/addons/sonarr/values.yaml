@@ -176,9 +176,9 @@ httpRoute:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-public
+      sectionName: https
   hostnames:
-    - sonarr.integratn.tech
+    - sonarr.vcluster-media.integratn.tech
   rules:
     - backendRefs:
         - name: sonarr
@@ -188,16 +188,4 @@ httpRoute:
             type: PathPrefix
             value: /
 certificate:
-  enabled: true
-  secretName: sonarr-tls
-  dnsNames:
-    - sonarr.integratn.tech
-  commonName: sonarr.integratn.tech
-  subject: {}
-  usages:
-    - digital signature
-    - key encipherment
-    - server auth
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
+  enabled: false

@@ -161,9 +161,9 @@ httpRoute:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-public
+      sectionName: https
   hostnames:
-    - radarr.integratn.tech
+    - radarr.vcluster-media.integratn.tech
   rules:
     - backendRefs:
         - name: radarr
@@ -173,16 +173,4 @@ httpRoute:
             type: PathPrefix
             value: /
 certificate:
-  enabled: true
-  secretName: radarr-tls
-  dnsNames:
-    - radarr.integratn.tech
-  commonName: radarr.integratn.tech
-  subject: {}
-  usages:
-    - digital signature
-    - key encipherment
-    - server auth
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
+  enabled: false

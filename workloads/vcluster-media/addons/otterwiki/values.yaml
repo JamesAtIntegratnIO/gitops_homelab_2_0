@@ -104,9 +104,9 @@ httpRoute:
   parentRefs:
     - name: nginx-gateway
       namespace: nginx-gateway
-      sectionName: https-public
+      sectionName: https
   hostnames:
-    - wiki.integratn.tech
+    - wiki.vcluster-media.integratn.tech
   rules:
     - backendRefs:
         - name: otterwiki
@@ -116,16 +116,4 @@ httpRoute:
             type: PathPrefix
             value: /
 certificate:
-  enabled: true
-  secretName: otterwiki-tls
-  dnsNames:
-    - wiki.integratn.tech
-  commonName: wiki.integratn.tech
-  subject: {}
-  usages:
-    - digital signature
-    - key encipherment
-    - server auth
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
+  enabled: false
