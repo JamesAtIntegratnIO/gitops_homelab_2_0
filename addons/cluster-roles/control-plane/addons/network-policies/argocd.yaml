@@ -89,7 +89,9 @@ spec:
         - protocol: TCP
           port: 5556
 ---
-# ArgoCD Server: OIDC provider access via gateway LB (Cilium-native for MetalLB VIPs)
+# ArgoCD Server: OIDC provider access via nginx-gateway (Authentik)
+# Cilium performs DNAT before policy eval, so LB VIP rules don't work.
+# Must target the actual nginx-gateway pod by labels.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -100,8 +102,10 @@ spec:
     matchLabels:
       app.kubernetes.io/component: server
   egress:
-    - toCIDR:
-        - 10.0.4.205/32
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: nginx-gateway
+            app.kubernetes.io/name: nginx-gateway-nginx
       toPorts:
         - ports:
             - port: "443"
