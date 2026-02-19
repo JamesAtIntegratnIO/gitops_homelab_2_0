@@ -26,6 +26,9 @@ server:
     limits:
       cpu: 500m
       memory: 512Mi
+  service:
+    annotations:
+      metallb.universe.tf/loadBalancerIPs: 10.0.4.201
   extensions:
     enabled: true
     extensionList:
@@ -127,11 +130,6 @@ configs:
 
 dex:
   enabled: false
-
-server:
-  service:
-    annotations:
-      metallb.universe.tf/loadBalancerIPs: 10.0.4.201
 
 extraObjects:
   - apiVersion: gateway.networking.k8s.io/v1
