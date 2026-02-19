@@ -359,3 +359,42 @@ trivy-dashboard:
       prune: true
     syncOptions:
       - CreateNamespace=true
+
+trivy-explorer:
+  enabled: true
+  namespace: trivy-system
+  releaseName: trivy-operator-explorer
+  chartName: trivy-operator-explorer
+  project: platform-services
+  chartRepository: https://starttoaster.github.io/trivy-operator-explorer
+  defaultVersion: "0.4.6"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+
+trivy-explorer-route:
+  enabled: true
+  type: manifest
+  namespace: trivy-system
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/trivy-explorer-route
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

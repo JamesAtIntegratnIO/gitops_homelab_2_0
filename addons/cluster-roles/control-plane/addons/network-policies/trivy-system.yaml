@@ -95,3 +95,24 @@ spec:
     - ports:
         - protocol: TCP
           port: 443
+---
+# Trivy Explorer web UI — receives traffic from nginx-gateway
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-trivy-explorer
+  namespace: trivy-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: trivy-operator-explorer
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
