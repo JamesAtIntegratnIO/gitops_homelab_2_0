@@ -1,0 +1,10 @@
+# Kratix scaling for the-cluster (host)
+# Vertical: bumped CPU/memory for controller-manager
+# Note: Kratix chart hardcodes replicas=1; uses leader election
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
