@@ -441,7 +441,8 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) Resource {
 					},
 				},
 			},
-			RefreshInterval: "15m",
+			// Short refresh so ArgoCD picks up new CA quickly after vcluster recreation
+			RefreshInterval: "1m",
 		},
 	}
 }
