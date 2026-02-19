@@ -252,6 +252,18 @@ func buildVClusterExternalPolicy(config *VClusterConfig) Resource {
 						},
 					},
 				},
+				// nginx-gateway LoadBalancer: accept HTTP/HTTPS from any external client.
+				// With externalTrafficPolicy: Local, Cilium preserves original source IP,
+				// so we must allow 0.0.0.0/0 (not just private ranges).
+				{
+					"from": []map[string]interface{}{
+						{"ipBlock": map[string]interface{}{"cidr": "0.0.0.0/0"}},
+					},
+					"ports": []map[string]interface{}{
+						{"protocol": "TCP", "port": 80},
+						{"protocol": "TCP", "port": 443},
+					},
+				},
 			},
 			"egress": []map[string]interface{}{
 				// 1Password Connect server (kubeconfig-sync job)
