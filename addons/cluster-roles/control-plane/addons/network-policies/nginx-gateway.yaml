@@ -130,6 +130,17 @@ spec:
       ports:
         - protocol: TCP
           port: 8081
+    # Trivy Operator Explorer
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: trivy-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: trivy-operator-explorer
+      ports:
+        - protocol: TCP
+          port: 8080
     # Authentik SSO
     - to:
         - namespaceSelector:
