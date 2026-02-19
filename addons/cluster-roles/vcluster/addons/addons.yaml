@@ -4,7 +4,7 @@ argocd-vcluster:
   namespace: argocd
   releaseName: argo-cd
   project: platform
-  defaultVersion: "9.0.3"
+  defaultVersion: "9.4.3"
   chartRepository: "https://argoproj.github.io/argo-helm"
   selector:
     matchExpressions:
