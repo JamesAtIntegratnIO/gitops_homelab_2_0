@@ -264,6 +264,9 @@ func buildVClusterExternalPolicy(config *VClusterConfig) Resource {
 					},
 				},
 				// External HTTPS (container registries, APIs)
+				// Also allows DNS (53/UDP+TCP) to public nameservers for
+				// cert-manager DNS-01 challenge propagation checks against
+				// authoritative nameservers (e.g., Cloudflare 162.159.x.x).
 				{
 					"to": []map[string]interface{}{
 						{
@@ -280,6 +283,8 @@ func buildVClusterExternalPolicy(config *VClusterConfig) Resource {
 					"ports": []map[string]interface{}{
 						{"protocol": "TCP", "port": 443},
 						{"protocol": "TCP", "port": 80},
+						{"protocol": "UDP", "port": 53},
+						{"protocol": "TCP", "port": 53},
 					},
 				},
 			},
