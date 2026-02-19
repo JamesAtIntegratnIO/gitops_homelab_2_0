@@ -66,6 +66,10 @@ configs:
     server.url: https://argocd.cluster.integratn.tech
   
   cm:
+    # Reduce reconciliation interval from 180s default to 30s
+    # Ensures state store changes from Kratix are picked up quickly
+    timeout.reconciliation: 30s
+
     # Authentik OIDC configuration
     oidc.config: |
       name: Authentik
