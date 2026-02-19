@@ -17,9 +17,6 @@ argocd:
       - key: cluster_role
         operator: NotIn
         values: ['vcluster']
-  # Override global syncPolicy to remove ServerSideApply=true.
-  # ArgoCD chart's PreSync hooks (redis-secret-init) use --force which is
-  # incompatible with --server-side in kubectl.
   syncPolicy:
     automated:
       selfHeal: true
@@ -33,6 +30,7 @@ argocd:
         maxDuration: 10m
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
 
 argocd-projects:
   enabled: true
