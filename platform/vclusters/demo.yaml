@@ -1,76 +1,76 @@
-apiVersion: platform.integratn.tech/v1alpha1
-kind: VClusterOrchestratorV2
-metadata:
-    name: demo
-    namespace: platform-requests
-spec:
-    name: demo
-    targetNamespace: demo
-    projectName: demo
-    vcluster:
-        preset: prod
-        replicas: 3
-        helmOverrides:
-            controlPlane:
-                backingStore:
-                    etcd:
-                        deploy:
-                            enabled: true
-                            statefulSet:
-                                extraArgs:
-                                    - --client-cert-auth=false
-                                highAvailability:
-                                    replicas: 3
-                ingress:
-                    enabled: false
-                statefulSet:
-                    persistence:
-                        addVolumeMounts:
-                            - mountPath: /etcd-certs
-                              name: etcd-certs
-                              readOnly: true
-                        addVolumes:
-                            - name: etcd-certs
-                              secret:
-                                secretName: demo-etcd-certs
-            integrations:
-                metricsServer:
-                    enabled: false
-        resources:
-            requests:
-                memory: 2Gi
-            limits:
-                memory: 2Gi
-        backingStore:
-            etcd:
-                deploy:
-                    enabled: true
-                    statefulSet:
-                        highAvailability:
-                            replicas: 3
-    exposure:
-        hostname: demo.integratn.tech
-        apiPort: 443
-    integrations:
-        certManager:
-            clusterIssuerSelectorLabels:
-                integratn.tech/cluster-issuer: letsencrypt-prod
-        externalSecrets:
-            clusterStoreSelectorLabels:
-                integratn.tech/cluster-secret-store: onepassword-store
-        argocd:
-            environment: production
-            clusterAnnotations:
-                platform.integratn.tech/reconcile-at: "2026-02-19T06:00:00Z"
-    argocdApplication:
-        repoURL: https://charts.loft.sh
-        chart: vcluster
-        targetRevision: 0.31.0
-        syncPolicy:
-            automated:
-                prune: true
-                selfHeal: true
-            syncOptions:
-                - CreateNamespace=true
-    networkPolicies:
-        enableNFS: true
+# apiVersion: platform.integratn.tech/v1alpha1
+# kind: VClusterOrchestratorV2
+# metadata:
+#     name: demo
+#     namespace: platform-requests
+# spec:
+#     name: demo
+#     targetNamespace: demo
+#     projectName: demo
+#     vcluster:
+#         preset: prod
+#         replicas: 3
+#         helmOverrides:
+#             controlPlane:
+#                 backingStore:
+#                     etcd:
+#                         deploy:
+#                             enabled: true
+#                             statefulSet:
+#                                 extraArgs:
+#                                     - --client-cert-auth=false
+#                                 highAvailability:
+#                                     replicas: 3
+#                 ingress:
+#                     enabled: false
+#                 statefulSet:
+#                     persistence:
+#                         addVolumeMounts:
+#                             - mountPath: /etcd-certs
+#                               name: etcd-certs
+#                               readOnly: true
+#                         addVolumes:
+#                             - name: etcd-certs
+#                               secret:
+#                                 secretName: demo-etcd-certs
+#             integrations:
+#                 metricsServer:
+#                     enabled: false
+#         resources:
+#             requests:
+#                 memory: 2Gi
+#             limits:
+#                 memory: 2Gi
+#         backingStore:
+#             etcd:
+#                 deploy:
+#                     enabled: true
+#                     statefulSet:
+#                         highAvailability:
+#                             replicas: 3
+#     exposure:
+#         hostname: demo.integratn.tech
+#         apiPort: 443
+#     integrations:
+#         certManager:
+#             clusterIssuerSelectorLabels:
+#                 integratn.tech/cluster-issuer: letsencrypt-prod
+#         externalSecrets:
+#             clusterStoreSelectorLabels:
+#                 integratn.tech/cluster-secret-store: onepassword-store
+#         argocd:
+#             environment: production
+#             clusterAnnotations:
+#                 platform.integratn.tech/reconcile-at: "2026-02-19T06:00:00Z"
+#     argocdApplication:
+#         repoURL: https://charts.loft.sh
+#         chart: vcluster
+#         targetRevision: 0.31.0
+#         syncPolicy:
+#             automated:
+#                 prune: true
+#                 selfHeal: true
+#             syncOptions:
+#                 - CreateNamespace=true
+#     networkPolicies:
+#         enableNFS: true
