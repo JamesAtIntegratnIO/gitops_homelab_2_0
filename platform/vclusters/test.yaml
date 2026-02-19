@@ -1,36 +1,36 @@
-apiVersion: platform.integratn.tech/v1alpha1
-kind: VClusterOrchestratorV2
-metadata:
-    name: test
-    namespace: platform-requests
-spec:
-    name: test
-    targetNamespace: test
-    projectName: test
-    vcluster:
-        preset: dev
-        replicas: 1
-    exposure:
-        hostname: test.cluster.integratn.tech
-        apiPort: 443
-    integrations:
-        certManager:
-            clusterIssuerSelectorLabels:
-                integratn.tech/cluster-issuer: letsencrypt-prod
-        externalSecrets:
-            clusterStoreSelectorLabels:
-                integratn.tech/cluster-secret-store: onepassword-store
-        argocd:
-            environment: production
-    argocdApplication:
-        repoURL: https://charts.loft.sh
-        chart: vcluster
-        targetRevision: 0.31.0
-        syncPolicy:
-            automated:
-                prune: true
-                selfHeal: true
-            syncOptions:
-                - CreateNamespace=true
-    networkPolicies:
-        enableNFS: true
+# apiVersion: platform.integratn.tech/v1alpha1
+# kind: VClusterOrchestratorV2
+# metadata:
+#     name: test
+#     namespace: platform-requests
+# spec:
+#     name: test
+#     targetNamespace: test
+#     projectName: test
+#     vcluster:
+#         preset: dev
+#         replicas: 1
+#     exposure:
+#         hostname: test.cluster.integratn.tech
+#         apiPort: 443
+#     integrations:
+#         certManager:
+#             clusterIssuerSelectorLabels:
+#                 integratn.tech/cluster-issuer: letsencrypt-prod
+#         externalSecrets:
+#             clusterStoreSelectorLabels:
+#                 integratn.tech/cluster-secret-store: onepassword-store
+#         argocd:
+#             environment: production
+#     argocdApplication:
+#         repoURL: https://charts.loft.sh
+#         chart: vcluster
+#         targetRevision: 0.31.0
+#         syncPolicy:
+#             automated:
+#                 prune: true
+#                 selfHeal: true
+#             syncOptions:
+#                 - CreateNamespace=true
+#     networkPolicies:
+#         enableNFS: true
