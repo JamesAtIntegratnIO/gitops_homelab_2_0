@@ -151,13 +151,26 @@ spec:
           port: 8443
         - protocol: TCP
           port: 443
-    # vCluster API endpoints via MetalLB gateway LB (10.0.4.200-253)
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.192/26
-      ports:
-        - protocol: TCP
-          port: 443
+---
+# Application Controller: vCluster API access (Cilium DNATs LB VIPs to pod IPs before policy eval)
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-application-controller-vcluster
+  namespace: argocd
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: application-controller
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.cilium.k8s.namespace.labels.platform.integratn.tech/type: vcluster
+            app: vcluster
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
 ---
 # Repo Server: clones git repos, renders manifests
 apiVersion: networking.k8s.io/v1
