@@ -153,6 +153,8 @@ spec:
           port: 443
 ---
 # Application Controller: vCluster API access (Cilium DNATs LB VIPs to pod IPs before policy eval)
+# NOTE: vCluster Service maps port 443 → targetPort 8443. After Cilium DNAT,
+# the actual destination port is 8443, so the policy must match the targetPort.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -169,7 +171,7 @@ spec:
             app: vcluster
       toPorts:
         - ports:
-            - port: "443"
+            - port: "8443"
               protocol: TCP
 ---
 # Repo Server: clones git repos, renders manifests
