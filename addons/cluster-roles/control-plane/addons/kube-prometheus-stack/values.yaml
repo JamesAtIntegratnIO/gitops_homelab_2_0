@@ -1,6 +1,6 @@
 crds:
   upgradeJob:
-    enabled: true
+    enabled: false
 
 alertmanager:
   enabled: true
