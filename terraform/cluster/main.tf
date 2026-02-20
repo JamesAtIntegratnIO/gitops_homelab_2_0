@@ -37,6 +37,7 @@ locals {
     enable_gateway_api_crds                = true
     enable_nginx_gateway_fabric            = true
     enable_kratix                          = true
+    enable_metrics_server                  = true
     cluster_role                           = "control-plane"
   }
 

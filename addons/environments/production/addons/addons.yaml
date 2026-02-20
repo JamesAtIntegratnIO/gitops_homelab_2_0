@@ -419,7 +419,7 @@ metallb:
   namespace: metallb-system
   releaseName: metallb
   project: platform-services
-  defaultVersion: "0.14.5"
+  defaultVersion: "0.14.9"
   chartRepository: "https://metallb.github.io/metallb"
   additionalResources:
     type: manifests
@@ -575,7 +575,7 @@ kyverno:
   chartName: kyverno
   project: platform-services
   chartRepository: https://kyverno.github.io/kyverno/
-  defaultVersion: "3.2.6"
+  defaultVersion: "3.2.8"
   annotationsApp:
     argocd.argoproj.io/compare-options: ServerSideDiff=true,IncludeMutationWebhook=true
   syncPolicy:
