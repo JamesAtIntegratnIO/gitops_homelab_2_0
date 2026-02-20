@@ -168,6 +168,14 @@ spec:
           port: 8080
         - protocol: TCP
           port: 3100
+    # Authentik OIDC via nginx-gateway LB (token exchange, userinfo)
+    # auth.cluster.integratn.tech resolves to 10.0.4.205 (MetalLB)
+    - to:
+        - ipBlock:
+            cidr: 10.0.4.205/32
+      ports:
+        - protocol: TCP
+          port: 443
     # External HTTPS (plugin catalog, Gravatar, update checks)
     - to:
         - ipBlock:
