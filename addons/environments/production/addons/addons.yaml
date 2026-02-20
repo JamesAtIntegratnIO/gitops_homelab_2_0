@@ -233,9 +233,9 @@ metrics-server:
   chartRepository: "https://kubernetes-sigs.github.io/metrics-server"
   selector:
     matchExpressions:
-      - key: enable_metrics_server
+      - key: cluster_role
         operator: In
-        values: ['true']
+        values: ['control-plane']
 karpenter:
   enabled: false
   enableAckPodIdentity: false
