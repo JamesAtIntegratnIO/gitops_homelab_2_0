@@ -128,6 +128,25 @@ vcluster-dashboard:
     syncOptions:
       - CreateNamespace=true
 
+argocd-dashboard:
+  enabled: true
+  type: manifest
+  namespace: monitoring
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/argocd-dashboard
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+
 loki-dashboard:
   enabled: true
   type: manifest
