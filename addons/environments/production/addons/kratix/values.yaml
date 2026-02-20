@@ -108,30 +108,6 @@ additionalResources:
       ignoreDifferences:
         - group: ""
           kind: ConfigMap
-          name: coredns-x-kube-system-x-test
-          namespace: vcluster-test
-          jsonPointers:
-            - /data/NodeHosts
-        - group: ""
-          kind: ConfigMap
-          name: coredns-x-kube-system-x-test2
-          namespace: vcluster-test-2
-          jsonPointers:
-            - /data/NodeHosts
-        - group: ""
-          kind: ConfigMap
-          name: coredns-x-kube-system-x-test3
-          namespace: vcluster-test-3
-          jsonPointers:
-            - /data/NodeHosts
-        - group: ""
-          kind: ConfigMap
-          name: coredns-x-kube-system-x-test4
-          namespace: vcluster-test-4
-          jsonPointers:
-            - /data/NodeHosts
-        - group: ""
-          kind: ConfigMap
           name: coredns-x-kube-system-x-media
           namespace: vcluster-media
           jsonPointers:
