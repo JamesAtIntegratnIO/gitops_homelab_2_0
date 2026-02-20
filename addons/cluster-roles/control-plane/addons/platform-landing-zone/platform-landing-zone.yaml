@@ -1,0 +1,548 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-landing-zone-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Platform"
+data:
+  platform-landing-zone.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Central landing zone for the homelab platform — cluster health, service directory, ArgoCD application status, resource usage, active alerts, and error logs at a glance.",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [
+        {"title": "ArgoCD Overview", "url": "/d/argocd-overview/argocd-overview", "type": "link", "icon": "external link", "tooltip": "ArgoCD sync & health details", "targetBlank": false},
+        {"title": "Kratix Platform", "url": "/d/kratix-platform/kratix-platform", "type": "link", "icon": "external link", "tooltip": "Kratix promise status", "targetBlank": false},
+        {"title": "vCluster Fleet", "url": "/d/vcluster-fleet-health/vcluster-fleet-health", "type": "link", "icon": "external link", "tooltip": "vCluster fleet health", "targetBlank": false},
+        {"title": "Kubernetes Logs", "url": "/d/loki-k8s-logs/loki-kubernetes-logs", "type": "link", "icon": "external link", "tooltip": "Loki log explorer", "targetBlank": false},
+        {"title": "Trivy Security", "url": "/d/trivy-operator/trivy-operator-dashboard", "type": "link", "icon": "external link", "tooltip": "Vulnerability scanning", "targetBlank": false}
+      ],
+      "panels": [
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+          "id": 100,
+          "title": "Cluster Health",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of nodes in Ready condition. Should match your expected node count (3 control-plane nodes).",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 2}, {"color": "green", "value": 3}]}
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
+          "id": 1,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Nodes Ready",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(kube_node_status_condition{condition=\"Ready\", status=\"true\"})", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total pods in Running phase across all namespaces.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1},
+          "id": 2,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Running Pods",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(kube_pod_status_phase{phase=\"Running\"} == 1)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Total ArgoCD applications being managed.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
+          "id": 3,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "ArgoCD Apps",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(argocd_app_info)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Applications with sync_status=Synced. All apps should ideally be synced.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
+          "id": 4,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Synced",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(argocd_app_info{sync_status=\"Synced\"}) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Applications that are out of sync with their git source. These need attention — either a sync is pending or drift has occurred.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 16, "y": 1},
+          "id": 5,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Out of Sync",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(argocd_app_info{sync_status=\"OutOfSync\"}) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Currently firing alerts across the cluster. Click to view details in Alertmanager.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]},
+              "links": [{"title": "Open Alertmanager", "url": "https://alertmanager.cluster.integratn.tech", "targetBlank": true}]
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 20, "y": 1},
+          "id": 6,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Firing Alerts",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(ALERTS{alertstate=\"firing\", alertname!=\"Watchdog\", alertname!=\"InfoInhibitor\"}) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+          "id": 101,
+          "title": "Service Directory",
+          "type": "row"
+        },
+        {
+          "gridPos": {"h": 7, "w": 8, "x": 0, "y": 6},
+          "id": 7,
+          "options": {
+            "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+            "content": "### ☸️ Platform\n\n| Service | |\n|---|---|\n| 🚀 **ArgoCD** | [Open →](https://argocd.cluster.integratn.tech) |\n| 🔑 **Authentik** | [Open →](https://auth.cluster.integratn.tech) |\n| 🧩 **Kratix** | [Dashboard →](/d/kratix-platform/kratix-platform) |",
+            "mode": "markdown"
+          },
+          "title": "",
+          "transparent": true,
+          "type": "text"
+        },
+        {
+          "gridPos": {"h": 7, "w": 8, "x": 8, "y": 6},
+          "id": 8,
+          "options": {
+            "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+            "content": "### 📊 Observability\n\n| Service | |\n|---|---|\n| 📈 **Grafana** | [Open →](https://grafana.cluster.integratn.tech) |\n| 📊 **Prometheus** | [Open →](https://prometheus.cluster.integratn.tech) |\n| 🔔 **Alertmanager** | [Open →](https://alertmanager.cluster.integratn.tech) |\n| 📝 **Loki** | [Open →](https://loki.cluster.integratn.tech) |\n| 🌐 **Hubble UI** | [Open →](https://hubble.cluster.integratn.tech) |",
+            "mode": "markdown"
+          },
+          "title": "",
+          "transparent": true,
+          "type": "text"
+        },
+        {
+          "gridPos": {"h": 7, "w": 8, "x": 16, "y": 6},
+          "id": 9,
+          "options": {
+            "code": {"language": "plaintext", "showLineNumbers": false, "showMiniMap": false},
+            "content": "### 🛡️ Security & Resources\n\n| Service | |\n|---|---|\n| 🛡️ **Trivy Explorer** | [Open →](https://trivy.cluster.integratn.tech) |\n| 📋 **Goldilocks** | [Open →](https://goldilocks.cluster.integratn.tech) |\n| 🔒 **Trivy Dashboard** | [Dashboard →](/d/trivy-operator/trivy-operator-dashboard) |\n| 🖥️ **vCluster Fleet** | [Dashboard →](/d/vcluster-fleet-health/vcluster-fleet-health) |",
+            "mode": "markdown"
+          },
+          "title": "",
+          "transparent": true,
+          "type": "text"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 13},
+          "id": 102,
+          "title": "ArgoCD Applications",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "All ArgoCD-managed applications with their current sync and health status. Click an application name to open it in ArgoCD.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "custom": {
+                "align": "auto",
+                "cellOptions": {"type": "auto"},
+                "inspect": false,
+                "filterable": true
+              },
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "Application"},
+                "properties": [
+                  {"id": "links", "value": [{"title": "Open in ArgoCD", "url": "https://argocd.cluster.integratn.tech/applications/argocd/${__data.fields.Application}", "targetBlank": true}]},
+                  {"id": "custom.width", "value": 280}
+                ]
+              },
+              {
+                "matcher": {"id": "byName", "options": "Sync Status"},
+                "properties": [
+                  {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+                  {"id": "mappings", "value": [
+                    {"type": "value", "options": {"Synced": {"color": "green", "index": 0, "text": "✅ Synced"}, "OutOfSync": {"color": "orange", "index": 1, "text": "⚠️ Out of Sync"}, "Unknown": {"color": "text", "index": 2, "text": "❓ Unknown"}}}
+                  ]},
+                  {"id": "custom.width", "value": 150}
+                ]
+              },
+              {
+                "matcher": {"id": "byName", "options": "Health"},
+                "properties": [
+                  {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+                  {"id": "mappings", "value": [
+                    {"type": "value", "options": {"Healthy": {"color": "green", "index": 0, "text": "💚 Healthy"}, "Degraded": {"color": "red", "index": 1, "text": "🔴 Degraded"}, "Progressing": {"color": "yellow", "index": 2, "text": "🔄 Progressing"}, "Missing": {"color": "orange", "index": 3, "text": "⚠️ Missing"}, "Suspended": {"color": "blue", "index": 4, "text": "⏸️ Suspended"}, "Unknown": {"color": "text", "index": 5, "text": "❓ Unknown"}}}
+                  ]},
+                  {"id": "custom.width", "value": 150}
+                ]
+              },
+              {
+                "matcher": {"id": "byName", "options": "Project"},
+                "properties": [{"id": "custom.width", "value": 150}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "Namespace"},
+                "properties": [{"id": "custom.width", "value": 180}]
+              }
+            ]
+          },
+          "gridPos": {"h": 12, "w": 16, "x": 0, "y": 14},
+          "id": 10,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {"show": true, "reducer": ["count"], "countRows": true, "fields": ""},
+            "sortBy": [{"displayName": "Health", "desc": true}]
+          },
+          "title": "All Applications",
+          "type": "table",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "argocd_app_info",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {"Time": true, "Value": true, "__name__": true, "instance": true, "job": true, "namespace": true, "dest_server": true, "repo": true, "revision": true, "autosync_enabled": true, "operation_message": true, "operation_retry_count": true},
+                "renameByName": {"name": "Application", "project": "Project", "dest_namespace": "Namespace", "sync_status": "Sync Status", "health_status": "Health"},
+                "indexByName": {"name": 0, "project": 1, "dest_namespace": 2, "sync_status": 3, "health_status": 4}
+              }
+            }
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Distribution of application health across the cluster.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"}
+            },
+            "overrides": [
+              {"matcher": {"id": "byName", "options": "Healthy"}, "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]},
+              {"matcher": {"id": "byName", "options": "Degraded"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]},
+              {"matcher": {"id": "byName", "options": "Progressing"}, "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]},
+              {"matcher": {"id": "byName", "options": "Missing"}, "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]},
+              {"matcher": {"id": "byName", "options": "Suspended"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]},
+              {"matcher": {"id": "byName", "options": "Unknown"}, "properties": [{"id": "color", "value": {"fixedColor": "text", "mode": "fixed"}}]}
+            ]
+          },
+          "gridPos": {"h": 6, "w": 8, "x": 16, "y": 14},
+          "id": 11,
+          "options": {
+            "displayLabels": ["name", "value"],
+            "legend": {"displayMode": "list", "placement": "bottom", "values": ["value"]},
+            "pieType": "donut",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "tooltip": {"mode": "single", "sort": "none"}
+          },
+          "title": "Health Distribution",
+          "type": "piechart",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count by (health_status) (argocd_app_info)", "legendFormat": "{{ health_status }}", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Distribution of application sync status. Ideally all apps should be Synced.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"}
+            },
+            "overrides": [
+              {"matcher": {"id": "byName", "options": "Synced"}, "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]},
+              {"matcher": {"id": "byName", "options": "OutOfSync"}, "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]},
+              {"matcher": {"id": "byName", "options": "Unknown"}, "properties": [{"id": "color", "value": {"fixedColor": "text", "mode": "fixed"}}]}
+            ]
+          },
+          "gridPos": {"h": 6, "w": 8, "x": 16, "y": 20},
+          "id": 12,
+          "options": {
+            "displayLabels": ["name", "value"],
+            "legend": {"displayMode": "list", "placement": "bottom", "values": ["value"]},
+            "pieType": "donut",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "tooltip": {"mode": "single", "sort": "none"}
+          },
+          "title": "Sync Distribution",
+          "type": "piechart",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count by (sync_status) (argocd_app_info)", "legendFormat": "{{ sync_status }}", "refId": "A", "instant": true}]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 26},
+          "id": 103,
+          "title": "Resource Usage — Top Namespaces",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Top 10 namespaces by CPU usage. Helps identify the most resource-hungry workloads at a glance.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "none"}},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 27},
+          "id": 13,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "CPU Usage — Top 10 Namespaces",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "topk(10, sum by (namespace) (rate(container_cpu_usage_seconds_total{namespace!=\"\", container!=\"\"}[5m])))", "legendFormat": "{{ namespace }}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Top 10 namespaces by memory working set. Memory that cannot be reclaimed — sustained growth indicates potential leaks.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "none"}},
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 27},
+          "id": 14,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Memory Usage — Top 10 Namespaces",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "topk(10, sum by (namespace) (container_memory_working_set_bytes{namespace!=\"\", container!=\"\"}))", "legendFormat": "{{ namespace }}", "refId": "A"}]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 35},
+          "id": 104,
+          "title": "Active Alerts",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Currently firing alerts across the cluster (excluding Watchdog and InfoInhibitor). Each row is a distinct alert with its labels.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "custom": {
+                "align": "auto",
+                "cellOptions": {"type": "auto"},
+                "inspect": false,
+                "filterable": true
+              },
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "Severity"},
+                "properties": [
+                  {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+                  {"id": "mappings", "value": [
+                    {"type": "value", "options": {"critical": {"color": "red", "index": 0, "text": "🔴 Critical"}, "warning": {"color": "orange", "index": 1, "text": "🟠 Warning"}, "info": {"color": "blue", "index": 2, "text": "🔵 Info"}, "none": {"color": "text", "index": 3}}}
+                  ]},
+                  {"id": "custom.width", "value": 130}
+                ]
+              },
+              {
+                "matcher": {"id": "byName", "options": "Alert"},
+                "properties": [{"id": "custom.width", "value": 300}]
+              },
+              {
+                "matcher": {"id": "byName", "options": "Namespace"},
+                "properties": [{"id": "custom.width", "value": 160}]
+              }
+            ]
+          },
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 36},
+          "id": 15,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {"show": true, "reducer": ["count"], "countRows": true, "fields": ""},
+            "sortBy": [{"displayName": "Severity", "desc": true}]
+          },
+          "title": "Firing Alerts",
+          "type": "table",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "${datasource}"},
+              "expr": "ALERTS{alertstate=\"firing\", alertname!=\"Watchdog\", alertname!=\"InfoInhibitor\"}",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {"Time": true, "Value": true, "__name__": true, "instance": true, "job": true, "alertstate": true, "prometheus": true, "container": true, "endpoint": true, "service": true, "pod": true, "uid": true},
+                "renameByName": {"alertname": "Alert", "severity": "Severity", "namespace": "Namespace"},
+                "indexByName": {"alertname": 0, "severity": 1, "namespace": 2}
+              }
+            }
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 44},
+          "id": 105,
+          "title": "Recent Error Logs",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "${lokids}"},
+          "description": "Recent error, panic, and fatal log lines across all namespaces. Use the namespace and pod filters to narrow down.",
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 45},
+          "id": 16,
+          "options": {
+            "showTime": true,
+            "showLabels": true,
+            "showCommonLabels": false,
+            "wrapLogMessage": true,
+            "prettifyLogMessage": false,
+            "enableLogDetails": true,
+            "sortOrder": "Descending",
+            "dedupStrategy": "none"
+          },
+          "title": "Cluster Error Logs",
+          "type": "logs",
+          "targets": [
+            {
+              "datasource": {"type": "loki", "uid": "${lokids}"},
+              "expr": "{namespace=~\"$log_namespace\"} |~ \"(?i)(error|panic|fatal|OOMKilled)\" !~ \"(?i)(metrics|healthz|readyz|livez|level=info)\"",
+              "legendFormat": "",
+              "refId": "A"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["platform", "landing-zone", "overview"],
+      "templating": {
+        "list": [
+          {
+            "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"},
+            "hide": 0,
+            "includeAll": false,
+            "label": "Data Source",
+            "multi": false,
+            "name": "datasource",
+            "options": [],
+            "query": "prometheus",
+            "queryValue": "",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "type": "datasource"
+          },
+          {
+            "current": {"selected": false, "text": "Loki", "value": "Loki"},
+            "hide": 0,
+            "includeAll": false,
+            "label": "Loki",
+            "multi": false,
+            "name": "lokids",
+            "options": [],
+            "query": "loki",
+            "queryValue": "",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "type": "datasource"
+          },
+          {
+            "allValue": ".+",
+            "current": {"selected": false, "text": "All", "value": "$__all"},
+            "datasource": {"type": "loki", "uid": "${lokids}"},
+            "definition": "label_values({job=~\".+\"}, namespace)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Log Namespace",
+            "multi": true,
+            "name": "log_namespace",
+            "options": [],
+            "query": "label_values({job=~\".+\"}, namespace)",
+            "refresh": 2,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          }
+        ]
+      },
+      "time": {"from": "now-1h", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Platform Landing Zone",
+      "uid": "platform-landing-zone",
+      "version": 1
+    }

@@ -166,6 +166,25 @@ kratix-dashboard:
     syncOptions:
       - CreateNamespace=true
 
+platform-landing-zone:
+  enabled: true
+  type: manifest
+  namespace: monitoring
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/platform-landing-zone
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+
 network-policies:
   enabled: true
   type: manifest
