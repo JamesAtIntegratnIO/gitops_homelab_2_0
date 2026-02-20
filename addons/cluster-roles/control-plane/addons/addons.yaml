@@ -220,6 +220,8 @@ network-policies:
     automated:
       selfHeal: true
       prune: true
+    syncOptions:
+      - ServerSideApply=true
 
 authentik:
   enabled: true
