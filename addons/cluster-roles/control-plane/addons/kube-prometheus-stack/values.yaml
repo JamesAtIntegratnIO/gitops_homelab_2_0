@@ -186,8 +186,8 @@ grafana:
       client_secret: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
       scopes: openid profile email groups
       auth_url: https://auth.cluster.integratn.tech/application/o/authorize/
-      token_url: http://authentik-server.authentik.svc.cluster.local:9000/application/o/token/
-      api_url: http://authentik-server.authentik.svc.cluster.local:9000/application/o/userinfo/
+      token_url: http://authentik-server.authentik.svc.cluster.local/application/o/token/
+      api_url: http://authentik-server.authentik.svc.cluster.local/application/o/userinfo/
       use_pkce: true
       use_refresh_token: true
       allow_sign_up: true

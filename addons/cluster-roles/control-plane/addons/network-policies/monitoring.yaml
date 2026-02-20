@@ -180,6 +180,8 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+        - protocol: TCP
+          port: 80
     # External HTTPS (plugin catalog, Gravatar, update checks)
     - to:
         - ipBlock:
