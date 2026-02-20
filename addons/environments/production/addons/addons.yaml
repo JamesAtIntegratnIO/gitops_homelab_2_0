@@ -229,7 +229,7 @@ metrics-server:
   enabled: true
   namespace: kube-system
   project: platform-services
-  defaultVersion: "3.11.0"
+  defaultVersion: "3.12.2"
   chartRepository: "https://kubernetes-sigs.github.io/metrics-server"
   selector:
     matchExpressions:
