@@ -80,10 +80,16 @@ prometheus:
     retention: 15d
     secrets:
     - etcd-client-cert
+    # Discover ServiceMonitors/PodMonitors/Rules in ALL namespaces
+    # regardless of labels. Without the *NilUsesHelmValues: false
+    # settings, empty selectors get replaced with {release: <helm-release>}.
+    serviceMonitorSelectorNilUsesHelmValues: false
     serviceMonitorNamespaceSelector: {}
     serviceMonitorSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
     podMonitorNamespaceSelector: {}
     podMonitorSelector: {}
+    ruleSelectorNilUsesHelmValues: false
     ruleNamespaceSelector: {}
     ruleSelector: {}
     storageSpec:
