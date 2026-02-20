@@ -79,3 +79,7 @@ spec:
         cidr: 10.0.3.1/32
         port: 5432
         protocol: TCP
+      - name: usenet
+        cidr: 0.0.0.0/0
+        port: 563
+        protocol: TCP
