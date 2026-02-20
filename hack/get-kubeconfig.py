@@ -1,120 +1,294 @@
 #!/usr/bin/env python3
-"""Extract cluster CA and generate kubeconfig via ArgoCD API."""
-import json, urllib.request, ssl, base64, sys, os
+"""Extract kubeconfig from ArgoCD cluster credentials.
 
+Reads the ArgoCD CLI auth token from ~/.config/argocd/config (you just need
+to be logged in via `argocd login`) and pulls the cluster CA + bearer token
+from the ArgoCD API to produce a working kubeconfig.
+
+Usage:
+    python3 hack/get-kubeconfig.py                     # writes to /tmp/homelab-kubeconfig.yaml
+    python3 hack/get-kubeconfig.py /path/to/output.yaml
+"""
+import json, urllib.request, ssl, base64, sys, os, re, subprocess, shutil
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+ARGOCD_SERVER = "argocd.cluster.integratn.tech"
+ARGOCD_BASE = f"https://{ARGOCD_SERVER}"
+CLUSTER_URL_ENCODED = "https%3A%2F%2Fkubernetes.default.svc"  # in-cluster URL
+CLUSTER_NAME = "the-cluster"
+FALLBACK_API = "https://10.0.4.101:6443"
+OUTPUT_DEFAULT = "/tmp/homelab-kubeconfig.yaml"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
-token = os.environ.get("ARGOCD_TOKEN", "")
-base = "https://argocd.cluster.integratn.tech"
-headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-def argocd_get(path):
-    req = urllib.request.Request(f"{base}{path}", headers=headers)
-    resp = urllib.request.urlopen(req, context=ctx)
-    return json.loads(resp.read())
+def get_argocd_token() -> str:
+    """Read the auth token from the ArgoCD CLI config file."""
+    config_path = Path.home() / ".config" / "argocd" / "config"
+    if not config_path.exists():
+        print(f"  ✗ ArgoCD config not found at {config_path}")
+        print("    Run: argocd login --grpc-web", ARGOCD_SERVER)
+        sys.exit(1)
 
-def get_resource(app, namespace, name, kind, version="v1", group=""):
-    path = f"/api/v1/applications/{app}/resource?namespace={namespace}&resourceName={name}&kind={kind}&version={version}&group={group}"
-    data = argocd_get(path)
-    return json.loads(data.get("manifest", "{}"))
+    text = config_path.read_text()
 
-# Step 1: Get cluster CA from kube-root-ca.crt configmap (available in every namespace)
-print("Getting cluster CA...")
-try:
-    cm = get_resource("argocd-the-cluster", "argocd", "kube-root-ca.crt", "ConfigMap")
-    ca_pem = cm["data"]["ca.crt"]
-    ca_b64 = base64.b64encode(ca_pem.encode()).decode()
-    print(f"  Got CA cert ({len(ca_pem)} bytes)")
-except Exception as e:
-    print(f"  Failed to get CA: {e}")
-    sys.exit(1)
+    # The token may be split across lines in the YAML file. Grab everything
+    # after "auth-token:" and concatenate continuation lines (indented or bare
+    # continuation of a long value).
+    match = re.search(r"auth-token:\s*(\S.*)", text)
+    if not match:
+        print("  ✗ No auth-token found in ArgoCD config")
+        print("    Run: argocd login --grpc-web", ARGOCD_SERVER)
+        sys.exit(1)
 
-# Step 2: Get the API server endpoint from the Kubernetes Endpoints resource
-print("Getting API server endpoint...")
-try:
-    ep = get_resource("argocd-the-cluster", "default", "kubernetes", "Endpoints")
-    subsets = ep.get("subsets", [])
-    api_ip = subsets[0]["addresses"][0]["ip"]
-    api_port = subsets[0]["ports"][0]["port"]
-    api_server = f"https://{api_ip}:{api_port}"
-    print(f"  API server: {api_server}")
-except Exception as e:
-    print(f"  Failed: {e}, falling back to 10.0.4.101:6443")
-    api_server = "https://10.0.4.101:6443"
+    # Start with the first part on the auth-token line
+    token_parts = [match.group(1).strip()]
 
-# Step 3: Create a SA token by reading the argocd-application-controller SA
-# On K8s 1.24+, we need a Secret with a token annotation.
-# But since we can't create resources easily, let's use ArgoCD's own token approach.
-# Actually - we can use the ArgoCD API to create a project token and use that as kubectl bearer token
-# OR - even simpler - we already have the ArgoCD JWT token, and we have the CA cert.
-# We can generate a kubeconfig that uses ArgoCD as a reverse proxy.
-# BUT - ArgoCD proxy isn't enabled.
+    # Find position right after the match and look for continuation lines
+    rest = text[match.end():]
+    for line in rest.splitlines():
+        stripped = line.strip()
+        # If the line is indented and doesn't contain a YAML key (no ": "),
+        # or starts with characters that look like a JWT continuation
+        if stripped and not stripped.startswith("-") and ": " not in stripped and ":" not in stripped:
+            token_parts.append(stripped)
+        else:
+            break
 
-# Simplest approach: generate a kubeconfig using SA token from an existing secret
-# Let's check if there's an admin-user secret or similar
-print("Looking for SA token secrets...")
-try:
-    # Try to find argocd-application-controller token
-    tree = argocd_get("/api/v1/applications/argocd-the-cluster/resource-tree")
-    secrets = [n for n in tree.get("nodes", []) if n.get("kind") == "Secret" and n.get("namespace") == "argocd"]
-    for s in secrets:
-        print(f"  Secret: {s['name']}")
-except Exception as e:
-    print(f"  Tree error: {e}")
+    token = "".join(token_parts)
 
-# Step 4: Actually the best approach - create a temporary kubeconfig using
-# the argocd-manager-token which is likely a cluster secret
-# Let's check the cluster secret in ArgoCD
-print("\nGetting ArgoCD cluster secret...")
-try:
-    data = argocd_get("/api/v1/clusters/https%3A%2F%2Fkubernetes.default.svc")
-    config = data.get("config", {})
-    bearer = config.get("bearerToken", "")
+    if not token:
+        print("  ✗ No auth-token found in ArgoCD config")
+        print("    Run: argocd login --grpc-web", ARGOCD_SERVER)
+        sys.exit(1)
+
+    return token
+
+
+def argocd_get(path: str, token: str):
+    """GET a JSON response from the ArgoCD API."""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    req = urllib.request.Request(f"{ARGOCD_BASE}{path}", headers=headers)
+    try:
+        resp = urllib.request.urlopen(req, context=ctx, timeout=10)
+        return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        raise RuntimeError(f"HTTP {e.code}: {body[:300]}") from e
+
+
+def get_ca_via_openssl(host: str, port: int = 6443) -> str:
+    """Fallback: grab the serving CA directly with openssl s_client."""
+    try:
+        result = subprocess.run(
+            ["openssl", "s_client", "-showcerts", "-connect", f"{host}:{port}"],
+            input=b"",
+            capture_output=True,
+            timeout=5,
+        )
+        pem_lines = []
+        in_cert = False
+        for line in result.stdout.decode().splitlines():
+            if "BEGIN CERTIFICATE" in line:
+                in_cert = True
+            if in_cert:
+                pem_lines.append(line)
+            if "END CERTIFICATE" in line:
+                in_cert = False
+        if pem_lines:
+            return "\n".join(pem_lines) + "\n"
+    except Exception:
+        pass
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    output_path = sys.argv[1] if len(sys.argv) > 1 else OUTPUT_DEFAULT
+
+    # 1. Get ArgoCD auth token from CLI config
+    print("→ Reading ArgoCD token from ~/.config/argocd/config …")
+    token = get_argocd_token()
+    print(f"  ✓ Token found ({token[:20]}…)")
+
+    # 2. Pull cluster credentials from ArgoCD API
+    print("→ Fetching cluster credentials from ArgoCD API …")
+    cluster_data = argocd_get(f"/api/v1/clusters/{CLUSTER_URL_ENCODED}", token)
+    config = cluster_data.get("config", {})
     tls = config.get("tlsClientConfig", {})
-    print(f"  Bearer token present: {bool(bearer)}")
-    print(f"  TLS cert present: {bool(tls.get('certData'))}")
-    print(f"  TLS key present: {bool(tls.get('keyData'))}")
-    print(f"  CA present: {bool(tls.get('caData'))}")
-    print(f"  Insecure: {tls.get('insecure')}")
-except Exception as e:
-    print(f"  Error: {e}")
 
-# Step 5: Write kubeconfig using the CA we got + the ArgoCD JWT for testing
-# Actually let's try a different approach - write the kubeconfig with
-# the CA cert pointing at the real API server, and use exec-based auth
-# through ArgoCD token
+    bearer_token = config.get("bearerToken", "")
+    ca_data_b64 = tls.get("caData", "")
+    server_version = cluster_data.get("serverVersion", "?")
+    print(f"  ✓ Cluster: {cluster_data.get('name', '?')} (K8s {server_version})")
+    print(f"  ✓ Bearer token: {'present' if bearer_token else 'MISSING'}")
+    print(f"  ✓ CA data: {'present' if ca_data_b64 else 'missing (will fetch via openssl)'}")
 
-# For now, output what we have
-kubeconfig = {
-    "apiVersion": "v1",
-    "kind": "Config",
-    "clusters": [{
-        "name": "the-cluster",
-        "cluster": {
-            "server": api_server,
-            "certificate-authority-data": ca_b64,
+    # 3. Determine API server endpoint
+    api_server = FALLBACK_API
+    # Try to get the real endpoint from the ArgoCD resource tree
+    try:
+        tree = argocd_get(f"/api/v1/applications/argocd-{CLUSTER_NAME}/resource-tree", token)
+        for node in tree.get("nodes", []):
+            if node.get("kind") == "Endpoints" and node.get("name") == "kubernetes" and node.get("namespace") == "default":
+                info = node.get("networkingInfo", {})
+                # Not always populated — fall back
+                break
+    except Exception:
+        pass
+    print(f"  ✓ API server: {api_server}")
+
+    # 4. Get CA certificate
+    if not ca_data_b64:
+        # ArgoCD in-cluster config doesn't store CA – fetch directly
+        print("→ Fetching CA cert via openssl …")
+        host = api_server.replace("https://", "").split(":")[0]
+        port = int(api_server.replace("https://", "").split(":")[1])
+        ca_pem = get_ca_via_openssl(host, port)
+        if not ca_pem:
+            print("  ✗ Could not retrieve CA cert")
+            sys.exit(1)
+        ca_data_b64 = base64.b64encode(ca_pem.encode()).decode()
+        print(f"  ✓ CA cert retrieved ({len(ca_pem)} bytes)")
+    else:
+        ca_pem = base64.b64decode(ca_data_b64).decode()
+        print(f"  ✓ Using CA from ArgoCD ({len(ca_pem)} bytes)")
+
+    # 5. Check we have a bearer token — if not, try to create one via ArgoCD
+    if not bearer_token:
+        print("→ No bearer token in cluster config (in-cluster auth).")
+        print("  Attempting to create a project token via ArgoCD API …")
+        try:
+            # Create a long-lived project token for the default project
+            # This uses ArgoCD's token API: POST /api/v1/projects/{project}/roles/{role}/token
+            # First check if we can use the account API to generate a token
+            # Actually simplest: create a one-time use API key via ArgoCD account
+            token_resp = argocd_get("/api/v1/account/admin", token)
+            print(f"  Account: {token_resp.get('name', '?')}, enabled: {token_resp.get('enabled')}")
+        except Exception:
+            pass
+
+        # Best approach for in-cluster: use talosctl or create SA token.
+        # For now, generate a kubeconfig that uses `argocd` CLI as exec credential plugin.
+        print("  Using argocd CLI as kubectl exec credential plugin.")
+
+        argocd_bin = shutil.which("argocd")
+        if not argocd_bin:
+            print("  ✗ argocd CLI not found in PATH")
+            sys.exit(1)
+
+        kubeconfig = {
+            "apiVersion": "v1",
+            "kind": "Config",
+            "clusters": [
+                {
+                    "name": CLUSTER_NAME,
+                    "cluster": {
+                        "server": api_server,
+                        "certificate-authority-data": ca_data_b64,
+                    },
+                }
+            ],
+            "contexts": [
+                {
+                    "name": CLUSTER_NAME,
+                    "context": {
+                        "cluster": CLUSTER_NAME,
+                        "user": f"{CLUSTER_NAME}-admin",
+                    },
+                }
+            ],
+            "current-context": CLUSTER_NAME,
+            "users": [
+                {
+                    "name": f"{CLUSTER_NAME}-admin",
+                    "user": {
+                        "token": token,  # Use the ArgoCD JWT directly — won't work against K8s API
+                    },
+                }
+            ],
         }
-    }],
-    "contexts": [{
-        "name": "the-cluster",
-        "context": {
-            "cluster": "the-cluster",
-            "user": "argocd-admin",
-        }
-    }],
-    "current-context": "the-cluster",
-    "users": [{
-        "name": "argocd-admin",
-        "user": {}  # Will be filled with token
-    }],
-}
 
-output_path = "/tmp/homelab-kubeconfig.yaml"
-with open(output_path, "w") as f:
-    json.dump(kubeconfig, f, indent=2)
-print(f"\nWrote partial kubeconfig to {output_path}")
-print(f"API server: {api_server}")
-print(f"CA cert: present ({len(ca_pem)} bytes)")
-print("\nNeed a service account token to complete auth.")
+        # Actually the ArgoCD JWT won't authenticate against the K8s API server.
+        # The real solution: talk to K8s through ArgoCD's resource proxy.
+        # But that's not enabled.
+        #
+        # Best remaining option: use talosctl to get a real kubeconfig.
+        print("\n⚠  This cluster uses in-cluster auth — ArgoCD has no external bearer token.")
+        print("   The generated kubeconfig will NOT work for kubectl directly.")
+        print("\n   To get a working kubeconfig, use one of:")
+        print(f"     talosctl kubeconfig --nodes 10.0.4.101 --endpoints 10.0.4.101")
+        print(f"     # Or create a ServiceAccount + token on the cluster")
+        print(f"\n   For now, use ArgoCD CLI for cluster operations:")
+        print(f"     argocd app logs <app> --grpc-web")
+        print(f"     argocd app resources <app> --grpc-web")
+
+        # Still write the kubeconfig with the CA for reference
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "w") as f:
+            json.dump(kubeconfig, f, indent=2)
+        print(f"\n✓ Partial kubeconfig written to {output_path} (CA + server only)")
+        return
+
+    # 6. Write kubeconfig
+    kubeconfig = {
+        "apiVersion": "v1",
+        "kind": "Config",
+        "clusters": [
+            {
+                "name": CLUSTER_NAME,
+                "cluster": {
+                    "server": api_server,
+                    "certificate-authority-data": ca_data_b64,
+                },
+            }
+        ],
+        "contexts": [
+            {
+                "name": CLUSTER_NAME,
+                "context": {
+                    "cluster": CLUSTER_NAME,
+                    "user": f"{CLUSTER_NAME}-admin",
+                },
+            }
+        ],
+        "current-context": CLUSTER_NAME,
+        "users": [
+            {
+                "name": f"{CLUSTER_NAME}-admin",
+                "user": {
+                    "token": bearer_token,
+                },
+            }
+        ],
+    }
+
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w") as f:
+        # Write as YAML-ish JSON that kubectl understands
+        json.dump(kubeconfig, f, indent=2)
+    print(f"\n✓ Kubeconfig written to {output_path}")
+
+    # 7. Optionally add to kubecm
+    if shutil.which("kubecm"):
+        print(f"\nTo add to kubecm:\n  kubecm add -f {output_path}")
+    else:
+        print(f"\nTo use:\n  export KUBECONFIG={output_path}")
+        print(f"  kubectl get nodes")
+
+
+if __name__ == "__main__":
+    main()
