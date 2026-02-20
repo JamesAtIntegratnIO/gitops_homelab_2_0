@@ -228,7 +228,7 @@ kube-prometheus-stack:
   chartName: kube-prometheus-stack
   project: platform-services
   chartRepository: https://prometheus-community.github.io/helm-charts
-  defaultVersion: "58.2.1"
+  defaultVersion: "82.1.1"
   selector:
     matchExpressions:
       - key: cluster_role

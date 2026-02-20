@@ -202,7 +202,7 @@ kube-prometheus-stack-agent:
   chartName: kube-prometheus-stack
   project: platform-services
   chartRepository: https://prometheus-community.github.io/helm-charts
-  defaultVersion: "80.14.1"
+  defaultVersion: "82.1.1"
   valuesFolderName: kube-prometheus-stack-agent
   selector:
     matchExpressions:
