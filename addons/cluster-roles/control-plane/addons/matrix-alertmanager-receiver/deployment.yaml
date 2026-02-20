@@ -17,9 +17,19 @@ spec:
         app.kubernetes.io/name: matrix-alertmanager-receiver
         app.kubernetes.io/component: alerting
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: receiver
           image: metio/matrix-alertmanager-receiver:2026.2.11
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           args:
             - --config-path=/etc/config/config.yaml
           ports:

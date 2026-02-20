@@ -1,0 +1,16 @@
+# MetalLB Helm values — security hardening
+# The speaker DaemonSet requires hostNetwork + SYS_ADMIN (by design), so we
+# only harden the controller Deployment here.
+# Fixes AVD-KSV-0030 / AVD-KSV-0001 for metallb-controller.
+
+controller:
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault

@@ -19,9 +19,16 @@ spec:
         app: config-nfs-client-provisioner
     spec:
       serviceAccountName: nfs-subdir-external-provisioner
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: config-nfs-client-provisioner
           image: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner:v4.0.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
           volumeMounts:
             - name: nfs-client-root
               mountPath: /persistentvolumes

@@ -7,3 +7,10 @@ config:
       external_labels:
         cluster: the-cluster
         environment: production
+
+# Security hardening — fixes AVD-KSV-0030 (seccomp)
+# Note: promtail needs host log access, so allowPrivilegeEscalation and
+# capabilities are left at chart defaults (needs some for log reading).
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault

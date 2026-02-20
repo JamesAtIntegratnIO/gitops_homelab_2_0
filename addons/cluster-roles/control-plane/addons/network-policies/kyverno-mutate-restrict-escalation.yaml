@@ -1,0 +1,56 @@
+# Kyverno ClusterPolicy: Set allowPrivilegeEscalation=false and drop ALL capabilities
+# Fixes AVD-KSV-0001 (allowPrivilegeEscalation not false)
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: mutate-restrict-escalation
+  annotations:
+    policies.kyverno.io/title: Restrict Privilege Escalation
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Mutates containers to set allowPrivilegeEscalation to false and drop ALL
+      capabilities if not already set. This prevents child processes from
+      gaining more privileges than their parent. Excludes namespaces where
+      elevated privileges are operationally required (e.g. metallb-speaker
+      needs NET_RAW+SYS_ADMIN, promtail needs host log access).
+spec:
+  validationFailureAction: Audit
+  background: false
+  rules:
+    - name: set-no-privilege-escalation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - metallb-system
+                - promtail
+      mutate:
+        foreach:
+          - list: "request.object.spec.containers"
+            patchStrategicMerge:
+              spec:
+                containers:
+                  - (name): "{{ element.name }}"
+                    securityContext:
+                      +(allowPrivilegeEscalation): false
+                      +(capabilities):
+                        +(drop):
+                          - ALL
+          - list: "request.object.spec.initContainers || []"
+            patchStrategicMerge:
+              spec:
+                initContainers:
+                  - (name): "{{ element.name }}"
+                    securityContext:
+                      +(allowPrivilegeEscalation): false
+                      +(capabilities):
+                        +(drop):
+                          - ALL

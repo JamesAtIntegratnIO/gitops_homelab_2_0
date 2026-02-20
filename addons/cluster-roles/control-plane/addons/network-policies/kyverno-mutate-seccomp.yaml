@@ -1,0 +1,38 @@
+# Kyverno ClusterPolicy: Inject seccomp RuntimeDefault profile on all pods
+# Fixes AVD-KSV-0030 (no seccomp profile) and AVD-KSV-0104 (unconfined seccomp)
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: mutate-seccomp-default
+  annotations:
+    policies.kyverno.io/title: Add Seccomp RuntimeDefault
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Mutates pods to set seccompProfile.type to RuntimeDefault at the pod level
+      if no seccomp profile is already defined. This is the most permissive
+      named profile and prevents containers from running with unrestricted
+      syscall access (Unconfined).
+spec:
+  validationFailureAction: Audit
+  background: false
+  rules:
+    - name: add-seccomp-pod-level
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          # kube-system: Cilium manages its own security context
+          - resources:
+              namespaces:
+                - kube-system
+      mutate:
+        patchStrategicMerge:
+          spec:
+            securityContext:
+              +(seccompProfile):
+                +(type): RuntimeDefault

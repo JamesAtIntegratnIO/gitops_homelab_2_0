@@ -9,3 +9,15 @@ resources:
     memory: 64Mi
   limits:
     memory: 256Mi
+
+# Security hardening — fixes AVD-KSV-0030 / AVD-KSV-0001
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault

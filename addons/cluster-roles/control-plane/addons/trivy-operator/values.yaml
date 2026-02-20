@@ -15,6 +15,16 @@ operator:
   scanJobTimeout: 10m
   # Clean up completed scan jobs after 30s
   scanJobTTL: 30s
+  # Security hardening — fixes AVD-KSV-0030 / AVD-KSV-0001
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
 
 trivy:
   # Standalone mode — no Trivy server needed

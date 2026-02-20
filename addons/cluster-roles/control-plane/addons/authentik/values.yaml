@@ -132,6 +132,17 @@ blueprints:
 server:
   replicas: 2
 
+  # Security hardening — fixes AVD-KSV-0030 / AVD-KSV-0001
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
+
   resources:
     requests:
       cpu: 100m
@@ -164,6 +175,17 @@ server:
 # Worker configuration (background tasks)
 worker:
   replicas: 1
+
+  # Security hardening
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
 
   resources:
     requests:
