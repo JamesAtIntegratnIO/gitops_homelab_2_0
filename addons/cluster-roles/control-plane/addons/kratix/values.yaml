@@ -107,6 +107,11 @@ additionalResources:
         syncOptions:
           - CreateNamespace=true
       ignoreDifferences:
+        - group: networking.k8s.io
+          kind: NetworkPolicy
+          name: default-deny-all
+          jsonPointers:
+            - /metadata/labels
         - group: batch
           kind: Job
           jsonPointers:
