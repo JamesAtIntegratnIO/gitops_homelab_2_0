@@ -255,8 +255,29 @@ spec:
         - protocol: TCP
           port: 53
 ---
-# metrics-server: API aggregation layer for kubectl top / HPA
-# kube-apiserver proxies requests to metrics-server; webhook-style call
+# metrics-server: kube-apiserver aggregation-layer calls
+# Uses CiliumNetworkPolicy because Cilium's socket-level LB rewrites the source
+# IP to the cilium_host address (pod CIDR), which carries the remote-node/host
+# identity instead of the kube-apiserver identity — ipBlock 10.0.4.0/24 won't match.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-metrics-server-from-apiserver
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: metrics-server
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+---
+# metrics-server: Prometheus scraping + kubelet egress
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -270,13 +291,6 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # kube-apiserver aggregation-layer calls (from node IPs)
-    - from:
-        - ipBlock:
-            cidr: 10.0.4.0/24
-      ports:
-        - protocol: TCP
-          port: 10250
     # Prometheus scrapes metrics
     - from:
         - namespaceSelector:
