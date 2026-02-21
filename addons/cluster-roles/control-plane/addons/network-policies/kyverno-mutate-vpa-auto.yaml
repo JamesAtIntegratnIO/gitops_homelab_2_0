@@ -12,6 +12,7 @@ metadata:
       Automatically labels namespaces with goldilocks.fairwinds.com/vpa-update-mode=auto
       so that Goldilocks-created VPAs use Auto mode instead of Off (recommendation-only).
 spec:
+  admission: true
   rules:
     - name: add-vpa-auto-label
       match:

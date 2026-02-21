@@ -15,6 +15,7 @@ metadata:
       named profile and prevents containers from running with unrestricted
       syscall access (Unconfined).
 spec:
+  admission: true
   validationFailureAction: Audit
   background: false
   rules:

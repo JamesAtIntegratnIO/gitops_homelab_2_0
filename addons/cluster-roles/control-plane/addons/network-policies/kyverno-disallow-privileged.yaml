@@ -13,6 +13,7 @@ metadata:
       devices and kernel capabilities. This policy blocks pods with
       securityContext.privileged set to true.
 spec:
+  admission: true
   validationFailureAction: Enforce
   background: true
   rules:

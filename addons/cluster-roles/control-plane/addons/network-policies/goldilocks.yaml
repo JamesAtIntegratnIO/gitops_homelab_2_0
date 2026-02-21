@@ -6,17 +6,6 @@ kind: Namespace
 metadata:
   name: goldilocks
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: default-deny-all
-  namespace: goldilocks
-spec:
-  podSelector: {}
-  policyTypes:
-    - Ingress
-    - Egress
----
 # Allow DNS resolution
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

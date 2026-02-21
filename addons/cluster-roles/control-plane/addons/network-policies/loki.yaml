@@ -1,16 +1,3 @@
----
-# loki: Loki single-binary + Loki gateway
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: default-deny-all
-  namespace: loki
-spec:
-  podSelector: {}
-  policyTypes:
-    - Ingress
-    - Egress
----
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

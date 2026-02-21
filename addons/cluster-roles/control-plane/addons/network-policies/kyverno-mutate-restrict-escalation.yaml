@@ -16,6 +16,7 @@ metadata:
       elevated privileges are operationally required (e.g. metallb-speaker
       needs NET_RAW+SYS_ADMIN, promtail needs host log access).
 spec:
+  admission: true
   validationFailureAction: Audit
   background: false
   rules:

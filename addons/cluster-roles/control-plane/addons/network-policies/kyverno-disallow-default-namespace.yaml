@@ -13,6 +13,7 @@ metadata:
       application workloads. This policy blocks Pods, Deployments,
       StatefulSets, DaemonSets, Jobs, and CronJobs in the default namespace.
 spec:
+  admission: true
   validationFailureAction: Enforce
   background: true
   rules:

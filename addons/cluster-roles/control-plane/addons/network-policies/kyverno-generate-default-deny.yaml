@@ -14,6 +14,7 @@ metadata:
       namespace. This blocks all ingress and egress by default, requiring
       explicit allow rules for legitimate traffic.
 spec:
+  admission: true
   rules:
     - name: generate-default-deny
       match:

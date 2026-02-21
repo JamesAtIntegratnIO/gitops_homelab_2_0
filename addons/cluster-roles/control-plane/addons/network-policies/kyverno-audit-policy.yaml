@@ -15,6 +15,7 @@ metadata:
       all ingress and egress by default. This policy blocks namespace creation
       if no default-deny NetworkPolicy exists.
 spec:
+  admission: true
   validationFailureAction: Audit
   background: true
   rules:
