@@ -154,7 +154,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Gateway and canary push logs
+    # Gateway and canary push logs + inter-component communication
     - from:
         - podSelector: {}
       ports:
@@ -164,7 +164,9 @@ spec:
           port: 9095
         - protocol: TCP
           port: 7946
-    # Prometheus scrapes metrics
+        - protocol: TCP
+          port: 11211
+    # Prometheus scrapes Loki and memcached-exporter metrics
     - from:
         - namespaceSelector:
             matchLabels:
@@ -172,8 +174,10 @@ spec:
       ports:
         - protocol: TCP
           port: 3100
+        - protocol: TCP
+          port: 9150
   egress:
-    # Inter-component communication (same namespace)
+    # Inter-component communication + memcached (same namespace)
     - to:
         - podSelector: {}
       ports:
@@ -183,6 +187,8 @@ spec:
           port: 9095
         - protocol: TCP
           port: 7946
+        - protocol: TCP
+          port: 11211
     # NFS storage backend (if using filesystem storage)
     - to:
         - ipBlock:
