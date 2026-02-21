@@ -216,12 +216,18 @@ network-policies:
       - key: cluster_role
         operator: NotIn
         values: ['vcluster']
+  ignoreDifferences:
+    - group: kyverno.io
+      kind: ClusterPolicy
+      jqPathExpressions:
+        - .metadata.annotations["policies.kyverno.io/rescan"]
   syncPolicy:
     automated:
       selfHeal: true
       prune: true
     syncOptions:
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
 
 authentik:
   enabled: true

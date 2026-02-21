@@ -250,10 +250,6 @@ spec:
       ignoreDifferences:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if $chartConfig.ignoreDifferences}}
-      ignoreDifferences:
-        {{- $chartConfig.ignoreDifferences | toYaml | nindent 8 }}
-      {{- end }}
 ---
 {{- end }}
 {{- end }}
