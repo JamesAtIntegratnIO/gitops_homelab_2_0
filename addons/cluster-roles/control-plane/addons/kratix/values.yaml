@@ -112,6 +112,7 @@ additionalResources:
           name: default-deny-all
           jsonPointers:
             - /metadata/labels
+            - /metadata/annotations
         - group: batch
           kind: Job
           jsonPointers:
