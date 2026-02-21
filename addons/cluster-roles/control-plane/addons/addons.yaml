@@ -222,6 +222,12 @@ network-policies:
       prune: true
     syncOptions:
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: kyverno.io
+      kind: ClusterPolicy
+      jqPathExpressions:
+        - .metadata.annotations."policies.kyverno.io/rescan"
 
 authentik:
   enabled: true
