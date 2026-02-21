@@ -21,6 +21,7 @@ spec:
   background: false
   rules:
     - name: set-no-privilege-escalation
+      skipBackgroundRequests: true
       match:
         any:
           - resources:

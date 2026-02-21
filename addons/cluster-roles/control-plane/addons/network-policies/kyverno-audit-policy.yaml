@@ -20,6 +20,7 @@ spec:
   background: true
   rules:
     - name: check-default-deny-exists
+      skipBackgroundRequests: true
       match:
         any:
           - resources:

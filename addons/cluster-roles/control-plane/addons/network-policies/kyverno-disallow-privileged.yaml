@@ -18,6 +18,7 @@ spec:
   background: true
   rules:
     - name: deny-privileged-containers
+      skipBackgroundRequests: true
       match:
         any:
           - resources:

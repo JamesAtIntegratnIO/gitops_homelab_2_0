@@ -15,8 +15,11 @@ metadata:
       explicit allow rules for legitimate traffic.
 spec:
   admission: true
+  background: true
+  validationFailureAction: Audit
   rules:
     - name: generate-default-deny
+      skipBackgroundRequests: true
       match:
         any:
           - resources:

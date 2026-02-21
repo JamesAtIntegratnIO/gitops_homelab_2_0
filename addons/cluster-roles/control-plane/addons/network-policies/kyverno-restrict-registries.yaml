@@ -19,6 +19,7 @@ spec:
   background: true
   rules:
     - name: validate-registries
+      skipBackgroundRequests: true
       match:
         any:
           - resources:

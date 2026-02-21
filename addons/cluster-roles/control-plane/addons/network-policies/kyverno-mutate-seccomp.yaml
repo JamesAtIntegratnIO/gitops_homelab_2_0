@@ -20,6 +20,7 @@ spec:
   background: false
   rules:
     - name: add-seccomp-pod-level
+      skipBackgroundRequests: true
       match:
         any:
           - resources:
