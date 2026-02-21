@@ -38,6 +38,7 @@ spec:
       context:
         - name: netpols
           apiCall:
+            method: GET
             urlPath: "/apis/networking.k8s.io/v1/namespaces/{{request.object.metadata.name}}/networkpolicies"
             jmesPath: "items[?metadata.name == 'default-deny-all'] | length(@)"
       validate:
