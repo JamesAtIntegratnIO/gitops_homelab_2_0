@@ -5,11 +5,15 @@
 excludeNamespaces: "kube-system,kube-public,kube-node-lease"
 
 # Disable node collector — requires hostPID and hostPath which violate
-# PodSecurity "baseline" and are unnecessary on Talos (immutable OS)
+# PodSecurity "baseline" and fail on Talos (immutable root filesystem,
+# no /etc/systemd or /lib/systemd). The chart has no nodeCollector.enabled toggle;
+# infra assessment scanner controls node-collector job creation.
 nodeCollector:
-  enabled: false
+  excludeNodes: ""
 
 operator:
+  # Disable infra assessment scanning — node-collector can't run on Talos
+  infraAssessmentScannerEnabled: false
   # Conservative concurrency for homelab resource constraints
   scanJobsConcurrentLimit: 3
   scanJobTimeout: 10m
