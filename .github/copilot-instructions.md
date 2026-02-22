@@ -218,7 +218,7 @@ data:
 - If a preferred MCP tool is unavailable, explicitly note the fallback and proceed with a minimal manual checklist.
 
 ## Environment Context
-- **Cluster**: Talos Linux 1.11.3, Kubernetes 1.34.1
+- **Cluster**: Talos Linux 1.11.5, Kubernetes 1.34.1
 - **GitOps**: ArgoCD with ApplicationSets pattern
 - **Infrastructure**: Control-plane nodes (3), MetalLB L2, nginx-gateway-fabric
 - **Network**: Cluster 10.0.4.0/24, supernet 10.0.0.0/9
@@ -244,7 +244,7 @@ data:
 - Control-plane nodes: 10.0.4.101-103
 - MetalLB IP pool: 10.0.4.200-253
 - Gateway LoadBalancer: 10.0.4.205
-- Machine configs: `matchbox/assets/talos/1.11.3/`
+- Machine configs: `matchbox/assets/talos/1.11.5/`
 - Terraform/Tofu workspace: `terraform/cluster/`
 - Bootstrap config: `terraform/cluster/bootstrap/addons.yaml`
 

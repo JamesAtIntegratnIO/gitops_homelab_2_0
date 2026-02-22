@@ -28,13 +28,13 @@ terraform {
 }
 
 provider "kubernetes" {
-  config_path    = "../../matchbox/assets/talos/1.11.3/kubeconfig"
+  config_path    = "../../matchbox/assets/talos/1.11.5/kubeconfig"
   config_context = join("@", ["admin", var.cluster_name])
 }
 
 provider "helm" {
   kubernetes {
-    config_path    = "../../matchbox/assets/talos/1.11.3/kubeconfig"
+    config_path    = "../../matchbox/assets/talos/1.11.5/kubeconfig"
     config_context = join("@", ["admin", var.cluster_name])
   }
 }

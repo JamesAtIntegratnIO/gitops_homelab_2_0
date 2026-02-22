@@ -760,8 +760,8 @@ kubectl get pods -A
 ```bash
 # 1. Check current version
 talosctl --nodes 10.0.4.101 version
-# Client: v1.11.3
-# Server: v1.11.3
+# Client: v1.11.5
+# Server: v1.11.5
 
 # 2. Review release notes
 open https://www.talos.dev/v1.12/introduction/what-is-new/

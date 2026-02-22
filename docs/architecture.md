@@ -15,7 +15,7 @@ This repository defines a **GitOps-first homelab platform** built on bare-metal 
 
 | Component | Purpose | Version | Why This Choice |
 |-----------|---------|---------|-----------------|
-| **Talos Linux** | Immutable Kubernetes OS | 1.11.3 | API-driven, secure by default, no SSH access |
+| **Talos Linux** | Immutable Kubernetes OS | 1.11.5 | API-driven, secure by default, no SSH access |
 | **Kubernetes** | Container orchestration | 1.34.1 | Industry standard, mature ecosystem |
 | **ArgoCD** | GitOps CD engine | 9.0.3 | Declarative sync, ApplicationSet support |
 | **Kratix** | Platform API framework | Latest | Promise-based abstractions, pipeline automation |

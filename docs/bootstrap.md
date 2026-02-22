@@ -18,7 +18,7 @@ The bootstrap process transforms bare metal machines into a fully operational Ta
 - ✅ **Easy upgrades**: Change boot profile, reboot, done
 - ✅ **Consistent hardware**: All nodes run identical OS image
 
-> **Current Versions:** Talos Linux **1.11.3** ships with Kubernetes **1.34.1**. The Kubernetes version is determined by the Talos release and cannot be changed independently for the host cluster. vClusters can run different Kubernetes versions.
+> **Current Versions:** Talos Linux **1.11.5** ships with Kubernetes **1.34.1**. The Kubernetes version is determined by the Talos release and cannot be changed independently for the host cluster. vClusters can run different Kubernetes versions.
 
 **Tradeoffs:**
 - ❌ Network boot dependency (DHCP + Matchbox must be operational)
@@ -42,7 +42,7 @@ sequenceDiagram
     MB->>Node: iPXE binary
     Node->>MB: 4. HTTP GET /boot.ipxe?mac=...
     
-    Note over MB: Match MAC → Group<br/>(cp-1.11.3.1.json)<br/>Return Profile<br/>(cp-1.11.3-1.json)
+    Note over MB: Match MAC → Group<br/>(cp-1.11.5.1.json)<br/>Return Profile<br/>(cp-1.11.5-1.json)
     
     MB->>Node: 5. iPXE script:<br/>kernel: vmlinuz<br/>initrd: initramfs.xz<br/>args: talos.config=...
     
@@ -119,19 +119,19 @@ machine:
 **Copy and customize configs for each control-plane node:**
 ```bash
 # Copy base config three times
-cp controlplane.yaml ../assets/talos/1.11.3/controlplane1.yaml
-cp controlplane.yaml ../assets/talos/1.11.3/controlplane2.yaml
-cp controlplane.yaml ../assets/talos/1.11.3/controlplane3.yaml
+cp controlplane.yaml ../assets/talos/1.11.5/controlplane1.yaml
+cp controlplane.yaml ../assets/talos/1.11.5/controlplane2.yaml
+cp controlplane.yaml ../assets/talos/1.11.5/controlplane3.yaml
 
 # Edit each file to set unique hostname and IP
-yq eval '.machine.network.hostname = "controlplane1"' -i ../assets/talos/1.11.3/controlplane1.yaml
-yq eval '.machine.network.interfaces[0].addresses = ["10.0.4.101/24"]' -i ../assets/talos/1.11.3/controlplane1.yaml
+yq eval '.machine.network.hostname = "controlplane1"' -i ../assets/talos/1.11.5/controlplane1.yaml
+yq eval '.machine.network.interfaces[0].addresses = ["10.0.4.101/24"]' -i ../assets/talos/1.11.5/controlplane1.yaml
 
-yq eval '.machine.network.hostname = "controlplane2"' -i ../assets/talos/1.11.3/controlplane2.yaml
-yq eval '.machine.network.interfaces[0].addresses = ["10.0.4.102/24"]' -i ../assets/talos/1.11.3/controlplane2.yaml
+yq eval '.machine.network.hostname = "controlplane2"' -i ../assets/talos/1.11.5/controlplane2.yaml
+yq eval '.machine.network.interfaces[0].addresses = ["10.0.4.102/24"]' -i ../assets/talos/1.11.5/controlplane2.yaml
 
-yq eval '.machine.network.hostname = "controlplane3"' -i ../assets/talos/1.11.3/controlplane3.yaml
-yq eval '.machine.network.interfaces[0].addresses = ["10.0.4.103/24"]' -i ../assets/talos/1.11.3/controlplane3.yaml
+yq eval '.machine.network.hostname = "controlplane3"' -i ../assets/talos/1.11.5/controlplane3.yaml
+yq eval '.machine.network.interfaces[0].addresses = ["10.0.4.103/24"]' -i ../assets/talos/1.11.5/controlplane3.yaml
 ```
 
 **Why Per-Node Configs:**
@@ -141,12 +141,12 @@ yq eval '.machine.network.interfaces[0].addresses = ["10.0.4.103/24"]' -i ../ass
 
 ### Phase 3: Create Matchbox Groups (MAC → Profile Mapping)
 
-**Group Example** ([matchbox/groups/cp-1.11.3.1.json](../matchbox/groups/cp-1.11.3.1.json)):
+**Group Example** ([matchbox/groups/cp-1.11.5.1.json](../matchbox/groups/cp-1.11.5.1.json)):
 ```json
 {
-    "id": "cp-1.11.3-1",
+    "id": "cp-1.11.5-1",
     "name": "Control Plane Node 1",
-    "profile": "cp-1.11.3-1",
+    "profile": "cp-1.11.5-1",
     "selector": {
         "mac": "00:23:24:e7:29:40"  # Hardware MAC address
     }
@@ -157,7 +157,7 @@ yq eval '.machine.network.interfaces[0].addresses = ["10.0.4.103/24"]' -i ../ass
 1. Node boots → DHCP assigns IP → iPXE chainloads → Matchbox receives `GET /boot.ipxe?mac=00:23:24:e7:29:40`
 2. Matchbox scans all groups in `matchbox/groups/` directory
 3. Matches `selector.mac` against request MAC
-4. Returns iPXE script referencing profile `cp-1.11.3-1`
+4. Returns iPXE script referencing profile `cp-1.11.5-1`
 
 **How to Find MAC Addresses:**
 ```bash
@@ -172,15 +172,15 @@ grep "DHCP DISCOVER" /var/log/syslog
 
 ### Phase 4: Create Matchbox Profiles (Boot Config)
 
-**Profile Example** ([matchbox/profiles/cp-1.11.3-1.json](../matchbox/profiles/cp-1.11.3-1.json)):
+**Profile Example** ([matchbox/profiles/cp-1.11.5-1.json](../matchbox/profiles/cp-1.11.5-1.json)):
 ```json
 {
-    "id": "cp-1.11.3-1",
-    "name": "Talos Control Plane v1.11.3 Node 1",
+    "id": "cp-1.11.5-1",
+    "name": "Talos Control Plane v1.11.5 Node 1",
     "boot": {
-        "kernel": "/assets/talos/1.11.3/amd64/vmlinuz",
+        "kernel": "/assets/talos/1.11.5/amd64/vmlinuz",
         "initrd": [
-            "/assets/talos/1.11.3/amd64/initramfs.xz"
+            "/assets/talos/1.11.5/amd64/initramfs.xz"
         ],
         "args": [
             "initrd=initramfs.xz",
@@ -192,7 +192,7 @@ grep "DHCP DISCOVER" /var/log/syslog
             "console=ttyS0",           # Console output to serial port
             "printk.devkmsg=on",       # Kernel messages to dmesg
             "talos.platform=metal",    # Platform type
-            "talos.config=http://10.0.112.2/assets/talos/1.11.3/controlplane1.yaml"
+            "talos.config=http://10.0.112.2/assets/talos/1.11.5/controlplane1.yaml"
         ]
     }
 }
@@ -207,11 +207,11 @@ grep "DHCP DISCOVER" /var/log/syslog
 ### Phase 5: Download Talos Assets
 
 ```bash
-cd matchbox/assets/talos/1.11.3/
+cd matchbox/assets/talos/1.11.5/
 
 # Download kernel and initramfs for amd64
-curl -LO https://github.com/siderolabs/talos/releases/download/v1.11.3/vmlinuz-amd64
-curl -LO https://github.com/siderolabs/talos/releases/download/v1.11.3/initramfs-amd64.xz
+curl -LO https://github.com/siderolabs/talos/releases/download/v1.11.5/vmlinuz-amd64
+curl -LO https://github.com/siderolabs/talos/releases/download/v1.11.5/initramfs-amd64.xz
 
 # Rename to match profile paths
 mkdir -p amd64
@@ -219,7 +219,7 @@ mv vmlinuz-amd64 amd64/vmlinuz
 mv initramfs-amd64.xz amd64/initramfs.xz
 
 # Verify checksums (highly recommended)
-curl -LO https://github.com/siderolabs/talos/releases/download/v1.11.3/sha512sum.txt
+curl -LO https://github.com/siderolabs/talos/releases/download/v1.11.5/sha512sum.txt
 sha512sum --check sha512sum.txt --ignore-missing
 ```
 
@@ -275,7 +275,7 @@ rsync -avz --delete \
 /var/lib/matchbox/
 ├── assets/
 │   └── talos/
-│       └── 1.11.3/
+│       └── 1.11.5/
 │           ├── amd64/
 │           │   ├── vmlinuz
 │           │   └── initramfs.xz
@@ -283,13 +283,13 @@ rsync -avz --delete \
 │           ├── controlplane2.yaml
 │           └── controlplane3.yaml
 ├── groups/
-│   ├── cp-1.11.3.1.json
-│   ├── cp-1.11.3.2.json
-│   └── cp-1.11.3.3.json
+│   ├── cp-1.11.5.1.json
+│   ├── cp-1.11.5.2.json
+│   └── cp-1.11.5.3.json
 └── profiles/
-    ├── cp-1.11.3-1.json
-    ├── cp-1.11.3-2.json
-    └── cp-1.11.3-3.json
+    ├── cp-1.11.5-1.json
+    ├── cp-1.11.5-2.json
+    └── cp-1.11.5-3.json
 ```
 
 ### Phase 8: First Boot (Control Plane Node 1)
@@ -415,7 +415,7 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443
 
 ### Machine Config Files
 - **Patch templates**: [matchbox/talos-machineconfigs/all.yaml](../matchbox/talos-machineconfigs/all.yaml), [cp.yaml](../matchbox/talos-machineconfigs/cp.yaml), [work.yaml](../matchbox/talos-machineconfigs/work.yaml)
-- **Generated configs**: `matchbox/assets/talos/1.11.3/controlplane{1,2,3}.yaml`
+- **Generated configs**: `matchbox/assets/talos/1.11.5/controlplane{1,2,3}.yaml`
 - **Commands reference**: [matchbox/talos-machineconfigs/commands.md](../matchbox/talos-machineconfigs/commands.md)
 
 ### Matchbox Files
@@ -477,7 +477,7 @@ journalctl -u matchbox -f | grep <MAC>
 curl "http://10.0.112.2:8080/boot.ipxe?mac=00:23:24:e7:29:40"
 
 # Verify group selector matches MAC
-cat matchbox/groups/cp-1.11.3.1.json | jq '.selector.mac'
+cat matchbox/groups/cp-1.11.5.1.json | jq '.selector.mac'
 ```
 
 **Common Fixes:**
@@ -495,13 +495,13 @@ cat matchbox/groups/cp-1.11.3.1.json | jq '.selector.mac'
 **Diagnosis:**
 ```bash
 # Verify machine config URL is accessible
-curl http://10.0.112.2/assets/talos/1.11.3/controlplane1.yaml
+curl http://10.0.112.2/assets/talos/1.11.5/controlplane1.yaml
 
 # Check Matchbox asset paths
-ls -la /var/lib/matchbox/assets/talos/1.11.3/
+ls -la /var/lib/matchbox/assets/talos/1.11.5/
 
 # View boot args from profile
-cat matchbox/profiles/cp-1.11.3-1.json | jq '.boot.args'
+cat matchbox/profiles/cp-1.11.5-1.json | jq '.boot.args'
 ```
 
 **Common Fixes:**
@@ -667,7 +667,7 @@ kubectl get nodes -w
 - ❌ **Don't manually edit generated configs**: Always regenerate from patches
 
 ### Matchbox Organization
-- ✅ **Naming convention**: `cp-<version>-<node number>` (e.g., `cp-1.11.3-1`)
+- ✅ **Naming convention**: `cp-<version>-<node number>` (e.g., `cp-1.11.5-1`)
 - ✅ **Version in paths**: Include Talos version in asset paths for easy rollback
 - ✅ **Backup groups/profiles**: Keep copy in Git (this repo does this)
 

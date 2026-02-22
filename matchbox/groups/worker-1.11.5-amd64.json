@@ -1,0 +1,10 @@
+{
+    "id": "worker-1.11.5-amd64",
+    "name": "worker-1.11.5-amd64",
+    "profile": "worker-1.11.5-amd64",
+    "selector": {
+        "mac": [
+            "dc:a6:32:c3:f6:af"
+        ]
+    }
+}

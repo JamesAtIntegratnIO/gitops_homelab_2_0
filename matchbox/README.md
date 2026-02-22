@@ -89,10 +89,10 @@ talosctl gen config test-cluster https://<FIRST_NODE_IP>:6443 \
     --config-patch @all.yaml \
     --config-patch-control-plane @cp.yaml \
     --config-patch-worker @work.yaml \
-    --output-dir ../assets/talos/1.11.3
+    --output-dir ../assets/talos/1.11.5
 ```
 
-The command above drops `controlplane.yaml`, `worker.yaml`, and `talosconfig` directly into `assets/talos/1.11.3/`. Copy `controlplane.yaml` to `controlplane1.yaml`, `controlplane2.yaml`, and `controlplane3.yaml`, then adjust the per-node details (IP addresses, VIP, etc.) to match your environment. The repository already contains populated examples you can tweak in place.
+The command above drops `controlplane.yaml`, `worker.yaml`, and `talosconfig` directly into `assets/talos/1.11.5/`. Copy `controlplane.yaml` to `controlplane1.yaml`, `controlplane2.yaml`, and `controlplane3.yaml`, then adjust the per-node details (IP addresses, VIP, etc.) to match your environment. The repository already contains populated examples you can tweak in place.
 
 ## matchbox setup
 
@@ -100,20 +100,20 @@ Identify the MAC addresses for each node so matchbox can assign the correct prof
 
 This repository includes ready-to-edit selectors under `groups/`:
 
-- `groups/cp-1.11.3.1.json`
-- `groups/cp-1.11.3.2.json`
-- `groups/cp-1.11.3.3.json`
-- `groups/worker-1.11.3-amd64.json`
-- `groups/worker-1.11.3.-arm64.json`
+- `groups/cp-1.11.5.1.json`
+- `groups/cp-1.11.5.2.json`
+- `groups/cp-1.11.5.3.json`
+- `groups/worker-1.11.5-amd64.json`
+- `groups/worker-1.11.5.-arm64.json`
 - `groups/default.json`
 
-Update the `selector.mac` values to match your hardware. Example `groups/cp-1.11.3.1.json`:
+Update the `selector.mac` values to match your hardware. Example `groups/cp-1.11.5.1.json`:
 
 ```json
 {
-    "id": "cp-1.11.3-1",
-    "name": "cp-1.11.3-1",
-    "profile": "cp-1.11.3-1",
+    "id": "cp-1.11.5-1",
+    "name": "cp-1.11.5-1",
+    "profile": "cp-1.11.5-1",
     "selector": {
         "mac": "dc:a6:32:c3:f6:ad"
     }
@@ -124,9 +124,9 @@ Workers use arrays so you can list multiple MACs per architecture:
 
 ```json
 {
-    "id": "worker-1.11.3-amd64",
-    "name": "worker-1.11.3-amd64",
-    "profile": "worker-1.11.3-amd64",
+    "id": "worker-1.11.5-amd64",
+    "name": "worker-1.11.5-amd64",
+    "profile": "worker-1.11.5-amd64",
     "selector": {
         "mac": [
             "dc:a6:32:c3:f6:xx"
@@ -135,17 +135,17 @@ Workers use arrays so you can list multiple MACs per architecture:
 }
 ```
 
-Profiles live under `profiles/` and point at the versioned Talos assets in `assets/talos/1.11.3/`. Replace the hard-coded matchbox host (`10.0.112.2` in these examples) with your own IP or DNS name as needed.
+Profiles live under `profiles/` and point at the versioned Talos assets in `assets/talos/1.11.5/`. Replace the hard-coded matchbox host (`10.0.112.2` in these examples) with your own IP or DNS name as needed.
 
-`profiles/cp-1.11.3-1.json`
+`profiles/cp-1.11.5-1.json`
 ```json
 {
-    "id": "cp-1.11.3-1",
-    "name": "cp-1.11.3-1",
+    "id": "cp-1.11.5-1",
+    "name": "cp-1.11.5-1",
     "boot": {
-        "kernel": "/assets/talos/1.11.3/arm64/vmlinuz",
+        "kernel": "/assets/talos/1.11.5/arm64/vmlinuz",
         "initrd": [
-            "/assets/talos/1.11.3/arm64/initramfs.xz"
+            "/assets/talos/1.11.5/arm64/initramfs.xz"
         ],
         "args": [
             "initrd=initramfs.xz",
@@ -157,21 +157,21 @@ Profiles live under `profiles/` and point at the versioned Talos assets in `asse
             "console=ttyS0",
             "printk.devkmsg=on",
             "talos.platform=metal",
-            "talos.config=http://10.0.112.2/assets/talos/1.11.3/controlplane1.yaml"
+            "talos.config=http://10.0.112.2/assets/talos/1.11.5/controlplane1.yaml"
         ]
     }
 }
 ```
 
-`profiles/worker-1.11.3-amd64.json`
+`profiles/worker-1.11.5-amd64.json`
 ```json
 {
-    "id": "worker-1.11.3-amd64",
-    "name": "worker-1.11.3-amd64",
+    "id": "worker-1.11.5-amd64",
+    "name": "worker-1.11.5-amd64",
     "boot": {
-        "kernel": "/assets/talos/1.11.3/amd64/vmlinuz",
+        "kernel": "/assets/talos/1.11.5/amd64/vmlinuz",
         "initrd": [
-            "/assets/talos/1.11.3/amd64/initramfs.xz"
+            "/assets/talos/1.11.5/amd64/initramfs.xz"
         ],
         "args": [
             "initrd=initramfs.xz",
@@ -183,13 +183,13 @@ Profiles live under `profiles/` and point at the versioned Talos assets in `asse
             "console=ttyS0",
             "printk.devkmsg=on",
             "talos.platform=metal",
-            "talos.config=http://10.0.112.2/assets/talos/1.11.3/worker.yaml"
+            "talos.config=http://10.0.112.2/assets/talos/1.11.5/worker.yaml"
         ]
     }
 }
 ```
 
-`profiles/worker-1.11.3-arm64.json` mirrors the same configuration but consumes the `arm64` kernel and initramfs in `assets/talos/1.11.3/arm64/`. A placeholder `groups/default.json` is included if you want to add a fallback profile—create a matching `profiles/default.json` or remove the group if you do not need it.
+`profiles/worker-1.11.5-arm64.json` mirrors the same configuration but consumes the `arm64` kernel and initramfs in `assets/talos/1.11.5/arm64/`. A placeholder `groups/default.json` is included if you want to add a fallback profile—create a matching `profiles/default.json` or remove the group if you do not need it.
 
 ## iPXE loader setup
 
@@ -239,7 +239,7 @@ You are now ready to use Etcher or DD to write the ipxe.usb file to a flash driv
 
 This repository tracks the downloaded Talos PXE assets under `assets/talos/<version>/<arch>/`. Each architecture directory includes a `commands.md` file that documents the exact `wget` commands used to fetch `vmlinuz` and `initramfs.xz` so you can refresh them later.
 
-Control-plane and worker machine configuration templates for Talos v1.11.3 live under `assets/talos/1.11.3/` (see `controlplane{1..3}.yaml`, `worker.yaml`, and `talosconfig`). Earlier examples for v1.10.3 are kept in `assets/talos/1.10.3/` for reference.
+Control-plane and worker machine configuration templates for Talos v1.11.5 live under `assets/talos/1.11.5/` (see `controlplane{1..3}.yaml`, `worker.yaml`, and `talosconfig`). Earlier examples for v1.10.3 are kept in `assets/talos/1.10.3/` for reference.
 
 ## Talos cluster creation
 
@@ -247,10 +247,10 @@ Control-plane and worker machine configuration templates for Talos v1.11.3 live 
 
 ```bash
 # Copying configurations for matchbox to use.
-sudo mkdir -p /var/lib/matchbox/assets/talos/1.11.3/{amd64,arm64} &&
-sudo cp assets/talos/1.11.3/*.yaml /var/lib/matchbox/assets/talos/1.11.3/ &&
-sudo cp assets/talos/1.11.3/amd64/* /var/lib/matchbox/assets/talos/1.11.3/amd64/ &&
-sudo cp assets/talos/1.11.3/arm64/* /var/lib/matchbox/assets/talos/1.11.3/arm64/ &&
+sudo mkdir -p /var/lib/matchbox/assets/talos/1.11.5/{amd64,arm64} &&
+sudo cp assets/talos/1.11.5/*.yaml /var/lib/matchbox/assets/talos/1.11.5/ &&
+sudo cp assets/talos/1.11.5/amd64/* /var/lib/matchbox/assets/talos/1.11.5/amd64/ &&
+sudo cp assets/talos/1.11.5/arm64/* /var/lib/matchbox/assets/talos/1.11.5/arm64/ &&
 sudo mkdir -p /var/lib/matchbox/profiles &&
 sudo cp profiles/*.json /var/lib/matchbox/profiles/ &&
 sudo mkdir -p /var/lib/matchbox/groups &&
@@ -259,7 +259,7 @@ sudo cp groups/*.json /var/lib/matchbox/groups/ &&
 sudo docker run -d --net=host --rm -v /var/lib/matchbox:/var/lib/matchbox:Z -v /etc/matchbox:/etc/matchbox:Z,ro quay.io/poseidon/matchbox:v0.10.0 -address=0.0.0.0:8080 -log-level=debug
 ```
 
-The `commands.md` files in `assets/talos/1.11.3/{amd64,arm64}/` capture the exact `wget` invocations used to download the current kernels and initramfs artifacts—rerun them when you need to refresh the images.
+The `commands.md` files in `assets/talos/1.11.5/{amd64,arm64}/` capture the exact `wget` invocations used to download the current kernels and initramfs artifacts—rerun them when you need to refresh the images.
 
 ### Syncing repo changes to a persistent Matchbox host
 
@@ -280,7 +280,7 @@ On your cluster machines set the primary boot device to be your iPXE flash drive
 4. The initial control plane will come online and begin in an unhealthy state as `etcd` is not bootstrapped. To fix this we need to run the following commands:
 
 ```bash
-cd assets/talos/1.11.3
+cd assets/talos/1.11.5
 # etcd bootstrap
 talosctl --talosconfig talosconfig config endpoint <FIRST_NODE_IP>
 talosctl --talosconfig talosconfig config node <FIRST_NODE_IP>

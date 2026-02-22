@@ -131,7 +131,7 @@ See [docs/operations.md](docs/operations.md) for full runbooks.
 
 | Component | Details |
 |-----------|---------|
-| **Nodes** | 3× control-plane (Talos 1.11.3), PXE-booted |
+| **Nodes** | 3× control-plane (Talos 1.11.5), PXE-booted |
 | **Network** | 10.0.4.0/24 cluster, MetalLB L2 (10.0.4.200-253) |
 | **Ingress** | nginx-gateway-fabric, Gateway API |
 | **TLS** | cert-manager, Let's Encrypt (Cloudflare DNS-01) |
