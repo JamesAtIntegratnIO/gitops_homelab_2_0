@@ -70,14 +70,23 @@ extraObjects:
       volumeName: sabnzbd-media-pv
 deployment:
   securityContext:
-    runAsUser: 1000
-    runAsGroup: 1000
     fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
   containerSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
+    runAsNonRoot: false
+    runAsUser: 0
     readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - CHOWN
+        - DAC_OVERRIDE
+        - FOWNER
+        - SETUID
+        - SETGID
   image:
     repository: ghcr.io/linuxserver/sabnzbd
     tag: latest

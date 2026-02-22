@@ -54,10 +54,21 @@ extraObjects:
           storage: 1Gi
       volumeName: otterwiki-config-pv
 deployment:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
   containerSecurityContext:
     runAsNonRoot: false
     runAsUser: 0
     readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - CHOWN
+        - DAC_OVERRIDE
+        - FOWNER
   image:
     repository: redimp/otterwiki
     tag: latest
