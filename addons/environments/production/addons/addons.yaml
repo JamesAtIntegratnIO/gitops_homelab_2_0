@@ -419,7 +419,7 @@ metallb:
   namespace: metallb-system
   releaseName: metallb
   project: platform-services
-  defaultVersion: "0.14.9"
+  defaultVersion: "0.15.3"
   chartRepository: "https://metallb.github.io/metallb"
   additionalResources:
     type: manifests
@@ -462,10 +462,6 @@ metallb:
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
         - .webhooks[]?.clientConfig.caBundle
-    - group: apps
-      kind: DaemonSet
-      jqPathExpressions:
-        - .spec.template.spec.initContainers[]?.resources
 
 metallb-config:
   enabled: true

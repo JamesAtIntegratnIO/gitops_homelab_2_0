@@ -1,7 +1,12 @@
-# MetalLB Helm values — security hardening
-# The speaker DaemonSet requires hostNetwork + SYS_ADMIN (by design), so we
-# only harden the controller Deployment here.
-# Fixes AVD-KSV-0030 / AVD-KSV-0001 for metallb-controller.
+# MetalLB Helm values — security hardening (chart 0.15.3)
+# 0.15.3 adds readOnlyRootFilesystem + allowPrivilegeEscalation: false
+# to all speaker containers by default (#2863).
+#
+# Speaker DaemonSet requires (by design, CANNOT be removed):
+#   - hostNetwork: true  (L2 ARP/NDP + BGP needs real node network)
+#   - NET_RAW capability  (ARP/NDP for L2 LoadBalancer)
+#   - SYS_ADMIN capability  (FRR routing namespace operations)
+#   - NET_ADMIN capability  (FRR routing table management)
 
 controller:
   podSecurityContext:
@@ -14,3 +19,49 @@ controller:
     readOnlyRootFilesystem: true
     seccompProfile:
       type: RuntimeDefault
+
+# Speaker init container and sidecar resource limits
+speaker:
+  frr:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+  reloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 64Mi
+  frrMetrics:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 64Mi
+  initContainers:
+    cpFrrFiles:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 64Mi
+    cpReloader:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 64Mi
+    cpMetrics:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 64Mi
