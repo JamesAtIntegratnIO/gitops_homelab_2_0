@@ -60,7 +60,7 @@ deployment:
   containerSecurityContext:
     runAsNonRoot: false
     runAsUser: 0
-    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
     allowPrivilegeEscalation: false
     capabilities:
       drop:
