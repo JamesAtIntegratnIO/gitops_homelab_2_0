@@ -27,6 +27,10 @@ spec:
             deploy:
               enabled: true
               statefulSet:
+                image:
+                  registry: registry.k8s.io
+                  repository: etcd
+                  tag: "3.6.8-0"
                 extraArgs:
                   - "--client-cert-auth=false"
                 highAvailability:
@@ -65,7 +69,7 @@ spec:
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
-    targetRevision: 0.31.0
+    targetRevision: 0.31.1
     syncPolicy:
       automated:
         selfHeal: true

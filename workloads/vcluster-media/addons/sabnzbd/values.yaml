@@ -104,7 +104,7 @@ deployment:
       value: "sabnzbd,sabnzbd.default,sabnzbd.default.svc,sabnzbd.default.svc.cluster,sabnzbd.default.svc.cluster.local,sabnzbd.integratn.tech"
   additionalContainers:
     - name: exportarr
-      image: ghcr.io/onedr0p/exportarr:latest
+      image: ghcr.io/onedr0p/exportarr:v2.3.0
       command:
         - /exportarr
       args:

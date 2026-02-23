@@ -137,7 +137,7 @@ deployment:
       value: dark
   additionalContainers:
     - name: exportarr
-      image: ghcr.io/onedr0p/exportarr:latest
+      image: ghcr.io/onedr0p/exportarr:v2.3.0
       command:
         - /exportarr
       args:

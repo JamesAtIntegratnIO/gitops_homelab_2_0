@@ -73,7 +73,7 @@ deployment:
         - SETGID
   image:
     repository: redimp/otterwiki
-    tag: latest
+    tag: "2.17.3"
     pullPolicy: IfNotPresent
   ports:
     - name: http

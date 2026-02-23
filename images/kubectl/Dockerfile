@@ -1,6 +1,6 @@
 FROM alpine:3.21
 
-ARG KUBECTL_VERSION=v1.34.1
+ARG KUBECTL_VERSION=v1.34.4
 ARG TARGETARCH
 
 RUN apk add --no-cache \
