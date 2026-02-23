@@ -69,6 +69,8 @@ deployment:
         - CHOWN
         - DAC_OVERRIDE
         - FOWNER
+        - SETUID
+        - SETGID
   image:
     repository: redimp/otterwiki
     tag: latest
