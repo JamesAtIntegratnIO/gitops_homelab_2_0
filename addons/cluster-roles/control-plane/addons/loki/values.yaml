@@ -64,3 +64,39 @@ gateway:
       drop: [ALL]
     seccompProfile:
       type: RuntimeDefault
+
+# Security hardening for memcached pods — fixes AVD-KSV-0030 / AVD-KSV-0104
+memcached:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 11211
+    runAsGroup: 11211
+    fsGroup: 11211
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+    allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
+
+memcachedExporter:
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+    allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
+
+# Security hardening for sidecar containers — fixes AVD-KSV-0104
+sidecar:
+  securityContext:
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+    allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
