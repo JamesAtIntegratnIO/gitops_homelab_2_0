@@ -60,7 +60,7 @@ deployment:
   containerSecurityContext:
     runAsNonRoot: false
     runAsUser: 0
-    readOnlyRootFilesystem: false
+    readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
     capabilities:
       drop:
@@ -75,6 +75,12 @@ deployment:
     repository: redimp/otterwiki
     tag: "2.17.3"
     pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
   ports:
     - name: http
       containerPort: 8080
@@ -101,9 +107,15 @@ deployment:
     config:
       persistentVolumeClaim:
         claimName: otterwiki-config-pvc
+    tmp:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 64Mi
   volumeMounts:
     config:
       mountPath: /data
+    tmp:
+      mountPath: /tmp
 persistence:
   enabled: false
 service:

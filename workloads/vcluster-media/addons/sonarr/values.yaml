@@ -95,7 +95,7 @@ deployment:
   containerSecurityContext:
     runAsNonRoot: false
     runAsUser: 0
-    readOnlyRootFilesystem: false
+    readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
     capabilities:
       drop:
@@ -135,6 +135,12 @@ deployment:
       value: info
     SONARR__THEME:
       value: dark
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
   additionalContainers:
     - name: exportarr
       image: ghcr.io/onedr0p/exportarr:v2.3.0
@@ -156,6 +162,20 @@ deployment:
             secretKeyRef:
               name: homepage-secret
               key: HOMEPAGE_VAR_SONARR_KEY
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 64Mi
   volumes:
     config:
       persistentVolumeClaim:
@@ -163,11 +183,23 @@ deployment:
     media:
       persistentVolumeClaim:
         claimName: sonarr-media-pvc
+    tmp:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 64Mi
+    s6-run:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 16Mi
   volumeMounts:
     config:
       mountPath: /config
     media:
       mountPath: /data
+    tmp:
+      mountPath: /tmp
+    s6-run:
+      mountPath: /run
 persistence:
   enabled: false
 service:

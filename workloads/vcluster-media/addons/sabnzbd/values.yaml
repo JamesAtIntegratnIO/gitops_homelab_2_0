@@ -76,7 +76,7 @@ deployment:
   containerSecurityContext:
     runAsNonRoot: false
     runAsUser: 0
-    readOnlyRootFilesystem: false
+    readOnlyRootFilesystem: true
     allowPrivilegeEscalation: false
     capabilities:
       drop:
@@ -102,6 +102,12 @@ deployment:
       value: "8080"
     SABNZBD__HOST_WHITELIST_ENTRIES:
       value: "sabnzbd,sabnzbd.default,sabnzbd.default.svc,sabnzbd.default.svc.cluster,sabnzbd.default.svc.cluster.local,sabnzbd.integratn.tech"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
   additionalContainers:
     - name: exportarr
       image: ghcr.io/onedr0p/exportarr:v2.3.0
@@ -123,6 +129,20 @@ deployment:
             secretKeyRef:
               name: homepage-secret
               key: HOMEPAGE_VAR_SABNZBD_KEY
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 64Mi
   volumes:
     config:
       persistentVolumeClaim:
@@ -130,11 +150,23 @@ deployment:
     media:
       persistentVolumeClaim:
         claimName: sabnzbd-media-pvc
+    tmp:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 64Mi
+    s6-run:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 16Mi
   volumeMounts:
     config:
       mountPath: /config
     media:
       mountPath: /data
+    tmp:
+      mountPath: /tmp
+    s6-run:
+      mountPath: /run
 persistence:
   enabled: false
 service:
