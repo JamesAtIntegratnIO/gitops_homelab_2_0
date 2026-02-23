@@ -289,6 +289,8 @@ nfs-subdir-external-provisioner:
   chartRepository: https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner/
   defaultVersion: "4.0.18"
   valuesObject:
+    securityContext:
+      readOnlyRootFilesystem: true
     storageClass:
       create: false
     nfs:

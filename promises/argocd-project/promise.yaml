@@ -115,6 +115,7 @@ spec:
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
                   runAsNonRoot: true
                   runAsUser: 65532
                   capabilities:
@@ -133,6 +134,7 @@ spec:
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
                   runAsNonRoot: true
                   runAsUser: 65532
                   capabilities:

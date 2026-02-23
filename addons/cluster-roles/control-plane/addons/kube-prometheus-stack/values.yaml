@@ -199,6 +199,21 @@ grafana:
       allow_sign_up: true
       role_attribute_path: contains(groups[*], 'authentik Admins') && 'Admin' || contains(groups[*], 'authentik Users') && 'Editor' || 'Viewer'
       allowed_groups:
+  # Security hardening — fixes AVD-KSV-0014
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+  sidecar:
+    securityContext:
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+  extraEmptyDirMounts:
+    - name: tmp
+      mountPath: /tmp
   initChownData:
     enabled: false
   podSecurityContext:
