@@ -140,7 +140,7 @@ RULES:
 - If code or YAML is referenced, quote the relevant section.
 """
 
-    def inlet(self, body: dict, __user__: Optional[dict] = None) -> dict:
+    async def inlet(self, body: dict, __user__: Optional[dict] = None) -> dict:
         """
         Filter hook: runs before the message is sent to the LLM.
         Retrieves context and prepends it to the system message.
@@ -178,6 +178,6 @@ RULES:
         body["messages"] = messages
         return body
 
-    def outlet(self, body: dict, __user__: Optional[dict] = None) -> dict:
+    async def outlet(self, body: dict, __user__: Optional[dict] = None) -> dict:
         """Post-processing hook (no-op for now, can add citation formatting later)."""
         return body
