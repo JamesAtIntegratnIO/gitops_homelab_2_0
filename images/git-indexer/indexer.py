@@ -51,8 +51,9 @@ EMBEDDING_DIM = 768  # nomic-embed-text dimension
 # Ollama's `truncate` param has a known bug (uses num_ctx=8192 as threshold
 # instead of context_length=2048) so inputs between 2048-8192 tokens slip
 # through and error.  We enforce a conservative character limit client-side.
-# YAML/code tokenizes at ~4-5 chars/token, so 2048 * 3.5 ≈ 7168 chars.
-EMBED_MAX_CHARS = int(os.environ.get("EMBED_MAX_CHARS", "7000"))
+# Dense content (Grafana JSON, YAML with UUIDs) can be ~3 chars/token,
+# so 2048 * 2.5 ≈ 5120.  We use 5000 for safety.
+EMBED_MAX_CHARS = int(os.environ.get("EMBED_MAX_CHARS", "5000"))
 RETRY_MAX = 3
 RETRY_DELAY = 5
 
