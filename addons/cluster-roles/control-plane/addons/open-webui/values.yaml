@@ -84,6 +84,13 @@ extraEnvVars:
     value: "true"
   - name: DEFAULT_USER_ROLE
     value: "user"
+  # Filter chat model list — allowlist only (hides embedding-only models like nomic-embed-text)
+  - name: ENABLE_MODEL_FILTER
+    value: "true"
+  - name: MODEL_FILTER_LIST
+    value: "qwen3:4b;llama3.2:latest;llama3.1:latest;mistral:7b"
+  - name: DEFAULT_MODELS
+    value: "qwen3:4b"
   # RAG settings
   - name: ENABLE_RAG_WEB_SEARCH
     value: "false"
