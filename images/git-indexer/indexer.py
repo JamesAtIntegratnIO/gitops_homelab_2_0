@@ -47,6 +47,12 @@ EXCLUDE_PATTERNS = [
 CHUNK_MAX_TOKENS = int(os.environ.get("CHUNK_MAX_TOKENS", "512"))
 WORKSPACE = Path(os.environ.get("WORKSPACE", "/workspace"))
 EMBEDDING_DIM = 768  # nomic-embed-text dimension
+# nomic-embed-text uses a BERT tokenizer with context_length=2048.
+# Ollama's `truncate` param has a known bug (uses num_ctx=8192 as threshold
+# instead of context_length=2048) so inputs between 2048-8192 tokens slip
+# through and error.  We enforce a conservative character limit client-side.
+# YAML/code tokenizes at ~4-5 chars/token, so 2048 * 3.5 ≈ 7168 chars.
+EMBED_MAX_CHARS = int(os.environ.get("EMBED_MAX_CHARS", "7000"))
 RETRY_MAX = 3
 RETRY_DELAY = 5
 
@@ -209,27 +215,59 @@ def classify_and_chunk(text: str, filepath: str) -> list[dict]:
 
     if ext in (".md", ".mmd"):
         raw_chunks = chunk_markdown(text, filepath)
-        return [{"chunk_type": "markdown", **c} for c in raw_chunks]
-
-    if ext in (".yaml", ".yml"):
+        tagged = [{"chunk_type": "markdown", **c} for c in raw_chunks]
+    elif ext in (".yaml", ".yml"):
         # Is this a values file (Helm)?
         if "values" in name or name == "chart.yaml":
             raw_chunks = chunk_helm_values(text, filepath)
-            return [{"chunk_type": "helm-values", **c} for c in raw_chunks]
-        # Otherwise treat as Kubernetes YAML
-        raw_chunks = chunk_k8s_yaml(text, filepath)
-        return [{"chunk_type": "k8s-yaml", **c} for c in raw_chunks]
+            tagged = [{"chunk_type": "helm-values", **c} for c in raw_chunks]
+        else:
+            # Otherwise treat as Kubernetes YAML
+            raw_chunks = chunk_k8s_yaml(text, filepath)
+            tagged = [{"chunk_type": "k8s-yaml", **c} for c in raw_chunks]
+    else:
+        # Everything else (tf, sh, json, etc.)
+        raw_chunks = chunk_generic(text, filepath)
+        tagged = [{"chunk_type": "generic", **c} for c in raw_chunks]
 
-    # Everything else (tf, sh, json, etc.)
-    raw_chunks = chunk_generic(text, filepath)
-    return [{"chunk_type": "generic", **c} for c in raw_chunks]
+    # ── Enforce EMBED_MAX_CHARS: sub-chunk any oversized chunks ──
+    final: list[dict] = []
+    for chunk in tagged:
+        txt = chunk.get("text", "")
+        if len(txt) <= EMBED_MAX_CHARS:
+            final.append(chunk)
+            continue
+        # Sub-chunk by lines, staying under EMBED_MAX_CHARS
+        sub_parts: list[str] = []
+        current_lines: list[str] = []
+        current_len = 0
+        for line in txt.splitlines(keepends=True):
+            if current_len + len(line) > EMBED_MAX_CHARS and current_lines:
+                sub_parts.append("".join(current_lines))
+                current_lines = []
+                current_len = 0
+            current_lines.append(line)
+            current_len += len(line)
+        if current_lines:
+            sub_parts.append("".join(current_lines))
+        for idx, part in enumerate(sub_parts):
+            sub = dict(chunk)  # shallow copy all metadata
+            sub["text"] = part
+            if len(sub_parts) > 1:
+                sub["sub_chunk"] = f"{idx + 1}/{len(sub_parts)}"
+            final.append(sub)
+        if len(sub_parts) > 1:
+            log.info("Sub-chunked oversized chunk (%d chars) into %d parts in %s",
+                     len(txt), len(sub_parts), filepath)
+    return final
 
 
 # ── Embedding ───────────────────────────────────────────────────────
-# Ollama's /api/embed supports `truncate: true` (the default) which uses
-# the model's own tokenizer to truncate inputs that exceed the context
-# window.  We pass it explicitly and let the server handle it—no
-# client-side tokenizer guesswork needed.
+# nomic-embed-text BERT context_length is 2048 tokens but Ollama sets
+# num_ctx=8192.  The `truncate` param uses num_ctx as its threshold, so
+# inputs between 2048 and 8192 tokens slip through and error out.
+# We enforce EMBED_MAX_CHARS in the chunker to prevent this, and still
+# pass truncate=True as a last-resort safety net.
 
 
 def _embed_single(url: str, text: str) -> list[float]:
