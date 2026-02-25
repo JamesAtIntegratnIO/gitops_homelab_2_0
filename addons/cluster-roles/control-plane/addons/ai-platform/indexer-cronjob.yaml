@@ -30,7 +30,7 @@ spec:
             fsGroup: 1000
           containers:
             - name: indexer
-              image: ghcr.io/jamesatintegratnio/git-indexer:latest
+              image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/git-indexer:latest
               imagePullPolicy: Always
               resources:
                 requests:
