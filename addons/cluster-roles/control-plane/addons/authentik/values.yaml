@@ -81,6 +81,17 @@ global:
         secretKeyRef:
           name: authentik-grafana-oidc
           key: client-secret
+    # Open WebUI OAuth2 client credentials for blueprint configuration
+    - name: OPENWEBUI_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-openwebui-oidc
+          key: client-id
+    - name: OPENWEBUI_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-openwebui-oidc
+          key: client-secret
     # Google OAuth credentials for social login source
     - name: GOOGLE_CLIENT_ID
       valueFrom:
