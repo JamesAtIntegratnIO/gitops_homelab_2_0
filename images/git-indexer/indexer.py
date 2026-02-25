@@ -231,14 +231,21 @@ def classify_and_chunk(text: str, filepath: str) -> list[dict]:
 # ── Embedding ───────────────────────────────────────────────────────
 def _embed_single(url: str, text: str) -> list[float]:
     """Embed a single text string, retrying on failure."""
-    # Truncate to ~8000 chars (~2000 tokens) to stay within Ollama limits
-    if len(text) > 8000:
-        text = text[:8000]
+    # Truncate to ~6000 chars to stay within Ollama context window
+    if len(text) > 6000:
+        text = text[:6000]
+    # Ollama /api/embed expects "input" as a string (not list) for single embed
     payload = {"model": EMBEDDING_MODEL, "input": text}
     for attempt in range(1, RETRY_MAX + 1):
         try:
             resp = requests.post(url, json=payload, timeout=120)
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                log.warning("Single-embed attempt %d/%d status=%d body=%s",
+                            attempt, RETRY_MAX, resp.status_code, resp.text[:300])
+                if attempt < RETRY_MAX:
+                    time.sleep(RETRY_DELAY * attempt)
+                    continue
+                resp.raise_for_status()
             data = resp.json()
             return data["embeddings"][0]
         except (requests.RequestException, KeyError) as exc:
@@ -259,14 +266,16 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
     # Sanitise: replace empty/whitespace texts with a placeholder
     clean_texts = [t if t.strip() else "<empty>" for t in texts]
-    # Truncate individual texts to ~8000 chars to avoid payload issues
-    clean_texts = [t[:8000] if len(t) > 8000 else t for t in clean_texts]
+    # Truncate individual texts to ~6000 chars to stay within context window
+    clean_texts = [t[:6000] if len(t) > 6000 else t for t in clean_texts]
 
     payload = {"model": EMBEDDING_MODEL, "input": clean_texts}
 
     # Try batch first
     try:
         resp = requests.post(url, json=payload, timeout=120)
+        if resp.status_code != 200:
+            log.warning("Batch embed status=%d body=%s", resp.status_code, resp.text[:300])
         resp.raise_for_status()
         data = resp.json()
         return data["embeddings"]
@@ -514,7 +523,7 @@ def index_repo(client: QdrantClient, repo_slug: str) -> None:
         for j, (emb, meta) in enumerate(zip(embeddings, batch_meta)):
             point_id = _chunk_id(repo_slug, meta["filepath"], meta["chunk_index"])
             points.append(
-                PointStruct(id=point_id, vector=emb, payload={**meta, "text": batch_texts[i + j]})
+                PointStruct(id=point_id, vector=emb, payload={**meta, "text": batch_texts[j]})
             )
 
         client.upsert(collection_name=QDRANT_COLLECTION, points=points)
