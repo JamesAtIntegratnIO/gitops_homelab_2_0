@@ -457,7 +457,7 @@ qdrant:
   namespace: ai
   chartName: qdrant
   chartRepository: "https://qdrant.github.io/qdrant-helm"
-  defaultVersion: "0.13.1"
+  defaultVersion: "1.17.0"
   project: platform-services
   selector:
     matchExpressions:
@@ -476,7 +476,7 @@ open-webui:
   namespace: ai
   chartName: open-webui
   chartRepository: "https://helm.openwebui.com/"
-  defaultVersion: "6.12.0"
+  defaultVersion: "12.5.0"
   project: platform-services
   selector:
     matchExpressions:

@@ -1,4 +1,4 @@
-# Open WebUI Helm values — external Ollama, Pipelines enabled
+# Open WebUI Helm values (chart v12.5.0) — external Ollama, Pipelines enabled
 ollama:
   enabled: false
 
@@ -7,9 +7,7 @@ ollamaUrls:
 
 pipelines:
   enabled: true
-  extraEnvVars:
-    - name: PIPELINES_URLS
-      value: "http://open-webui-pipelines:9099"
+  extraEnvVars: []
 
 image:
   tag: ""  # Use chart default
@@ -29,7 +27,24 @@ persistence:
     - ReadWriteOnce
 
 ingress:
-  enabled: false  # We use Gateway API HTTPRoute instead
+  enabled: false
+
+# Native Gateway API HTTPRoute (new in chart v12+)
+route:
+  enabled: true
+  apiVersion: gateway.networking.k8s.io/v1
+  kind: HTTPRoute
+  hostnames:
+    - "chat.cluster.integratn.tech"
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  httpsRedirect: false
+
+# Disable websocket redis (single replica, not needed)
+websocket:
+  enabled: false
 
 extraEnvVars:
   - name: WEBUI_SECRET_KEY
