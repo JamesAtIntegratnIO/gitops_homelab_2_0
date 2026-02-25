@@ -75,9 +75,9 @@ class Pipeline:
             return []
 
         try:
-            results = self.qdrant.search(
+            results = self.qdrant.query_points(
                 collection_name=self.valves.QDRANT_COLLECTION,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=self.valves.TOP_K,
                 score_threshold=self.valves.SCORE_THRESHOLD,
                 query_filter=Filter(
@@ -85,7 +85,7 @@ class Pipeline:
                         FieldCondition(key="type", match=MatchValue(value="repo_metadata"))
                     ]
                 ),
-            )
+            ).points
         except Exception as exc:
             log.warning("Qdrant search failed: %s", exc)
             return []
