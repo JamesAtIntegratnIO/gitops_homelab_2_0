@@ -450,3 +450,61 @@ trivy-explorer-route:
       prune: true
     syncOptions:
       - CreateNamespace=true
+
+# ── AI Platform Stack ──────────────────────────────────────────────
+qdrant:
+  enabled: true
+  namespace: ai
+  chartName: qdrant
+  chartRepository: "https://qdrant.github.io/qdrant-helm"
+  defaultVersion: "0.13.1"
+  project: platform-services
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+
+open-webui:
+  enabled: true
+  namespace: ai
+  chartName: open-webui
+  chartRepository: "https://helm.openwebui.com/"
+  defaultVersion: "6.12.0"
+  project: platform-services
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+
+ai-platform:
+  enabled: true
+  type: manifest
+  namespace: ai
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/ai-platform
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

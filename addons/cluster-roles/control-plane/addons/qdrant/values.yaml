@@ -1,0 +1,43 @@
+replicaCount: 1
+
+image:
+  repository: qdrant/qdrant
+  useUnprivilegedImage: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+persistence:
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+  storageClassName: config-nfs-client
+
+apiKey: false
+
+config:
+  cluster:
+    enabled: false
+  service:
+    grpc_port: 6334
+    http_port: 6333
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 6333
+      targetPort: 6333
+      protocol: TCP
+    - name: grpc
+      port: 6334
+      targetPort: 6334
+      protocol: TCP
+
+metrics:
+  serviceMonitor:
+    enabled: true

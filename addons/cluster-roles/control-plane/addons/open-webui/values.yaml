@@ -1,0 +1,51 @@
+# Open WebUI Helm values — external Ollama, Pipelines enabled
+ollama:
+  enabled: false
+
+ollamaUrls:
+  - "http://10.0.3.4:11434"
+
+pipelines:
+  enabled: true
+  extraEnvVars:
+    - name: PIPELINES_URLS
+      value: "http://open-webui-pipelines:9099"
+
+image:
+  tag: ""  # Use chart default
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+persistence:
+  enabled: true
+  size: 2Gi
+  storageClass: config-nfs-client
+  accessModes:
+    - ReadWriteOnce
+
+ingress:
+  enabled: false  # We use Gateway API HTTPRoute instead
+
+extraEnvVars:
+  - name: WEBUI_SECRET_KEY
+    valueFrom:
+      secretKeyRef:
+        name: open-webui-secrets
+        key: secret-key
+  - name: ENABLE_RAG_WEB_SEARCH
+    value: "false"
+  - name: RAG_EMBEDDING_ENGINE
+    value: "ollama"
+  - name: RAG_EMBEDDING_MODEL
+    value: "nomic-embed-text"
+  - name: RAG_OPENAI_API_BASE_URL
+    value: "http://10.0.3.4:11434"
+  - name: ENABLE_SIGNUP
+    value: "false"
+  - name: DEFAULT_USER_ROLE
+    value: "user"

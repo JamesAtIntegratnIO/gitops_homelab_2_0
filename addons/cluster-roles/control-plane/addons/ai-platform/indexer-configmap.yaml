@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: git-indexer-config
+  namespace: ai
+data:
+  OLLAMA_URL: "http://10.0.3.4:11434"
+  QDRANT_URL: "http://qdrant.ai.svc.cluster.local:6333"
+  QDRANT_COLLECTION: "homelab-platform"
+  EMBEDDING_MODEL: "nomic-embed-text"
+  REPOS: "jamesatintegratnio/gitops_homelab_2_0,jamesatintegratnio/kratix-platform-state"
+  # File patterns to index
+  INCLUDE_PATTERNS: "*.yaml,*.yml,*.md,*.json,*.tf,*.sh,*.mmd"
+  # Directories/patterns to skip
+  EXCLUDE_PATTERNS: "vendor/,node_modules/,*.lock,.git/,bin/,result/"
+  # Max tokens per chunk
+  CHUNK_MAX_TOKENS: "512"

@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: git-indexer
+  namespace: ai
+  labels:
+    app: git-indexer
+spec:
+  schedule: "0 * * * *"  # Every hour
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app: git-indexer
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: git-indexer
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+          containers:
+            - name: indexer
+              image: ghcr.io/jamesatintegratnio/git-indexer:latest
+              imagePullPolicy: Always
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              envFrom:
+                - configMapRef:
+                    name: git-indexer-config
+              env:
+                - name: GITHUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: git-indexer-secrets
+                      key: github-token
+              volumeMounts:
+                - name: workspace
+                  mountPath: /workspace
+          volumes:
+            - name: workspace
+              emptyDir:
+                sizeLimit: 1Gi
