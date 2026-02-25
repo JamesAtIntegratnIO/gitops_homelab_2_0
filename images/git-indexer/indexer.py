@@ -229,12 +229,20 @@ def classify_and_chunk(text: str, filepath: str) -> list[dict]:
 
 
 # ── Embedding ───────────────────────────────────────────────────────
+EMBED_MAX_TOKENS = 8000  # nomic-embed-text context is 8192, leave headroom
+
+
+def _truncate_to_tokens(text: str, max_tokens: int = EMBED_MAX_TOKENS) -> str:
+    """Truncate text to fit within a token budget."""
+    tokens = _enc.encode(text)
+    if len(tokens) <= max_tokens:
+        return text
+    return _enc.decode(tokens[:max_tokens])
+
+
 def _embed_single(url: str, text: str) -> list[float]:
     """Embed a single text string, retrying on failure."""
-    # Truncate to ~6000 chars to stay within Ollama context window
-    if len(text) > 6000:
-        text = text[:6000]
-    # Ollama /api/embed expects "input" as a string (not list) for single embed
+    text = _truncate_to_tokens(text)
     payload = {"model": EMBEDDING_MODEL, "input": text}
     for attempt in range(1, RETRY_MAX + 1):
         try:
@@ -266,8 +274,8 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
     # Sanitise: replace empty/whitespace texts with a placeholder
     clean_texts = [t if t.strip() else "<empty>" for t in texts]
-    # Truncate individual texts to ~6000 chars to stay within context window
-    clean_texts = [t[:6000] if len(t) > 6000 else t for t in clean_texts]
+    # Truncate to token budget so Ollama doesn't reject for context length
+    clean_texts = [_truncate_to_tokens(t) for t in clean_texts]
 
     payload = {"model": EMBEDDING_MODEL, "input": clean_texts}
 
