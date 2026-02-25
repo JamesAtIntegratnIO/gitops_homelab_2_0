@@ -45,6 +45,7 @@ class Pipeline:
         MAX_CONTEXT_TOKENS: int = Field(default=4000, description="Max context size in tokens")
 
     def __init__(self):
+        self.type = "filter"
         self.name = "Homelab Platform RAG"
         self.valves = self.Valves()
         self._qdrant: Optional[QdrantClient] = None
