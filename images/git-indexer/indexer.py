@@ -229,24 +229,60 @@ def classify_and_chunk(text: str, filepath: str) -> list[dict]:
 
 
 # ── Embedding ───────────────────────────────────────────────────────
-def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Embed a batch of texts via Ollama /api/embed endpoint."""
-    url = f"{OLLAMA_URL}/api/embed"
-    payload = {"model": EMBEDDING_MODEL, "input": texts}
-
+def _embed_single(url: str, text: str) -> list[float]:
+    """Embed a single text string, retrying on failure."""
+    # Truncate to ~8000 chars (~2000 tokens) to stay within Ollama limits
+    if len(text) > 8000:
+        text = text[:8000]
+    payload = {"model": EMBEDDING_MODEL, "input": text}
     for attempt in range(1, RETRY_MAX + 1):
         try:
             resp = requests.post(url, json=payload, timeout=120)
             resp.raise_for_status()
             data = resp.json()
-            return data["embeddings"]
+            return data["embeddings"][0]
         except (requests.RequestException, KeyError) as exc:
-            log.warning("Embedding attempt %d/%d failed: %s", attempt, RETRY_MAX, exc)
+            log.warning("Single-embed attempt %d/%d failed: %s", attempt, RETRY_MAX, exc)
             if attempt < RETRY_MAX:
                 time.sleep(RETRY_DELAY * attempt)
             else:
-                raise RuntimeError(f"Failed to embed after {RETRY_MAX} attempts") from exc
-    return []  # unreachable
+                raise
+    return []
+
+
+def embed_texts(texts: list[str]) -> list[list[float]]:
+    """Embed a batch of texts via Ollama /api/embed endpoint.
+    
+    Falls back to one-at-a-time embedding if the batch call fails.
+    """
+    url = f"{OLLAMA_URL}/api/embed"
+
+    # Sanitise: replace empty/whitespace texts with a placeholder
+    clean_texts = [t if t.strip() else "<empty>" for t in texts]
+    # Truncate individual texts to ~8000 chars to avoid payload issues
+    clean_texts = [t[:8000] if len(t) > 8000 else t for t in clean_texts]
+
+    payload = {"model": EMBEDDING_MODEL, "input": clean_texts}
+
+    # Try batch first
+    try:
+        resp = requests.post(url, json=payload, timeout=120)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["embeddings"]
+    except (requests.RequestException, KeyError) as exc:
+        log.warning("Batch embed failed (%s), falling back to single-text mode", exc)
+
+    # Fallback: embed one at a time
+    embeddings = []
+    for i, text in enumerate(clean_texts):
+        try:
+            emb = _embed_single(url, text)
+            embeddings.append(emb)
+        except Exception as exc:
+            log.error("Failed to embed text %d (len=%d): %s — using zero vector", i, len(text), exc)
+            embeddings.append([0.0] * EMBEDDING_DIM)
+    return embeddings
 
 
 # ── Git operations ──────────────────────────────────────────────────
