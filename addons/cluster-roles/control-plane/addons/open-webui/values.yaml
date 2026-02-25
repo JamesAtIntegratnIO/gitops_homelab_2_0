@@ -5,6 +5,11 @@ ollama:
 ollamaUrls:
   - "http://10.0.3.4:11434"
 
+# Disable the default OpenAI endpoint — we only use Ollama + Pipelines.
+# This makes the chart render OPENAI_API_KEY (singular) with the default "0p3n-w3bu!"
+# which authenticates Open WebUI to the Pipelines server.
+openaiBaseApiUrl: ""
+
 pipelines:
   enabled: true
   extraEnvVars:
