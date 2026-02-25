@@ -229,7 +229,7 @@ def classify_and_chunk(text: str, filepath: str) -> list[dict]:
 
 
 # ── Embedding ───────────────────────────────────────────────────────
-EMBED_MAX_TOKENS = 8000  # nomic-embed-text context is 8192, leave headroom
+EMBED_MAX_TOKENS = 4000  # conservative: cl100k_base tokens ≈ 1.5-2× BERT tokens; 4000 → ~6000-8000 nomic tokens (ctx 8192)
 
 
 def _truncate_to_tokens(text: str, max_tokens: int = EMBED_MAX_TOKENS) -> str:
