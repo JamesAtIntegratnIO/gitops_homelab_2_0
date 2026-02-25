@@ -17,7 +17,6 @@ from typing import Optional
 
 import git
 import requests
-# tiktoken removed — character-based truncation is more reliable across tokenizer families
 import yaml
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
@@ -59,8 +58,6 @@ logging.basicConfig(
 log = logging.getLogger("git-indexer")
 
 
-
-
 # ── Redaction ───────────────────────────────────────────────────────
 SECRET_PATTERNS = [
     re.compile(r"(token|password|secret|apikey|api_key|client_secret|authorization)\s*[:=]\s*\S+", re.IGNORECASE),
@@ -87,9 +84,10 @@ def is_k8s_secret(doc_text: str) -> bool:
     return False
 
 
-# ── Token counting ──────────────────────────────────────────────────
+# ── Token counting (approximate — ~4 chars per token for English text) ──
 def count_tokens(text: str) -> int:
-    return len(_enc.encode(text))
+    """Approximate token count. Used only for chunking, not embedding."""
+    return len(text) // 4
 
 
 # ── Chunking ────────────────────────────────────────────────────────
@@ -228,25 +226,15 @@ def classify_and_chunk(text: str, filepath: str) -> list[dict]:
 
 
 # ── Embedding ───────────────────────────────────────────────────────
-# nomic-embed-text has 8192 token context.  Token-level truncation via
-# tiktoken cl100k_base is unreliable (different tokenizer families), so we
-# hard-cap by character count.  6 000 chars is safely under 8 192 tokens
-# even in the worst case (~1 char per token for CJK / special chars).
-EMBED_MAX_CHARS = 6000
-
-
-def _truncate_text(text: str, max_chars: int = EMBED_MAX_CHARS) -> str:
-    """Hard-truncate text to *max_chars* characters."""
-    if len(text) <= max_chars:
-        return text
-    log.debug("Truncating text from %d to %d chars", len(text), max_chars)
-    return text[:max_chars]
+# Ollama's /api/embed supports `truncate: true` (the default) which uses
+# the model's own tokenizer to truncate inputs that exceed the context
+# window.  We pass it explicitly and let the server handle it—no
+# client-side tokenizer guesswork needed.
 
 
 def _embed_single(url: str, text: str) -> list[float]:
     """Embed a single text string, retrying on failure."""
-    text = _truncate_text(text)
-    payload = {"model": EMBEDDING_MODEL, "input": text}
+    payload = {"model": EMBEDDING_MODEL, "input": text, "truncate": True}
     for attempt in range(1, RETRY_MAX + 1):
         try:
             resp = requests.post(url, json=payload, timeout=120)
@@ -277,10 +265,8 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
     # Sanitise: replace empty/whitespace texts with a placeholder
     clean_texts = [t if t.strip() else "<empty>" for t in texts]
-    # Truncate to token budget so Ollama doesn't reject for context length
-    clean_texts = [_truncate_text(t) for t in clean_texts]
 
-    payload = {"model": EMBEDDING_MODEL, "input": clean_texts}
+    payload = {"model": EMBEDDING_MODEL, "input": clean_texts, "truncate": True}
 
     # Try batch first
     try:

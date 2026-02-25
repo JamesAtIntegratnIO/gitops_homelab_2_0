@@ -1,12 +1,10 @@
 """
-Homelab Platform RAG Pipeline — Open WebUI Filter
-
-This pipeline intercepts user messages, retrieves relevant context from the
-Qdrant vector store (populated by the git-indexer), and augments the system
-prompt so the LLM answers with file-path citations.
-
-Upload this file via Open WebUI Admin → Settings → Pipelines → Add Filter,
-or mount it into the Pipelines container at /app/pipelines/.
+title: Homelab Platform RAG
+author: homelab
+version: 0.1.0
+license: MIT
+description: Retrieves context from Qdrant (populated by git-indexer) and augments the system prompt with file-path citations.
+requirements: qdrant-client, requests
 """
 
 import os
@@ -14,6 +12,7 @@ import logging
 from typing import Optional
 
 import requests
+from pydantic import BaseModel, Field
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
@@ -23,15 +22,27 @@ log = logging.getLogger("rag-pipeline")
 class Pipeline:
     """Open WebUI Filter Pipeline for homelab RAG."""
 
-    class Valves:
+    class Valves(BaseModel):
         """Configurable parameters exposed in the Open WebUI UI."""
-        QDRANT_URL: str = os.environ.get("QDRANT_URL", "http://qdrant.ai.svc.cluster.local:6333")
-        QDRANT_COLLECTION: str = os.environ.get("QDRANT_COLLECTION", "homelab-platform")
-        OLLAMA_URL: str = os.environ.get("OLLAMA_URL", "http://10.0.3.4:11434")
-        EMBEDDING_MODEL: str = os.environ.get("EMBEDDING_MODEL", "nomic-embed-text")
-        TOP_K: int = 8
-        SCORE_THRESHOLD: float = 0.3
-        MAX_CONTEXT_TOKENS: int = 4000
+        QDRANT_URL: str = Field(
+            default="http://qdrant.ai.svc.cluster.local:6333",
+            description="Qdrant server URL",
+        )
+        QDRANT_COLLECTION: str = Field(
+            default="homelab-platform",
+            description="Qdrant collection name",
+        )
+        OLLAMA_URL: str = Field(
+            default="http://10.0.3.4:11434",
+            description="Ollama API URL",
+        )
+        EMBEDDING_MODEL: str = Field(
+            default="nomic-embed-text",
+            description="Embedding model name",
+        )
+        TOP_K: int = Field(default=8, description="Number of chunks to retrieve")
+        SCORE_THRESHOLD: float = Field(default=0.3, description="Minimum similarity score")
+        MAX_CONTEXT_TOKENS: int = Field(default=4000, description="Max context size in tokens")
 
     def __init__(self):
         self.name = "Homelab Platform RAG"
