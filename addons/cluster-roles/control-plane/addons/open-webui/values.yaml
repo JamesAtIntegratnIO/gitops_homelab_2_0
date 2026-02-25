@@ -91,6 +91,9 @@ extraEnvVars:
     value: "true"
   - name: DEFAULT_USER_ROLE
     value: "user"
+  # Enable API keys for programmatic access
+  - name: ENABLE_API_KEY
+    value: "true"
   # Filter chat model list — allowlist only (hides embedding-only models like nomic-embed-text)
   - name: ENABLE_MODEL_FILTER
     value: "true"
