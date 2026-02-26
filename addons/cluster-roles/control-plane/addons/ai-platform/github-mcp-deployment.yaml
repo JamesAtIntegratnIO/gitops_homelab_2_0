@@ -38,9 +38,8 @@ spec:
             - name: GITHUB_PERSONAL_ACCESS_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: github-mcp-secrets
-                  key: personal-access-token
-                  optional: true
+                  name: git-indexer-secrets
+                  key: github-token
             - name: GITHUB_TOOLSETS
               value: "default,actions"
             - name: GITHUB_READ_ONLY

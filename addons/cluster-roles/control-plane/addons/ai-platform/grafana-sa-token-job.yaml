@@ -1,0 +1,160 @@
+# One-shot Job: creates a Grafana service account + token for the MCP server
+# Idempotent — skips creation if the secret already has a token
+# Uses Grafana admin credentials from monitoring/grafana-admin secret
+# Stores the resulting SA token in ai/grafana-mcp-secrets
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grafana-sa-creator
+  namespace: ai
+  labels:
+    app: grafana-mcp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-sa-creator
+  namespace: ai
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["grafana-mcp-secrets"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: grafana-sa-creator
+  namespace: ai
+subjects:
+  - kind: ServiceAccount
+    name: grafana-sa-creator
+    namespace: ai
+roleRef:
+  kind: Role
+  name: grafana-sa-creator
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-sa-creator-read-admin
+  namespace: monitoring
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["grafana-admin"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: grafana-sa-creator-read-admin
+  namespace: monitoring
+subjects:
+  - kind: ServiceAccount
+    name: grafana-sa-creator
+    namespace: ai
+roleRef:
+  kind: Role
+  name: grafana-sa-creator-read-admin
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-grafana-mcp-sa-token
+  namespace: ai
+  labels:
+    app: grafana-mcp
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: grafana-mcp-sa-creator
+    spec:
+      serviceAccountName: grafana-sa-creator
+      restartPolicy: OnFailure
+      containers:
+        - name: create-token
+          image: bitnami/kubectl:1.34
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              GRAFANA_URL="http://kube-prometheus-stack-grafana.monitoring.svc.cluster.local"
+              SA_NAME="mcp-readonly"
+              SECRET_NAME="grafana-mcp-secrets"
+              SECRET_KEY="service-account-token"
+              NAMESPACE="ai"
+
+              # Check if secret already exists with a token
+              EXISTING=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o jsonpath="{.data.$SECRET_KEY}" 2>/dev/null || echo "")
+              if [ -n "$EXISTING" ]; then
+                echo "Secret $SECRET_NAME already has key $SECRET_KEY — skipping creation"
+                exit 0
+              fi
+
+              # Get Grafana admin credentials from monitoring namespace
+              ADMIN_USER=$(kubectl get secret grafana-admin -n monitoring -o jsonpath='{.data.admin-user}' | base64 -d)
+              ADMIN_PASS=$(kubectl get secret grafana-admin -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d)
+
+              echo "Checking if service account '$SA_NAME' exists..."
+              SA_LIST=$(curl -sf -u "$ADMIN_USER:$ADMIN_PASS" "$GRAFANA_URL/api/serviceaccounts/search?query=$SA_NAME" || echo '{"serviceAccounts":[]}')
+              SA_ID=$(echo "$SA_LIST" | python3 -c "
+              import sys, json
+              data = json.load(sys.stdin)
+              for sa in data.get('serviceAccounts', []):
+                  if sa.get('name') == '$SA_NAME':
+                      print(sa['id'])
+                      break
+              " 2>/dev/null || echo "")
+
+              if [ -z "$SA_ID" ]; then
+                echo "Creating service account '$SA_NAME'..."
+                SA_RESPONSE=$(curl -sf -u "$ADMIN_USER:$ADMIN_PASS" \
+                  -H "Content-Type: application/json" \
+                  -X POST "$GRAFANA_URL/api/serviceaccounts" \
+                  -d "{\"name\": \"$SA_NAME\", \"role\": \"Viewer\"}")
+                SA_ID=$(echo "$SA_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+                echo "Created service account with ID: $SA_ID"
+              else
+                echo "Service account '$SA_NAME' already exists with ID: $SA_ID"
+              fi
+
+              echo "Creating token for service account $SA_ID..."
+              TOKEN_RESPONSE=$(curl -sf -u "$ADMIN_USER:$ADMIN_PASS" \
+                -H "Content-Type: application/json" \
+                -X POST "$GRAFANA_URL/api/serviceaccounts/$SA_ID/tokens" \
+                -d "{\"name\": \"mcp-token-$(date +%s)\"}")
+              TOKEN=$(echo "$TOKEN_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['key'])")
+
+              if [ -z "$TOKEN" ]; then
+                echo "ERROR: Failed to create token"
+                exit 1
+              fi
+
+              echo "Token created successfully. Storing in secret..."
+              # Create or update the secret
+              kubectl create secret generic "$SECRET_NAME" \
+                --namespace "$NAMESPACE" \
+                --from-literal="$SECRET_KEY=$TOKEN" \
+                --dry-run=client -o yaml | kubectl apply -f -
+
+              echo "Done! Secret $SECRET_NAME/$SECRET_KEY is ready."
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

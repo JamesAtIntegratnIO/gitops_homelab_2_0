@@ -291,7 +291,7 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Allow grafana-mcp pod egress to Grafana in monitoring namespace
+# Allow grafana-mcp + SA-creator job egress to Grafana in monitoring namespace
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -299,8 +299,12 @@ metadata:
   namespace: ai
 spec:
   podSelector:
-    matchLabels:
-      app: grafana-mcp
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - grafana-mcp
+          - grafana-mcp-sa-creator
   policyTypes:
     - Egress
   egress:

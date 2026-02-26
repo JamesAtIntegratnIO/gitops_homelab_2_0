@@ -112,6 +112,10 @@ configs:
       hs.status = "Healthy"
       hs.message = "ApplicationSet is running"
       return hs
+
+    # Local account for AI MCP platform (API key only, no UI login)
+    accounts.mcp-readonly: apiKey
+    accounts.mcp-readonly.enabled: "true"
   
   rbac:
     policy.csv: |
@@ -124,6 +128,14 @@ configs:
       p, role:readonly, accounts, get, *, allow
       p, role:readonly, gpgkeys, get, *, allow
       g, role:readonly, role:readonly
+      
+      # MCP AI platform read-only account
+      p, role:mcp-readonly, applications, get, */*, allow
+      p, role:mcp-readonly, clusters, get, *, allow
+      p, role:mcp-readonly, projects, get, *, allow
+      p, role:mcp-readonly, repositories, get, *, allow
+      p, role:mcp-readonly, logs, get, */*, allow
+      g, mcp-readonly, role:mcp-readonly
       
       # Map Authentik Admins group to ArgoCD admin role
       g, authentik Admins, role:admin
