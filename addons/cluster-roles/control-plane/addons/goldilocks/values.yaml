@@ -22,11 +22,21 @@ vpa:
 # Controller — creates VPA objects for workloads automatically
 controller:
   enabled: true
+  rbac:
+    create: true
+    enableArgoproj: true
+    extraRules:
+      # Goldilocks needs services access to resolve owner chains for pods
+      # managed by service-backed controllers (e.g. vcluster StatefulSets)
+      - apiGroups: [""]
+        resources: ["services"]
+        verbs: ["get", "list", "watch"]
   flags:
     # Monitor all namespaces without requiring opt-in labels
     on-by-default: "true"
-    # Exclude system namespaces that shouldn't be auto-tuned
-    exclude-namespaces: "kube-system,kube-public,kube-node-lease,goldilocks"
+    # Exclude system namespaces and trivy-system (ephemeral scan jobs
+    # create unresolvable owner chains that spam controller logs)
+    exclude-namespaces: "kube-system,kube-public,kube-node-lease,goldilocks,trivy-system"
     # VPA update mode is controlled per-namespace via label:
     # goldilocks.fairwinds.com/vpa-update-mode=Auto
   resources:
