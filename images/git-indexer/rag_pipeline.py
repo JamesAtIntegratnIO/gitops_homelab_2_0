@@ -1,9 +1,9 @@
 """
 title: Homelab Platform RAG
 author: homelab
-version: 0.2.2
+version: 0.3.0
 license: MIT
-description: Retrieves context from Qdrant and live observability data (Prometheus, Alertmanager, Loki) to augment every chat message.
+description: Retrieves context from Qdrant and live observability data (Prometheus, Alertmanager, Loki) with intent-driven metric queries.
 requirements: qdrant-client, requests
 """
 
@@ -41,6 +41,209 @@ KNOWN_APPS = {
     "authentik", "metallb", "cilium", "hubble",
     "kratix", "vcluster", "matrix-alertmanager-receiver",
     "loki-gateway", "loki-canary",
+}
+
+# ---------------------------------------------------------------------------
+# Intent-driven PromQL query catalog
+# ---------------------------------------------------------------------------
+# Each topic maps to a list of (label, promql, format) tuples.
+# Formats: "pct" (0-1 → percentage), "pct100" (already 0-100), "bytes",
+#          "topk" (table of metric→value), "count", "list"
+# ---------------------------------------------------------------------------
+QUERY_CATALOG: dict[str, list[tuple[str, str, str]]] = {
+    "cpu_utilization": [
+        (
+            "Node CPU utilisation",
+            "instance:node_cpu_utilisation:rate5m",
+            "pct_per_instance",
+        ),
+        (
+            "Top namespaces by CPU (5m rate)",
+            "topk(10, sum by (namespace) (rate(container_cpu_usage_seconds_total{container!=''}[5m])))",
+            "topk_cores",
+        ),
+    ],
+    "cpu_limits": [
+        (
+            "Cluster CPU limits / allocatable",
+            'sum(namespace_cpu:kube_pod_container_resource_limits:sum{}) / sum(kube_node_status_allocatable{resource="cpu"})',
+            "pct",
+        ),
+        (
+            "Cluster CPU requests / allocatable",
+            'sum(namespace_cpu:kube_pod_container_resource_requests:sum{}) / sum(kube_node_status_allocatable{resource="cpu"})',
+            "pct",
+        ),
+        (
+            "Per-namespace CPU limits",
+            "topk(10, namespace_cpu:kube_pod_container_resource_limits:sum)",
+            "topk_cores",
+        ),
+        (
+            "Per-namespace CPU requests",
+            "topk(10, namespace_cpu:kube_pod_container_resource_requests:sum)",
+            "topk_cores",
+        ),
+        (
+            "Total allocatable CPU (cores)",
+            'sum(kube_node_status_allocatable{resource="cpu"})',
+            "scalar_cores",
+        ),
+    ],
+    "cpu_throttling": [
+        (
+            "Throttled containers (>25% periods throttled)",
+            "topk(10, sum by (namespace, pod, container) "
+            "(rate(container_cpu_cfs_throttled_periods_total[5m])) / "
+            "sum by (namespace, pod, container) "
+            "(rate(container_cpu_cfs_periods_total[5m])) > 0.25)",
+            "topk_pct",
+        ),
+    ],
+    "memory_utilization": [
+        (
+            "Node memory utilisation",
+            "instance:node_memory_utilisation:ratio",
+            "pct_per_instance",
+        ),
+        (
+            "Top namespaces by memory (working set)",
+            "topk(10, sum by (namespace) (container_memory_working_set_bytes{container!=''}))",
+            "topk_bytes",
+        ),
+    ],
+    "memory_limits": [
+        (
+            "Cluster memory limits / allocatable",
+            'sum(namespace_memory:kube_pod_container_resource_limits:sum{}) / sum(kube_node_status_allocatable{resource="memory"})',
+            "pct",
+        ),
+        (
+            "Cluster memory requests / allocatable",
+            'sum(namespace_memory:kube_pod_container_resource_requests:sum{}) / sum(kube_node_status_allocatable{resource="memory"})',
+            "pct",
+        ),
+        (
+            "Per-namespace memory limits",
+            "topk(10, namespace_memory:kube_pod_container_resource_limits:sum)",
+            "topk_bytes",
+        ),
+        (
+            "Per-namespace memory requests",
+            "topk(10, namespace_memory:kube_pod_container_resource_requests:sum)",
+            "topk_bytes",
+        ),
+        (
+            "Total allocatable memory",
+            'sum(kube_node_status_allocatable{resource="memory"})',
+            "scalar_bytes",
+        ),
+    ],
+    "memory_pressure": [
+        (
+            "OOMKilled containers (last terminated)",
+            'kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}',
+            "list_oom",
+        ),
+        (
+            "Node memory pressure",
+            'kube_node_status_condition{condition="MemoryPressure",status="true"}',
+            "node_condition",
+        ),
+        (
+            "Node disk pressure",
+            'kube_node_status_condition{condition="DiskPressure",status="true"}',
+            "node_condition",
+        ),
+        (
+            "Node PID pressure",
+            'kube_node_status_condition{condition="PIDPressure",status="true"}',
+            "node_condition",
+        ),
+    ],
+    "pods": [
+        (
+            "Non-running pods",
+            'kube_pod_status_phase{phase=~"Pending|Failed|Unknown"} == 1',
+            "list_pods",
+        ),
+        (
+            "Pod restarts (1h)",
+            "topk(10, increase(kube_pod_container_status_restarts_total[1h]) > 0)",
+            "topk_restarts",
+        ),
+        (
+            "Unavailable deployment replicas",
+            "kube_deployment_status_replicas_unavailable > 0",
+            "list_deployments",
+        ),
+    ],
+    "storage": [
+        (
+            "Node filesystem usage",
+            '100 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay",mountpoint="/"} / '
+            'node_filesystem_size_bytes{fstype!~"tmpfs|overlay",mountpoint="/"} * 100)',
+            "pct_per_instance",
+        ),
+    ],
+    "nodes": [
+        (
+            "Node readiness",
+            'kube_node_status_condition{condition="Ready",status="true"}',
+            "node_condition",
+        ),
+        (
+            "Node conditions (not Ready)",
+            'kube_node_status_condition{condition!="Ready",status="true"}',
+            "node_condition_alert",
+        ),
+    ],
+}
+
+# ---------------------------------------------------------------------------
+# Keyword → topic mapping for intent detection
+# ---------------------------------------------------------------------------
+TOPIC_KEYWORDS: dict[str, set[str]] = {
+    "cpu":          {"cpu_utilization", "cpu_limits"},
+    "processor":    {"cpu_utilization", "cpu_limits"},
+    "compute":      {"cpu_utilization", "cpu_limits"},
+    "throttle":     {"cpu_throttling", "cpu_utilization"},
+    "throttling":   {"cpu_throttling", "cpu_utilization"},
+    "memory":       {"memory_utilization", "memory_limits"},
+    "mem":          {"memory_utilization", "memory_limits"},
+    "ram":          {"memory_utilization", "memory_limits"},
+    "oom":          {"memory_pressure", "memory_limits"},
+    "out of memory": {"memory_pressure", "memory_limits"},
+    "limit":        {"cpu_limits", "memory_limits"},
+    "limits":       {"cpu_limits", "memory_limits"},
+    "request":      {"cpu_limits", "memory_limits"},
+    "requests":     {"cpu_limits", "memory_limits"},
+    "resource":     {"cpu_limits", "memory_limits", "cpu_utilization", "memory_utilization"},
+    "resources":    {"cpu_limits", "memory_limits", "cpu_utilization", "memory_utilization"},
+    "capacity":     {"cpu_limits", "memory_limits"},
+    "allocatable":  {"cpu_limits", "memory_limits"},
+    "pressure":     {"memory_pressure", "cpu_limits", "memory_limits"},
+    "pod":          {"pods"},
+    "pods":         {"pods"},
+    "restart":      {"pods"},
+    "restarts":     {"pods"},
+    "crash":        {"pods", "memory_pressure"},
+    "crashloop":    {"pods"},
+    "pending":      {"pods"},
+    "failed":       {"pods"},
+    "deployment":   {"pods"},
+    "replica":      {"pods"},
+    "storage":      {"storage"},
+    "disk":         {"storage", "memory_pressure"},
+    "pvc":          {"storage"},
+    "volume":       {"storage"},
+    "filesystem":   {"storage"},
+    "node":         {"nodes", "cpu_utilization", "memory_utilization"},
+    "nodes":        {"nodes", "cpu_utilization", "memory_utilization"},
+    "health":       {"nodes", "pods", "cpu_utilization", "memory_utilization"},
+    "status":       {"nodes", "pods"},
+    "utilization":  {"cpu_utilization", "memory_utilization"},
+    "usage":        {"cpu_utilization", "memory_utilization"},
 }
 
 
@@ -277,32 +480,19 @@ class Pipeline:
         return []
 
     def _get_cluster_health(self) -> str:
-        """Build a cluster health snapshot from a curated set of PromQL queries."""
-        lines = ["## Cluster Health Snapshot\n"]
+        """Build a lean cluster health baseline — nodes, restarts, non-running pods."""
+        lines = ["## Cluster Health Baseline\n"]
 
         # 1. Node readiness
         nodes_ready = self._prom_query(
             'kube_node_status_condition{condition="Ready",status="true"}'
-        )
-        nodes_not_ready = self._prom_query(
-            'kube_node_status_condition{condition="Ready",status="false"}'
         )
         ready_names = [
             r["metric"].get("node", "?")
             for r in nodes_ready
             if r.get("value", [0, "0"])[1] == "1"
         ]
-        not_ready_names = [
-            r["metric"].get("node", "?")
-            for r in nodes_not_ready
-            if r.get("value", [0, "0"])[1] == "1"
-        ]
-        lines.append(
-            f"**Nodes**: {len(ready_names)} ready"
-            + (f", {len(not_ready_names)} NOT ready ({', '.join(not_ready_names)})"
-               if not_ready_names else "")
-            + f"  ({', '.join(ready_names)})"
-        )
+        lines.append(f"**Nodes**: {len(ready_names)} ready ({', '.join(ready_names)})")
 
         # 2. Pod restarts in the last hour
         restarts = self._prom_query(
@@ -339,27 +529,178 @@ class Pipeline:
         else:
             lines.append("**Non-running pods**: none")
 
-        # 4. Node CPU utilisation
-        cpu = self._prom_query("instance:node_cpu_utilisation:rate5m")
-        if cpu:
-            cpu_parts = []
-            for r in cpu:
-                node = r["metric"].get("instance", "?")
-                val = float(r.get("value", [0, "0"])[1]) * 100
-                cpu_parts.append(f"{node}: {val:.1f}%")
-            lines.append(f"**Node CPU**: {', '.join(cpu_parts)}")
-
-        # 5. Node memory utilisation
-        mem = self._prom_query("instance:node_memory_utilisation:ratio")
-        if mem:
-            mem_parts = []
-            for r in mem:
-                node = r["metric"].get("instance", "?")
-                val = float(r.get("value", [0, "0"])[1]) * 100
-                mem_parts.append(f"{node}: {val:.1f}%")
-            lines.append(f"**Node Memory**: {', '.join(mem_parts)}")
-
         lines.append("")
+        return "\n".join(lines)
+
+    # -- Intent-driven metric deep-dives -----------------------------------
+
+    def _match_topics(self, text: str) -> set[str]:
+        """Match user message keywords to query catalog topics."""
+        lower = text.lower()
+        topics: set[str] = set()
+        for keyword, topic_set in TOPIC_KEYWORDS.items():
+            if keyword in lower:
+                topics.update(topic_set)
+        return topics
+
+    @staticmethod
+    def _fmt_bytes(b: float) -> str:
+        """Format bytes to a human-readable string."""
+        if b >= 1 << 30:
+            return f"{b / (1 << 30):.1f} GiB"
+        if b >= 1 << 20:
+            return f"{b / (1 << 20):.1f} MiB"
+        return f"{b / (1 << 10):.1f} KiB"
+
+    def _format_query_result(
+        self, label: str, result: list[dict], fmt: str
+    ) -> str:
+        """Format a single PromQL result vector into a readable string."""
+        if not result:
+            return f"**{label}**: no data\n"
+
+        # --- scalar formats (single value) ---
+        if fmt == "pct":
+            val = float(result[0].get("value", [0, "0"])[1])
+            return f"**{label}**: {val * 100:.1f}%\n"
+
+        if fmt == "scalar_cores":
+            val = float(result[0].get("value", [0, "0"])[1])
+            return f"**{label}**: {val:.1f} cores\n"
+
+        if fmt == "scalar_bytes":
+            val = float(result[0].get("value", [0, "0"])[1])
+            return f"**{label}**: {self._fmt_bytes(val)}\n"
+
+        # --- per-instance percentage (0-1 ratio) ---
+        if fmt == "pct_per_instance":
+            parts = []
+            for r in result:
+                inst = r["metric"].get("instance", r["metric"].get("node", "?"))
+                val = float(r.get("value", [0, "0"])[1])
+                # Detect if already 0-100 range
+                pct = val if val > 1.5 else val * 100
+                parts.append(f"{inst}: {pct:.1f}%")
+            return f"**{label}**: {', '.join(parts)}\n"
+
+        # --- topk tables ---
+        if fmt == "topk_cores":
+            lines = [f"**{label}**:"]
+            for r in result[:10]:
+                ns = r["metric"].get("namespace", "?")
+                val = float(r.get("value", [0, "0"])[1])
+                lines.append(f"  - {ns}: {val:.3f} cores")
+            return "\n".join(lines) + "\n"
+
+        if fmt == "topk_bytes":
+            lines = [f"**{label}**:"]
+            for r in result[:10]:
+                ns = r["metric"].get("namespace", "?")
+                val = float(r.get("value", [0, "0"])[1])
+                lines.append(f"  - {ns}: {self._fmt_bytes(val)}")
+            return "\n".join(lines) + "\n"
+
+        if fmt == "topk_pct":
+            lines = [f"**{label}**:"]
+            for r in result[:10]:
+                m = r["metric"]
+                ident = f"{m.get('namespace', '?')}/{m.get('pod', '?')}"
+                if m.get("container"):
+                    ident += f"/{m['container']}"
+                val = float(r.get("value", [0, "0"])[1]) * 100
+                lines.append(f"  - {ident}: {val:.1f}% throttled")
+            return "\n".join(lines) + "\n"
+
+        if fmt == "topk_restarts":
+            lines = [f"**{label}**:"]
+            for r in result[:10]:
+                m = r["metric"]
+                val = float(r.get("value", [0, "0"])[1])
+                lines.append(
+                    f"  - {m.get('namespace', '?')}/{m.get('pod', '?')} "
+                    f"({m.get('container', '?')}): {val:.0f}"
+                )
+            return "\n".join(lines) + "\n"
+
+        # --- list formats ---
+        if fmt == "list_oom":
+            victims = [
+                r for r in result if r.get("value", [0, "0"])[1] == "1"
+            ]
+            if not victims:
+                return f"**{label}**: none\n"
+            lines = [f"**{label}**: {len(victims)} container(s)"]
+            for r in victims[:10]:
+                m = r["metric"]
+                lines.append(
+                    f"  - {m.get('namespace', '?')}/{m.get('pod', '?')} "
+                    f"({m.get('container', '?')})"
+                )
+            return "\n".join(lines) + "\n"
+
+        if fmt == "list_pods":
+            bad = [r for r in result if r.get("value", [0, "0"])[1] == "1"]
+            if not bad:
+                return f"**{label}**: none\n"
+            lines = [f"**{label}**: {len(bad)}"]
+            for r in bad[:10]:
+                m = r["metric"]
+                lines.append(
+                    f"  - {m.get('namespace', '?')}/{m.get('pod', '?')} → {m.get('phase', '?')}"
+                )
+            return "\n".join(lines) + "\n"
+
+        if fmt == "list_deployments":
+            bad = [r for r in result if float(r.get("value", [0, "0"])[1]) > 0]
+            if not bad:
+                return f"**{label}**: none\n"
+            lines = [f"**{label}**: {len(bad)}"]
+            for r in bad[:10]:
+                m = r["metric"]
+                val = float(r.get("value", [0, "0"])[1])
+                lines.append(
+                    f"  - {m.get('namespace', '?')}/{m.get('deployment', '?')}: "
+                    f"{val:.0f} unavailable"
+                )
+            return "\n".join(lines) + "\n"
+
+        if fmt == "node_condition":
+            active = [r for r in result if r.get("value", [0, "0"])[1] == "1"]
+            if not active:
+                return f"**{label}**: none\n"
+            nodes = [r["metric"].get("node", "?") for r in active]
+            return f"**{label}**: {', '.join(nodes)}\n"
+
+        if fmt == "node_condition_alert":
+            active = [r for r in result if r.get("value", [0, "0"])[1] == "1"]
+            if not active:
+                return f"**{label}**: none\n"
+            lines = [f"**{label}**:"]
+            for r in active:
+                m = r["metric"]
+                lines.append(f"  - {m.get('node', '?')}: {m.get('condition', '?')}")
+            return "\n".join(lines) + "\n"
+
+        # Fallback
+        return f"**{label}**: {len(result)} result(s)\n"
+
+    def _run_topic_queries(self, topics: set[str]) -> str:
+        """Run all PromQL queries for matched topics and format results."""
+        if not topics:
+            return ""
+
+        lines = ["## Resource Deep Dive\n"]
+        seen_labels: set[str] = set()
+
+        for topic in sorted(topics):
+            queries = QUERY_CATALOG.get(topic, [])
+            for label, promql, fmt in queries:
+                if label in seen_labels:
+                    continue  # avoid duplicate queries across overlapping topics
+                seen_labels.add(label)
+                result = self._prom_query(promql)
+                lines.append(self._format_query_result(label, result, fmt))
+
         return "\n".join(lines)
 
     # -- Loki ---------------------------------------------------------------
@@ -462,20 +803,23 @@ class Pipeline:
 
     SYSTEM_PREAMBLE = """You are my homelab platform assistant with access to both documentation and live cluster telemetry.
 
-You have two sources of truth:
+You have three sources of truth:
 1. **Platform docs context** — indexed YAML/config files from the GitOps repos (below)
-2. **Live observability data** — current alerts, cluster health metrics, and recent logs (below)
+2. **Live observability data** — current alerts, cluster health baseline, and recent logs (below)
+3. **Resource Deep Dive** — targeted Prometheus metrics matched to the user's question (below, when relevant)
 
 RULES:
-- Use BOTH sources to give the most complete answer.
+- Use ALL available sources to give the most complete answer.
 - When answering "how is X configured?" — cite the doc context with file paths like `repo/path/to/file.yaml`.
 - When answering "is X working?" or "what's wrong with X?" — reference the live alerts, metrics, and logs.
+- When there is a **Resource Deep Dive** section, ALWAYS reference those specific numbers in your answer.
 - When you see firing alerts relevant to the question, mention them proactively.
-- When referencing metrics, quote the actual values (e.g. "Node CPU is at 34.2%").
+- When referencing metrics, quote the EXACT values (e.g. "CPU limits are at 67.3% of allocatable", "Node memory: 32.8%").
 - When referencing logs, quote the specific log line(s).
 - If neither source has the answer, say so clearly and suggest where to look.
 - Prefer showing concrete data first, then generalise.
-- If code or YAML is referenced, quote the relevant section.
+- When showing resource data, present it in a structured way (tables or bullet points with actual numbers).
+- NEVER suggest running kubectl or other CLI commands when the data is already provided in the context below.
 - ALWAYS cite file paths using the format: `repo/path/to/file.yaml`
 """
 
@@ -512,6 +856,7 @@ RULES:
 
             alerts_block = ""
             health_block = ""
+            topic_block = ""
             logs_block = ""
 
             try:
@@ -526,13 +871,23 @@ RULES:
                 log.warning("Health metrics error: %s", exc)
                 health_block = "*Failed to fetch cluster health.*\n"
 
+            # Intent-driven metric deep-dives
+            try:
+                topics = self._match_topics(user_msg)
+                if topics:
+                    log.info("Matched topics: %s", topics)
+                    topic_block = self._run_topic_queries(topics)
+            except Exception as exc:
+                log.warning("Topic query error: %s", exc)
+                topic_block = ""
+
             try:
                 logs_block = self._query_loki(hints)
             except Exception as exc:
                 log.warning("Loki query error: %s", exc)
                 logs_block = "*Failed to query logs.*\n"
 
-            obs_block = f"{alerts_block}\n{health_block}\n{logs_block}"
+            obs_block = f"{alerts_block}\n{health_block}\n{topic_block}\n{logs_block}"
 
         # --- Build augmented system message ---
         augmented_system = f"{self.SYSTEM_PREAMBLE}\n{rag_block}\n{obs_block}"
