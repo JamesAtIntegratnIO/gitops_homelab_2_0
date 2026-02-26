@@ -80,6 +80,34 @@ prometheus:
     retention: 15d
     secrets:
     - etcd-client-cert
+    # Tuned probes: kube-apiserver-burnrate.rules can spike to 5s+ evaluation,
+    # causing the default 3s liveness timeout to fail. See k/k#134080.
+    containers:
+    - name: prometheus
+      livenessProbe:
+        httpGet:
+          path: /-/healthy
+          port: http-web
+          scheme: HTTP
+        timeoutSeconds: 10
+        periodSeconds: 15
+        failureThreshold: 8
+      readinessProbe:
+        httpGet:
+          path: /-/ready
+          port: http-web
+          scheme: HTTP
+        timeoutSeconds: 10
+        periodSeconds: 10
+        failureThreshold: 6
+      startupProbe:
+        httpGet:
+          path: /-/ready
+          port: http-web
+          scheme: HTTP
+        timeoutSeconds: 10
+        periodSeconds: 15
+        failureThreshold: 60
     # Discover ServiceMonitors/PodMonitors/Rules in ALL namespaces
     # regardless of labels. Without the *NilUsesHelmValues: false
     # settings, empty selectors get replaced with {release: <helm-release>}.
