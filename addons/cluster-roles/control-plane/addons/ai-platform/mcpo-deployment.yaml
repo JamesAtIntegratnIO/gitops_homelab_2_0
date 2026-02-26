@@ -24,12 +24,47 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+      initContainers:
+        - name: render-config
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/kubectl:latest
+          command:
+            - /bin/bash
+            - -c
+            - |
+              # Substitute env vars in config template
+              sed "s|\${GITHUB_TOKEN}|${GITHUB_TOKEN}|g" /config-template/config.json > /config-rendered/config.json
+          env:
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: git-indexer-secrets
+                  key: github-token
+          volumeMounts:
+            - name: config-template
+              mountPath: /config-template
+              readOnly: true
+            - name: config-rendered
+              mountPath: /config-rendered
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
       containers:
         - name: mcpo
           image: ghcr.io/open-webui/mcpo:main
           args:
             - "--config"
-            - "/config/config.json"
+            - "/config-rendered/config.json"
             - "--port"
             - "8000"
           ports:
@@ -70,15 +105,18 @@ spec:
             periodSeconds: 30
             timeoutSeconds: 5
           volumeMounts:
-            - name: config
-              mountPath: /config
+            - name: config-rendered
+              mountPath: /config-rendered
               readOnly: true
             - name: mcpo-home
               mountPath: /tmp/mcpo-home
       volumes:
-        - name: config
+        - name: config-template
           configMap:
             name: mcpo-config
+        - name: config-rendered
+          emptyDir:
+            sizeLimit: 1Mi
         - name: mcpo-home
           emptyDir:
             sizeLimit: 500Mi
