@@ -36,7 +36,7 @@ spec:
               protocol: TCP
           env:
             - name: ARGOCD_BASE_URL
-              value: "https://argo-cd-argocd-server.argocd.svc.cluster.local"
+              value: "http://argo-cd-argocd-server.argocd.svc.cluster.local"
             - name: ARGOCD_API_TOKEN
               valueFrom:
                 secretKeyRef:
