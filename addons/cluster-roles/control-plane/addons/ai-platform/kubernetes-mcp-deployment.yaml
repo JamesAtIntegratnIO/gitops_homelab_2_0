@@ -26,10 +26,10 @@ spec:
         fsGroup: 1000
       containers:
         - name: kubernetes-mcp
-          image: ghcr.io/containers/kubernetes-mcp-server:latest
+          image: quay.io/containers/kubernetes_mcp_server:latest
           args:
             - "--port"
-            - "8089"
+            - "8080"
             - "--read-only"
             - "--stateless"
             - "--disable-multi-cluster"
@@ -37,7 +37,7 @@ spec:
             - "core,config"
           ports:
             - name: http
-              containerPort: 8089
+              containerPort: 8080
               protocol: TCP
           resources:
             requests:
@@ -47,13 +47,15 @@ spec:
               cpu: 200m
               memory: 256Mi
           readinessProbe:
-            tcpSocket:
-              port: 8089
+            httpGet:
+              path: /healthz
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
-              port: 8089
+            httpGet:
+              path: /healthz
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 30
 ---
@@ -70,6 +72,6 @@ spec:
     app: kubernetes-mcp
   ports:
     - name: http
-      port: 8089
-      targetPort: 8089
+      port: 8080
+      targetPort: 8080
       protocol: TCP
