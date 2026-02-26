@@ -1,9 +1,8 @@
 # ArgoCD MCP: Bridges AI platform to ArgoCD
 # Provides: list/get/sync applications, resource trees, managed resources, workload logs
-# Runtime: node:22-slim via npx (argocd-mcp npm package)
-# Transport: streamable-http on port 3000
+# Runtime: official Docker image (pre-built Node.js app)
+# Transport: http stream on port 3000
 # Read-only mode enabled for safety
-# NOTE: First pod start downloads package via npx (~60s), subsequent container restarts use cache
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -29,8 +28,8 @@ spec:
         fsGroup: 1000
       containers:
         - name: argocd-mcp
-          image: node:22-slim
-          command: ["npx", "-y", "argocd-mcp@latest", "streamable-http"]
+          image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.5.0
+          # CMD in Dockerfile is ["node", "dist/index.js", "http"] — no override needed
           ports:
             - name: http
               containerPort: 3000
@@ -49,8 +48,6 @@ spec:
             # ArgoCD uses self-signed certs internally
             - name: NODE_TLS_REJECT_UNAUTHORIZED
               value: "0"
-            - name: HOME
-              value: /tmp/argocd-home
           resources:
             requests:
               cpu: 50m
@@ -58,23 +55,22 @@ spec:
             limits:
               cpu: 300m
               memory: 512Mi
+          startupProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
           readinessProbe:
             tcpSocket:
               port: 3000
-            initialDelaySeconds: 90
+            initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             tcpSocket:
               port: 3000
-            initialDelaySeconds: 120
+            initialDelaySeconds: 10
             periodSeconds: 30
-          volumeMounts:
-            - name: argocd-home
-              mountPath: /tmp/argocd-home
-      volumes:
-        - name: argocd-home
-          emptyDir:
-            sizeLimit: 500Mi
 ---
 apiVersion: v1
 kind: Service
