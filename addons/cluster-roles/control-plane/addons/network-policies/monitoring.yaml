@@ -96,6 +96,17 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+    # MCPO proxy (prometheus-mcp-server subprocess queries)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+          podSelector:
+            matchLabels:
+              app: mcpo
+      ports:
+        - protocol: TCP
+          port: 9090
   egress:
     # Scrape targets in all namespaces (wide egress required)
     - to:
