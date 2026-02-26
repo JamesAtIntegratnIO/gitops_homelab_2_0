@@ -1,7 +1,7 @@
 """
 title: Homelab Platform RAG
 author: homelab
-version: 0.2.0
+version: 0.2.1
 license: MIT
 description: Retrieves context from Qdrant and live observability data (Prometheus, Alertmanager, Loki) to augment every chat message.
 requirements: qdrant-client, requests
@@ -27,6 +27,20 @@ KNOWN_NAMESPACES = {
     "ai", "monitoring", "loki", "promtail", "argocd", "cert-manager",
     "nginx-gateway", "external-secrets", "kube-system", "authentik",
     "metallb-system", "cilium", "kratix-platform-system", "default",
+}
+
+# Well-known app / component names — used to build targeted Loki queries.
+# Only these are treated as pod-name prefixes; arbitrary English words are ignored.
+KNOWN_APPS = {
+    "etcd", "coredns", "kube-apiserver", "kube-scheduler", "kube-controller-manager",
+    "open-webui", "qdrant", "pipelines", "git-indexer", "ollama",
+    "prometheus", "alertmanager", "grafana", "loki", "promtail",
+    "argocd-server", "argocd-repo-server", "argocd-application-controller",
+    "argocd-applicationset-controller", "argocd-notifications-controller",
+    "nginx-gateway", "cert-manager", "external-secrets",
+    "authentik", "metallb", "cilium", "hubble",
+    "kratix", "vcluster", "matrix-alertmanager-receiver",
+    "loki-gateway", "loki-canary",
 }
 
 
@@ -184,16 +198,15 @@ class Pipeline:
         """Extract namespace / pod / app hints from the user message."""
         lower = text.lower()
         namespaces = [ns for ns in KNOWN_NAMESPACES if ns in lower]
-        # Catch common pod-name patterns like "open-webui-0", "qdrant-0"
-        pods = re.findall(r"\b([a-z][a-z0-9-]*-[a-z0-9]+(?:-[a-z0-9]+)*)\b", lower)
-        # Filter out things that are clearly not pod names
-        pods = [p for p in pods if len(p) > 5 and p not in KNOWN_NAMESPACES]
+        # Only match known app/component names — avoids treating English
+        # hyphenated words ("follow-up", "etcd-related") as pod names.
+        apps = [app for app in KNOWN_APPS if app in lower]
         error_focus = bool(
             re.search(r"error|crash|fail|panic|oom|restart|backoff|unhealthy", lower)
         )
         return {
             "namespaces": namespaces[:3],
-            "pods": pods[:3],
+            "apps": apps[:3],
             "error_focus": error_focus,
         }
 
@@ -354,16 +367,20 @@ class Pipeline:
     def _query_loki(self, hints: dict) -> str:
         """Query Loki for recent log lines based on extracted hints."""
         namespaces = hints.get("namespaces", [])
-        pods = hints.get("pods", [])
+        apps = hints.get("apps", [])
         error_focus = hints.get("error_focus", False)
 
-        # Build LogQL query
-        if pods:
-            pod_regex = "|".join(re.escape(p) for p in pods)
-            logql = f'{{pod=~"{pod_regex}.*"}}'
+        # Build LogQL query — prefer namespace scoping, add app filter if available
+        if namespaces and apps:
+            ns_regex = "|".join(re.escape(ns) for ns in namespaces)
+            app_regex = "|".join(re.escape(a) for a in apps)
+            logql = f'{{namespace=~"{ns_regex}", pod=~"{app_regex}.*"}}'
         elif namespaces:
             ns_regex = "|".join(re.escape(ns) for ns in namespaces)
             logql = f'{{namespace=~"{ns_regex}"}}'
+        elif apps:
+            app_regex = "|".join(re.escape(a) for a in apps)
+            logql = f'{{pod=~"{app_regex}.*"}}'
         else:
             # Default: error logs across all namespaces
             logql = '{namespace=~".+"}'
