@@ -1,7 +1,7 @@
 """
 title: Homelab Platform RAG
 author: homelab
-version: 0.2.1
+version: 0.2.2
 license: MIT
 description: Retrieves context from Qdrant and live observability data (Prometheus, Alertmanager, Loki) to augment every chat message.
 requirements: qdrant-client, requests
@@ -371,15 +371,18 @@ class Pipeline:
         error_focus = hints.get("error_focus", False)
 
         # Build LogQL query — prefer namespace scoping, add app filter if available
+        # Note: KNOWN_NAMESPACES and KNOWN_APPS contain only [a-z0-9-] so no
+        # regex escaping is needed.  LogQL label matchers must NOT have a space
+        # after the comma; Loki returns 400 otherwise.
         if namespaces and apps:
-            ns_regex = "|".join(re.escape(ns) for ns in namespaces)
-            app_regex = "|".join(re.escape(a) for a in apps)
-            logql = f'{{namespace=~"{ns_regex}", pod=~"{app_regex}.*"}}'
+            ns_regex = "|".join(namespaces)
+            app_regex = "|".join(apps)
+            logql = f'{{namespace=~"{ns_regex}",pod=~"{app_regex}.*"}}'
         elif namespaces:
-            ns_regex = "|".join(re.escape(ns) for ns in namespaces)
+            ns_regex = "|".join(namespaces)
             logql = f'{{namespace=~"{ns_regex}"}}'
         elif apps:
-            app_regex = "|".join(re.escape(a) for a in apps)
+            app_regex = "|".join(apps)
             logql = f'{{pod=~"{app_regex}.*"}}'
         else:
             # Default: error logs across all namespaces
