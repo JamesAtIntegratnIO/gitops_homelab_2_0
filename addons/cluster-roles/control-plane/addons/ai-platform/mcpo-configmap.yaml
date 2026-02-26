@@ -1,6 +1,10 @@
 # MCPO config: MCP servers exposed as OpenAPI endpoints
 # - prometheus: stdio subprocess via uvx (queries Prometheus for metrics)
 # - kubernetes: remote streamable-http (connects to kubernetes-mcp service)
+# - grafana: remote streamable-http (dashboards, PromQL, LogQL, alerting via Grafana)
+# - github: remote streamable-http (repos, issues, PRs, actions)
+# - argocd: remote streamable-http (applications, sync, resource trees)
+# - fetch: stdio subprocess via uvx (fetches web pages as markdown)
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -22,6 +26,22 @@ data:
         "kubernetes": {
           "type": "streamable-http",
           "url": "http://kubernetes-mcp.ai.svc.cluster.local:8080/mcp"
+        },
+        "grafana": {
+          "type": "streamable-http",
+          "url": "http://grafana-mcp.ai.svc.cluster.local:8000/"
+        },
+        "github": {
+          "type": "streamable-http",
+          "url": "http://github-mcp.ai.svc.cluster.local:8082/mcp"
+        },
+        "argocd": {
+          "type": "streamable-http",
+          "url": "http://argocd-mcp.ai.svc.cluster.local:3000/mcp"
+        },
+        "fetch": {
+          "command": "uvx",
+          "args": ["mcp-server-fetch"]
         }
       }
     }

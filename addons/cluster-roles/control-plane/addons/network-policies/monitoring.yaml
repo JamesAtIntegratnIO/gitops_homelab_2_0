@@ -158,6 +158,17 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
+    # AI platform grafana-mcp queries Grafana API
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+          podSelector:
+            matchLabels:
+              app: grafana-mcp
+      ports:
+        - protocol: TCP
+          port: 3000
   egress:
     # Query Prometheus
     - to:

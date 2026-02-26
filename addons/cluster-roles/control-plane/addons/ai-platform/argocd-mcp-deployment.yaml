@@ -1,0 +1,94 @@
+# ArgoCD MCP: Bridges AI platform to ArgoCD
+# Provides: list/get/sync applications, resource trees, managed resources, workload logs
+# Runtime: node:22-slim via npx (argocd-mcp npm package)
+# Transport: streamable-http on port 3000
+# Read-only mode enabled for safety
+# NOTE: First pod start downloads package via npx (~60s), subsequent container restarts use cache
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-mcp
+  namespace: ai
+  labels:
+    app: argocd-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-mcp
+  template:
+    metadata:
+      labels:
+        app: argocd-mcp
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: argocd-mcp
+          image: node:22-slim
+          command: ["npx", "-y", "argocd-mcp@latest", "streamable-http"]
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: ARGOCD_BASE_URL
+              value: "https://argocd-server.argocd.svc.cluster.local"
+            - name: ARGOCD_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: argocd-mcp-secrets
+                  key: api-token
+                  optional: true
+            - name: MCP_READ_ONLY
+              value: "true"
+            # ArgoCD uses self-signed certs internally
+            - name: NODE_TLS_REJECT_UNAUTHORIZED
+              value: "0"
+            - name: HOME
+              value: /tmp/argocd-home
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 90
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 120
+            periodSeconds: 30
+          volumeMounts:
+            - name: argocd-home
+              mountPath: /tmp/argocd-home
+      volumes:
+        - name: argocd-home
+          emptyDir:
+            sizeLimit: 500Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-mcp
+  namespace: ai
+  labels:
+    app: argocd-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: argocd-mcp
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP

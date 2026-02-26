@@ -1,0 +1,95 @@
+# Grafana MCP: Bridges AI platform to Grafana
+# Provides: dashboards, PromQL, LogQL, alerting, datasources, annotations, navigation
+# Image: grafana/mcp-grafana, Transport: streamable-http on port 8000
+# Could replace prometheus-mcp-server (superset of functionality via Grafana datasources)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-mcp
+  namespace: ai
+  labels:
+    app: grafana-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana-mcp
+  template:
+    metadata:
+      labels:
+        app: grafana-mcp
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: grafana-mcp
+          image: grafana/mcp-grafana
+          args:
+            - "-t"
+            - "streamable-http"
+            - "--address"
+            - "0.0.0.0:8000"
+            - "--disable-write"
+            - "--disable-oncall"
+            - "--disable-sift"
+            - "--disable-rendering"
+            - "--disable-cloudwatch"
+            - "--disable-clickhouse"
+            - "--disable-incident"
+            - "--disable-examples"
+            - "--disable-searchlogs"
+            - "--disable-runpanelquery"
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: GRAFANA_URL
+              value: "http://kube-prometheus-stack-grafana.monitoring.svc.cluster.local:80"
+            - name: GRAFANA_SERVICE_ACCOUNT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-mcp-secrets
+                  key: service-account-token
+                  optional: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana-mcp
+  namespace: ai
+  labels:
+    app: grafana-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: grafana-mcp
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP

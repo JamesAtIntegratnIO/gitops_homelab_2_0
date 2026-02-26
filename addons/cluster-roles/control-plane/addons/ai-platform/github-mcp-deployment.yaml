@@ -1,0 +1,81 @@
+# GitHub MCP: Bridges AI platform to GitHub API
+# Provides: repos, issues, PRs, actions, code search, users, labels
+# Image: ghcr.io/github/github-mcp-server v0.31.0+
+# Transport: native streamable HTTP on port 8082
+# Read-only mode enabled for safety
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-mcp
+  namespace: ai
+  labels:
+    app: github-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: github-mcp
+  template:
+    metadata:
+      labels:
+        app: github-mcp
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+      containers:
+        - name: github-mcp
+          image: ghcr.io/github/github-mcp-server
+          args:
+            - "http"
+          ports:
+            - name: http
+              containerPort: 8082
+              protocol: TCP
+          env:
+            - name: GITHUB_PERSONAL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-mcp-secrets
+                  key: personal-access-token
+                  optional: true
+            - name: GITHUB_TOOLSETS
+              value: "default,actions"
+            - name: GITHUB_READ_ONLY
+              value: "1"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8082
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-mcp
+  namespace: ai
+  labels:
+    app: github-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: github-mcp
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8082
+      protocol: TCP
