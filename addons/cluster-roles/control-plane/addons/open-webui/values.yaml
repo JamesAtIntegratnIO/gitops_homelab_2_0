@@ -5,9 +5,8 @@ ollama:
 ollamaUrls:
   - "http://10.0.3.4:11434"
 
-# Disable the default OpenAI endpoint — we only use Ollama + Pipelines.
-# This makes the chart render OPENAI_API_KEY (singular) with the default "0p3n-w3bu!"
-# which authenticates Open WebUI to the Pipelines server.
+# Disable the chart's singular OpenAI URL — we set the plural OPENAI_API_BASE_URLS
+# in extraEnvVars to support Pipelines + OpenAI side-by-side.
 openaiBaseApiUrl: ""
 
 pipelines:
@@ -59,6 +58,18 @@ extraEnvVars:
       secretKeyRef:
         name: open-webui-secrets
         key: secret-key
+  # OpenAI API (ChatGPT) — key from 1Password via ExternalSecret
+  # Defined early so $(OPENAI_API_KEY_OPENAI) can be expanded below.
+  - name: OPENAI_API_KEY_OPENAI
+    valueFrom:
+      secretKeyRef:
+        name: open-webui-secrets
+        key: openai-api-key
+  # Both Pipelines (local RAG) and OpenAI (ChatGPT) as OpenAI-compatible backends
+  - name: OPENAI_API_BASE_URLS
+    value: "http://open-webui-pipelines:9099;https://api.openai.com/v1"
+  - name: OPENAI_API_KEYS
+    value: "0p3n-w3bu!;$(OPENAI_API_KEY_OPENAI)"
   # OIDC / Authentik SSO
   - name: ENABLE_OAUTH_SIGNUP
     value: "true"
@@ -98,9 +109,9 @@ extraEnvVars:
   - name: ENABLE_MODEL_FILTER
     value: "true"
   - name: MODEL_FILTER_LIST
-    value: "qwen3:4b;llama3.2:latest;llama3.1:latest;mistral:7b"
+    value: "qwen3:4b;llama3.2:latest;llama3.1:latest;mistral:7b;gpt-4o;gpt-4o-mini;gpt-4.1;gpt-4.1-mini;gpt-4.1-nano"
   - name: DEFAULT_MODELS
-    value: "qwen3:4b"
+    value: "gpt-4o-mini"
   # RAG settings
   - name: ENABLE_RAG_WEB_SEARCH
     value: "false"
