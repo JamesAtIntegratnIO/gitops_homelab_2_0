@@ -239,6 +239,8 @@ spec:
       ports:
         - protocol: TCP
           port: 80
+        - protocol: TCP
+          port: 8080
 ---
 # Allow Prometheus scraping from monitoring namespace
 apiVersion: networking.k8s.io/v1
