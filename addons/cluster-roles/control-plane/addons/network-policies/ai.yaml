@@ -171,10 +171,9 @@ spec:
         - protocol: TCP
           port: 8080
 ---
-# Allow egress to nginx-gateway service (for OIDC/OAuth2 to Authentik via auth.cluster.integratn.tech)
-# Must use CiliumNetworkPolicy toServices because K8s NetworkPolicy can't match service IPs —
-# Cilium evaluates egress policies before DNAT, so namespace selectors and ipBlock rules
-# don't match when traffic is sent to ClusterIP or LoadBalancer virtual IPs.
+# Allow egress to nginx-gateway pods (for OIDC/OAuth2 to Authentik via auth.cluster.integratn.tech)
+# Uses CiliumNetworkPolicy toEndpoints because traffic to LoadBalancer IPs gets DNAT'd
+# to the gateway pod IPs — toServices doesn't reliably match this path.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -185,10 +184,10 @@ spec:
     matchLabels:
       app.kubernetes.io/name: open-webui
   egress:
-    - toServices:
-        - k8sService:
-            serviceName: nginx-gateway-nginx
-            namespace: nginx-gateway
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: nginx-gateway
+            app.kubernetes.io/name: nginx-gateway-nginx
       toPorts:
         - ports:
             - port: "443"
