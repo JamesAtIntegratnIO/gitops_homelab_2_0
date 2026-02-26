@@ -85,6 +85,17 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+    # AI pipelines pod queries (PromQL via RAG pipeline)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pipelines
+      ports:
+        - protocol: TCP
+          port: 9090
   egress:
     # Scrape targets in all namespaces (wide egress required)
     - to:
@@ -226,6 +237,17 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: argocd
+      ports:
+        - protocol: TCP
+          port: 9093
+    # AI pipelines pod queries (Alertmanager API via RAG pipeline)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pipelines
       ports:
         - protocol: TCP
           port: 9093

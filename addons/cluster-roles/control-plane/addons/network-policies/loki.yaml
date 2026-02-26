@@ -86,6 +86,19 @@ spec:
           port: 80
         - protocol: TCP
           port: 8080
+    # AI pipelines pod queries (LogQL via RAG pipeline)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pipelines
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8080
   egress:
     # Forward to Loki backend pods (same namespace)
     - to:
