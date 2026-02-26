@@ -35,13 +35,10 @@ spec:
             - "--disable-write"
             - "--disable-oncall"
             - "--disable-sift"
-            - "--disable-rendering"
             - "--disable-cloudwatch"
             - "--disable-clickhouse"
             - "--disable-incident"
             - "--disable-examples"
-            - "--disable-searchlogs"
-            - "--disable-runpanelquery"
           ports:
             - name: http
               containerPort: 8000
