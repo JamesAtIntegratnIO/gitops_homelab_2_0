@@ -9,7 +9,7 @@ requirements: qdrant-client, requests
 
 import os
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import requests
 from pydantic import BaseModel, Field
@@ -24,6 +24,14 @@ class Pipeline:
 
     class Valves(BaseModel):
         """Configurable parameters exposed in the Open WebUI UI."""
+
+        # List target pipeline ids (models) that this filter will be connected to.
+        # ["*"] means connect to all pipelines/models.
+        pipelines: List[str] = ["*"]
+
+        # Priority level — lower numbers run first.
+        priority: int = 0
+
         QDRANT_URL: str = Field(
             default="http://qdrant.ai.svc.cluster.local:6333",
             description="Qdrant server URL",
@@ -47,7 +55,9 @@ class Pipeline:
     def __init__(self):
         self.type = "filter"
         self.name = "Homelab Platform RAG"
-        self.valves = self.Valves()
+        self.valves = self.Valves(
+            pipelines=["*"],
+        )
         self._qdrant: Optional[QdrantClient] = None
 
     @property
