@@ -86,7 +86,15 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: create-token
-          image: bitnami/kubectl:1.34
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/kubectl:latest
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
           command:
             - /bin/bash
             - -ec
@@ -96,6 +104,9 @@ spec:
               SECRET_NAME="grafana-mcp-secrets"
               SECRET_KEY="service-account-token"
               NAMESPACE="ai"
+
+              # Helper: extract JSON value by key (simple flat objects only)
+              json_val() { echo "$1" | grep -o "\"$2\":[^,}]*" | head -1 | sed 's/.*://;s/^"//;s/"$//;s/^ *//'; }
 
               # Check if secret already exists with a token
               EXISTING=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o jsonpath="{.data.$SECRET_KEY}" 2>/dev/null || echo "")
@@ -109,15 +120,9 @@ spec:
               ADMIN_PASS=$(kubectl get secret grafana-admin -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d)
 
               echo "Checking if service account '$SA_NAME' exists..."
-              SA_LIST=$(curl -sf -u "$ADMIN_USER:$ADMIN_PASS" "$GRAFANA_URL/api/serviceaccounts/search?query=$SA_NAME" || echo '{"serviceAccounts":[]}')
-              SA_ID=$(echo "$SA_LIST" | python3 -c "
-              import sys, json
-              data = json.load(sys.stdin)
-              for sa in data.get('serviceAccounts', []):
-                  if sa.get('name') == '$SA_NAME':
-                      print(sa['id'])
-                      break
-              " 2>/dev/null || echo "")
+              SA_LIST=$(curl -sf -u "$ADMIN_USER:$ADMIN_PASS" "$GRAFANA_URL/api/serviceaccounts/search?query=$SA_NAME" 2>/dev/null || echo '{}')
+              # Look for the SA name in results and extract its id
+              SA_ID=$(echo "$SA_LIST" | grep -o "{[^}]*\"name\":\"$SA_NAME\"[^}]*}" | head -1 | grep -o '"id":[0-9]*' | head -1 | sed 's/"id"://')
 
               if [ -z "$SA_ID" ]; then
                 echo "Creating service account '$SA_NAME'..."
@@ -125,10 +130,15 @@ spec:
                   -H "Content-Type: application/json" \
                   -X POST "$GRAFANA_URL/api/serviceaccounts" \
                   -d "{\"name\": \"$SA_NAME\", \"role\": \"Viewer\"}")
-                SA_ID=$(echo "$SA_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+                SA_ID=$(json_val "$SA_RESPONSE" "id")
                 echo "Created service account with ID: $SA_ID"
               else
                 echo "Service account '$SA_NAME' already exists with ID: $SA_ID"
+              fi
+
+              if [ -z "$SA_ID" ]; then
+                echo "ERROR: Could not determine service account ID"
+                exit 1
               fi
 
               echo "Creating token for service account $SA_ID..."
@@ -136,15 +146,15 @@ spec:
                 -H "Content-Type: application/json" \
                 -X POST "$GRAFANA_URL/api/serviceaccounts/$SA_ID/tokens" \
                 -d "{\"name\": \"mcp-token-$(date +%s)\"}")
-              TOKEN=$(echo "$TOKEN_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['key'])")
+              TOKEN=$(json_val "$TOKEN_RESPONSE" "key")
 
               if [ -z "$TOKEN" ]; then
                 echo "ERROR: Failed to create token"
+                echo "Response: $TOKEN_RESPONSE"
                 exit 1
               fi
 
               echo "Token created successfully. Storing in secret..."
-              # Create or update the secret
               kubectl create secret generic "$SECRET_NAME" \
                 --namespace "$NAMESPACE" \
                 --from-literal="$SECRET_KEY=$TOKEN" \
