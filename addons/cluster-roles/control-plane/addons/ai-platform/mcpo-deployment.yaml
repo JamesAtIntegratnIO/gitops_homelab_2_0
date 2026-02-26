@@ -27,23 +27,16 @@ spec:
       containers:
         - name: mcpo
           image: ghcr.io/open-webui/mcpo:main
-          command: ["sh", "-c"]
           args:
-            - >-
-              mcpo
-              --config /config/config.json
-              --port 8000
-              --api-key "$MCPO_API_KEY"
+            - "--config"
+            - "/config/config.json"
+            - "--port"
+            - "8000"
           ports:
             - name: http
               containerPort: 8000
               protocol: TCP
           env:
-            - name: MCPO_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: mcpo-secrets
-                  key: api-key
             # Writable home for uvx cache
             - name: HOME
               value: /tmp/mcpo-home
