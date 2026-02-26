@@ -1,0 +1,75 @@
+# kubernetes-mcp-server: Kubernetes MCP server (read-only, HTTP transport)
+# Exposes Kubernetes API operations as MCP tools via streamable-http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubernetes-mcp
+  namespace: ai
+  labels:
+    app: kubernetes-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kubernetes-mcp
+  template:
+    metadata:
+      labels:
+        app: kubernetes-mcp
+    spec:
+      serviceAccountName: kubernetes-mcp
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: kubernetes-mcp
+          image: ghcr.io/containers/kubernetes-mcp-server:latest
+          args:
+            - "--port"
+            - "8089"
+            - "--read-only"
+            - "--stateless"
+            - "--disable-multi-cluster"
+            - "--toolsets"
+            - "core,config"
+          ports:
+            - name: http
+              containerPort: 8089
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8089
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8089
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kubernetes-mcp
+  namespace: ai
+  labels:
+    app: kubernetes-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: kubernetes-mcp
+  ports:
+    - name: http
+      port: 8089
+      targetPort: 8089
+      protocol: TCP

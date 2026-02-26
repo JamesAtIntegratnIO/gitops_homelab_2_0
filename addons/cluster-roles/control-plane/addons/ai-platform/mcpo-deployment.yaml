@@ -1,0 +1,100 @@
+# MCPO: MCP-to-OpenAPI proxy
+# Wraps MCP servers (prometheus, kubernetes) as OpenAPI endpoints
+# Open WebUI connects here via External Tools (OpenAPI type)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcpo
+  namespace: ai
+  labels:
+    app: mcpo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcpo
+  template:
+    metadata:
+      labels:
+        app: mcpo
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: mcpo
+          image: ghcr.io/open-webui/mcpo:main
+          command: ["sh", "-c"]
+          args:
+            - >-
+              mcpo
+              --config /config/config.json
+              --port 8000
+              --api-key "$MCPO_API_KEY"
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: MCPO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mcpo-secrets
+                  key: api-key
+            # Writable home for uvx cache
+            - name: HOME
+              value: /tmp/mcpo-home
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /openapi.json
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /openapi.json
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: mcpo-home
+              mountPath: /tmp/mcpo-home
+      volumes:
+        - name: config
+          configMap:
+            name: mcpo-config
+        - name: mcpo-home
+          emptyDir:
+            sizeLimit: 500Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcpo
+  namespace: ai
+  labels:
+    app: mcpo
+spec:
+  type: ClusterIP
+  selector:
+    app: mcpo
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP

@@ -1,0 +1,96 @@
+# RBAC for kubernetes-mcp-server (read-only cluster access)
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubernetes-mcp
+  namespace: ai
+  labels:
+    app: kubernetes-mcp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubernetes-mcp-viewer
+  labels:
+    app: kubernetes-mcp
+rules:
+  # Core namespaced resources
+  - apiGroups: [""]
+    resources:
+      - configmaps
+      - endpoints
+      - events
+      - limitranges
+      - namespaces
+      - persistentvolumeclaims
+      - pods
+      - pods/log
+      - replicationcontrollers
+      - resourcequotas
+      - serviceaccounts
+      - services
+    verbs: ["get", "list", "watch"]
+  # Cluster-scoped core resources
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/log
+      - nodes/proxy
+      - persistentvolumes
+    verbs: ["get", "list", "watch"]
+  # Apps
+  - apiGroups: ["apps"]
+    resources: ["deployments", "daemonsets", "replicasets", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+  # Batch
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  # Networking
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "ingressclasses", "networkpolicies"]
+    verbs: ["get", "list", "watch"]
+  # Gateway API
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gateways", "httproutes", "grpcroutes", "referencegrants"]
+    verbs: ["get", "list", "watch"]
+  # Storage
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+  # Autoscaling
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+  # Metrics API (for pods top, nodes top)
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list"]
+  # ArgoCD (read-only visibility into GitOps state)
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applicationsets", "appprojects"]
+    verbs: ["get", "list", "watch"]
+  # Cilium network policies
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies"]
+    verbs: ["get", "list", "watch"]
+  # External Secrets (visibility into sync status)
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets", "clustersecretstores", "secretstores"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-mcp-viewer
+  labels:
+    app: kubernetes-mcp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-mcp-viewer
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp
+    namespace: ai
