@@ -10,8 +10,10 @@ spec:
   groups:
     - name: trivy-operator
       rules:
+        # Threshold set to 50 to avoid constant noise in a homelab —
+        # upstream images always carry some critical CVEs
         - alert: TrivyCriticalVulnerabilityDetected
-          expr: sum(trivy_image_vulnerabilities{severity="Critical"}) > 0
+          expr: sum(trivy_image_vulnerabilities{severity="Critical"}) > 50
           for: 1h
           labels:
             severity: warning
@@ -23,7 +25,7 @@ spec:
             runbook_url: "https://grafana.cluster.integratn.tech/d/trivy-operator/trivy-operator-dashboard"
 
         - alert: TrivyHighVulnerabilityCount
-          expr: sum(trivy_image_vulnerabilities{severity="High"}) > 50
+          expr: sum(trivy_image_vulnerabilities{severity="High"}) > 500
           for: 24h
           labels:
             severity: info

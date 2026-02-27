@@ -17,7 +17,7 @@ server:
   autoscaling:
     enabled: true
     minReplicas: 2
-    maxReplicas: 5
+    maxReplicas: 7
     targetCPUUtilizationPercentage: 60
   resources:
     requests:
@@ -43,7 +43,7 @@ repoServer:
   autoscaling:
     enabled: true
     minReplicas: 2
-    maxReplicas: 5
+    maxReplicas: 7
     targetCPUUtilizationPercentage: 60
   resources:
     requests:
