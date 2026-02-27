@@ -710,6 +710,16 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	status.Set("hostname", config.Hostname)
 	status.Set("environment", config.ArgoCDEnvironment)
 
+	// Platform Status Contract — endpoint and credential references
+	status.Set("endpoints", map[string]string{
+		"api":    config.ExternalServerURL,
+		"argocd": fmt.Sprintf("https://argocd.cluster.integratn.tech/applications/vcluster-%s", config.Name),
+	})
+	status.Set("credentials", map[string]string{
+		"kubeconfigSecret": fmt.Sprintf("vcluster-%s-kubeconfig", config.Name),
+		"onePasswordItem":  config.OnePasswordItem,
+	})
+
 	if err := sdk.WriteStatus(status); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}

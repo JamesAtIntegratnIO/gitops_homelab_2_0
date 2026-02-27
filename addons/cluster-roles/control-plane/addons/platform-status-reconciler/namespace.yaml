@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-status-reconciler
+  labels:
+    app.kubernetes.io/name: platform-status-reconciler
+    app.kubernetes.io/part-of: platform
+    app.kubernetes.io/managed-by: argocd

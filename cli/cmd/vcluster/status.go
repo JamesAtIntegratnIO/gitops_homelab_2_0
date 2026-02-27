@@ -13,10 +13,12 @@ import (
 )
 
 func newStatusCmd() *cobra.Command {
-	return &cobra.Command{
+	var diagnoseFlag bool
+
+	cmd := &cobra.Command{
 		Use:   "status [name]",
 		Short: "Show vCluster lifecycle status",
-		Long:  "Walks the full resource lifecycle chain and displays status at each stage.",
+		Long:  "Shows the status contract for a vCluster resource. Use --diagnose for the full diagnostic chain.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -30,6 +32,18 @@ func newStatusCmd() *cobra.Command {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
+			// Try the status contract first (populated by platform-status-reconciler)
+			if !diagnoseFlag {
+				sc, err := platform.GetStatusContract(ctx, client, cfg.Platform.PlatformNamespace, name)
+				if err == nil && sc.Phase != "" {
+					fmt.Println()
+					fmt.Println(platform.FormatStatusContract(name, sc))
+					return nil
+				}
+				// Fall through to diagnostic chain if no status contract
+			}
+
+			// Full diagnostic chain
 			result, err := platform.DiagnoseVCluster(ctx, client, cfg.Platform.PlatformNamespace, name)
 			if err != nil {
 				return err
@@ -57,4 +71,8 @@ func newStatusCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&diagnoseFlag, "diagnose", false, "Run full diagnostic chain instead of status contract")
+
+	return cmd
 }

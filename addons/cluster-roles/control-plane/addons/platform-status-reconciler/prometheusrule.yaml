@@ -1,0 +1,42 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-status-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: platform-status-reconciler
+    app.kubernetes.io/part-of: platform
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: platform.vcluster
+      rules:
+        - alert: VClusterNotReady
+          expr: platform_vcluster_ready == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VCluster {{ $labels.name }} not Ready for 15 minutes"
+            description: "VCluster {{ $labels.name }} in namespace {{ $labels.namespace }} has not been in Ready phase for over 15 minutes."
+            runbook_url: "https://github.com/jamesatintegratnio/gitops_homelab_2_0/blob/main/docs/kratix-troubleshooting.md"
+
+        - alert: VClusterPodsUnhealthy
+          expr: |
+            (platform_vcluster_pods_ready / platform_vcluster_pods_total) < 0.5
+            and platform_vcluster_pods_total > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VCluster {{ $labels.name }} has <50% pods ready"
+            description: "VCluster {{ $labels.name }} has {{ $value | humanizePercentage }} of pods ready."
+
+        - alert: PlatformReconcilerDown
+          expr: absent(up{job="platform-status-reconciler"} == 1)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Platform status reconciler is not running"
+            description: "The platform-status-reconciler deployment is not serving metrics, status updates will be stale."

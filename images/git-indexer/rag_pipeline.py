@@ -198,6 +198,43 @@ QUERY_CATALOG: dict[str, list[tuple[str, str, str]]] = {
             "node_condition_alert",
         ),
     ],
+    "platform_status": [
+        (
+            "VCluster readiness",
+            "platform_vcluster_ready",
+            "platform_ready",
+        ),
+        (
+            "VCluster phase",
+            'platform_vcluster_phase_info == 1',
+            "platform_phase",
+        ),
+        (
+            "VCluster pod health",
+            "platform_vcluster_pods_ready",
+            "platform_pods",
+        ),
+        (
+            "VCluster ArgoCD sync",
+            "platform_vcluster_argocd_synced",
+            "platform_ready",
+        ),
+        (
+            "VCluster ArgoCD health",
+            "platform_vcluster_argocd_healthy",
+            "platform_ready",
+        ),
+        (
+            "VCluster sub-app health",
+            "platform_vcluster_subapps_healthy",
+            "platform_pods",
+        ),
+        (
+            "Platform reconciler errors",
+            "platform_status_reconciler_errors_total",
+            "topk_restarts",
+        ),
+    ],
 }
 
 # ---------------------------------------------------------------------------
@@ -240,10 +277,16 @@ TOPIC_KEYWORDS: dict[str, set[str]] = {
     "filesystem":   {"storage"},
     "node":         {"nodes", "cpu_utilization", "memory_utilization"},
     "nodes":        {"nodes", "cpu_utilization", "memory_utilization"},
-    "health":       {"nodes", "pods", "cpu_utilization", "memory_utilization"},
-    "status":       {"nodes", "pods"},
+    "health":       {"nodes", "pods", "cpu_utilization", "memory_utilization", "platform_status"},
+    "status":       {"nodes", "pods", "platform_status"},
     "utilization":  {"cpu_utilization", "memory_utilization"},
     "usage":        {"cpu_utilization", "memory_utilization"},
+    "vcluster":     {"platform_status", "pods"},
+    "golden path":  {"platform_status"},
+    "platform":     {"platform_status", "nodes", "pods"},
+    "ready":        {"platform_status", "pods", "nodes"},
+    "degraded":     {"platform_status", "pods"},
+    "provisioning": {"platform_status"},
 }
 
 
@@ -680,6 +723,34 @@ class Pipeline:
                 m = r["metric"]
                 lines.append(f"  - {m.get('node', '?')}: {m.get('condition', '?')}")
             return "\n".join(lines) + "\n"
+
+        # --- platform status formats ---
+        if fmt == "platform_ready":
+            lines = [f"**{label}**:"]
+            for r in result:
+                name = r["metric"].get("name", "?")
+                ns = r["metric"].get("namespace", "?")
+                val = "✅ Ready" if r.get("value", [0, "0"])[1] == "1" else "❌ Not Ready"
+                lines.append(f"  - {ns}/{name}: {val}")
+            return "\n".join(lines) + "\n" if len(lines) > 1 else f"**{label}**: no vclusters\n"
+
+        if fmt == "platform_phase":
+            lines = [f"**{label}**:"]
+            for r in result:
+                name = r["metric"].get("name", "?")
+                ns = r["metric"].get("namespace", "?")
+                phase = r["metric"].get("phase", "?")
+                lines.append(f"  - {ns}/{name}: {phase}")
+            return "\n".join(lines) + "\n" if len(lines) > 1 else f"**{label}**: no vclusters\n"
+
+        if fmt == "platform_pods":
+            lines = [f"**{label}**:"]
+            for r in result:
+                name = r["metric"].get("name", "?")
+                ns = r["metric"].get("namespace", "?")
+                val = float(r.get("value", [0, "0"])[1])
+                lines.append(f"  - {ns}/{name}: {val:.0f} pods")
+            return "\n".join(lines) + "\n" if len(lines) > 1 else f"**{label}**: no vclusters\n"
 
         # Fallback
         return f"**{label}**: {len(result)} result(s)\n"

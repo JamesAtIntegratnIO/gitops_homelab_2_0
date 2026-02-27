@@ -508,3 +508,22 @@ ai-platform:
       prune: true
     syncOptions:
       - CreateNamespace=true
+
+platform-status-reconciler:
+  enabled: true
+  type: manifest
+  namespace: platform-status-reconciler
+  project: platform
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/platform-status-reconciler
+  selector:
+    matchExpressions:
+      - key: enable_kratix
+        operator: In
+        values: ['true']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true

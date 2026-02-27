@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: platform-status-reconciler
+  labels:
+    app.kubernetes.io/name: platform-status-reconciler
+    app.kubernetes.io/part-of: platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: platform-status-reconciler
+subjects:
+  - kind: ServiceAccount
+    name: platform-status-reconciler
+    namespace: platform-status-reconciler
