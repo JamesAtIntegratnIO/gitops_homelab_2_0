@@ -33,4 +33,7 @@ tmp/
 # macOS
 .DS_Store
 result
-images/platform-status-reconciler/platform-status-reconciler
+
+# Compiled Go binaries
+images/*/platform-status-reconciler
+cli/bin/
