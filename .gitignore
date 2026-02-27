@@ -33,3 +33,4 @@ tmp/
 # macOS
 .DS_Store
 result
+images/platform-status-reconciler/platform-status-reconciler
