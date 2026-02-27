@@ -29,7 +29,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: reconciler
-          image: ghcr.io/jamesatintegratnio/platform-status-reconciler:latest
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:latest
           imagePullPolicy: Always
           env:
             - name: RECONCILE_INTERVAL
