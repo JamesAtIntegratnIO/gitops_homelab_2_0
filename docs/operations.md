@@ -205,9 +205,62 @@ hctl vcluster create
 The wizard walks through each option:
 - vCluster name
 - Preset (`dev` — lightweight / `prod` — HA with etcd)
+- Kubernetes version (v1.34.3, 1.33, 1.32)
+- Isolation mode (standard / strict)
 - External hostname (defaults to `<name>.cluster.integratn.tech`)
+- ArgoCD environment (production / staging / development)
 - NFS egress toggle
+- Custom workload repository (URL, path, branch — for teams keeping workloads in a separate repo)
 - Commit-and-push confirmation
+
+#### Workloads from another repository
+
+Teams often keep their Kubernetes manifests in their own repo rather than
+the platform repo. The `--workload-repo-*` flags configure the ArgoCD
+ApplicationSet to source workloads from that external repository:
+
+```bash
+hctl vcluster create team-api --preset dev \
+  --workload-repo-url https://github.com/myorg/team-api-workloads \
+  --workload-repo-path deploy/k8s \
+  --workload-repo-revision main \
+  --auto-commit
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--workload-repo-url` | *(this repo)* | Git URL for workload definitions |
+| `--workload-repo-base-path` | *(empty)* | Prefix path in the repo (e.g. `clusters/dev`) |
+| `--workload-repo-path` | `workloads` | Directory containing actual manifests |
+| `--workload-repo-revision` | `main` | Git branch or tag to track |
+
+#### Custom networking and egress
+
+```bash
+# Database + Redis access from the vCluster namespace
+hctl vcluster create data-team --preset dev \
+  --enable-nfs \
+  --extra-egress postgres:10.0.1.50/32:5432 \
+  --extra-egress redis:10.0.1.60/32:6379:TCP \
+  --subnet 10.0.4.0/24 \
+  --vip 10.0.4.215 \
+  --auto-commit
+```
+
+#### Production preset (HA, etcd, persistence)
+
+```bash
+hctl vcluster create my-prod \
+  --preset prod \
+  --replicas 3 \
+  --hostname my-prod.cluster.integratn.tech \
+  --isolation strict \
+  --persistence --persistence-size 20Gi \
+  --cluster-label team=backend \
+  --cluster-annotation owner=platform-team \
+  --chart-version 0.31.1 \
+  --auto-commit
+```
 
 #### Monitoring & access
 
@@ -223,16 +276,6 @@ hctl vcluster kubeconfig dev-team-1
 export KUBECONFIG=$(hctl vcluster kubeconfig dev-team-1)
 kubectl get nodes
 kubectl get namespaces
-```
-
-#### Production preset (HA, etcd, persistence)
-
-```bash
-hctl vcluster create my-prod \
-  --preset prod \
-  --replicas 3 \
-  --hostname my-prod.cluster.integratn.tech \
-  --auto-commit
 ```
 
 **Expected Duration:** 5-10 minutes (including ArgoCD sync and pod readiness)
@@ -256,6 +299,34 @@ hctl vcluster sync dev-team-1
 hctl vcluster sync dev-team-1 --force  # sync all apps, not just failed
 ```
 
+#### Full flag reference
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--preset` | string | `dev` | Base sizing preset (`dev`, `prod`) |
+| `--replicas` | int | preset | Control plane replica count |
+| `--hostname` | string | `<name>.<domain>` | External API hostname |
+| `--environment` | string | `production` | ArgoCD environment label |
+| `--k8s-version` | string | `v1.34.3` | Kubernetes version |
+| `--isolation` | string | `standard` | Isolation mode (`standard`, `strict`) |
+| `--subnet` | string | | CIDR subnet for VIP allocation |
+| `--vip` | string | | Static VIP for vCluster API |
+| `--api-port` | int | `443` | API port |
+| `--persistence` | bool | preset | Enable control plane persistence |
+| `--persistence-size` | string | | Volume size (e.g. `10Gi`) |
+| `--storage-class` | string | | Storage class for volumes |
+| `--enable-nfs` | bool | `false` | Enable NFS egress |
+| `--extra-egress` | string[] | | `name:cidr:port[:protocol]` (repeatable) |
+| `--coredns-replicas` | int | preset | CoreDNS replicas |
+| `--workload-repo-url` | string | *(this repo)* | Workload Git URL |
+| `--workload-repo-base-path` | string | | Prefix path in workload repo |
+| `--workload-repo-path` | string | `workloads` | Manifest directory |
+| `--workload-repo-revision` | string | `main` | Branch/tag to track |
+| `--cluster-label` | string[] | | ArgoCD cluster label `key=value` (repeatable) |
+| `--cluster-annotation` | string[] | | ArgoCD cluster annotation `key=value` (repeatable) |
+| `--chart-version` | string | `0.31.0` | vCluster Helm chart version |
+| `--auto-commit` | bool | `false` | Commit and push immediately |
+
 <details>
 <summary>Platform engineer reference: what hctl generates under the hood</summary>
 
@@ -273,6 +344,9 @@ spec:
   projectName: dev-team-1
   vcluster:
     preset: dev
+    isolationMode: standard
+    coredns:
+      replicas: 1
   integrations:
     certManager:
       clusterIssuerSelectorLabels:
@@ -282,7 +356,10 @@ spec:
         integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production
-      clusterLabels: {}
+      workloadRepo:
+        url: https://github.com/myorg/team-api-workloads
+        path: deploy/k8s
+        revision: main
   exposure:
     hostname: dev-team-1.cluster.integratn.tech
     apiPort: 443
@@ -290,6 +367,8 @@ spec:
     repoURL: https://charts.loft.sh
     chart: vcluster
     targetRevision: 0.31.0
+  networkPolicies:
+    enableNFS: false
 ```
 
 You can always inspect the generated file at `platform/vclusters/<name>.yaml`

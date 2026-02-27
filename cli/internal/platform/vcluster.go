@@ -21,12 +21,34 @@ type VClusterSpec struct {
 
 // VClusterConfig holds vCluster-specific settings.
 type VClusterConfig struct {
-	Preset        string                 `yaml:"preset"`
-	Replicas      int                    `yaml:"replicas,omitempty"`
-	K8sVersion    string                 `yaml:"k8sVersion,omitempty"`
-	HelmOverrides map[string]interface{} `yaml:"helmOverrides,omitempty"`
-	Resources     *ResourceRequirements  `yaml:"resources,omitempty"`
-	BackingStore  map[string]interface{} `yaml:"backingStore,omitempty"`
+	Preset         string                 `yaml:"preset"`
+	Replicas       int                    `yaml:"replicas,omitempty"`
+	K8sVersion     string                 `yaml:"k8sVersion,omitempty"`
+	IsolationMode  string                 `yaml:"isolationMode,omitempty"`
+	HelmOverrides  map[string]interface{} `yaml:"helmOverrides,omitempty"`
+	Resources      *ResourceRequirements  `yaml:"resources,omitempty"`
+	Persistence    *PersistenceConfig     `yaml:"persistence,omitempty"`
+	CoreDNS        *CoreDNSConfig         `yaml:"coredns,omitempty"`
+	Networking     *NetworkingConfig      `yaml:"networking,omitempty"`
+	BackingStore   map[string]interface{} `yaml:"backingStore,omitempty"`
+	ExportKubeConfig map[string]interface{} `yaml:"exportKubeConfig,omitempty"`
+}
+
+// PersistenceConfig holds vCluster persistence settings.
+type PersistenceConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	Size         string `yaml:"size,omitempty"`
+	StorageClass string `yaml:"storageClass,omitempty"`
+}
+
+// CoreDNSConfig holds CoreDNS settings for the virtual cluster.
+type CoreDNSConfig struct {
+	Replicas int `yaml:"replicas,omitempty"`
+}
+
+// NetworkingConfig holds networking settings for the virtual cluster.
+type NetworkingConfig struct {
+	ClusterDomain string `yaml:"clusterDomain,omitempty"`
 }
 
 // ResourceRequirements holds resource requests and limits.
@@ -38,6 +60,8 @@ type ResourceRequirements struct {
 // ExposureConfig holds network exposure settings.
 type ExposureConfig struct {
 	Hostname string `yaml:"hostname"`
+	Subnet   string `yaml:"subnet,omitempty"`
+	VIP      string `yaml:"vip,omitempty"`
 	APIPort  int    `yaml:"apiPort,omitempty"`
 }
 
@@ -63,14 +87,24 @@ type ArgoCDIntegration struct {
 	Environment        string            `yaml:"environment"`
 	ClusterLabels      map[string]string `yaml:"clusterLabels,omitempty"`
 	ClusterAnnotations map[string]string `yaml:"clusterAnnotations,omitempty"`
+	WorkloadRepo       *WorkloadRepoConfig `yaml:"workloadRepo,omitempty"`
+}
+
+// WorkloadRepoConfig holds workload ApplicationSet source settings.
+type WorkloadRepoConfig struct {
+	URL      string `yaml:"url,omitempty"`
+	BasePath string `yaml:"basePath,omitempty"`
+	Path     string `yaml:"path,omitempty"`
+	Revision string `yaml:"revision,omitempty"`
 }
 
 // ArgocdAppConfig holds ArgoCD Application deployment config.
 type ArgocdAppConfig struct {
-	RepoURL        string                 `yaml:"repoURL"`
-	Chart          string                 `yaml:"chart"`
-	TargetRevision string                 `yaml:"targetRevision"`
-	SyncPolicy     map[string]interface{} `yaml:"syncPolicy,omitempty"`
+	RepoURL           string                 `yaml:"repoURL"`
+	Chart             string                 `yaml:"chart"`
+	TargetRevision    string                 `yaml:"targetRevision"`
+	DestinationServer string                 `yaml:"destinationServer,omitempty"`
+	SyncPolicy        map[string]interface{} `yaml:"syncPolicy,omitempty"`
 }
 
 // NetworkPolConfig holds network policy settings.
@@ -105,17 +139,21 @@ type ResourceMetadata struct {
 // Presets defines the preset configurations for vClusters.
 var Presets = map[string]PresetConfig{
 	"dev": {
-		Replicas: 1,
-		Memory:   "768Mi",
-		BackingStore: nil,
+		Replicas:      1,
+		Memory:        "768Mi",
+		IsolationMode: "standard",
+		BackingStore:  nil, // SQLite (default)
 		Resources: &ResourceRequirements{
 			Requests: map[string]string{"memory": "768Mi"},
 			Limits:   map[string]string{"memory": "1536Mi"},
 		},
+		Persistence: nil, // disabled
+		CoreDNS:     &CoreDNSConfig{Replicas: 1},
 	},
 	"prod": {
-		Replicas: 3,
-		Memory:   "2Gi",
+		Replicas:      3,
+		Memory:        "2Gi",
+		IsolationMode: "standard",
 		BackingStore: map[string]interface{}{
 			"etcd": map[string]interface{}{
 				"deploy": map[string]interface{}{
@@ -132,15 +170,20 @@ var Presets = map[string]PresetConfig{
 			Requests: map[string]string{"memory": "2Gi"},
 			Limits:   map[string]string{"memory": "2Gi"},
 		},
+		Persistence: &PersistenceConfig{Enabled: true, Size: "10Gi"},
+		CoreDNS:     &CoreDNSConfig{Replicas: 2},
 	},
 }
 
 // PresetConfig defines default values for a vCluster preset.
 type PresetConfig struct {
-	Replicas     int
-	Memory       string
-	BackingStore map[string]interface{}
-	Resources    *ResourceRequirements
+	Replicas      int
+	Memory        string
+	IsolationMode string
+	BackingStore  map[string]interface{}
+	Resources     *ResourceRequirements
+	Persistence   *PersistenceConfig
+	CoreDNS       *CoreDNSConfig
 }
 
 // NewVClusterResource creates a VClusterOrchestratorV2 resource from the given spec.
@@ -174,11 +217,20 @@ func ApplyPreset(spec *VClusterSpec, preset string) error {
 	if spec.VCluster.Replicas == 0 {
 		spec.VCluster.Replicas = p.Replicas
 	}
+	if spec.VCluster.IsolationMode == "" && p.IsolationMode != "" {
+		spec.VCluster.IsolationMode = p.IsolationMode
+	}
 	if spec.VCluster.Resources == nil {
 		spec.VCluster.Resources = p.Resources
 	}
 	if spec.VCluster.BackingStore == nil && p.BackingStore != nil {
 		spec.VCluster.BackingStore = p.BackingStore
+	}
+	if spec.VCluster.Persistence == nil && p.Persistence != nil {
+		spec.VCluster.Persistence = p.Persistence
+	}
+	if spec.VCluster.CoreDNS == nil && p.CoreDNS != nil {
+		spec.VCluster.CoreDNS = p.CoreDNS
 	}
 
 	return nil
