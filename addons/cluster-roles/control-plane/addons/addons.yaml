@@ -513,23 +513,6 @@ ai-platform:
     syncOptions:
       - CreateNamespace=true
 
-cluster-admin-sa:
-  enabled: true
-  type: manifest
-  namespace: kube-system
-  project: platform-services
-  defaultVersion: "main"
-  path: addons/cluster-roles/control-plane/addons/cluster-admin-sa
-  selector:
-    matchExpressions:
-      - key: cluster_role
-        operator: NotIn
-        values: ['vcluster']
-  syncPolicy:
-    automated:
-      selfHeal: true
-      prune: true
-
 platform-status-reconciler:
   enabled: true
   type: manifest
