@@ -1,7 +1,7 @@
 """
 title: Homelab Platform RAG
 author: homelab
-version: 0.3.0
+version: 0.4.0
 license: MIT
 description: Retrieves context from Qdrant and live observability data (Prometheus, Alertmanager, Loki) with intent-driven metric queries.
 requirements: qdrant-client, requests
@@ -9,9 +9,10 @@ requirements: qdrant-client, requests
 
 import logging
 import re
+import threading
 import time
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from pydantic import BaseModel, Field
@@ -19,6 +20,39 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchValue
 
 log = logging.getLogger("rag-pipeline")
+
+
+# ---------------------------------------------------------------------------
+# Simple TTL cache — avoids hammering Prometheus/Alertmanager/Loki on every
+# single message in a conversation.  Thread-safe.
+# ---------------------------------------------------------------------------
+class _TTLCache:
+    """In-memory key→value cache with per-entry TTL (seconds)."""
+
+    def __init__(self, default_ttl: int = 60):
+        self._store: Dict[str, Tuple[float, Any]] = {}
+        self._ttl = default_ttl
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> Optional[Any]:
+        with self._lock:
+            entry = self._store.get(key)
+            if entry is None:
+                return None
+            ts, val = entry
+            if time.monotonic() - ts > self._ttl:
+                del self._store[key]
+                return None
+            return val
+
+    def set(self, key: str, value: Any) -> None:
+        with self._lock:
+            self._store[key] = (time.monotonic(), value)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._store.clear()
+
 
 # ---------------------------------------------------------------------------
 # Well-known namespaces — used for keyword extraction from user messages
@@ -239,6 +273,10 @@ QUERY_CATALOG: dict[str, list[tuple[str, str, str]]] = {
 
 # ---------------------------------------------------------------------------
 # Keyword → topic mapping for intent detection
+# NOTE: Only include infrastructure-specific terms.  Common English words
+# like "request", "status", "resource" cause false-positive matches on
+# nearly every conversational message, triggering 20+ Prometheus queries
+# per turn and eventually blocking the pipeline server.
 # ---------------------------------------------------------------------------
 TOPIC_KEYWORDS: dict[str, set[str]] = {
     "cpu":          {"cpu_utilization", "cpu_limits"},
@@ -246,45 +284,36 @@ TOPIC_KEYWORDS: dict[str, set[str]] = {
     "compute":      {"cpu_utilization", "cpu_limits"},
     "throttle":     {"cpu_throttling", "cpu_utilization"},
     "throttling":   {"cpu_throttling", "cpu_utilization"},
-    "memory":       {"memory_utilization", "memory_limits"},
-    "mem":          {"memory_utilization", "memory_limits"},
+    "memory usage": {"memory_utilization", "memory_limits"},
+    "memory util":  {"memory_utilization", "memory_limits"},
     "ram":          {"memory_utilization", "memory_limits"},
     "oom":          {"memory_pressure", "memory_limits"},
     "out of memory": {"memory_pressure", "memory_limits"},
-    "limit":        {"cpu_limits", "memory_limits"},
-    "limits":       {"cpu_limits", "memory_limits"},
-    "request":      {"cpu_limits", "memory_limits"},
-    "requests":     {"cpu_limits", "memory_limits"},
-    "resource":     {"cpu_limits", "memory_limits", "cpu_utilization", "memory_utilization"},
-    "resources":    {"cpu_limits", "memory_limits", "cpu_utilization", "memory_utilization"},
-    "capacity":     {"cpu_limits", "memory_limits"},
+    "resource limits": {"cpu_limits", "memory_limits"},
+    "resource requests": {"cpu_limits", "memory_limits"},
     "allocatable":  {"cpu_limits", "memory_limits"},
-    "pressure":     {"memory_pressure", "cpu_limits", "memory_limits"},
-    "pod":          {"pods"},
-    "pods":         {"pods"},
-    "restart":      {"pods"},
-    "restarts":     {"pods"},
-    "crash":        {"pods", "memory_pressure"},
+    "pressure":     {"memory_pressure"},
+    "pod restart":  {"pods"},
+    "pod restarts": {"pods"},
     "crashloop":    {"pods"},
-    "pending":      {"pods"},
-    "failed":       {"pods"},
-    "deployment":   {"pods"},
-    "replica":      {"pods"},
+    "crashloopbackoff": {"pods"},
+    "pending pod":  {"pods"},
+    "failed pod":   {"pods"},
+    "unavailable replica": {"pods"},
     "storage":      {"storage"},
     "disk":         {"storage", "memory_pressure"},
     "pvc":          {"storage"},
-    "volume":       {"storage"},
     "filesystem":   {"storage"},
-    "node":         {"nodes", "cpu_utilization", "memory_utilization"},
-    "nodes":        {"nodes", "cpu_utilization", "memory_utilization"},
-    "health":       {"nodes", "pods", "cpu_utilization", "memory_utilization", "platform_status"},
-    "status":       {"nodes", "pods", "platform_status"},
+    "node health":  {"nodes", "cpu_utilization", "memory_utilization"},
+    "node status":  {"nodes"},
+    "node condition": {"nodes"},
+    "cluster health": {"nodes", "pods", "cpu_utilization", "memory_utilization"},
+    "cluster status": {"nodes", "pods"},
     "utilization":  {"cpu_utilization", "memory_utilization"},
-    "usage":        {"cpu_utilization", "memory_utilization"},
     "vcluster":     {"platform_status", "pods"},
     "golden path":  {"platform_status"},
-    "platform":     {"platform_status", "nodes", "pods"},
-    "ready":        {"platform_status", "pods", "nodes"},
+    "platform status": {"platform_status", "nodes", "pods"},
+    "platform health": {"platform_status", "nodes", "pods"},
     "degraded":     {"platform_status", "pods"},
     "provisioning": {"platform_status"},
 }
@@ -348,6 +377,16 @@ class Pipeline:
         MAX_ALERTS: int = Field(
             default=15, description="Max alerts to include in context"
         )
+        OBSERVABILITY_CACHE_TTL: int = Field(
+            default=60,
+            description="Seconds to cache observability data (alerts, health, metrics, logs). "
+            "Prevents hammering Prometheus/Loki on every message in a conversation.",
+        )
+        MAX_TOPIC_QUERIES: int = Field(
+            default=10,
+            description="Maximum number of Prometheus queries for topic deep-dives per message. "
+            "Prevents excessive query load when many topics match.",
+        )
 
     # ---- lifecycle --------------------------------------------------------
 
@@ -356,6 +395,7 @@ class Pipeline:
         self.name = "Homelab Platform RAG"
         self.valves = self.Valves(pipelines=["*"])
         self._qdrant: Optional[QdrantClient] = None
+        self._obs_cache = _TTLCache(default_ttl=60)
 
     @property
     def qdrant(self) -> QdrantClient:
@@ -366,14 +406,37 @@ class Pipeline:
     # ---- RAG helpers ------------------------------------------------------
 
     def _embed(self, text: str) -> list[float]:
-        """Embed a single query string via Ollama."""
+        """Embed a single query string via Ollama.  Tries /api/embed first,
+        then falls back to the older /api/embeddings endpoint."""
+        base = self.valves.OLLAMA_URL
+
+        # --- Newer endpoint (Ollama ≥ 0.4.0) ---
+        try:
+            resp = requests.post(
+                f"{base}/api/embed",
+                json={"model": self.valves.EMBEDDING_MODEL, "input": text},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            # Array input returns "embeddings", scalar returns "embedding"
+            if "embeddings" in data and data["embeddings"]:
+                return data["embeddings"][0]
+            if "embedding" in data:
+                return data["embedding"]
+        except requests.exceptions.HTTPError:
+            pass  # fall through to legacy endpoint
+        except Exception as exc:
+            log.warning("Embed /api/embed failed: %s", exc)
+
+        # --- Legacy endpoint (Ollama < 0.4.0) ---
         resp = requests.post(
-            f"{self.valves.OLLAMA_URL}/api/embed",
-            json={"model": self.valves.EMBEDDING_MODEL, "input": [text]},
-            timeout=30,
+            f"{base}/api/embeddings",
+            json={"model": self.valves.EMBEDDING_MODEL, "prompt": text},
+            timeout=15,
         )
         resp.raise_for_status()
-        return resp.json()["embeddings"][0]
+        return resp.json()["embedding"]
 
     def _retrieve(self, query: str) -> list[dict]:
         """Retrieve top-K relevant chunks from Qdrant."""
@@ -756,21 +819,30 @@ class Pipeline:
         return f"**{label}**: {len(result)} result(s)\n"
 
     def _run_topic_queries(self, topics: set[str]) -> str:
-        """Run all PromQL queries for matched topics and format results."""
+        """Run PromQL queries for matched topics, respecting the query budget."""
         if not topics:
             return ""
 
         lines = ["## Resource Deep Dive\n"]
         seen_labels: set[str] = set()
+        query_count = 0
+        budget = self.valves.MAX_TOPIC_QUERIES
 
         for topic in sorted(topics):
             queries = QUERY_CATALOG.get(topic, [])
             for label, promql, fmt in queries:
+                if query_count >= budget:
+                    lines.append(
+                        f"\n*Query budget reached ({budget}). "
+                        "Ask a more specific question for additional metrics.*\n"
+                    )
+                    return "\n".join(lines)
                 if label in seen_labels:
                     continue  # avoid duplicate queries across overlapping topics
                 seen_labels.add(label)
                 result = self._prom_query(promql)
                 lines.append(self._format_query_result(label, result, fmt))
+                query_count += 1
 
         return "\n".join(lines)
 
@@ -900,10 +972,17 @@ RULES:
         """
         Filter hook — runs before every message is sent to the LLM.
         Attaches RAG context and live observability data to the system prompt.
+
+        Observability data (alerts, health, topic metrics, logs) is cached for
+        OBSERVABILITY_CACHE_TTL seconds so that follow-up messages in the same
+        conversation don't re-issue 20+ Prometheus queries each time.
         """
         messages = body.get("messages", [])
         if not messages:
             return body
+
+        # Ensure cache TTL matches the current valve setting
+        self._obs_cache._ttl = self.valves.OBSERVABILITY_CACHE_TTL
 
         # Get the latest user message
         user_msg = None
@@ -914,49 +993,62 @@ RULES:
         if not user_msg:
             return body
 
-        # --- RAG retrieval ---
+        # --- RAG retrieval (not cached — query is message-specific) ---
         chunks = self._retrieve(user_msg)
         rag_block = self._format_rag_context(chunks)
         if not rag_block:
             rag_block = "*No relevant context found in the indexed platform repos.*\n"
 
-        # --- Live observability ---
+        # --- Live observability (cached per data type) ---
         obs_block = ""
         if self.valves.ENABLE_OBSERVABILITY:
             hints = self._extract_hints(user_msg)
 
-            alerts_block = ""
-            health_block = ""
+            # -- Alerts (cached) --
+            alerts_block = self._obs_cache.get("alerts")
+            if alerts_block is None:
+                try:
+                    alerts_block = self._get_firing_alerts()
+                except Exception as exc:
+                    log.warning("Alerts retrieval error: %s", exc)
+                    alerts_block = "*Failed to fetch alerts.*\n"
+                self._obs_cache.set("alerts", alerts_block)
+
+            # -- Cluster health baseline (cached) --
+            health_block = self._obs_cache.get("health")
+            if health_block is None:
+                try:
+                    health_block = self._get_cluster_health()
+                except Exception as exc:
+                    log.warning("Health metrics error: %s", exc)
+                    health_block = "*Failed to fetch cluster health.*\n"
+                self._obs_cache.set("health", health_block)
+
+            # -- Intent-driven metric deep-dives (cached by topic set) --
             topic_block = ""
-            logs_block = ""
-
-            try:
-                alerts_block = self._get_firing_alerts()
-            except Exception as exc:
-                log.warning("Alerts retrieval error: %s", exc)
-                alerts_block = "*Failed to fetch alerts.*\n"
-
-            try:
-                health_block = self._get_cluster_health()
-            except Exception as exc:
-                log.warning("Health metrics error: %s", exc)
-                health_block = "*Failed to fetch cluster health.*\n"
-
-            # Intent-driven metric deep-dives
             try:
                 topics = self._match_topics(user_msg)
                 if topics:
-                    log.info("Matched topics: %s", topics)
-                    topic_block = self._run_topic_queries(topics)
+                    cache_key = f"topics:{'|'.join(sorted(topics))}"
+                    topic_block = self._obs_cache.get(cache_key)
+                    if topic_block is None:
+                        log.info("Matched topics: %s", topics)
+                        topic_block = self._run_topic_queries(topics)
+                        self._obs_cache.set(cache_key, topic_block)
             except Exception as exc:
                 log.warning("Topic query error: %s", exc)
                 topic_block = ""
 
-            try:
-                logs_block = self._query_loki(hints)
-            except Exception as exc:
-                log.warning("Loki query error: %s", exc)
-                logs_block = "*Failed to query logs.*\n"
+            # -- Loki logs (cached by hint fingerprint) --
+            logs_cache_key = f"logs:{sorted(hints.get('namespaces', []))}:{sorted(hints.get('apps', []))}:{hints.get('error_focus')}"
+            logs_block = self._obs_cache.get(logs_cache_key)
+            if logs_block is None:
+                try:
+                    logs_block = self._query_loki(hints)
+                except Exception as exc:
+                    log.warning("Loki query error: %s", exc)
+                    logs_block = "*Failed to query logs.*\n"
+                self._obs_cache.set(logs_cache_key, logs_block)
 
             obs_block = f"{alerts_block}\n{health_block}\n{topic_block}\n{logs_block}"
 
