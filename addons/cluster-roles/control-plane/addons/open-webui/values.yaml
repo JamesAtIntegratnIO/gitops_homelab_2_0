@@ -109,9 +109,9 @@ extraEnvVars:
   - name: ENABLE_MODEL_FILTER
     value: "true"
   - name: MODEL_FILTER_LIST
-    value: "qwen3:4b;llama3.2:latest;llama3.1:latest;mistral:7b;gpt-4o;gpt-4o-mini;gpt-4.1;gpt-4.1-mini;gpt-4.1-nano"
+    value: "qwen3:4b;llama3.2:latest;llama3.1:latest;mistral:7b;gpt-4o;gpt-4o-mini;gpt-4.1;gpt-4.1-mini;gpt-4.1-nano;gpt-5.2;gpt-5.2-pro;gpt-5.2-with-tools"
   - name: DEFAULT_MODELS
-    value: "gpt-4o-mini"
+    value: "gpt-5.2-with-tools"
   # RAG settings
   - name: ENABLE_RAG_WEB_SEARCH
     value: "false"
