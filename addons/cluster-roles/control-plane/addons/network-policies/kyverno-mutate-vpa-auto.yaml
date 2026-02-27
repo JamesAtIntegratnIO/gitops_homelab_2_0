@@ -31,6 +31,7 @@ spec:
                 - kube-public
                 - kube-node-lease
                 - goldilocks
+                - argocd  # VPA Auto + HPA conflict causes thrashing
           - resources:
               selector:
                 matchLabels:
