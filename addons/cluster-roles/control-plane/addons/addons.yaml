@@ -282,6 +282,7 @@ kube-prometheus-stack:
         values: ['vcluster']
   syncPolicy:
     automated:
+      selfHeal: true
       prune: true
     syncOptions:
       - CreateNamespace=true
@@ -310,10 +311,12 @@ loki:
         - /spec/volumeClaimTemplates/0/status
   syncPolicy:
     automated:
+      selfHeal: true
       prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
 
 promtail:
   enabled: true
@@ -330,6 +333,7 @@ promtail:
         values: ['vcluster']
   syncPolicy:
     automated:
+      selfHeal: true
       prune: true
     syncOptions:
       - CreateNamespace=true

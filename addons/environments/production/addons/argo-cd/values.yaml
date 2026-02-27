@@ -97,12 +97,17 @@ notifications:
 
 
   # -- Triggers that define when notifications are sent
+  # oncePer deduplicates: only one alert per app until it recovers.
+  # health-degraded requires the sync to not be actively running to avoid
+  # transient degradation noise during rollouts.
   triggers:
     trigger.on-sync-failed: |
       - when: app.status.operationState != nil and app.status.operationState.phase in ['Error', 'Failed']
+        oncePer: app.metadata.name
         send: [app-sync-failed]
     trigger.on-health-degraded: |
-      - when: app.status.health.status == 'Degraded'
+      - when: app.status.health.status == 'Degraded' and (app.status.operationState == nil or app.status.operationState.phase not in ['Running'])
+        oncePer: app.metadata.name
         send: [app-health-degraded]
 
 

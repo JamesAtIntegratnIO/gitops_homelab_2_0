@@ -106,6 +106,16 @@ configs:
       jqPathExpressions:
         - .spec.template.spec.containers[].resources
         - .spec.template.spec.initContainers[]?.resources
+    # Ignore webhook caBundle drift — cert-manager rotates these automatically
+    resource.customizations.ignoreDifferences.admissionregistration.k8s.io_MutatingWebhookConfiguration: |
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+    resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+    resource.customizations.ignoreDifferences.apiextensions.k8s.io_CustomResourceDefinition: |
+      jqPathExpressions:
+        - .spec.conversion.webhook.clientConfig.caBundle
     # Custom health check for ApplicationSet (ArgoCD doesn't include one by default)
     resource.customizations.health.argoproj.io_ApplicationSet: |
       hs = {}

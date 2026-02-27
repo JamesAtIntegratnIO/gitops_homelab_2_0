@@ -189,6 +189,7 @@ external-secrets:
     syncOptions:
       - CreateNamespace=true
       - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
   ignoreDifferences:
     - kind: Secret
       name: external-secrets-webhook
@@ -613,6 +614,7 @@ cilium:
         - /spec/endpoints/0/relabelings/0/action
   syncPolicy:
     automated:
+      selfHeal: true
       prune: true
     syncOptions:
       - ServerSideApply=true
