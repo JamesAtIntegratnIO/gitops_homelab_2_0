@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/kube"
+	"github.com/jamesatintegratnio/hctl/internal/tui"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -36,13 +37,13 @@ const (
 func (s StepStatus) String() string {
 	switch s {
 	case StatusOK:
-		return "✅"
+		return tui.SuccessStyle.Render(tui.IconCheck)
 	case StatusWarning:
-		return "⚠️"
+		return tui.WarningStyle.Render(tui.IconWarn)
 	case StatusError:
-		return "❌"
+		return tui.ErrorStyle.Render(tui.IconCross)
 	default:
-		return "❓"
+		return tui.MutedStyle.Render("?")
 	}
 }
 

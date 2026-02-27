@@ -7,6 +7,7 @@ import (
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
+	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,16 +79,16 @@ func newReindexCmd() *cobra.Command {
 				return fmt.Errorf("creating job: %w", err)
 			}
 
-			fmt.Printf("✓ Created job %s/%s\n", aiNamespace, created.Name)
+			fmt.Printf("  %s Created job %s/%s\n", tui.SuccessStyle.Render(tui.IconCheck), aiNamespace, created.Name)
 
 			if !wait {
 				fmt.Println("  Use --wait to follow until completion, or:")
-				fmt.Printf("  kubectl logs -n %s job/%s -f\n", aiNamespace, created.Name)
+				fmt.Printf("  %s\n", tui.CodeStyle.Render(fmt.Sprintf("kubectl logs -n %s job/%s -f", aiNamespace, created.Name)))
 				return nil
 			}
 
 			// Poll for job completion
-			fmt.Printf("  Waiting for completion (timeout: %s)...\n", timeout)
+			fmt.Printf("  %s Waiting for completion (timeout: %s)...\n", tui.MutedStyle.Render(tui.IconPending), timeout)
 			deadline := time.Now().Add(timeout)
 			ticker := time.NewTicker(3 * time.Second)
 			defer ticker.Stop()
@@ -104,7 +105,7 @@ func newReindexCmd() *cobra.Command {
 
 					for _, cond := range j.Status.Conditions {
 						if cond.Type == batchv1.JobComplete && cond.Status == "True" {
-							fmt.Printf("✓ Job completed successfully\n")
+							fmt.Printf("  %s Job completed successfully\n", tui.SuccessStyle.Render(tui.IconCheck))
 							return nil
 						}
 						if cond.Type == batchv1.JobFailed && cond.Status == "True" {

@@ -105,7 +105,7 @@ func runKubeconfig(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("writing kubeconfig: %w", err)
 		}
-		fmt.Printf("%s Kubeconfig written to %s\n", tui.SuccessStyle.Render("✓"), path)
+		fmt.Printf("%s Kubeconfig written to %s\n", tui.SuccessStyle.Render(tui.IconCheck), path)
 		fmt.Printf("\n  %s\n", tui.DimStyle.Render(fmt.Sprintf("export KUBECONFIG=%s", path)))
 	}
 
@@ -165,7 +165,7 @@ func newConnectCmd() *cobra.Command {
 				return fmt.Errorf("writing kubeconfig: %w", err)
 			}
 
-			fmt.Printf("%s Connected to vCluster %s\n", tui.SuccessStyle.Render("✓"), name)
+			fmt.Printf("%s Connected to vCluster %s\n", tui.SuccessStyle.Render(tui.IconCheck), name)
 			fmt.Printf("\n  Run: %s\n", tui.DimStyle.Render(fmt.Sprintf("export KUBECONFIG=%s", path)))
 
 			return nil

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/jamesatintegratnio/hctl/internal/config"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -46,19 +45,19 @@ Highlights:
 
 			if len(apps) == 0 {
 				fmt.Printf("%s No ArgoCD applications found targeting cluster %q\n",
-					tui.DimStyle.Render("○"), name)
+					tui.MutedStyle.Render(tui.IconPending), name)
 				return nil
 			}
 
-			fmt.Printf("\n%s\n\n", tui.TitleStyle.Render(fmt.Sprintf("ArgoCD Apps → %s (%d apps)", name, len(apps))))
+			fmt.Printf("\n%s\n\n", tui.TitleStyle.Render(fmt.Sprintf("ArgoCD Apps %s %s (%d apps)", tui.IconArrow, name, len(apps))))
 
 			var rows [][]string
 			var warnings []string
 
 			for _, app := range apps {
-				syncIcon := formatSyncIcon(app.SyncStatus)
-				healthIcon := formatHealthIcon(app.HealthStatus)
-				opInfo := formatOpInfo(app)
+				syncIcon := tui.SyncBadge(app.SyncStatus)
+				healthIcon := tui.HealthBadge(app.HealthStatus)
+				opInfo := tui.OpBadge(app.OpPhase, app.RetryCount)
 
 				rows = append(rows, []string{
 					app.Name,
@@ -69,16 +68,16 @@ Highlights:
 
 				// Collect warnings
 				if !app.HasSelfHeal {
-					warnings = append(warnings, fmt.Sprintf("  ⚠  %s: missing selfHeal in sync policy", app.Name))
+					warnings = append(warnings, fmt.Sprintf("  %s  %s: missing selfHeal in sync policy", tui.WarningStyle.Render(tui.IconWarn), app.Name))
 				}
 				if app.OpPhase == "Failed" || app.OpPhase == "Error" {
 					if isStaleOperation(app.OpStartedAt) {
-						warnings = append(warnings, fmt.Sprintf("  🔴 %s: stale %s operation (started %s, %d retries)",
-							app.Name, app.OpPhase, app.OpStartedAt, app.RetryCount))
+						warnings = append(warnings, fmt.Sprintf("  %s %s: stale %s operation (started %s, %d retries)",
+							tui.ErrorStyle.Render(tui.IconCross), app.Name, app.OpPhase, app.OpStartedAt, app.RetryCount))
 					}
 					if strings.Contains(app.Message, "resource mapping not found") {
-						warnings = append(warnings, fmt.Sprintf("  🔴 %s: CRD missing — %s",
-							app.Name, truncateMessage(app.Message, 80)))
+						warnings = append(warnings, fmt.Sprintf("  %s %s: CRD missing — %s",
+							tui.ErrorStyle.Render(tui.IconCross), app.Name, truncateMessage(app.Message, 80)))
 					}
 				}
 			}
@@ -111,65 +110,12 @@ Highlights:
 
 			fmt.Printf("\n  Summary: %d synced, %d healthy, %s failed, %s missing selfHeal\n\n",
 				synced, healthy,
-				colorCount(failed, tui.ErrorStyle),
-				colorCount(noSelfHeal, tui.WarningStyle),
+				tui.StyledCount(failed, tui.ErrorStyle),
+				tui.StyledCount(noSelfHeal, tui.WarningStyle),
 			)
 
 			return nil
 		},
-	}
-}
-
-func formatSyncIcon(status string) string {
-	switch status {
-	case "Synced":
-		return tui.SuccessStyle.Render("✓ Synced")
-	case "OutOfSync":
-		return tui.WarningStyle.Render("⟳ OutOfSync")
-	case "Unknown":
-		return tui.DimStyle.Render("? Unknown")
-	default:
-		return tui.DimStyle.Render(status)
-	}
-}
-
-func formatHealthIcon(status string) string {
-	switch status {
-	case "Healthy":
-		return tui.SuccessStyle.Render("♥ Healthy")
-	case "Degraded":
-		return tui.ErrorStyle.Render("✗ Degraded")
-	case "Progressing":
-		return tui.WarningStyle.Render("⟳ Progressing")
-	case "Missing":
-		return tui.ErrorStyle.Render("✗ Missing")
-	case "Suspended":
-		return tui.DimStyle.Render("⏸ Suspended")
-	default:
-		return tui.DimStyle.Render(status)
-	}
-}
-
-func formatOpInfo(app kube.ArgoAppInfo) string {
-	if app.OpPhase == "" {
-		return tui.DimStyle.Render("—")
-	}
-
-	parts := []string{app.OpPhase}
-	if app.RetryCount > 0 {
-		parts = append(parts, fmt.Sprintf("retry:%d", app.RetryCount))
-	}
-	info := strings.Join(parts, " ")
-
-	switch app.OpPhase {
-	case "Succeeded":
-		return tui.SuccessStyle.Render(info)
-	case "Running":
-		return tui.WarningStyle.Render(info)
-	case "Failed", "Error":
-		return tui.ErrorStyle.Render(info)
-	default:
-		return info
 	}
 }
 
@@ -189,12 +135,4 @@ func truncateMessage(msg string, maxLen int) string {
 		return msg
 	}
 	return msg[:maxLen] + "..."
-}
-
-func colorCount(n int, style lipgloss.Style) string {
-	s := fmt.Sprintf("%d", n)
-	if n > 0 {
-		return style.Render(s)
-	}
-	return s
 }

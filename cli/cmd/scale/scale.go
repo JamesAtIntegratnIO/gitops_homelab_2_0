@@ -39,7 +39,7 @@ Useful for maintenance or cost-saving on idle namespaces.`,
 				return nil
 			}
 
-			fmt.Printf("Scaling down namespace %s...\n\n", ns)
+			fmt.Printf("\n  %s Scaling down namespace %s\n\n", tui.WarningStyle.Render(tui.IconArrow), ns)
 
 			// Get all deployments
 			out, err := kubectl("get", "deploy", "-n", ns, "-o", "jsonpath={.items[*].metadata.name}")
@@ -49,7 +49,7 @@ Useful for maintenance or cost-saving on idle namespaces.`,
 
 			deploys := strings.Fields(strings.TrimSpace(out))
 			if len(deploys) == 0 {
-				fmt.Println(tui.DimStyle.Render("No deployments found"))
+				fmt.Println(tui.MutedStyle.Render("  No deployments found"))
 				return nil
 			}
 
@@ -60,19 +60,19 @@ Useful for maintenance or cost-saving on idle namespaces.`,
 
 				if tracking != "" {
 					appName := strings.SplitN(tracking, ":", 2)[0]
-					fmt.Printf("  Disabling auto-sync for %s\n", appName)
+					fmt.Printf("    %s Disabling auto-sync for %s\n", tui.MutedStyle.Render(tui.IconArrow), appName)
 					_, _ = kubectl("patch", "application", appName, "-n", "argocd",
 						"--type", "merge", "-p", `{"spec":{"syncPolicy":null}}`)
 				}
 
-				fmt.Printf("  Scaling %s to 0\n", deploy)
+				fmt.Printf("    %s Scaling %s to 0\n", tui.MutedStyle.Render(tui.IconArrow), deploy)
 				_, err := kubectl("scale", "deploy", deploy, "-n", ns, "--replicas=0")
 				if err != nil {
-					fmt.Printf("  %s Failed to scale %s: %v\n", tui.WarningStyle.Render("⚠"), deploy, err)
+					fmt.Printf("    %s Failed to scale %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), deploy, err)
 				}
 			}
 
-			fmt.Printf("\n%s All deployments in %s scaled down\n", tui.SuccessStyle.Render("✓"), ns)
+			fmt.Printf("\n  %s All deployments in %s scaled down\n", tui.SuccessStyle.Render(tui.IconCheck), ns)
 			return nil
 		},
 	}
@@ -86,7 +86,7 @@ func newScaleUpCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ns := args[0]
 
-			fmt.Printf("Scaling up namespace %s...\n\n", ns)
+			fmt.Printf("\n  %s Scaling up namespace %s\n\n", tui.InfoStyle.Render(tui.IconArrow), ns)
 
 			out, err := kubectl("get", "deploy", "-n", ns, "-o", "jsonpath={.items[*].metadata.name}")
 			if err != nil {
@@ -95,7 +95,7 @@ func newScaleUpCmd() *cobra.Command {
 
 			deploys := strings.Fields(strings.TrimSpace(out))
 			if len(deploys) == 0 {
-				fmt.Println(tui.DimStyle.Render("No deployments found"))
+				fmt.Println(tui.MutedStyle.Render("  No deployments found"))
 				return nil
 			}
 
@@ -104,10 +104,10 @@ func newScaleUpCmd() *cobra.Command {
 				currentStr, _ := kubectl("get", "deploy", deploy, "-n", ns,
 					"-o", "jsonpath={.spec.replicas}")
 				if currentStr == "0" {
-					fmt.Printf("  Scaling %s to 1\n", deploy)
+					fmt.Printf("    %s Scaling %s to 1\n", tui.MutedStyle.Render(tui.IconArrow), deploy)
 					_, _ = kubectl("scale", "deploy", deploy, "-n", ns, "--replicas=1")
 				} else {
-					fmt.Printf("  %s already has %s replicas\n", deploy, currentStr)
+					fmt.Printf("    %s %s already has %s replicas\n", tui.MutedStyle.Render(tui.IconCheck), deploy, currentStr)
 				}
 
 				// Re-enable ArgoCD sync
@@ -115,14 +115,14 @@ func newScaleUpCmd() *cobra.Command {
 					"-o", "jsonpath={.metadata.annotations.argocd\\.argoproj\\.io/tracking-id}")
 				if tracking != "" {
 					appName := strings.SplitN(tracking, ":", 2)[0]
-					fmt.Printf("  Re-enabling auto-sync for %s\n", appName)
+					fmt.Printf("    %s Re-enabling auto-sync for %s\n", tui.MutedStyle.Render(tui.IconArrow), appName)
 					_, _ = kubectl("patch", "application", appName, "-n", "argocd",
 						"--type", "merge", "-p",
 						`{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}`)
 				}
 			}
 
-			fmt.Printf("\n%s All deployments in %s scaled up\n", tui.SuccessStyle.Render("✓"), ns)
+			fmt.Printf("\n  %s All deployments in %s scaled up\n", tui.SuccessStyle.Render(tui.IconCheck), ns)
 			return nil
 		},
 	}

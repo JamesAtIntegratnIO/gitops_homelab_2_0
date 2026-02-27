@@ -45,7 +45,7 @@ sync all apps regardless of current state.`,
 
 			if len(apps) == 0 {
 				fmt.Printf("%s No ArgoCD applications found targeting cluster %q\n",
-					tui.DimStyle.Render("○"), name)
+					tui.MutedStyle.Render(tui.IconPending), name)
 				return nil
 			}
 
@@ -89,7 +89,7 @@ sync all apps regardless of current state.`,
 				}
 				// Brief pause between phases to let CRDs register
 				if len(regularApps) > 0 {
-					fmt.Printf("  %s\n", tui.DimStyle.Render("  Waiting for CRDs to register..."))
+					fmt.Printf("  %s\n", tui.MutedStyle.Render("  Waiting for CRDs to register..."))
 					time.Sleep(3 * time.Second)
 				}
 			}
@@ -148,9 +148,9 @@ func syncApp(ctx context.Context, client *kube.Client, app kube.ArgoAppInfo, for
 
 	if !needsSync {
 		fmt.Printf("    %s %s %s\n",
-			tui.DimStyle.Render("○"),
+			tui.MutedStyle.Render(tui.IconPending),
 			app.Name,
-			tui.DimStyle.Render("(already synced)"))
+			tui.MutedStyle.Render("(already synced)"))
 		return 0, 0, 1, 0
 	}
 
@@ -161,12 +161,12 @@ func syncApp(ctx context.Context, client *kube.Client, app kube.ArgoAppInfo, for
 		err := client.ClearArgoAppOperationState(ctx, "argocd", app.Name)
 		if err != nil {
 			fmt.Printf("    %s %s: clear operation failed: %s\n",
-				tui.ErrorStyle.Render("✗"), app.Name, err)
+				tui.ErrorStyle.Render(tui.IconCross), app.Name, err)
 			return 0, 0, 0, 1
 		}
 		cleared++
 		fmt.Printf("    %s %s: cleared %s operation (retries: %d)\n",
-			tui.WarningStyle.Render("↺"), app.Name, app.OpPhase, app.RetryCount)
+			tui.WarningStyle.Render(tui.IconSync), app.Name, app.OpPhase, app.RetryCount)
 	}
 
 	// Trigger fresh sync
@@ -175,17 +175,17 @@ func syncApp(ctx context.Context, client *kube.Client, app kube.ArgoAppInfo, for
 		// If the error is "another operation is already in progress", that's OK — auto-sync may have kicked in
 		if strings.Contains(err.Error(), "another operation is already in progress") {
 			fmt.Printf("    %s %s: sync already in progress\n",
-				tui.SuccessStyle.Render("⟳"), app.Name)
+				tui.SuccessStyle.Render(tui.IconSync), app.Name)
 			return cleared, 1, 0, 0
 		}
 		fmt.Printf("    %s %s: sync failed: %s\n",
-			tui.ErrorStyle.Render("✗"), app.Name, err)
+			tui.ErrorStyle.Render(tui.IconCross), app.Name, err)
 		return cleared, 0, 0, 1
 	}
 
 	synced++
 	fmt.Printf("    %s %s: sync triggered\n",
-		tui.SuccessStyle.Render("✓"), app.Name)
+		tui.SuccessStyle.Render(tui.IconCheck), app.Name)
 
 	return cleared, synced, 0, errors
 }

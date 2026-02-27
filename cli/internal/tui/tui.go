@@ -11,42 +11,6 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 )
 
-var (
-	// Styles
-	TitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("12"))
-
-	SuccessStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("10"))
-
-	WarningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("11"))
-
-	ErrorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("9"))
-
-	DimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8"))
-
-	HeaderStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("15")).
-			PaddingBottom(1)
-
-	SelectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("12")).
-			Bold(true)
-)
-
-// StatusIcon returns a colored status icon string.
-func StatusIcon(ok bool) string {
-	if ok {
-		return SuccessStyle.Render("✓")
-	}
-	return ErrorStyle.Render("✗")
-}
-
 // Table renders a styled table with headers and rows using lipgloss/table.
 func Table(headers []string, rows [][]string) string {
 	if len(rows) == 0 {
@@ -55,7 +19,7 @@ func Table(headers []string, rows [][]string) string {
 
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("12")).
+		Foreground(ColorAccent).
 		Padding(0, 1)
 
 	cellStyle := lipgloss.NewStyle().
@@ -63,10 +27,10 @@ func Table(headers []string, rows [][]string) string {
 
 	dimCellStyle := lipgloss.NewStyle().
 		Padding(0, 1).
-		Foreground(lipgloss.Color("8"))
+		Foreground(ColorGray)
 
 	borderStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8"))
+		Foreground(ColorSubtle)
 
 	t := table.New().
 		Headers(headers...).
@@ -94,11 +58,15 @@ func Table(headers []string, rows [][]string) string {
 
 // TreeNode renders a tree-style status display.
 func TreeNode(name, status, message string, isLast bool) string {
-	prefix := "├── "
+	prefix := SubtleStyle.Render("├── ")
 	if isLast {
-		prefix = "└── "
+		prefix = SubtleStyle.Render("└── ")
 	}
-	return fmt.Sprintf("  %s%s  %s  %s", prefix, name, status, DimStyle.Render(message))
+	line := fmt.Sprintf("  %s%s  %s", prefix, name, status)
+	if message != "" {
+		line += "  " + MutedStyle.Render(message)
+	}
+	return line
 }
 
 // Confirm prompts for y/n confirmation. Returns true if confirmed.

@@ -61,7 +61,7 @@ type dashboardModel struct {
 func newDashboardModel(title string, sections []DashboardSection) dashboardModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+	s.Style = lipgloss.NewStyle().Foreground(ColorAccent)
 
 	km := dashKeyMap{
 		NextTab: key.NewBinding(
@@ -87,8 +87,8 @@ func newDashboardModel(title string, sections []DashboardSection) dashboardModel
 	}
 
 	h := help.New()
-	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
-	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(ColorAccent)
+	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(ColorGray)
 
 	return dashboardModel{
 		title:       title,
@@ -202,32 +202,21 @@ func (m dashboardModel) View() string {
 	var sb strings.Builder
 
 	// Title bar
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("62")).
-		Padding(0, 2).
-		MarginBottom(1)
+	titleStyle := BannerStyle.MarginBottom(1)
 
 	refreshInfo := ""
 	if !m.lastRefresh.IsZero() {
 		ago := time.Since(m.lastRefresh).Round(time.Second)
-		refreshInfo = DimStyle.Render(fmt.Sprintf("  refreshed %s ago", ago))
+		refreshInfo = MutedStyle.Render(fmt.Sprintf("  refreshed %s ago", ago))
 	}
 	sb.WriteString(titleStyle.Render(m.title) + refreshInfo + "\n\n")
 
 	// Tab bar
-	tabStyle := lipgloss.NewStyle().
-		Padding(0, 2)
-	activeTabStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("62")).
-		Padding(0, 2)
+	activeTabStyle := BannerStyle
 	inactiveTabStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("8")).
+		Foreground(ColorGray).
 		Padding(0, 2)
-	tabSep := DimStyle.Render(" │ ")
+	tabSep := SubtleStyle.Render(" │ ")
 
 	var tabs []string
 	for i, section := range m.sections {
@@ -241,17 +230,16 @@ func (m dashboardModel) View() string {
 			tabs = append(tabs, inactiveTabStyle.Render(label))
 		}
 	}
-	_ = tabStyle
+	_ = activeTabStyle
 	sb.WriteString(strings.Join(tabs, tabSep))
 	sb.WriteString("\n")
 
 	// Separator line
-	sep := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	lineWidth := m.width
 	if lineWidth == 0 {
 		lineWidth = 80
 	}
-	sb.WriteString(sep.Render(strings.Repeat("─", lineWidth)))
+	sb.WriteString(SubtleStyle.Render(strings.Repeat("─", lineWidth)))
 	sb.WriteString("\n\n")
 
 	// Content

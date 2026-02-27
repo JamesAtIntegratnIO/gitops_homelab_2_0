@@ -50,7 +50,7 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 			}
 
 			relPath, _ := filepath.Rel(repoPath, filePath)
-			fmt.Printf("%s Removed %s\n", tui.SuccessStyle.Render("✓"), relPath)
+			fmt.Printf("%s Removed %s\n", tui.SuccessStyle.Render(tui.IconCheck), relPath)
 
 			// Git handling
 			gitMode := cfg.GitMode
@@ -68,7 +68,7 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 					if err := repo.CommitAndPush([]string{relPath}, msg); err != nil {
 						return fmt.Errorf("git commit/push: %w", err)
 					}
-					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
 				}
 			}
 

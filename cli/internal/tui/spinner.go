@@ -43,7 +43,7 @@ type spinnerModel struct {
 func newSpinnerModel(title string, fn func() (string, error)) spinnerModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+	s.Style = lipgloss.NewStyle().Foreground(ColorAccent)
 	return spinnerModel{
 		spinner: s,
 		title:   title,
@@ -100,9 +100,9 @@ func Spin(title string, fn func() (string, error)) (string, error) {
 		fmt.Printf("  %s... ", title)
 		detail, err := fn()
 		if err != nil {
-			fmt.Println(ErrorStyle.Render("✗ " + err.Error()))
+			fmt.Println(ErrorStyle.Render(IconCross + " " + err.Error()))
 		} else {
-			fmt.Println(SuccessStyle.Render("✓"))
+			fmt.Println(SuccessStyle.Render(IconCheck))
 		}
 		return detail, err
 	}
@@ -139,7 +139,7 @@ type multiStepModel struct {
 func newMultiStepModel(title string, steps []Step) multiStepModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
+	s.Style = lipgloss.NewStyle().Foreground(ColorAccent)
 	return multiStepModel{
 		spinner: s,
 		steps:   steps,
@@ -214,17 +214,17 @@ func (m multiStepModel) View() string {
 			r := m.results[i]
 			if r.Err != nil {
 				sb.WriteString(fmt.Sprintf("  %s %s  %s\n",
-					ErrorStyle.Render("✗"),
+					ErrorStyle.Render(IconCross),
 					step.Title,
 					ErrorStyle.Render(r.Err.Error())))
 			} else {
-				elapsed := DimStyle.Render(fmt.Sprintf("(%s)", r.Elapsed.Round(time.Millisecond)))
+				elapsed := MutedStyle.Render(fmt.Sprintf("(%s)", r.Elapsed.Round(time.Millisecond)))
 				detail := ""
 				if r.Detail != "" {
-					detail = DimStyle.Render(" " + r.Detail)
+					detail = MutedStyle.Render(" " + r.Detail)
 				}
 				sb.WriteString(fmt.Sprintf("  %s %s %s%s\n",
-					SuccessStyle.Render("✓"),
+					SuccessStyle.Render(IconCheck),
 					step.Title,
 					elapsed,
 					detail))
@@ -235,13 +235,13 @@ func (m multiStepModel) View() string {
 		} else {
 			// Pending step
 			sb.WriteString(fmt.Sprintf("  %s %s\n",
-				DimStyle.Render("○"),
-				DimStyle.Render(step.Title)))
+				MutedStyle.Render(IconPending),
+				MutedStyle.Render(step.Title)))
 		}
 	}
 
 	if !m.done {
-		sb.WriteString(DimStyle.Render("\n  ctrl+c to cancel"))
+		sb.WriteString(MutedStyle.Render("\n  ctrl+c to cancel"))
 	}
 
 	return sb.String()
@@ -261,10 +261,10 @@ func RunSteps(title string, steps []Step) ([]StepResult, error) {
 			elapsed := time.Since(start)
 			results[i] = StepResult{Title: step.Title, Detail: detail, Err: err, Elapsed: elapsed}
 			if err != nil {
-				fmt.Println(ErrorStyle.Render("✗ " + err.Error()))
+				fmt.Println(ErrorStyle.Render(IconCross + " " + err.Error()))
 				return results, err
 			}
-			fmt.Println(SuccessStyle.Render("✓"))
+			fmt.Println(SuccessStyle.Render(IconCheck))
 			_ = detail
 		}
 		return results, nil

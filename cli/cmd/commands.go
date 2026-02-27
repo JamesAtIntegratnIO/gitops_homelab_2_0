@@ -17,7 +17,7 @@ import (
 func runInit(cmd *cobra.Command, args []string) error {
 	cfg := config.Default()
 
-	results, err := tui.RunSteps("🏗  Initializing hctl", []tui.Step{
+	results, err := tui.RunSteps(tui.IconPlay+"  Initializing hctl", []tui.Step{
 		{
 			Title: "Detecting git repository",
 			Run: func() (string, error) {
@@ -78,7 +78,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 func runStatus(cmd *cobra.Command, args []string) error {
 	cfg := config.Get()
 
-	return tui.RunDashboard("⎈ Platform Status", []tui.DashboardSection{
+	return tui.RunDashboard(tui.IconPlay+" Platform Status", []tui.DashboardSection{
 		{
 			Title: "Nodes",
 			Load: func() (string, error) {
@@ -293,29 +293,23 @@ func runReconcile(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("setting reconciliation label: %w", err)
 	}
 
-	fmt.Printf("%s Set kratix.io/manual-reconciliation=true on %s\n", tui.SuccessStyle.Render("✓"), name)
+	fmt.Printf("  %s Set kratix.io/manual-reconciliation=true on %s\n", tui.SuccessStyle.Render(tui.IconCheck), name)
 	return nil
 }
 
 func runContext(cmd *cobra.Command, args []string) error {
 	cfg := config.Get()
 
-	fmt.Println(tui.TitleStyle.Render("Platform Context"))
 	fmt.Println()
-	fmt.Printf("  Repo:       %s\n", valueOrDim(cfg.RepoPath))
-	fmt.Printf("  Git mode:   %s\n", cfg.GitMode)
-	fmt.Printf("  ArgoCD:     %s\n", cfg.ArgocdURL)
-	fmt.Printf("  Domain:     %s\n", cfg.Platform.Domain)
-	fmt.Printf("  Namespace:  %s\n", cfg.Platform.PlatformNamespace)
-	fmt.Printf("  Config:     %s\n", tui.DimStyle.Render(config.ConfigPath()))
+	fmt.Println(tui.TitleStyle.Render("  Platform Context"))
+	fmt.Println()
+	fmt.Println(tui.KeyValue("Repo", tui.ValueOrMuted(cfg.RepoPath, "(not set)")))
+	fmt.Println(tui.KeyValue("Git Mode", cfg.GitMode))
+	fmt.Println(tui.KeyValue("ArgoCD", cfg.ArgocdURL))
+	fmt.Println(tui.KeyValue("Domain", cfg.Platform.Domain))
+	fmt.Println(tui.KeyValue("Namespace", cfg.Platform.PlatformNamespace))
+	fmt.Println(tui.KeyValue("Config", tui.MutedStyle.Render(config.ConfigPath())))
 	fmt.Println()
 
 	return nil
-}
-
-func valueOrDim(v string) string {
-	if v == "" {
-		return tui.DimStyle.Render("(not set)")
-	}
-	return v
 }

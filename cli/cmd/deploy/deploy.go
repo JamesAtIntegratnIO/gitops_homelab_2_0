@@ -149,7 +149,7 @@ resources:
 				return fmt.Errorf("writing score.yaml: %w", err)
 			}
 
-			fmt.Printf("%s Created score.yaml\n", tui.SuccessStyle.Render("✓"))
+			fmt.Printf("%s Created score.yaml\n", tui.SuccessStyle.Render(tui.IconCheck))
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("Edit score.yaml, then run: hctl deploy run"))
 			return nil
 		},
@@ -231,9 +231,9 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 			// Show what will be generated
 			fmt.Printf("\n  Files to write:\n")
 			for path := range result.Files {
-				fmt.Printf("    %s %s\n", tui.SuccessStyle.Render("•"), path)
+				fmt.Printf("    %s %s\n", tui.SuccessStyle.Render(tui.IconBullet), path)
 			}
-			fmt.Printf("    %s workloads/%s/addons.yaml\n", tui.SuccessStyle.Render("•"), result.TargetCluster)
+			fmt.Printf("    %s workloads/%s/addons.yaml\n", tui.SuccessStyle.Render(tui.IconBullet), result.TargetCluster)
 
 			// Dry-run mode — show generated values and exit
 			if dryRun {
@@ -472,7 +472,7 @@ and removing its values directory. ArgoCD will clean up the resources on next sy
 			}
 
 			fmt.Printf("%s Removed workload %s from %s\n",
-				tui.SuccessStyle.Render("✓"), workloadName, cluster)
+				tui.SuccessStyle.Render(tui.IconCheck), workloadName, cluster)
 
 			// Git operations
 			repo, err := git.DetectRepo(cfg.RepoPath)
@@ -486,14 +486,14 @@ and removing its values directory. ArgoCD will clean up the resources on next sy
 				if err := repo.CommitAndPush(removedPaths, msg); err != nil {
 					return fmt.Errorf("git commit/push: %w", err)
 				}
-				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
 
 			case "generate":
 				if err := repo.Add(removedPaths...); err == nil {
 					msg := git.FormatCommitMessage("remove", workloadName, cluster)
 					_ = repo.Commit(msg)
 				}
-				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render("✓"))
+				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render(tui.IconCheck))
 
 			case "prompt":
 				ok, _ := tui.Confirm("Commit and push removal?")
@@ -502,7 +502,7 @@ and removing its values directory. ArgoCD will clean up the resources on next sy
 					if err := repo.CommitAndPush(removedPaths, msg); err != nil {
 						return fmt.Errorf("git commit/push: %w", err)
 					}
-					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
 				}
 			}
 

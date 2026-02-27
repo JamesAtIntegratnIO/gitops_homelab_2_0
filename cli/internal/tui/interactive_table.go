@@ -117,15 +117,15 @@ func newInteractiveTableModel(cfg InteractiveTableConfig) interactiveTableModel 
 	s := btable.DefaultStyles()
 	s.Header = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("12")).
+		Foreground(ColorAccent).
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderBottom(true).
-		BorderForeground(lipgloss.Color("8")).
+		BorderForeground(ColorSubtle).
 		Padding(0, 1)
 	s.Selected = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("62")).
+		Foreground(ColorBright).
+		Background(ColorAccentBg).
 		Padding(0, 1)
 	s.Cell = lipgloss.NewStyle().
 		Padding(0, 1)
@@ -160,8 +160,8 @@ func newInteractiveTableModel(cfg InteractiveTableConfig) interactiveTableModel 
 	}
 
 	h := help.New()
-	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
-	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(ColorAccent)
+	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(ColorGray)
 
 	return interactiveTableModel{
 		title:    cfg.Title,
@@ -272,9 +272,9 @@ func (m interactiveTableModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.detail != "" {
 				clean := stripAnsi(m.detail)
 				if copyToClipboard(clean) {
-					m.copyStatus = SuccessStyle.Render("✓ Copied to clipboard")
+					m.copyStatus = SuccessStyle.Render(IconCheck + " Copied to clipboard")
 				} else {
-					m.copyStatus = WarningStyle.Render("⚠ Could not copy (install xclip/xsel/wl-copy)")
+					m.copyStatus = WarningStyle.Render(IconWarn + " Could not copy (install xclip/xsel/wl-copy)")
 				}
 				m.initDetailViewport()
 				return m, tea.Tick(2*time.Second, func(time.Time) tea.Msg { return clearCopyMsg{} })
@@ -361,9 +361,7 @@ func (m interactiveTableModel) View() string {
 	var sb strings.Builder
 
 	// Title
-	titleBar := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("12")).
+	titleBar := TitleStyle.
 		MarginBottom(1).
 		Render(m.title)
 	sb.WriteString(titleBar)
@@ -371,9 +369,7 @@ func (m interactiveTableModel) View() string {
 
 	// Filter indicator
 	if m.filterMode {
-		filterStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("11")).
-			Bold(true)
+		filterStyle := WarningStyle.Bold(true)
 		sb.WriteString(filterStyle.Render(fmt.Sprintf("  / %s▌", m.filterText)))
 		sb.WriteString("\n")
 	}
@@ -407,8 +403,8 @@ func (m interactiveTableModel) View() string {
 
 		overlay := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("62")).
-			Background(lipgloss.Color("235")).
+			BorderForeground(ColorAccentBg).
+			Background(ColorOverlay).
 			Padding(1, 2).
 			Width(w).
 			Render(m.detailVP.View() + scrollInfo)

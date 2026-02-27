@@ -586,7 +586,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	relPath, _ := filepath.Rel(repoPath, outPath)
-	fmt.Printf("\n%s Written to %s\n", tui.SuccessStyle.Render("✓"), relPath)
+	fmt.Printf("\n%s Written to %s\n", tui.SuccessStyle.Render(tui.IconCheck), relPath)
 
 	// Git handling
 	gitMode := cfg.GitMode
@@ -604,7 +604,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		if err := repo.CommitAndPush([]string{relPath}, msg); err != nil {
 			return fmt.Errorf("git commit/push: %w", err)
 		}
-		fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+		fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
 	case "prompt":
 		if interactive {
 			confirmed, _ := tui.Confirm("Commit and push?")
@@ -617,7 +617,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 				if err := repo.CommitAndPush([]string{relPath}, msg); err != nil {
 					return fmt.Errorf("git commit/push: %w", err)
 				}
-				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
 			} else {
 				fmt.Println(tui.DimStyle.Render("  Skipped git commit. Run manually: git add && git commit && git push"))
 			}
@@ -634,7 +634,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	if createWait && committed {
 		if err := watchProvisioning(cfg, name, hostname, spec); err != nil {
 			// Non-fatal — the resource was already committed
-			fmt.Printf("\n%s %s\n", tui.WarningStyle.Render("⚠"), err.Error())
+			fmt.Printf("\n%s %s\n", tui.WarningStyle.Render(tui.IconWarn), err.Error())
 			fmt.Printf("%s\n", tui.DimStyle.Render("The request was committed. Check status later: hctl vcluster status "+name))
 		}
 	}
@@ -701,7 +701,7 @@ func watchProvisioning(cfg *config.Config, name, hostname string, spec platform.
 	result, err := platform.CollectProvisionResult(ctx, client, ns, name)
 	if err != nil {
 		// Non-fatal — provisioning succeeded but summary collection failed
-		fmt.Printf("\n  %s %s is ready!\n", tui.SuccessStyle.Render("✅"), name)
+		fmt.Printf("\n  %s %s is ready!\n", tui.SuccessStyle.Render(tui.IconCheck), name)
 		fmt.Printf("  %s\n", tui.DimStyle.Render("Run 'hctl vcluster status "+name+"' for details"))
 		return nil
 	}

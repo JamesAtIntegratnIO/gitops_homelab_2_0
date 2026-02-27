@@ -3,9 +3,11 @@ package platform
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/kube"
+	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -125,91 +127,101 @@ func parseStatusContract(vc *unstructured.Unstructured) (*StatusContract, error)
 
 // FormatStatusContract formats the status contract for terminal display.
 func FormatStatusContract(name string, sc *StatusContract) string {
-	var b []byte
+	var sb strings.Builder
 
-	phaseIcon := phaseStatusIcon(sc.Phase)
-	header := fmt.Sprintf("┌─ VCluster: %s ─────────────────────────\n", name)
-	b = append(b, header...)
-	b = append(b, fmt.Sprintf("│ Phase:     %s %s\n", sc.Phase, phaseIcon)...)
+	sb.WriteString(tui.HeadingStyle.Render("VCluster: "+name) + "\n\n")
+
+	phaseIcon := phaseStyledIcon(sc.Phase)
+	sb.WriteString(tui.KeyValue("Phase", sc.Phase+" "+phaseIcon) + "\n")
 	if sc.Message != "" {
-		b = append(b, fmt.Sprintf("│ Message:   %s\n", sc.Message)...)
+		sb.WriteString(tui.KeyValue("Message", sc.Message) + "\n")
 	}
 	if sc.LastReconciled != "" {
-		ago := formatTimeAgo(sc.LastReconciled)
-		b = append(b, fmt.Sprintf("│ Last Check: %s\n", ago)...)
+		sb.WriteString(tui.KeyValue("Last Check", formatTimeAgo(sc.LastReconciled)) + "\n")
 	}
 
 	// Endpoints
 	if sc.Endpoints.API != "" || sc.Endpoints.ArgoCD != "" {
-		b = append(b, "│\n│ Endpoints:\n"...)
+		sb.WriteString(tui.SectionHeader("Endpoints") + "\n")
 		if sc.Endpoints.API != "" {
-			b = append(b, fmt.Sprintf("│   API:     %s\n", sc.Endpoints.API)...)
+			sb.WriteString(tui.KeyValue("API", tui.CodeStyle.Render(sc.Endpoints.API)) + "\n")
 		}
 		if sc.Endpoints.ArgoCD != "" {
-			b = append(b, fmt.Sprintf("│   ArgoCD:  %s\n", sc.Endpoints.ArgoCD)...)
+			sb.WriteString(tui.KeyValue("ArgoCD", tui.CodeStyle.Render(sc.Endpoints.ArgoCD)) + "\n")
 		}
 	}
 
 	// Credentials
 	if sc.Credentials.KubeconfigSecret != "" || sc.Credentials.OnePasswordItem != "" {
-		b = append(b, "│\n│ Credentials:\n"...)
+		sb.WriteString(tui.SectionHeader("Credentials") + "\n")
 		if sc.Credentials.KubeconfigSecret != "" {
-			b = append(b, fmt.Sprintf("│   Secret:     %s\n", sc.Credentials.KubeconfigSecret)...)
+			sb.WriteString(tui.KeyValue("Secret", sc.Credentials.KubeconfigSecret) + "\n")
 		}
 		if sc.Credentials.OnePasswordItem != "" {
-			b = append(b, fmt.Sprintf("│   1Password:  %s\n", sc.Credentials.OnePasswordItem)...)
+			sb.WriteString(tui.KeyValue("1Password", sc.Credentials.OnePasswordItem) + "\n")
 		}
 	}
 
 	// Health
 	if sc.Health.ArgoCDSync != "" || sc.Health.PodsTotal > 0 {
-		b = append(b, "│\n│ Health:\n"...)
+		sb.WriteString(tui.SectionHeader("Health") + "\n")
 		if sc.Health.ArgoCDSync != "" {
-			b = append(b, fmt.Sprintf("│   ArgoCD:   %s / %s\n", sc.Health.ArgoCDSync, sc.Health.ArgoCDHealth)...)
+			healthStr := sc.Health.ArgoCDSync + " / " + sc.Health.ArgoCDHealth
+			sb.WriteString(tui.KeyValue("ArgoCD", healthStr) + "\n")
 		}
-		b = append(b, fmt.Sprintf("│   Pods:     %d/%d Ready\n", sc.Health.PodsReady, sc.Health.PodsTotal)...)
+		podStr := fmt.Sprintf("%d/%d Ready", sc.Health.PodsReady, sc.Health.PodsTotal)
+		if sc.Health.PodsReady == sc.Health.PodsTotal && sc.Health.PodsTotal > 0 {
+			podStr = tui.SuccessStyle.Render(podStr)
+		} else if sc.Health.PodsTotal > 0 {
+			podStr = tui.WarningStyle.Render(podStr)
+		}
+		sb.WriteString(tui.KeyValue("Pods", podStr) + "\n")
 		if sc.Health.SubAppsTotal > 0 {
-			b = append(b, fmt.Sprintf("│   Sub-Apps: %d/%d Healthy\n", sc.Health.SubAppsHealthy, sc.Health.SubAppsTotal)...)
+			subStr := fmt.Sprintf("%d/%d Healthy", sc.Health.SubAppsHealthy, sc.Health.SubAppsTotal)
+			if sc.Health.SubAppsHealthy == sc.Health.SubAppsTotal {
+				subStr = tui.SuccessStyle.Render(subStr)
+			} else {
+				subStr = tui.WarningStyle.Render(subStr)
+			}
+			sb.WriteString(tui.KeyValue("Sub-Apps", subStr) + "\n")
 			for _, app := range sc.Health.SubAppsUnhealthy {
-				b = append(b, fmt.Sprintf("│     ✗ %s\n", app)...)
+				sb.WriteString(fmt.Sprintf("    %s %s\n", tui.ErrorStyle.Render(tui.IconCross), app))
 			}
 		}
 	}
 
 	// Conditions
 	if len(sc.Conditions) > 0 {
-		b = append(b, "│\n│ Conditions:\n"...)
+		sb.WriteString(tui.SectionHeader("Conditions") + "\n")
 		for _, c := range sc.Conditions {
-			icon := "✓"
+			icon := tui.SuccessStyle.Render(tui.IconCheck)
 			if c.Status != "True" {
-				icon = "✗"
+				icon = tui.ErrorStyle.Render(tui.IconCross)
 			}
 			ago := formatTimeAgo(c.LastTransitionTime)
-			b = append(b, fmt.Sprintf("│   %s %-22s (%s, %s)\n", icon, c.Type, c.Reason, ago)...)
+			sb.WriteString(fmt.Sprintf("  %s %-22s %s\n", icon, c.Type, tui.MutedStyle.Render(fmt.Sprintf("(%s, %s)", c.Reason, ago))))
 		}
 	}
 
-	b = append(b, "└────────────────────────────────────────────\n"...)
-
-	return string(b)
+	return tui.Box(sb.String())
 }
 
-func phaseStatusIcon(phase string) string {
+func phaseStyledIcon(phase string) string {
 	switch phase {
 	case "Ready":
-		return "✓"
+		return tui.SuccessStyle.Render(tui.IconCheck)
 	case "Progressing":
-		return "⟳"
+		return tui.WarningStyle.Render(tui.IconSync)
 	case "Degraded":
-		return "⚠"
+		return tui.WarningStyle.Render(tui.IconWarn)
 	case "Failed":
-		return "✗"
+		return tui.ErrorStyle.Render(tui.IconCross)
 	case "Scheduled":
-		return "⏳"
+		return tui.MutedStyle.Render(tui.IconPending)
 	case "Deleting":
-		return "🗑"
+		return tui.WarningStyle.Render(tui.IconCross)
 	default:
-		return "?"
+		return tui.MutedStyle.Render("?")
 	}
 }
 

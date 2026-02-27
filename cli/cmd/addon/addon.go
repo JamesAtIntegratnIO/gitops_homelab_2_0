@@ -252,7 +252,7 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 				// Addon exists — set enabled: true
 				existing["enabled"] = true
 				entries[addonName] = existing
-				fmt.Printf("%s Enabled %s in %s\n", tui.SuccessStyle.Render("✓"), addonName, addonsPath)
+				fmt.Printf("%s Enabled %s in %s\n", tui.SuccessStyle.Render(tui.IconCheck), addonName, addonsPath)
 			} else {
 				// Create new addon entry
 				entry := map[string]interface{}{
@@ -275,7 +275,7 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 				}
 
 				entries[addonName] = entry
-				fmt.Printf("%s Added %s to %s\n", tui.SuccessStyle.Render("✓"), addonName, filepath.Base(filepath.Dir(addonsPath)))
+				fmt.Printf("%s Added %s to %s\n", tui.SuccessStyle.Render(tui.IconCheck), addonName, filepath.Base(filepath.Dir(addonsPath)))
 			}
 
 			// Write addons.yaml
@@ -296,7 +296,7 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 					return fmt.Errorf("writing values scaffold: %w", err)
 				}
 				changedPaths = append(changedPaths, valuesFile)
-				fmt.Printf("%s Scaffolded %s\n", tui.SuccessStyle.Render("✓"), valuesFile)
+				fmt.Printf("%s Scaffolded %s\n", tui.SuccessStyle.Render(tui.IconCheck), valuesFile)
 			}
 
 			// Git operations
@@ -320,14 +320,14 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 				if err := repo.CommitAndPush(relPaths, msg); err != nil {
 					return fmt.Errorf("git commit/push: %w", err)
 				}
-				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
 
 			case "generate":
 				if err := repo.Add(relPaths...); err == nil {
 					msg := git.FormatCommitMessage("enable addon", addonName, layer+"/"+env)
 					_ = repo.Commit(msg)
 				}
-				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render("✓"))
+				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render(tui.IconCheck))
 
 			case "prompt":
 				ok, _ := tui.Confirm("Commit and push changes?")
@@ -336,7 +336,7 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 					if err := repo.CommitAndPush(relPaths, msg); err != nil {
 						return fmt.Errorf("git commit/push: %w", err)
 					}
-					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
 				}
 			}
 
@@ -417,20 +417,20 @@ Without --remove, the entry remains but is marked disabled.`,
 
 			if remove {
 				delete(entries, addonName)
-				fmt.Printf("%s Removed %s from addons.yaml\n", tui.SuccessStyle.Render("✓"), addonName)
+				fmt.Printf("%s Removed %s from addons.yaml\n", tui.SuccessStyle.Render(tui.IconCheck), addonName)
 
 				// Remove values directory
 				if _, err := os.Stat(valuesDir); err == nil {
 					if err := os.RemoveAll(valuesDir); err != nil {
-						fmt.Printf("%s Could not remove values directory: %v\n", tui.WarningStyle.Render("⚠"), err)
+						fmt.Printf("%s Could not remove values directory: %v\n", tui.WarningStyle.Render(tui.IconWarn), err)
 					} else {
-						fmt.Printf("%s Removed %s\n", tui.SuccessStyle.Render("✓"), valuesDir)
+						fmt.Printf("%s Removed %s\n", tui.SuccessStyle.Render(tui.IconCheck), valuesDir)
 						changedPaths = append(changedPaths, valuesDir)
 					}
 				}
 			} else {
 				entries[addonName]["enabled"] = false
-				fmt.Printf("%s Disabled %s\n", tui.SuccessStyle.Render("✓"), addonName)
+				fmt.Printf("%s Disabled %s\n", tui.SuccessStyle.Render(tui.IconCheck), addonName)
 			}
 
 			if err := writeAddonsYAML(addonsPath, entries); err != nil {
@@ -463,14 +463,14 @@ Without --remove, the entry remains but is marked disabled.`,
 				if err := repo.CommitAndPush(relPaths, msg); err != nil {
 					return fmt.Errorf("git commit/push: %w", err)
 				}
-				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
 
 			case "generate":
 				if err := repo.Add(relPaths...); err == nil {
 					msg := git.FormatCommitMessage(action, addonName, layer+"/"+env)
 					_ = repo.Commit(msg)
 				}
-				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render("✓"))
+				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render(tui.IconCheck))
 
 			case "prompt":
 				ok, _ := tui.Confirm("Commit and push changes?")
@@ -479,7 +479,7 @@ Without --remove, the entry remains but is marked disabled.`,
 					if err := repo.CommitAndPush(relPaths, msg); err != nil {
 						return fmt.Errorf("git commit/push: %w", err)
 					}
-					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render("✓"))
+					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
 				}
 			}
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/kube"
+	"github.com/jamesatintegratnio/hctl/internal/tui"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -235,49 +236,59 @@ func FormatProvisionSummary(result *ProvisionResult, hostname string) string {
 
 	// Status line
 	if result.Healthy {
-		sb.WriteString(fmt.Sprintf("\n  ✅ %s is ready!\n", result.Name))
+		sb.WriteString(fmt.Sprintf("\n  %s %s is ready!\n", tui.SuccessStyle.Render(tui.IconCheck), result.Name))
 	} else {
-		sb.WriteString(fmt.Sprintf("\n  ⚠️  %s is provisioning (may take a few more minutes)\n", result.Name))
+		sb.WriteString(fmt.Sprintf("\n  %s %s is provisioning (may take a few more minutes)\n", tui.WarningStyle.Render(tui.IconWarn), result.Name))
 	}
 
 	// Endpoints
 	hasEndpoints := result.Endpoints.API != "" || result.Endpoints.ArgoCD != "" || hostname != ""
 	if hasEndpoints {
-		sb.WriteString("\n  🔗 Access:\n")
+		sb.WriteString(tui.SectionHeader("Access") + "\n")
 		if result.Endpoints.API != "" {
-			sb.WriteString(fmt.Sprintf("     API Server:  %s\n", result.Endpoints.API))
+			sb.WriteString(tui.KeyValue("API Server", tui.CodeStyle.Render(result.Endpoints.API)) + "\n")
 		} else if hostname != "" {
-			sb.WriteString(fmt.Sprintf("     API Server:  https://%s\n", hostname))
+			sb.WriteString(tui.KeyValue("API Server", tui.CodeStyle.Render("https://"+hostname)) + "\n")
 		}
 		if result.Endpoints.ArgoCD != "" {
-			sb.WriteString(fmt.Sprintf("     ArgoCD:      %s\n", result.Endpoints.ArgoCD))
+			sb.WriteString(tui.KeyValue("ArgoCD", tui.CodeStyle.Render(result.Endpoints.ArgoCD)) + "\n")
 		}
 	}
 
 	// Health
 	if result.Health.ComponentsTotal > 0 {
-		sb.WriteString(fmt.Sprintf("\n  📊 Health: %d/%d components ready",
-			result.Health.ComponentsReady, result.Health.ComponentsTotal))
-		if result.Health.SubAppsTotal > 0 {
-			sb.WriteString(fmt.Sprintf(", %d/%d apps healthy",
-				result.Health.SubAppsHealthy, result.Health.SubAppsTotal))
+		sb.WriteString(tui.SectionHeader("Health") + "\n")
+		compStr := fmt.Sprintf("%d/%d ready", result.Health.ComponentsReady, result.Health.ComponentsTotal)
+		if result.Health.ComponentsReady == result.Health.ComponentsTotal {
+			compStr = tui.SuccessStyle.Render(compStr)
+		} else {
+			compStr = tui.WarningStyle.Render(compStr)
 		}
-		sb.WriteString("\n")
+		sb.WriteString(tui.KeyValue("Components", compStr) + "\n")
+		if result.Health.SubAppsTotal > 0 {
+			appStr := fmt.Sprintf("%d/%d healthy", result.Health.SubAppsHealthy, result.Health.SubAppsTotal)
+			if result.Health.SubAppsHealthy == result.Health.SubAppsTotal {
+				appStr = tui.SuccessStyle.Render(appStr)
+			} else {
+				appStr = tui.WarningStyle.Render(appStr)
+			}
+			sb.WriteString(tui.KeyValue("Apps", appStr) + "\n")
+		}
 	}
 
-	// Unhealthy items (developer-friendly)
+	// Unhealthy items
 	if len(result.Health.Unhealthy) > 0 {
-		sb.WriteString("\n  ⚠️  Still converging:\n")
+		sb.WriteString(fmt.Sprintf("\n  %s Still converging:\n", tui.WarningStyle.Render(tui.IconWarn)))
 		for _, u := range result.Health.Unhealthy {
-			sb.WriteString(fmt.Sprintf("     • %s\n", u))
+			sb.WriteString(fmt.Sprintf("    %s %s\n", tui.MutedStyle.Render(tui.IconBullet), u))
 		}
 	}
 
 	// Next steps
-	sb.WriteString(fmt.Sprintf("\n  📋 Next steps:\n"))
-	sb.WriteString(fmt.Sprintf("     Connect:    hctl vcluster connect %s\n", result.Name))
-	sb.WriteString(fmt.Sprintf("     Status:     hctl vcluster status %s\n", result.Name))
-	sb.WriteString(fmt.Sprintf("     Diagnose:   hctl vcluster status %s --diagnose\n", result.Name))
+	sb.WriteString(tui.SectionHeader("Next Steps") + "\n")
+	sb.WriteString(tui.KeyValue("Connect", tui.CodeStyle.Render(fmt.Sprintf("hctl vcluster connect %s", result.Name))) + "\n")
+	sb.WriteString(tui.KeyValue("Status", tui.CodeStyle.Render(fmt.Sprintf("hctl vcluster status %s", result.Name))) + "\n")
+	sb.WriteString(tui.KeyValue("Diagnose", tui.CodeStyle.Render(fmt.Sprintf("hctl vcluster status %s --diagnose", result.Name))) + "\n")
 
 	return sb.String()
 }
