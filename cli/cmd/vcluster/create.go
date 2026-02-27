@@ -193,22 +193,6 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	// ── K8s version ───────────────────────────────────────────────────
 	if createK8sVersion != "" {
 		spec.VCluster.K8sVersion = createK8sVersion
-	} else if interactive {
-		idx, err := tui.Select("Kubernetes version", []string{
-			"v1.34.3 (default)",
-			"1.33",
-			"1.32",
-		})
-		if err != nil {
-			return err
-		}
-		switch idx {
-		case 1:
-			spec.VCluster.K8sVersion = "1.33"
-		case 2:
-			spec.VCluster.K8sVersion = "1.32"
-		// 0 or default: leave empty (server default v1.34.3)
-		}
 	}
 
 	// ── Replicas ──────────────────────────────────────────────────────
@@ -219,17 +203,6 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	// ── Isolation mode ────────────────────────────────────────────────
 	if createIsolationMode != "" {
 		spec.VCluster.IsolationMode = createIsolationMode
-	} else if interactive {
-		idx, err := tui.Select("Isolation mode", []string{
-			"standard — shared kernel, namespace isolation (default)",
-			"strict   — resource quotas, limit ranges, network policies",
-		})
-		if err != nil {
-			return err
-		}
-		if idx == 1 {
-			spec.VCluster.IsolationMode = "strict"
-		}
 	}
 
 	// ── Hostname ──────────────────────────────────────────────────────
@@ -299,25 +272,125 @@ func runCreate(cmd *cobra.Command, args []string) error {
 
 	// ── Environment ──────────────────────────────────────────────────
 	if spec.Integrations.ArgoCD != nil {
-		if interactive && !cmd.Flags().Changed("environment") {
-			idx, err := tui.Select("ArgoCD environment", []string{
-				"production",
-				"staging",
-				"development",
-			})
-			if err != nil {
-				return err
+		spec.Integrations.ArgoCD.Environment = createEnvironment
+	}
+
+	// ── Advanced settings gate ───────────────────────────────────────
+	// Only prompt for k8s version, isolation, environment, persistence,
+	// subnet/VIP, and CoreDNS if the user opts in. All of these can
+	// still be set directly via flags without the gate.
+	if interactive {
+		advanced, _ := tui.Confirm("Customize advanced settings? (k8s version, isolation, environment, persistence, networking)")
+		if advanced {
+			// K8s version
+			if !cmd.Flags().Changed("k8s-version") {
+				idx, err := tui.Select("Kubernetes version", []string{
+					"v1.34.3 (default)",
+					"1.33",
+					"1.32",
+				})
+				if err != nil {
+					return err
+				}
+				switch idx {
+				case 1:
+					spec.VCluster.K8sVersion = "1.33"
+				case 2:
+					spec.VCluster.K8sVersion = "1.32"
+				}
 			}
-			switch idx {
-			case 0:
-				createEnvironment = "production"
-			case 1:
-				createEnvironment = "staging"
-			case 2:
-				createEnvironment = "development"
+
+			// Isolation mode
+			if !cmd.Flags().Changed("isolation") {
+				idx, err := tui.Select("Isolation mode", []string{
+					"standard — shared kernel, namespace isolation (default)",
+					"strict   — resource quotas, limit ranges, network policies",
+				})
+				if err != nil {
+					return err
+				}
+				if idx == 1 {
+					spec.VCluster.IsolationMode = "strict"
+				}
+			}
+
+			// Environment
+			if spec.Integrations.ArgoCD != nil && !cmd.Flags().Changed("environment") {
+				idx, err := tui.Select("ArgoCD environment", []string{
+					"production",
+					"staging",
+					"development",
+				})
+				if err != nil {
+					return err
+				}
+				switch idx {
+				case 0:
+					spec.Integrations.ArgoCD.Environment = "production"
+				case 1:
+					spec.Integrations.ArgoCD.Environment = "staging"
+				case 2:
+					spec.Integrations.ArgoCD.Environment = "development"
+				}
+			}
+
+			// Persistence
+			if !cmd.Flags().Changed("persistence") && !cmd.Flags().Changed("persistence-size") {
+				enablePersist, _ := tui.Confirm(fmt.Sprintf("Enable persistence? (preset default: %v)",
+					spec.VCluster.Persistence != nil && spec.VCluster.Persistence.Enabled))
+				if enablePersist {
+					if spec.VCluster.Persistence == nil {
+						spec.VCluster.Persistence = &platform.PersistenceConfig{}
+					}
+					spec.VCluster.Persistence.Enabled = true
+					size, err := tui.Input("Persistence size", "e.g. 10Gi", "10Gi")
+					if err != nil {
+						return err
+					}
+					if size != "" {
+						spec.VCluster.Persistence.Size = size
+					}
+				}
+			}
+
+			// Subnet / VIP
+			if !cmd.Flags().Changed("subnet") {
+				subnet, err := tui.Input("VIP subnet (optional)", "e.g. 10.0.4.0/24", "")
+				if err != nil {
+					return err
+				}
+				if subnet != "" {
+					spec.Exposure.Subnet = subnet
+					if !cmd.Flags().Changed("vip") {
+						vip, err := tui.Input("Static VIP (optional, auto-assigned from subnet if empty)", "e.g. 10.0.4.210", "")
+						if err != nil {
+							return err
+						}
+						if vip != "" {
+							spec.Exposure.VIP = vip
+						}
+					}
+				}
+			}
+
+			// CoreDNS replicas
+			if !cmd.Flags().Changed("coredns-replicas") {
+				currentReplicas := 1
+				if spec.VCluster.CoreDNS != nil {
+					currentReplicas = spec.VCluster.CoreDNS.Replicas
+				}
+				val, err := tui.Input("CoreDNS replicas", "", fmt.Sprintf("%d", currentReplicas))
+				if err != nil {
+					return err
+				}
+				if val != "" && val != fmt.Sprintf("%d", currentReplicas) {
+					var r int
+					if _, err := fmt.Sscanf(val, "%d", &r); err == nil && r > 0 {
+						spec.VCluster.CoreDNS = &platform.CoreDNSConfig{Replicas: r}
+					}
+				}
 			}
 		}
-		spec.Integrations.ArgoCD.Environment = createEnvironment
 	}
 
 	// ── Cluster labels / annotations ─────────────────────────────────
