@@ -9,7 +9,7 @@ Usage:
     python3 hack/get-kubeconfig.py                     # writes to /tmp/homelab-kubeconfig.yaml
     python3 hack/get-kubeconfig.py /path/to/output.yaml
 """
-import json, urllib.request, ssl, base64, sys, os, re, subprocess, shutil
+import json, urllib.request, ssl, base64, sys, os, re, subprocess, shutil, time
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -30,13 +30,11 @@ ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
 
-def get_argocd_token() -> str:
-    """Read the auth token from the ArgoCD CLI config file."""
+def _read_token_from_config() -> str:
+    """Read the raw auth token string from the ArgoCD CLI config file."""
     config_path = Path.home() / ".config" / "argocd" / "config"
     if not config_path.exists():
-        print(f"  ✗ ArgoCD config not found at {config_path}")
-        print("    Run: argocd login --grpc-web", ARGOCD_SERVER)
-        sys.exit(1)
+        return ""
 
     text = config_path.read_text()
 
@@ -45,9 +43,7 @@ def get_argocd_token() -> str:
     # continuation of a long value).
     match = re.search(r"auth-token:\s*(\S.*)", text)
     if not match:
-        print("  ✗ No auth-token found in ArgoCD config")
-        print("    Run: argocd login --grpc-web", ARGOCD_SERVER)
-        sys.exit(1)
+        return ""
 
     # Start with the first part on the auth-token line
     token_parts = [match.group(1).strip()]
@@ -63,12 +59,74 @@ def get_argocd_token() -> str:
         else:
             break
 
-    token = "".join(token_parts)
+    return "".join(token_parts)
+
+
+def _jwt_expiry(token: str) -> float | None:
+    """Decode a JWT payload and return the 'exp' claim, or None."""
+    try:
+        payload_b64 = token.split(".")[1]
+        # Add padding
+        payload_b64 += "=" * (-len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        return payload.get("exp")
+    except Exception:
+        return None
+
+
+def _token_is_expired(token: str) -> bool:
+    """Return True if the JWT token is expired (or unparseable)."""
+    exp = _jwt_expiry(token)
+    if exp is None:
+        return False  # Can't determine — assume it's fine
+    return time.time() > exp
+
+
+def _refresh_token() -> str:
+    """Run `argocd login` interactively to refresh the token."""
+    argocd_bin = shutil.which("argocd")
+    if not argocd_bin:
+        print("  ✗ argocd CLI not found in PATH — cannot refresh token")
+        print(f"    Install argocd CLI or run: argocd login --grpc-web {ARGOCD_SERVER}")
+        sys.exit(1)
+
+    print(f"  → Running: argocd login --grpc-web {ARGOCD_SERVER} --sso --sso-port 8085")
+    result = subprocess.run(
+        [argocd_bin, "login", "--grpc-web", ARGOCD_SERVER, "--sso", "--sso-port", "8085"],
+        stdin=sys.stdin,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
+    if result.returncode != 0:
+        print("  ✗ argocd login failed")
+        sys.exit(1)
+
+    token = _read_token_from_config()
+    if not token:
+        print("  ✗ Token still missing after login")
+        sys.exit(1)
+    return token
+
+
+def get_argocd_token() -> str:
+    """Read the auth token from the ArgoCD CLI config, refreshing if expired."""
+    config_path = Path.home() / ".config" / "argocd" / "config"
+    token = _read_token_from_config()
 
     if not token:
-        print("  ✗ No auth-token found in ArgoCD config")
-        print("    Run: argocd login --grpc-web", ARGOCD_SERVER)
-        sys.exit(1)
+        print(f"  ✗ No auth-token found in {config_path}")
+        print(f"    Attempting to log in …")
+        token = _refresh_token()
+
+    if _token_is_expired(token):
+        exp = _jwt_expiry(token)
+        exp_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(exp)) if exp else "?"
+        print(f"  ⚠ Token expired at {exp_str} — refreshing …")
+        token = _refresh_token()
+
+        if _token_is_expired(token):
+            print("  ✗ Token still expired after refresh")
+            sys.exit(1)
 
     return token
 
