@@ -14,9 +14,9 @@ controller:
       memory: 4Gi
   # Increase probe tolerance — app-controller GC pauses cause intermittent timeouts
   readinessProbe:
-    timeoutSeconds: 5
+    timeoutSeconds: 10
     failureThreshold: 5
-    periodSeconds: 15
+    periodSeconds: 20
 
 server:
   autoscaling:
@@ -59,13 +59,13 @@ repoServer:
       memory: 1Gi
   # Increase probe tolerance — heavy template rendering causes transient timeouts
   livenessProbe:
-    timeoutSeconds: 5
+    timeoutSeconds: 10
     failureThreshold: 5
-    periodSeconds: 15
+    periodSeconds: 20
   readinessProbe:
-    timeoutSeconds: 5
+    timeoutSeconds: 10
     failureThreshold: 5
-    periodSeconds: 15
+    periodSeconds: 20
 
 applicationSet:
   replicas: 2
@@ -92,9 +92,10 @@ configs:
     server.url: https://argocd.cluster.integratn.tech
   
   cm:
-    # Reduce reconciliation interval from 180s default to 30s
+    # Reduce reconciliation interval from 180s default to 60s
     # Ensures state store changes from Kratix are picked up quickly
-    timeout.reconciliation: 30s
+    # without over-stressing the controller (30s was causing probe flaps)
+    timeout.reconciliation: 60s
 
     # Authentik OIDC configuration
     oidc.config: |

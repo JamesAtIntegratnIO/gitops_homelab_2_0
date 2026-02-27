@@ -67,6 +67,10 @@ spec:
                       - "redis"
                       - "busybox:*"
                       - "busybox"
+                      - "memcached:*"
+                      - "memcached"
+                      - "python:*"
+                      - "python"
                       - "curlimages/*"
                       # Docker Hub shorthand — approved organizations
                       - "grafana/*"
@@ -76,3 +80,4 @@ spec:
                       - "redimp/*"
                       - "metio/*"
                       - "prom/*"
+                      - "linuxserver/*"
