@@ -63,6 +63,10 @@ rules:
   - apiGroups: ["autoscaling"]
     resources: ["horizontalpodautoscalers"]
     verbs: ["get", "list", "watch"]
+  # Vertical Pod Autoscaler
+  - apiGroups: ["autoscaling.k8s.io"]
+    resources: ["verticalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
   # Metrics API (for pods top, nodes top)
   - apiGroups: ["metrics.k8s.io"]
     resources: ["pods", "nodes"]
