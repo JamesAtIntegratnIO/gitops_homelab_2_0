@@ -10,7 +10,7 @@ data:
   EMBEDDING_MODEL: "nomic-embed-text"
   REPOS: "jamesatintegratnio/gitops_homelab_2_0,jamesatintegratnio/kratix-platform-state"
   # File patterns to index
-  INCLUDE_PATTERNS: "*.yaml,*.yml,*.md,*.json,*.tf,*.sh,*.mmd,*.go"
+  INCLUDE_PATTERNS: "*.yaml,*.yml,*.md,*.json,*.tf,*.sh,*.mmd,*.go,*.py,*.js"
   # Directories/patterns to skip
   EXCLUDE_PATTERNS: "vendor/,node_modules/,*.lock,.git/,bin/,result/"
   # Max tokens per chunk
