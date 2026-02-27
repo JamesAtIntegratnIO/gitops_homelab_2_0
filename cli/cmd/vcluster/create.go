@@ -1,13 +1,16 @@
 package vcluster
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
 	"github.com/jamesatintegratnio/hctl/internal/git"
+	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -53,6 +56,10 @@ var (
 
 	// ArgoCD app overrides
 	createChartVersion string
+
+	// Provisioning wait
+	createWait    bool
+	createTimeout int // seconds
 )
 
 func newCreateCmd() *cobra.Command {
@@ -126,6 +133,10 @@ Examples:
 
 	// ArgoCD app overrides
 	cmd.Flags().StringVar(&createChartVersion, "chart-version", "", "vCluster Helm chart version (default: platform default)")
+
+	// Provisioning wait
+	cmd.Flags().BoolVar(&createWait, "wait", true, "wait for provisioning to complete after commit")
+	cmd.Flags().IntVar(&createTimeout, "timeout", 300, "timeout in seconds when using --wait (default: 300)")
 
 	return cmd
 }
@@ -618,6 +629,84 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n%s\n", tui.DimStyle.Render("Next: ArgoCD will sync the resource and Kratix will provision the vCluster."))
 	fmt.Printf("%s\n", tui.DimStyle.Render("Monitor with: hctl vcluster status "+name))
 
+	// ── Wait for provisioning ────────────────────────────────────────
+	committed := gitMode == "auto" || (gitMode == "prompt" && interactive)
+	if createWait && committed {
+		if err := watchProvisioning(cfg, name, hostname, spec); err != nil {
+			// Non-fatal — the resource was already committed
+			fmt.Printf("\n%s %s\n", tui.WarningStyle.Render("⚠"), err.Error())
+			fmt.Printf("%s\n", tui.DimStyle.Render("The request was committed. Check status later: hctl vcluster status "+name))
+		}
+	}
+
+	return nil
+}
+
+// watchProvisioning runs the animated provisioning wait sequence.
+func watchProvisioning(cfg *config.Config, name, hostname string, spec platform.VClusterSpec) error {
+	client, err := kube.NewClient(cfg.KubeContext)
+	if err != nil {
+		return fmt.Errorf("connecting to cluster: %w", err)
+	}
+
+	ns := cfg.Platform.PlatformNamespace
+	timeout := time.Duration(createTimeout) * time.Second
+	poll := 3 * time.Second
+
+	steps := []tui.Step{
+		{
+			Title: "Request accepted",
+			Run: func() (string, error) {
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+				return platform.WaitForRequest(ctx, client, ns, name, poll)
+			},
+		},
+		{
+			Title: "Pipeline running",
+			Run: func() (string, error) {
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+				return platform.WaitForPipeline(ctx, client, ns, name, poll)
+			},
+		},
+		{
+			Title: "ArgoCD syncing",
+			Run: func() (string, error) {
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+				return platform.WaitForArgoSync(ctx, client, name, poll)
+			},
+		},
+		{
+			Title: "Cluster ready",
+			Run: func() (string, error) {
+				ctx, cancel := context.WithTimeout(context.Background(), timeout)
+				defer cancel()
+				return platform.WaitForClusterReady(ctx, client, name, poll)
+			},
+		},
+	}
+
+	fmt.Println()
+	_, err = tui.RunSteps("Provisioning "+name, steps)
+	if err != nil {
+		return err
+	}
+
+	// Collect and display summary
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	result, err := platform.CollectProvisionResult(ctx, client, ns, name)
+	if err != nil {
+		// Non-fatal — provisioning succeeded but summary collection failed
+		fmt.Printf("\n  %s %s is ready!\n", tui.SuccessStyle.Render("✅"), name)
+		fmt.Printf("  %s\n", tui.DimStyle.Render("Run 'hctl vcluster status "+name+"' for details"))
+		return nil
+	}
+
+	fmt.Print(platform.FormatProvisionSummary(result, hostname))
 	return nil
 }
 
