@@ -12,6 +12,11 @@ controller:
     limits:
       cpu: "2"
       memory: 4Gi
+  # Increase probe tolerance — app-controller GC pauses cause intermittent timeouts
+  readinessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+    periodSeconds: 15
 
 server:
   autoscaling:
@@ -50,8 +55,17 @@ repoServer:
       cpu: 250m
       memory: 512Mi
     limits:
-      cpu: "1"
+      cpu: "2"     # Raised from 1 — CPUThrottlingHigh fires during Helm template rendering
       memory: 1Gi
+  # Increase probe tolerance — heavy template rendering causes transient timeouts
+  livenessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+    periodSeconds: 15
+  readinessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 5
+    periodSeconds: 15
 
 applicationSet:
   replicas: 2

@@ -32,12 +32,14 @@ spec:
                 - kube-system
                 - kube-public
                 - kube-node-lease
+                - trivy-system  # scan pods use dynamic image refs
       validate:
         message: >-
           Image '{{request.object.spec.containers[].image}}' is from an unapproved
           registry. Allowed registries: docker.io, ghcr.io, quay.io,
           registry.k8s.io, mirror.gcr.io, ecr-public.aws.com, lscr.io,
-          syntasso-community.docker.reo.dev
+          syntasso-community.docker.reo.dev, us-docker.pkg.dev, plus
+          approved Docker Hub organizations.
         foreach:
           - list: "request.object.spec.[initContainers, ephemeralContainers, containers][]"
             deny:
@@ -46,6 +48,7 @@ spec:
                   - key: "{{ element.image }}"
                     operator: AnyNotIn
                     value:
+                      # Fully-qualified registries
                       - "docker.io/*"
                       - "ghcr.io/*"
                       - "quay.io/*"
@@ -54,3 +57,22 @@ spec:
                       - "ecr-public.aws.com/*"
                       - "lscr.io/*"
                       - "syntasso-community.docker.reo.dev/*"
+                      - "us-docker.pkg.dev/*"  # Google Artifact Registry (Fairwinds/Goldilocks)
+                      # Docker Hub shorthand — library images (no org prefix)
+                      - "alpine:*"
+                      - "alpine"
+                      - "node:*"
+                      - "node"
+                      - "redis:*"
+                      - "redis"
+                      - "busybox:*"
+                      - "busybox"
+                      - "curlimages/*"
+                      # Docker Hub shorthand — approved organizations
+                      - "grafana/*"
+                      - "bitnami/*"
+                      - "coredns/*"
+                      - "qdrant/*"
+                      - "redimp/*"
+                      - "metio/*"
+                      - "prom/*"

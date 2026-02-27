@@ -43,6 +43,9 @@ spec:
         - ports:
             - port: "10250"
               protocol: TCP
+            # K8s service proxy (hctl alerts, kubectl proxy) to Prometheus
+            - port: "9090"
+              protocol: TCP
   egress:
     - toEntities:
         - kube-apiserver
@@ -61,6 +64,17 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Kubernetes API server proxy (kubectl proxy, hctl alerts, service proxy)
+    - from:
+        - ipBlock:
+            cidr: 10.0.4.101/32
+        - ipBlock:
+            cidr: 10.0.4.102/32
+        - ipBlock:
+            cidr: 10.0.4.103/32
+      ports:
+        - protocol: TCP
+          port: 9090
     # nginx-gateway for UI access
     - from:
         - namespaceSelector:

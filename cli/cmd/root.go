@@ -56,6 +56,7 @@ func init() {
 	rootCmd.AddCommand(diagnoseCmd)
 	rootCmd.AddCommand(reconcileCmd)
 	rootCmd.AddCommand(contextCmd)
+	rootCmd.AddCommand(alertsCmd)
 	rootCmd.AddCommand(completionCmd)
 
 	rootCmd.AddCommand(vcluster.NewCmd())

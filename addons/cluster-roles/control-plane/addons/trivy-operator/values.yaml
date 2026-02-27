@@ -39,13 +39,13 @@ trivy:
   mode: Standalone
   # Only report actionable severities
   severity: LOW,MEDIUM,HIGH,CRITICAL
-  # Resource limits for scan jobs
+  # Resource limits for scan jobs — raised CPU to reduce CPUThrottling alerts
   resources:
     requests:
-      cpu: 100m
-      memory: 100M
+      cpu: 200m
+      memory: 200M
     limits:
-      cpu: 500m
+      cpu: "1"    # Raised from 500m — scan jobs CPU-throttle and fail
       memory: 500M
 
 # Enable Prometheus ServiceMonitor for metrics scraping
