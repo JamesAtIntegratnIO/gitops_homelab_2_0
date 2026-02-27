@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/jamesatintegratnio/hctl/cmd/addon"
+	"github.com/jamesatintegratnio/hctl/cmd/ai"
 	"github.com/jamesatintegratnio/hctl/cmd/deploy"
 	"github.com/jamesatintegratnio/hctl/cmd/scale"
 	"github.com/jamesatintegratnio/hctl/cmd/secret"
@@ -62,6 +63,7 @@ func init() {
 	rootCmd.AddCommand(addon.NewCmd())
 	rootCmd.AddCommand(scale.NewCmd())
 	rootCmd.AddCommand(secret.NewCmd())
+	rootCmd.AddCommand(ai.NewCmd())
 }
 
 func initConfig() {
