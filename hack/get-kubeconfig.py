@@ -171,6 +171,66 @@ def get_ca_via_openssl(host: str, port: int = 6443) -> str:
     return ""
 
 
+# ArgoCD app name for the cluster-admin-sa addon
+SA_APP_NAME = f"cluster-admin-sa-{CLUSTER_NAME}"
+SA_SECRET_NAME = "cluster-admin-sa-token"
+SA_SECRET_NS = "kube-system"
+
+
+def _fetch_sa_token_via_argocd(argocd_token: str) -> str:
+    """Fetch the cluster-admin SA token Secret via the ArgoCD resource API.
+
+    ArgoCD manages the cluster-admin-sa addon. The live Secret contains a
+    K8s-generated bearer token we can use for kubectl access.
+    """
+    # First try the ArgoCD CLI (handles auth & TLS nicely)
+    argocd_bin = shutil.which("argocd")
+    if argocd_bin:
+        try:
+            result = subprocess.run(
+                [
+                    argocd_bin, "app", "get-resource", SA_APP_NAME,
+                    "--grpc-web",
+                    "--kind", "Secret",
+                    "--resource-name", SA_SECRET_NAME,
+                    "--namespace", SA_SECRET_NS,
+                    "-o", "json",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                secret = json.loads(result.stdout)
+                token_b64 = secret.get("data", {}).get("token", "")
+                if token_b64:
+                    return base64.b64decode(token_b64).decode()
+        except Exception as exc:
+            print(f"    (CLI fallback failed: {exc})")
+
+    # Fallback: direct API call
+    try:
+        params = (
+            f"namespace={SA_SECRET_NS}"
+            f"&resourceName={SA_SECRET_NAME}"
+            f"&version=v1&kind=Secret"
+        )
+        resource = argocd_get(
+            f"/api/v1/applications/{SA_APP_NAME}/resource?{params}",
+            argocd_token,
+        )
+        manifest = resource.get("manifest", "")
+        if manifest:
+            secret = json.loads(manifest)
+            token_b64 = secret.get("data", {}).get("token", "")
+            if token_b64:
+                return base64.b64decode(token_b64).decode()
+    except Exception as exc:
+        print(f"    (API fallback failed: {exc})")
+
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -225,81 +285,16 @@ def main():
         ca_pem = base64.b64decode(ca_data_b64).decode()
         print(f"  ✓ Using CA from ArgoCD ({len(ca_pem)} bytes)")
 
-    # 5. Check we have a bearer token — if not, try to create one via ArgoCD
+    # 5. If no bearer token, fetch the cluster-admin SA token via ArgoCD
     if not bearer_token:
         print("→ No bearer token in cluster config (in-cluster auth).")
-        print("  Attempting to create a project token via ArgoCD API …")
-        try:
-            # Create a long-lived project token for the default project
-            # This uses ArgoCD's token API: POST /api/v1/projects/{project}/roles/{role}/token
-            # First check if we can use the account API to generate a token
-            # Actually simplest: create a one-time use API key via ArgoCD account
-            token_resp = argocd_get("/api/v1/account/admin", token)
-            print(f"  Account: {token_resp.get('name', '?')}, enabled: {token_resp.get('enabled')}")
-        except Exception:
-            pass
-
-        # Best approach for in-cluster: use talosctl or create SA token.
-        # For now, generate a kubeconfig that uses `argocd` CLI as exec credential plugin.
-        print("  Using argocd CLI as kubectl exec credential plugin.")
-
-        argocd_bin = shutil.which("argocd")
-        if not argocd_bin:
-            print("  ✗ argocd CLI not found in PATH")
+        print("  Fetching cluster-admin-sa-token via ArgoCD resource API …")
+        bearer_token = _fetch_sa_token_via_argocd(token)
+        if not bearer_token:
+            print("  ✗ Could not retrieve SA token. Ensure the cluster-admin-sa addon is synced:")
+            print("    ArgoCD app: cluster-admin-sa-the-cluster")
             sys.exit(1)
-
-        kubeconfig = {
-            "apiVersion": "v1",
-            "kind": "Config",
-            "clusters": [
-                {
-                    "name": CLUSTER_NAME,
-                    "cluster": {
-                        "server": api_server,
-                        "certificate-authority-data": ca_data_b64,
-                    },
-                }
-            ],
-            "contexts": [
-                {
-                    "name": CLUSTER_NAME,
-                    "context": {
-                        "cluster": CLUSTER_NAME,
-                        "user": f"{CLUSTER_NAME}-admin",
-                    },
-                }
-            ],
-            "current-context": CLUSTER_NAME,
-            "users": [
-                {
-                    "name": f"{CLUSTER_NAME}-admin",
-                    "user": {
-                        "token": token,  # Use the ArgoCD JWT directly — won't work against K8s API
-                    },
-                }
-            ],
-        }
-
-        # Actually the ArgoCD JWT won't authenticate against the K8s API server.
-        # The real solution: talk to K8s through ArgoCD's resource proxy.
-        # But that's not enabled.
-        #
-        # Best remaining option: use talosctl to get a real kubeconfig.
-        print("\n⚠  This cluster uses in-cluster auth — ArgoCD has no external bearer token.")
-        print("   The generated kubeconfig will NOT work for kubectl directly.")
-        print("\n   To get a working kubeconfig, use one of:")
-        print(f"     talosctl kubeconfig --nodes 10.0.4.101 --endpoints 10.0.4.101")
-        print(f"     # Or create a ServiceAccount + token on the cluster")
-        print(f"\n   For now, use ArgoCD CLI for cluster operations:")
-        print(f"     argocd app logs <app> --grpc-web")
-        print(f"     argocd app resources <app> --grpc-web")
-
-        # Still write the kubeconfig with the CA for reference
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w") as f:
-            json.dump(kubeconfig, f, indent=2)
-        print(f"\n✓ Partial kubeconfig written to {output_path} (CA + server only)")
-        return
+        print(f"  ✓ SA bearer token retrieved ({len(bearer_token)} chars)")
 
     # 6. Write kubeconfig
     kubeconfig = {
