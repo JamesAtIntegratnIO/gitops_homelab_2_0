@@ -180,10 +180,88 @@ kubectl get validatingwebhookconfigurations | grep kyverno
 
 **Scenario:** Development team needs isolated cluster for testing.
 
-**Steps:**
+> **Philosophy:** Stop thinking "CRDs" — start thinking "Platform Product."
+> The `hctl` CLI turns vCluster provisioning into a self-service developer
+> experience. It generates validated YAML, commits to Git, and monitors
+> readiness — all in one command.
+
+#### Option A: One-liner (scripted / CI)
+
 ```bash
-# 1. Create ResourceRequest YAML
-cat > platform/vclusters/dev-team-1.yaml <<EOF
+hctl vcluster create dev-team-1 --preset dev --auto-commit
+```
+
+This single command will:
+1. **Generate** a validated `VClusterOrchestratorV2` resource with all defaults
+2. **Write** it to `platform/vclusters/dev-team-1.yaml`
+3. **Commit & push** to Git (triggers ArgoCD sync automatically)
+
+#### Option B: Interactive wizard (recommended for first-time use)
+
+```bash
+hctl vcluster create
+```
+
+The wizard walks through each option:
+- vCluster name
+- Preset (`dev` — lightweight / `prod` — HA with etcd)
+- External hostname (defaults to `<name>.cluster.integratn.tech`)
+- NFS egress toggle
+- Commit-and-push confirmation
+
+#### Monitoring & access
+
+```bash
+# Watch provisioning progress (status contract + diagnostic chain)
+hctl vcluster status dev-team-1
+
+# Once ready, extract kubeconfig
+hctl vcluster kubeconfig dev-team-1
+# => Written to ~/.kube/hctl/dev-team-1.yaml
+
+# Set KUBECONFIG and verify
+export KUBECONFIG=$(hctl vcluster kubeconfig dev-team-1)
+kubectl get nodes
+kubectl get namespaces
+```
+
+#### Production preset (HA, etcd, persistence)
+
+```bash
+hctl vcluster create my-prod \
+  --preset prod \
+  --replicas 3 \
+  --hostname my-prod.cluster.integratn.tech \
+  --auto-commit
+```
+
+**Expected Duration:** 5-10 minutes (including ArgoCD sync and pod readiness)
+
+#### Share kubeconfig with team
+
+```bash
+# Upload to 1Password (secure sharing)
+op document create ~/.kube/hctl/dev-team-1.yaml \
+  --title "dev-team-1-kubeconfig" \
+  --vault homelab
+
+# Or share via secure channel (avoid email/Slack)
+```
+
+#### Advanced: force-sync after creation
+
+```bash
+# If ArgoCD apps need a nudge after provisioning
+hctl vcluster sync dev-team-1
+hctl vcluster sync dev-team-1 --force  # sync all apps, not just failed
+```
+
+<details>
+<summary>Platform engineer reference: what hctl generates under the hood</summary>
+
+The CLI produces a `VClusterOrchestratorV2` resource equivalent to:
+
+```yaml
 apiVersion: platform.integratn.tech/v1alpha1
 kind: VClusterOrchestratorV2
 metadata:
@@ -191,10 +269,10 @@ metadata:
   namespace: platform-requests
 spec:
   name: dev-team-1
-  targetNamespace: vcluster-dev-team-1
-  projectName: vcluster-dev-team-1
+  targetNamespace: dev-team-1
+  projectName: dev-team-1
   vcluster:
-    preset: dev  # Lightweight for development
+    preset: dev
   integrations:
     certManager:
       clusterIssuerSelectorLabels:
@@ -203,55 +281,21 @@ spec:
       clusterStoreSelectorLabels:
         integratn.tech/cluster-secret-store: onepassword-store
     argocd:
-      environment: development
-      clusterLabels:
-        team: dev-team-1
+      environment: production
+      clusterLabels: {}
+  exposure:
+    hostname: dev-team-1.cluster.integratn.tech
+    apiPort: 443
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
     targetRevision: 0.31.0
-EOF
-
-# 2. Commit and push
-git add platform/vclusters/dev-team-1.yaml
-git commit -m "Add dev-team-1 vCluster for development testing"
-git push
-
-# 3. Sync platform-vclusters Application
-argocd app sync platform-vclusters
-
-# 4. Watch Kratix pipeline execution (v2 single pipeline)
-kubectl get pods -n platform-requests | grep dev-team-1-vco-v2-configure
-kubectl logs -n platform-requests <pipeline-pod> -f
-
-# 5. Sync state reconciler
-argocd app sync kratix-state-reconciler
-
-# 6. Wait for vCluster to be ready
-kubectl get statefulset -n vcluster-dev-team-1 dev-team-1
-kubectl wait --for=condition=ready pod -l app=vcluster -n vcluster-dev-team-1 --timeout=300s
-
-# 7. Retrieve kubeconfig for developers
-kubectl get secret -n vcluster-dev-team-1 dev-team-1-kubeconfig \
-  -o jsonpath='{.data.kubeconfig}' | base64 -d > ~/.kube/dev-team-1
-
-# 8. Test access
-export KUBECONFIG=~/.kube/dev-team-1
-kubectl get nodes
-kubectl get namespaces
 ```
 
-**Expected Duration:** 5-10 minutes
+You can always inspect the generated file at `platform/vclusters/<name>.yaml`
+before it is committed (use `gitMode: prompt` in your `hctl` config).
 
-**Share kubeconfig with team:**
-```bash
-# Upload to 1Password (secure sharing)
-op document create ~/.kube/dev-team-1 \
-  --title "dev-team-1-kubeconfig" \
-  --vault homelab
-
-# Or share via secure channel (avoid email/Slack)
-```
+</details>
 
 ### Workflow 4: Update Promise Pipeline
 
