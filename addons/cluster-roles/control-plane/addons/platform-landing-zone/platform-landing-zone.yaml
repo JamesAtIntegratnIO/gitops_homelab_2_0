@@ -381,6 +381,226 @@ data:
           "collapsed": false,
           "gridPos": {"h": 1, "w": 24, "x": 0, "y": 35},
           "id": 104,
+          "title": "Control Plane Golden Signals",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "99th percentile request latency to the Kubernetes API server. High values (>1s) indicate the control plane is under load or etcd is slow. Sustained high latency affects all cluster operations including ArgoCD syncs and Kratix reconciliations.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.5}, {"color": "red", "value": 1}]},
+              "unit": "s",
+              "decimals": 3
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 36},
+          "id": 20,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "API Server p99 Latency",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb!~\"WATCH|CONNECT\"}[5m])))", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Rate of API server requests returning 5xx errors. Any sustained error rate indicates control plane issues — could be etcd problems, webhook failures, or resource exhaustion.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.1}]},
+              "unit": "reqps",
+              "decimals": 3
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 36},
+          "id": 21,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "API Server Error Rate",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(rate(apiserver_request_total{code=~\"5..\"}[5m])) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "etcd database fragmentation ratio. Values close to 1.0 mean the DB is well-compacted. Below 0.5 means >50% wasted space — consider running etcdctl defrag. Talos auto-compacts but doesn't auto-defrag.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 0.5}, {"color": "green", "value": 0.8}]},
+              "unit": "percentunit",
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 36},
+          "id": 22,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "etcd Fragmentation Ratio",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "(etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes) or vector(1)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Current etcd database size. The default quota is 2GB for Talos. Approaching the quota causes the cluster to go read-only. Monitor for steady growth — if it doesn't plateau, investigate excessive resource creation.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1073741824}, {"color": "red", "value": 1610612736}]},
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 12, "y": 36},
+          "id": 23,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "etcd DB Size",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "etcd_mvcc_db_total_size_in_bytes", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Kratix controller reconciliation error rate over the last 10m. Above 5% is critical — promise fulfillment is impaired. Check Kratix controller logs for root cause.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]},
+              "unit": "percent",
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 16, "y": 36},
+          "id": 24,
+          "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Kratix Error Rate",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "(sum(rate(controller_runtime_reconcile_errors_total{job=~\".*kratix.*\"}[10m])) / clamp_min(sum(rate(controller_runtime_reconcile_total{job=~\".*kratix.*\"}[10m])), 0.001)) * 100 or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Recent ArgoCD sync failures (non-Succeeded syncs) in the last hour. Correlates with OutOfSync count — if syncs are failing, apps won't converge to the desired state.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]},
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 4, "w": 4, "x": 20, "y": 36},
+          "id": 25,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "ArgoCD Sync Failures (1h)",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(increase(argocd_app_sync_total{phase!=\"Succeeded\"}[1h])) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "API server request latency over time (p50, p95, p99) excluding watch/connect. Shows control plane responsiveness trends. Correlated latency spikes with etcd fragmentation or high reconciliation rates may indicate resource pressure.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2, "pointSize": 5, "showPoints": "never"},
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+          "id": 26,
+          "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "API Server Latency (p50/p95/p99)",
+          "type": "timeseries",
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "histogram_quantile(0.50, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb!~\"WATCH|CONNECT\"}[5m])))", "legendFormat": "p50", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "histogram_quantile(0.95, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb!~\"WATCH|CONNECT\"}[5m])))", "legendFormat": "p95", "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "histogram_quantile(0.99, sum by (le) (rate(apiserver_request_duration_seconds_bucket{verb!~\"WATCH|CONNECT\"}[5m])))", "legendFormat": "p99", "refId": "C"}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "etcd fragmentation ratio over time. Values approaching 0.5 indicate the database needs defragmentation. Track trends — a slowly declining ratio is normal between compactions.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 20, "lineWidth": 2, "pointSize": 5, "showPoints": "never"},
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+          "id": 27,
+          "options": {"legend": {"calcs": ["mean", "min"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "etcd Fragmentation Over Time",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "etcd_mvcc_db_total_size_in_use_in_bytes / etcd_mvcc_db_total_size_in_bytes", "legendFormat": "in-use / total", "refId": "A"}]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 48},
+          "id": 106,
+          "title": "Capacity Headroom",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Cluster-wide CPU utilization: actual usage vs allocatable capacity. Shows how much headroom remains before the cluster is saturated. Above 80% is a warning zone — schedule node additions.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "none"}},
+              "unit": "short"
+            },
+            "overrides": [
+              {"matcher": {"id": "byName", "options": "Allocatable"}, "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}, {"id": "custom.fillOpacity", "value": 5}, {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [10, 10]}}]},
+              {"matcher": {"id": "byName", "options": "Requested"}, "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]},
+              {"matcher": {"id": "byName", "options": "Used"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}
+            ]
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 49},
+          "id": 28,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "CPU: Used vs Requested vs Allocatable",
+          "type": "timeseries",
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(kube_node_status_allocatable{resource=\"cpu\"})", "legendFormat": "Allocatable", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(kube_pod_resource_request{resource=\"cpu\"})", "legendFormat": "Requested", "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\"}[5m]))", "legendFormat": "Used", "refId": "C"}
+          ]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Cluster-wide memory utilization: actual working set vs allocatable capacity. Memory is less elastic than CPU — OOM kills happen at the limit. Above 80% utilization warrants attention.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "palette-classic"},
+              "custom": {"axisCenteredZero": false, "drawStyle": "line", "fillOpacity": 30, "lineWidth": 2, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "none"}},
+              "unit": "bytes"
+            },
+            "overrides": [
+              {"matcher": {"id": "byName", "options": "Allocatable"}, "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}, {"id": "custom.fillOpacity", "value": 5}, {"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [10, 10]}}]},
+              {"matcher": {"id": "byName", "options": "Requested"}, "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]},
+              {"matcher": {"id": "byName", "options": "Used"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}
+            ]
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 49},
+          "id": 29,
+          "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Memory: Used vs Requested vs Allocatable",
+          "type": "timeseries",
+          "targets": [
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(kube_node_status_allocatable{resource=\"memory\"})", "legendFormat": "Allocatable", "refId": "A"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(kube_pod_resource_request{resource=\"memory\"})", "legendFormat": "Requested", "refId": "B"},
+            {"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "sum(container_memory_working_set_bytes{container!=\"\"})", "legendFormat": "Used", "refId": "C"}
+          ]
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 57},
+          "id": 105,
           "title": "Active Alerts",
           "type": "row"
         },
@@ -419,7 +639,7 @@ data:
               }
             ]
           },
-          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 36},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 58},
           "id": 15,
           "options": {
             "showHeader": true,
@@ -452,15 +672,15 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 44},
-          "id": 105,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 66},
+          "id": 107,
           "title": "Recent Error Logs",
           "type": "row"
         },
         {
           "datasource": {"type": "loki", "uid": "${lokids}"},
           "description": "Recent error, panic, and fatal log lines across all namespaces. Use the namespace and pod filters to narrow down.",
-          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 45},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 67},
           "id": 16,
           "options": {
             "showTime": true,

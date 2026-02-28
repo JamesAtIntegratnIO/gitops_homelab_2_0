@@ -170,6 +170,52 @@ data:
           "type": "table",
           "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "argocd_app_info{project=~\"$project\"}", "format": "table", "instant": true, "refId": "A"}],
           "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "__name__": true, "instance": true, "job": true, "namespace": true, "dest_server": true, "operation": true}, "indexByName": {"name": 0, "project": 1, "sync_status": 2, "health_status": 3, "dest_namespace": 4, "repo": 5}, "renameByName": {"name": "Application", "project": "Project", "sync_status": "Sync Status", "health_status": "Health Status", "dest_namespace": "Namespace", "repo": "Repository"}}}]
+        },
+        {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 43}, "id": 105, "title": "Actionable GitOps", "type": "row"},
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Applications currently in Degraded health for longer than 5 minutes. This is an SLO-style indicator — zero is the target. Any value > 0 means a workload has been unhealthy long enough to warrant investigation, not just a transient deploy.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 44},
+          "id": 14,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "Degraded > 5m (SLO)",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(min_over_time(argocd_app_info{project=~\"$project\", health_status=\"Degraded\"}[5m])) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Applications currently OutOfSync for longer than 5 minutes. Brief OutOfSync during deploys is normal — sustained OutOfSync indicates failed syncs, merge conflicts, or disabled auto-sync that needs attention.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 3}]}}, "overrides": []},
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 44},
+          "id": 15,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "OutOfSync > 5m",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(min_over_time(argocd_app_info{project=~\"$project\", sync_status=\"OutOfSync\"}[5m])) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Sync failure rate per application over the selected time range. Apps at the top fail the most — investigate these first. Common causes: bad Helm values, missing CRDs, RBAC issues, or resource conflicts.",
+          "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}, "custom": {"axisCenteredZero": false, "drawStyle": "bars", "fillOpacity": 80, "lineWidth": 1, "pointSize": 5, "showPoints": "never", "stacking": {"group": "A", "mode": "none"}}, "unit": "short"}, "overrides": [{"matcher": {"id": "byRegexp", "options": ".*"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]}]},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 44},
+          "id": 16,
+          "options": {"legend": {"calcs": ["sum"], "displayMode": "table", "placement": "bottom", "sortBy": "Total", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "title": "Top Sync Failures by App",
+          "type": "timeseries",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "topk(10, sum by (name) (increase(argocd_app_sync_total{project=~\"$project\", phase!=\"Succeeded\"}[$__rate_interval]))) > 0", "legendFormat": "{{ name }}", "refId": "A"}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Applications currently not in a healthy+synced state, sorted by how long they've been in that state. The longer an app has been unhealthy or out-of-sync, the higher priority it should be for investigation.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false}}, "overrides": [{"matcher": {"id": "byName", "options": "Sync Status"}, "properties": [{"id": "mappings", "value": [{"type": "value", "options": {"Synced": {"text": "✓ Synced", "color": "green", "index": 0}, "OutOfSync": {"text": "✗ OutOfSync", "color": "red", "index": 1}}}]}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}}]}, {"matcher": {"id": "byName", "options": "Health Status"}, "properties": [{"id": "mappings", "value": [{"type": "value", "options": {"Healthy": {"text": "✓ Healthy", "color": "green", "index": 0}, "Degraded": {"text": "✗ Degraded", "color": "red", "index": 1}, "Progressing": {"text": "↻ Progressing", "color": "blue", "index": 2}, "Missing": {"text": "∅ Missing", "color": "orange", "index": 3}}}]}, {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}}]}]},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
+          "id": 17,
+          "options": {"showHeader": true, "sortBy": [{"desc": true, "displayName": "Health Status"}], "cellHeight": "sm", "footer": {"show": true, "countRows": true, "reducer": ["count"]}},
+          "title": "Unhealthy / OutOfSync Applications",
+          "type": "table",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "argocd_app_info{project=~\"$project\", health_status!=\"Healthy\"} or argocd_app_info{project=~\"$project\", sync_status!=\"Synced\"}", "format": "table", "instant": true, "refId": "A"}],
+          "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "__name__": true, "instance": true, "job": true, "namespace": true, "dest_server": true, "operation": true, "repo": true, "revision": true, "autosync_enabled": true, "operation_message": true, "operation_retry_count": true}, "indexByName": {"name": 0, "project": 1, "sync_status": 2, "health_status": 3, "dest_namespace": 4}, "renameByName": {"name": "Application", "project": "Project", "sync_status": "Sync Status", "health_status": "Health Status", "dest_namespace": "Namespace"}}}]
         }
       ],
       "refresh": "30s",
