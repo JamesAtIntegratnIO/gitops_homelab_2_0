@@ -7,6 +7,13 @@ nginxGateway:
   snippetsFilters:
     enable: true
 
+# Disable the built-in cert-generator Helm hook Job.
+# TLS secrets (server-tls, agent-tls) already exist and the Job was a no-op
+# (overwrite: false). Disabling avoids ArgoCD hook lifecycle conflicts with
+# immutable Job spec.template on syncs.
+certGenerator:
+  enable: false
+
 gateways:
   - name: nginx-gateway
     namespace: nginx-gateway
