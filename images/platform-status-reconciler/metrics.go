@@ -82,6 +82,52 @@ var (
 		Name:      "reconciles_total",
 		Help:      "Total number of reconcile cycles completed",
 	})
+
+	// --- Workload metrics ---
+
+	workloadPhase = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "platform",
+		Subsystem: "workload",
+		Name:      "phase_info",
+		Help:      "Current phase of a workload ArgoCD app (1=active for the labeled phase)",
+	}, []string{"name", "cluster", "namespace", "phase"})
+
+	workloadArgoSynced = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "platform",
+		Subsystem: "workload",
+		Name:      "argocd_synced",
+		Help:      "Whether workload ArgoCD app is synced (1=synced, 0=not)",
+	}, []string{"name", "cluster", "namespace"})
+
+	workloadArgoHealthy = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "platform",
+		Subsystem: "workload",
+		Name:      "argocd_healthy",
+		Help:      "Whether workload ArgoCD app is healthy (1=healthy, 0=not)",
+	}, []string{"name", "cluster", "namespace"})
+
+	// --- Addon metrics ---
+
+	addonPhase = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "platform",
+		Subsystem: "addon",
+		Name:      "phase_info",
+		Help:      "Current phase of an addon ArgoCD app (1=active for the labeled phase)",
+	}, []string{"name", "cluster", "environment", "namespace", "phase"})
+
+	addonArgoSynced = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "platform",
+		Subsystem: "addon",
+		Name:      "argocd_synced",
+		Help:      "Whether addon ArgoCD app is synced (1=synced, 0=not)",
+	}, []string{"name", "cluster", "environment", "namespace"})
+
+	addonArgoHealthy = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "platform",
+		Subsystem: "addon",
+		Name:      "argocd_healthy",
+		Help:      "Whether addon ArgoCD app is healthy (1=healthy, 0=not)",
+	}, []string{"name", "cluster", "environment", "namespace"})
 )
 
 // RegisterMetrics registers all Prometheus metrics.
@@ -98,6 +144,12 @@ func RegisterMetrics() {
 		reconcileDuration,
 		reconcileErrors,
 		reconcileTotal,
+		workloadPhase,
+		workloadArgoSynced,
+		workloadArgoHealthy,
+		addonPhase,
+		addonArgoSynced,
+		addonArgoHealthy,
 	)
 }
 
@@ -142,4 +194,68 @@ func updateMetrics(name, namespace string, result *StatusResult) {
 	// Sub-app counts
 	vclusterSubAppsHealthy.WithLabelValues(name, namespace).Set(float64(result.Health.SubApps.Healthy))
 	vclusterSubAppsTotal.WithLabelValues(name, namespace).Set(float64(result.Health.SubApps.Total))
+}
+
+// allArgoPhases used for resetting workload/addon phase gauges.
+var allArgoPhases = []string{"Ready", "Progressing", "Degraded", "Suspended", "Unknown"}
+
+// updateWorkloadMetrics sets Prometheus gauges for a workload ArgoCD app.
+func updateWorkloadMetrics(status ArgoAppStatus) {
+	name := status.AddonName
+	if name == "" {
+		name = status.Name
+	}
+	cluster := status.ClusterName
+	ns := status.Namespace
+
+	for _, p := range allArgoPhases {
+		val := float64(0)
+		if p == status.Phase {
+			val = 1
+		}
+		workloadPhase.WithLabelValues(name, cluster, ns, p).Set(val)
+	}
+
+	synced := float64(0)
+	if status.SyncStatus == "Synced" {
+		synced = 1
+	}
+	workloadArgoSynced.WithLabelValues(name, cluster, ns).Set(synced)
+
+	healthy := float64(0)
+	if status.HealthStatus == "Healthy" {
+		healthy = 1
+	}
+	workloadArgoHealthy.WithLabelValues(name, cluster, ns).Set(healthy)
+}
+
+// updateAddonMetrics sets Prometheus gauges for an addon ArgoCD app.
+func updateAddonMetrics(status ArgoAppStatus) {
+	name := status.AddonName
+	if name == "" {
+		name = status.Name
+	}
+	cluster := status.ClusterName
+	env := status.Environment
+	ns := status.Namespace
+
+	for _, p := range allArgoPhases {
+		val := float64(0)
+		if p == status.Phase {
+			val = 1
+		}
+		addonPhase.WithLabelValues(name, cluster, env, ns, p).Set(val)
+	}
+
+	synced := float64(0)
+	if status.SyncStatus == "Synced" {
+		synced = 1
+	}
+	addonArgoSynced.WithLabelValues(name, cluster, env, ns).Set(synced)
+
+	healthy := float64(0)
+	if status.HealthStatus == "Healthy" {
+		healthy = 1
+	}
+	addonArgoHealthy.WithLabelValues(name, cluster, env, ns).Set(healthy)
 }

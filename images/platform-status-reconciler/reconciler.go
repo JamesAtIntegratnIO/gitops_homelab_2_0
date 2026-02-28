@@ -63,10 +63,14 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) {
 
 	log.Printf("Found %d VClusterOrchestratorV2 resources", len(list.Items))
 
+	// Collect vcluster names for workload/addon classification
+	var vclusterNames []string
+
 	for i := range list.Items {
 		vcr := &list.Items[i]
 		name := vcr.GetName()
 		ns := vcr.GetNamespace()
+		vclusterNames = append(vclusterNames, name)
 
 		start := time.Now()
 		result, err := r.reconcileOne(ctx, vcr)
@@ -94,6 +98,10 @@ func (r *Reconciler) ReconcileAll(ctx context.Context) {
 			result.Health.Workloads.Ready, result.Health.Workloads.Total,
 			result.Health.ArgoCD.SyncStatus, result.Health.ArgoCD.HealthStatus)
 	}
+
+	// Reconcile workload and addon ArgoCD Applications
+	r.ReconcileWorkloads(ctx, vclusterNames)
+	r.ReconcileAddons(ctx, vclusterNames)
 
 	log.Println("Reconcile cycle complete")
 }

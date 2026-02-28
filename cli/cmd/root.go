@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/jamesatintegratnio/hctl/cmd/addon"
 	"github.com/jamesatintegratnio/hctl/cmd/ai"
@@ -27,6 +28,8 @@ var (
 	outputFormat string
 	verboseFlag  bool
 	quietFlag    bool
+	watchFlag    bool
+	watchInterval time.Duration
 )
 
 var rootCmd = &cobra.Command{
@@ -61,6 +64,8 @@ func init() {
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(statusCmd)
+	statusCmd.Flags().BoolVarP(&watchFlag, "watch", "w", false, "continuously refresh status (structured output only)")
+	statusCmd.Flags().DurationVar(&watchInterval, "interval", 10*time.Second, "refresh interval for --watch")
 	rootCmd.AddCommand(diagnoseCmd)
 	rootCmd.AddCommand(reconcileCmd)
 	rootCmd.AddCommand(contextCmd)
@@ -127,7 +132,7 @@ var initCmd = &cobra.Command{
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Platform health dashboard",
-	Long:  "Shows node health, ArgoCD application status, Kratix promises, and active vClusters.",
+	Long:  "Shows node health, ArgoCD application status, Kratix promises, active vClusters, workloads, and addons.",
 	RunE:  runStatus,
 }
 

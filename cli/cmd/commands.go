@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -77,6 +78,14 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 func runStatus(cmd *cobra.Command, args []string) error {
 	cfg := config.Get()
+
+	// Structured output mode: collect all status as JSON/YAML
+	if tui.IsStructured() {
+		if watchFlag {
+			return runStatusWatch(cfg)
+		}
+		return runStatusOnce(cfg)
+	}
 
 	return tui.RunDashboard(tui.IconPlay+" Platform Status", []tui.DashboardSection{
 		{
@@ -229,7 +238,138 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				return tui.Table([]string{"NAME", "PRESET", "HOSTNAME", "STATUS"}, rows), nil
 			},
 		},
+		{
+			Title: "Workloads",
+			Load: func() (string, error) {
+				client, err := kube.NewClient(cfg.KubeContext)
+				if err != nil {
+					return "", err
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				// Get all addon=true apps and group by vcluster
+				ps, err := platform.CollectPlatformStatus(ctx, client, cfg.Platform.PlatformNamespace)
+				if err != nil {
+					return "", err
+				}
+				if len(ps.Workloads) == 0 {
+					return tui.DimStyle.Render("  (no workloads deployed)"), nil
+				}
+
+				var rows [][]string
+				for _, w := range ps.Workloads {
+					cluster := w.Labels["clusterName"]
+					phase := phaseStyled(w.Phase)
+					rows = append(rows, []string{w.Name, cluster, w.Namespace, w.ArgoCD.SyncStatus, phase})
+				}
+				return tui.Table([]string{"NAME", "CLUSTER", "NAMESPACE", "SYNC", "STATUS"}, rows), nil
+			},
+		},
+		{
+			Title: "Addons",
+			Load: func() (string, error) {
+				client, err := kube.NewClient(cfg.KubeContext)
+				if err != nil {
+					return "", err
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+
+				ps, err := platform.CollectPlatformStatus(ctx, client, cfg.Platform.PlatformNamespace)
+				if err != nil {
+					return "", err
+				}
+				if len(ps.Addons) == 0 {
+					return tui.DimStyle.Render("  (no addons)"), nil
+				}
+
+				// Group by environment
+				envGroups := make(map[string][]platform.ResourceStatus)
+				for _, a := range ps.Addons {
+					env := a.Labels["environment"]
+					if env == "" {
+						env = "(unset)"
+					}
+					envGroups[env] = append(envGroups[env], a)
+				}
+
+				var sb strings.Builder
+				for env, addons := range envGroups {
+					sb.WriteString(fmt.Sprintf("\n  %s\n", tui.TitleStyle.Render(env)))
+					var rows [][]string
+					for _, a := range addons {
+						phase := phaseStyled(a.Phase)
+						rows = append(rows, []string{a.Name, a.Namespace, a.ArgoCD.SyncStatus, phase})
+					}
+					sb.WriteString(tui.Table([]string{"NAME", "NAMESPACE", "SYNC", "STATUS"}, rows))
+				}
+				return sb.String(), nil
+			},
+		},
 	})
+}
+
+// phaseStyled returns a styled phase string for TUI display.
+func phaseStyled(phase string) string {
+	switch phase {
+	case "Ready":
+		return tui.SuccessStyle.Render("Ready")
+	case "Progressing":
+		return tui.InfoStyle.Render("Progressing")
+	case "Degraded":
+		return tui.WarningStyle.Render("Degraded")
+	case "Failed":
+		return tui.ErrorStyle.Render("Failed")
+	case "Suspended":
+		return tui.DimStyle.Render("Suspended")
+	default:
+		return tui.DimStyle.Render(phase)
+	}
+}
+
+// runStatusOnce collects platform status and prints it once in structured format.
+func runStatusOnce(cfg *config.Config) error {
+	client, err := kube.NewClient(cfg.KubeContext)
+	if err != nil {
+		return fmt.Errorf("connecting to cluster: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	ps, err := platform.CollectPlatformStatus(ctx, client, cfg.Platform.PlatformNamespace)
+	if err != nil {
+		return err
+	}
+	return tui.RenderOutput(ps, "")
+}
+
+// runStatusWatch continuously polls and prints platform status in structured format.
+func runStatusWatch(cfg *config.Config) error {
+	client, err := kube.NewClient(cfg.KubeContext)
+	if err != nil {
+		return fmt.Errorf("connecting to cluster: %w", err)
+	}
+
+	ticker := time.NewTicker(watchInterval)
+	defer ticker.Stop()
+
+	// Print immediately, then on each tick
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ps, err := platform.CollectPlatformStatus(ctx, client, cfg.Platform.PlatformNamespace)
+		cancel()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		} else {
+			_ = tui.RenderOutput(ps, "")
+		}
+
+		select {
+		case <-ticker.C:
+			continue
+		}
+	}
 }
 
 func runDiagnose(cmd *cobra.Command, args []string) error {
