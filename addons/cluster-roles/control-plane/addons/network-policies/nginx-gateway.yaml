@@ -172,6 +172,17 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # Qdrant dashboard (AI vector database)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: qdrant
+      ports:
+        - protocol: TCP
+          port: 6333
     # Control plane pod for config reload (pod listens on 8443, service maps 443→8443)
     - to:
         - podSelector:

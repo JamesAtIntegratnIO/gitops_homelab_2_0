@@ -171,6 +171,27 @@ spec:
         - protocol: TCP
           port: 8080
 ---
+# Allow ingress from nginx-gateway to Qdrant (for Qdrant Dashboard HTTPRoute)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-qdrant-ingress
+  namespace: ai
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: qdrant
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+      ports:
+        - protocol: TCP
+          port: 6333
+---
 # Allow egress to nginx-gateway pods (for OIDC/OAuth2 to Authentik via auth.cluster.integratn.tech)
 # Uses CiliumNetworkPolicy toEndpoints because traffic to LoadBalancer IPs gets DNAT'd
 # to the gateway pod IPs — toServices doesn't reliably match this path.
