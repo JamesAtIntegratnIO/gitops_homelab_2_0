@@ -30,6 +30,7 @@ var (
 	quietFlag    bool
 	watchFlag    bool
 	watchInterval time.Duration
+	bundlePath    string
 )
 
 var rootCmd = &cobra.Command{
@@ -39,6 +40,23 @@ var rootCmd = &cobra.Command{
 
 It provides self-service operations for vClusters, workload deployment (via Score),
 addon management, platform diagnostics, and day-to-day operational tasks.`,
+	Example: `  # Check platform health
+  hctl status
+
+  # Deploy a workload
+  hctl deploy init --template api
+  hctl deploy run
+
+  # Quick operations
+  hctl up myapp                  # scale up
+  hctl down myapp                # scale down
+  hctl logs myapp -f             # stream logs
+  hctl open myapp                # open in browser
+
+  # Troubleshoot
+  hctl doctor                    # check prerequisites
+  hctl diagnose my-vcluster      # trace lifecycle issues
+  hctl trace my-vcluster         # show delivery chain`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
@@ -67,6 +85,7 @@ func init() {
 	statusCmd.Flags().BoolVarP(&watchFlag, "watch", "w", false, "continuously refresh status (structured output only)")
 	statusCmd.Flags().DurationVar(&watchInterval, "interval", 10*time.Second, "refresh interval for --watch")
 	rootCmd.AddCommand(diagnoseCmd)
+	diagnoseCmd.Flags().StringVar(&bundlePath, "bundle", "", "export diagnostic bundle to file (JSON)")
 	rootCmd.AddCommand(reconcileCmd)
 	rootCmd.AddCommand(contextCmd)
 	rootCmd.AddCommand(alertsCmd)
@@ -84,6 +103,10 @@ func init() {
 	rootCmd.AddCommand(downCmd)
 	rootCmd.AddCommand(openCmd)
 	rootCmd.AddCommand(logsCmd)
+	rootCmd.AddCommand(doctorCmd)
+	rootCmd.AddCommand(traceCmd)
+
+	registerCompletions()
 }
 
 func initConfig() {
@@ -115,6 +138,15 @@ func initConfig() {
 	// Wire output format into TUI layer
 	if cfg.OutputFormat != "" {
 		tui.SetOutputFormat(cfg.OutputFormat)
+	}
+
+	// Validate config and warn on errors (verbose only)
+	if cfg.Verbose {
+		if errs := config.Validate(cfg); len(errs) > 0 {
+			for _, e := range errs {
+				fmt.Fprintf(os.Stderr, "config warning: %s\n", e)
+			}
+		}
 	}
 }
 

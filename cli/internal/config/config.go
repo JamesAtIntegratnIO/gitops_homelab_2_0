@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -129,4 +130,54 @@ func Get() *Config {
 		return Default()
 	}
 	return current
+}
+
+// ValidationError holds details about a config validation failure.
+type ValidationError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
+func (e ValidationError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Field, e.Message)
+}
+
+// Validate checks the configuration for common issues and returns any problems found.
+func Validate(cfg *Config) []ValidationError {
+	var errs []ValidationError
+
+	// Check gitMode
+	switch cfg.GitMode {
+	case "auto", "prompt", "generate", "stage-only":
+		// valid
+	case "":
+		errs = append(errs, ValidationError{"gitMode", "not set (defaulting to 'prompt')"})
+	default:
+		errs = append(errs, ValidationError{"gitMode", fmt.Sprintf("invalid value %q — must be auto, prompt, generate, or stage-only", cfg.GitMode)})
+	}
+
+	// Check outputFormat
+	switch cfg.OutputFormat {
+	case "", "text", "json", "yaml":
+		// valid
+	default:
+		errs = append(errs, ValidationError{"outputFormat", fmt.Sprintf("invalid value %q — must be text, json, or yaml", cfg.OutputFormat)})
+	}
+
+	// Check repoPath
+	if cfg.RepoPath != "" {
+		if _, err := os.Stat(cfg.RepoPath); err != nil {
+			errs = append(errs, ValidationError{"repoPath", fmt.Sprintf("path does not exist: %s", cfg.RepoPath)})
+		}
+	}
+
+	// Check platform config
+	if cfg.Platform.Domain == "" {
+		errs = append(errs, ValidationError{"platform.domain", "not set"})
+	}
+	if cfg.Platform.PlatformNamespace == "" {
+		errs = append(errs, ValidationError{"platform.platformNamespace", "not set"})
+	}
+
+	return errs
 }

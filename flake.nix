@@ -150,7 +150,7 @@
               nodejs_22
 
               # Custom tools
-              # hctl  # temporarily disabled during development — build with: cd cli && make build
+              hctl
               scaleDownNamespace
               scaleUpNamespace
 
@@ -195,7 +195,7 @@
               source <(argocd completion bash)
               source <(kustomize completion bash)
               source <(talosctl completion bash)
-              # source <(hctl completion bash)  # disabled during development
+              source <(hctl completion bash)
               set +a
             '';
           };

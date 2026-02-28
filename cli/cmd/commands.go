@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -392,6 +393,27 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	// Structured output or bundle export
+	if tui.IsStructured() || bundlePath != "" {
+		bundle := map[string]interface{}{
+			"resource":   name,
+			"timestamp":  time.Now().UTC().Format(time.RFC3339),
+			"steps":      result.Steps,
+		}
+		if bundlePath != "" {
+			data, _ := json.MarshalIndent(bundle, "", "  ")
+			if writeErr := os.WriteFile(bundlePath, data, 0o644); writeErr != nil {
+				return fmt.Errorf("writing bundle: %w", writeErr)
+			}
+			fmt.Printf("%s Diagnostic bundle written to %s\n",
+				tui.SuccessStyle.Render(tui.IconCheck), bundlePath)
+			if !tui.IsStructured() {
+				return nil // don't print text output if we wrote a bundle
+			}
+		}
+		return tui.RenderOutput(bundle, "")
 	}
 
 	fmt.Printf("\n  %s\n", name)
