@@ -78,6 +78,12 @@ func init() {
 	rootCmd.AddCommand(scale.NewCmd())
 	rootCmd.AddCommand(secret.NewCmd())
 	rootCmd.AddCommand(ai.NewCmd())
+
+	// Convenience commands
+	rootCmd.AddCommand(upCmd)
+	rootCmd.AddCommand(downCmd)
+	rootCmd.AddCommand(openCmd)
+	rootCmd.AddCommand(logsCmd)
 }
 
 func initConfig() {

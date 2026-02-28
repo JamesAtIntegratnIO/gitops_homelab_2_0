@@ -1,12 +1,15 @@
 package kube
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -638,6 +641,34 @@ func (c *Client) EnableArgoAutoSync(ctx context.Context, argoNamespace, appName 
 		return fmt.Errorf("enabling auto-sync for %s: %w", appName, err)
 	}
 	return nil
+}
+
+// StreamPodLogs streams logs from a pod to the given writer. If follow is true,
+// it streams continuously. It returns when the context is cancelled or the stream ends.
+func (c *Client) StreamPodLogs(ctx context.Context, namespace, podName, container string, follow bool, tailLines int64, w io.Writer) error {
+	opts := &corev1.PodLogOptions{
+		Follow: follow,
+	}
+	if container != "" {
+		opts.Container = container
+	}
+	if tailLines > 0 {
+		opts.TailLines = &tailLines
+	}
+
+	stream, err := c.Clientset.CoreV1().Pods(namespace).GetLogs(podName, opts).Stream(ctx)
+	if err != nil {
+		return fmt.Errorf("opening log stream for %s: %w", podName, err)
+	}
+	defer stream.Close()
+
+	scanner := bufio.NewScanner(stream)
+	for scanner.Scan() {
+		if _, err := fmt.Fprintln(w, scanner.Text()); err != nil {
+			return nil // writer closed
+		}
+	}
+	return scanner.Err()
 }
 
 // splitFirst splits a string on the first occurrence of sep and returns the first part.
