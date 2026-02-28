@@ -19,6 +19,8 @@ Every golden-path resource gets a **self-updating status contract**:
 ```yaml
 status:
   phase: Ready
+  message: "VCluster media is fully operational"
+  lastReconciled: "2026-02-26T10:30:00Z"
   endpoints:
     api: https://media.integratn.tech:443
     argocd: https://argocd.cluster.integratn.tech/applications/vcluster-media
@@ -26,9 +28,20 @@ status:
     kubeconfigSecret: vcluster-media-kubeconfig
     onePasswordItem: vcluster-media-kubeconfig
   health:
-    argocd: Healthy
-    workloads: 5/5 Ready
-    lastSync: 2m ago
+    argocd:
+      syncStatus: Synced
+      healthStatus: Healthy
+    workloads:
+      ready: 5
+      total: 5
+    subApps:
+      healthy: 3
+      total: 3
+      unhealthy: []
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: AllHealthy
 ```
 
 No `kubectl` archaeology. Ask the CR, get the answer.
