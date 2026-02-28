@@ -213,3 +213,160 @@ class Tools:
         if not results:
             return f"No documents found in namespace '{namespace}' matching '{query}'."
         return self._format_results(results, prefix=f"Namespace '{namespace}': ")
+
+    def search_platform_code(
+        self,
+        query: str = Field(
+            ..., description="Natural language search about CLI code, Go functions, Python code, or implementation details."
+        ),
+        language: str = Field(
+            default="", description="Filter by language: 'go' or 'python'. Leave empty for all code."
+        ),
+    ) -> str:
+        """
+        Search indexed source code (Go, Python) from the platform repositories.
+        Use this to find function implementations, type definitions, CLI command handlers,
+        and internal package logic. This is the right tool when the user asks about how
+        something is implemented, what a function does, or where code lives.
+        Supports filtering by language (go/python).
+        Returns code snippets with file paths, function/type names, and similarity scores.
+        """
+        try:
+            query_vector = self._embed(query)
+        except Exception as exc:
+            return f"Embedding failed: {exc}"
+
+        must_filters = [
+            FieldCondition(
+                key="chunk_type",
+                match=MatchValue(value="go-code" if language == "go" else "python-code"),
+            )
+        ] if language in ("go", "python") else []
+
+        # If no specific language, match any code chunk type
+        if not must_filters:
+            try:
+                results = self.qdrant.query_points(
+                    collection_name=self.valves.QDRANT_COLLECTION,
+                    query=query_vector,
+                    limit=self.valves.TOP_K,
+                    score_threshold=self.valves.SCORE_THRESHOLD,
+                    query_filter=Filter(
+                        should=[
+                            FieldCondition(key="chunk_type", match=MatchValue(value="go-code")),
+                            FieldCondition(key="chunk_type", match=MatchValue(value="python-code")),
+                        ],
+                        must_not=[
+                            FieldCondition(key="type", match=MatchValue(value="repo_metadata")),
+                        ],
+                    ),
+                ).points
+            except Exception as exc:
+                return f"Qdrant search failed: {exc}"
+        else:
+            try:
+                results = self.qdrant.query_points(
+                    collection_name=self.valves.QDRANT_COLLECTION,
+                    query=query_vector,
+                    limit=self.valves.TOP_K,
+                    score_threshold=self.valves.SCORE_THRESHOLD,
+                    query_filter=Filter(
+                        must=must_filters,
+                        must_not=[
+                            FieldCondition(key="type", match=MatchValue(value="repo_metadata")),
+                        ],
+                    ),
+                ).points
+            except Exception as exc:
+                return f"Qdrant search failed: {exc}"
+
+        return self._format_code_results(results)
+
+    def search_by_symbol(
+        self,
+        symbol: str = Field(
+            ..., description="Exact function, type, or class name to find (e.g. 'CollectProvisionResult', 'FormatProvisionSummary', 'StatusContract')."
+        ),
+    ) -> str:
+        """
+        Search for a specific code symbol (function, type, class, method) by name.
+        Use this when you know the exact name of a function or type and need to find
+        its implementation. More precise than general code search.
+        Returns the full implementation with file path and package context.
+        """
+        try:
+            query_vector = self._embed(f"function {symbol} implementation")
+        except Exception as exc:
+            return f"Embedding failed: {exc}"
+
+        try:
+            # First try exact symbol match
+            results = self.qdrant.query_points(
+                collection_name=self.valves.QDRANT_COLLECTION,
+                query=query_vector,
+                limit=self.valves.TOP_K,
+                score_threshold=0.2,  # lower threshold for symbol search
+                query_filter=Filter(
+                    must=[
+                        FieldCondition(key="symbol", match=MatchValue(value=symbol)),
+                    ],
+                    must_not=[
+                        FieldCondition(key="type", match=MatchValue(value="repo_metadata")),
+                    ],
+                ),
+            ).points
+        except Exception as exc:
+            return f"Qdrant search failed: {exc}"
+
+        if not results:
+            # Fallback: broader code search with the symbol name as query
+            try:
+                results = self.qdrant.query_points(
+                    collection_name=self.valves.QDRANT_COLLECTION,
+                    query=query_vector,
+                    limit=self.valves.TOP_K,
+                    score_threshold=self.valves.SCORE_THRESHOLD,
+                    query_filter=Filter(
+                        should=[
+                            FieldCondition(key="chunk_type", match=MatchValue(value="go-code")),
+                            FieldCondition(key="chunk_type", match=MatchValue(value="python-code")),
+                        ],
+                        must_not=[
+                            FieldCondition(key="type", match=MatchValue(value="repo_metadata")),
+                        ],
+                    ),
+                ).points
+            except Exception as exc:
+                return f"Qdrant search failed: {exc}"
+
+        if not results:
+            return f"No code found for symbol '{symbol}'."
+
+        return self._format_code_results(results, prefix=f"Symbol '{symbol}': ")
+
+    def _format_code_results(self, results, prefix: str = "") -> str:
+        """Format code search results with language-aware metadata."""
+        if not results:
+            return "No relevant code found."
+        lines = [f"{prefix}Found {len(results)} code result(s):\n"]
+        for i, hit in enumerate(results, 1):
+            p = hit.payload or {}
+            source = p.get("filepath", "?")
+            if p.get("repo"):
+                source = f'{p["repo"]}/{source}'
+
+            meta = []
+            if p.get("language"):
+                meta.append(f'lang: {p["language"]}')
+            if p.get("package"):
+                meta.append(f'pkg: {p["package"]}')
+            if p.get("symbol") and p.get("symbol_type"):
+                meta.append(f'{p["symbol_type"]}: {p["symbol"]}')
+            elif p.get("symbol"):
+                meta.append(f'symbol: {p["symbol"]}')
+            meta_str = f" ({', '.join(meta)})" if meta else ""
+
+            lines.append(f"[{i}] **{source}**{meta_str} (score: {hit.score:.3f})")
+            text = p.get("text", "")
+            lines.append(f"```\n{text[:3000]}\n```\n")
+        return "\n".join(lines)

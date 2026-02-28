@@ -75,6 +75,7 @@ KNOWN_APPS = {
     "authentik", "metallb", "cilium", "hubble",
     "kratix", "vcluster", "matrix-alertmanager-receiver",
     "loki-gateway", "loki-canary",
+    "hctl", "platform-status-reconciler",
 }
 
 # ---------------------------------------------------------------------------
@@ -316,6 +317,8 @@ TOPIC_KEYWORDS: dict[str, set[str]] = {
     "platform health": {"platform_status", "nodes", "pods"},
     "degraded":     {"platform_status", "pods"},
     "provisioning": {"platform_status"},
+    "hctl":         {"platform_status"},
+    "cli":          {"platform_status"},
 }
 
 

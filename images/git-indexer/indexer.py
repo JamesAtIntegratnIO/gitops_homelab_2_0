@@ -35,7 +35,7 @@ GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 INCLUDE_PATTERNS = [
     p.strip()
     for p in os.environ.get(
-        "INCLUDE_PATTERNS", "*.yaml,*.yml,*.md,*.json,*.tf,*.sh,*.mmd"
+        "INCLUDE_PATTERNS", "*.yaml,*.yml,*.md,*.json,*.tf,*.sh,*.mmd,*.go,*.py,Makefile,Dockerfile"
     ).split(",")
 ]
 EXCLUDE_PATTERNS = [
@@ -209,6 +209,286 @@ def chunk_generic(text: str, filepath: str) -> list[dict]:
     return chunks
 
 
+# ── Go-aware chunking ──────────────────────────────────────────────
+# Regex matching top-level Go declarations: func, type, var, const.
+# Handles doc comments attached above declarations.
+_GO_DECL_RE = re.compile(
+    r"^(//[^\n]*\n)*"           # optional doc comment lines
+    r"(func |type |var |const )",  # declaration keyword at line start
+    re.MULTILINE,
+)
+
+
+def _extract_go_package(text: str) -> str:
+    """Extract the Go package name from source."""
+    m = re.search(r"^package\s+(\w+)", text, re.MULTILINE)
+    return m.group(1) if m else ""
+
+
+def _go_symbol_name(decl_text: str) -> tuple[str, str]:
+    """Extract symbol name and type (function/method/type/var/const) from a Go declaration."""
+    # Strip leading doc comments
+    stripped = re.sub(r"^(//[^\n]*\n)+", "", decl_text).lstrip()
+
+    # func (receiver) Name(...)
+    m = re.match(r"func\s+\([^)]+\)\s+(\w+)", stripped)
+    if m:
+        return m.group(1), "method"
+
+    # func Name(...)
+    m = re.match(r"func\s+(\w+)", stripped)
+    if m:
+        return m.group(1), "function"
+
+    # type Name struct/interface/...
+    m = re.match(r"type\s+(\w+)", stripped)
+    if m:
+        return m.group(1), "type"
+
+    # var Name or var (
+    m = re.match(r"var\s+(\w+)", stripped)
+    if m:
+        return m.group(1), "var"
+
+    # const Name or const (
+    m = re.match(r"const\s+(\w+)", stripped)
+    if m:
+        return m.group(1), "const"
+
+    return "", "unknown"
+
+
+def chunk_go(text: str, filepath: str) -> list[dict]:
+    """Split a Go file into structural chunks: package/imports + each declaration.
+
+    Each chunk gets metadata: language, package, symbol, symbol_type.
+    This makes Go functions/types individually searchable in the vector DB.
+    Only splits at brace-depth 0 to avoid matching declarations inside function bodies.
+    """
+    package_name = _extract_go_package(text)
+    chunks: list[dict] = []
+
+    # Find top-level declaration boundaries by tracking brace depth.
+    # Only declarations at depth 0 are real top-level declarations.
+    boundaries: list[int] = []
+    brace_depth = 0
+    in_string = False
+    in_raw_string = False
+    in_line_comment = False
+    in_block_comment = False
+    i = 0
+    line_start = 0
+
+    while i < len(text):
+        ch = text[i]
+
+        # Track newlines for line-comment reset
+        if ch == '\n':
+            in_line_comment = False
+            line_start = i + 1
+            i += 1
+            continue
+
+        # Skip comments
+        if in_line_comment:
+            i += 1
+            continue
+        if in_block_comment:
+            if ch == '*' and i + 1 < len(text) and text[i + 1] == '/':
+                in_block_comment = False
+                i += 2
+            else:
+                i += 1
+            continue
+
+        # Detect comment starts
+        if ch == '/' and i + 1 < len(text):
+            if text[i + 1] == '/':
+                in_line_comment = True
+                i += 2
+                continue
+            if text[i + 1] == '*':
+                in_block_comment = True
+                i += 2
+                continue
+
+        # Skip strings
+        if in_string:
+            if ch == '\\' and i + 1 < len(text):
+                i += 2  # skip escaped char
+                continue
+            if ch == '"':
+                in_string = False
+            i += 1
+            continue
+        if in_raw_string:
+            if ch == '`':
+                in_raw_string = False
+            i += 1
+            continue
+        if ch == '"':
+            in_string = True
+            i += 1
+            continue
+        if ch == '`':
+            in_raw_string = True
+            i += 1
+            continue
+
+        # Track braces
+        if ch == '{':
+            brace_depth += 1
+        elif ch == '}':
+            brace_depth = max(0, brace_depth - 1)
+
+        # At brace depth 0 and start of line, check for declaration keywords
+        if brace_depth == 0 and i == line_start:
+            rest = text[i:]
+            # Walk back to include doc comments
+            decl_start = i
+            j = i - 1
+            while j >= 0:
+                # Find start of previous line
+                prev_newline = text.rfind('\n', 0, j)
+                prev_line = text[prev_newline + 1: j + 1].strip() if prev_newline >= 0 else text[: j + 1].strip()
+                if prev_line.startswith('//'):
+                    decl_start = prev_newline + 1 if prev_newline >= 0 else 0
+                    j = prev_newline - 1 if prev_newline >= 0 else -1
+                else:
+                    break
+
+            if re.match(r"(func |type |var |const )", rest):
+                boundaries.append(decl_start)
+
+        i += 1
+
+    if not boundaries:
+        # No declarations found (unlikely for valid Go) — return whole file
+        return [{
+            "text": text,
+            "language": "go",
+            "package": package_name,
+            "symbol": filepath,
+            "symbol_type": "file",
+        }]
+
+    # First chunk: everything before the first declaration (package + imports)
+    preamble = text[: boundaries[0]].strip()
+    if preamble:
+        # Extract imported packages as summary
+        imports = re.findall(r'"([^"]+)"', preamble)
+        import_summary = ", ".join(imports[:20])
+        if len(imports) > 20:
+            import_summary += f" (+{len(imports) - 20} more)"
+
+        # Build a file overview listing all exported symbols
+        symbols = []
+        for i, b in enumerate(boundaries):
+            end = boundaries[i + 1] if i + 1 < len(boundaries) else len(text)
+            decl_text = text[b:end]
+            sym_name, sym_type = _go_symbol_name(decl_text)
+            if sym_name and sym_name[0].isupper():  # exported
+                symbols.append(f"{sym_type} {sym_name}")
+
+        overview_lines = [preamble, ""]
+        if symbols:
+            overview_lines.append(f"// Exported symbols: {', '.join(symbols)}")
+
+        chunks.append({
+            "text": "\n".join(overview_lines),
+            "language": "go",
+            "package": package_name,
+            "symbol": filepath,
+            "symbol_type": "file_overview",
+            "imports": import_summary,
+        })
+
+    # Each declaration becomes its own chunk
+    for i, b in enumerate(boundaries):
+        end = boundaries[i + 1] if i + 1 < len(boundaries) else len(text)
+        decl_text = text[b:end].rstrip()
+        sym_name, sym_type = _go_symbol_name(decl_text)
+
+        chunks.append({
+            "text": decl_text,
+            "language": "go",
+            "package": package_name,
+            "symbol": sym_name or f"decl_{i}",
+            "symbol_type": sym_type,
+        })
+
+    return chunks
+
+
+# ── Python-aware chunking ──────────────────────────────────────────
+_PY_DECL_RE = re.compile(
+    r"^((?:#[^\n]*\n|\"\"\"[\s\S]*?\"\"\"\n)*)"  # optional comments/docstrings
+    r"((?:class |def |async def ))",               # declaration keyword
+    re.MULTILINE,
+)
+
+
+def _extract_py_symbol(decl_text: str) -> tuple[str, str]:
+    """Extract symbol name and type from a Python declaration."""
+    stripped = re.sub(r"^(#[^\n]*\n)+", "", decl_text).lstrip()
+    stripped = re.sub(r'^"""[\s\S]*?"""\n', "", stripped).lstrip()
+
+    m = re.match(r"class\s+(\w+)", stripped)
+    if m:
+        return m.group(1), "class"
+
+    m = re.match(r"(?:async\s+)?def\s+(\w+)", stripped)
+    if m:
+        return m.group(1), "function"
+
+    return "", "unknown"
+
+
+def chunk_python(text: str, filepath: str) -> list[dict]:
+    """Split a Python file by top-level class/function definitions."""
+    chunks: list[dict] = []
+
+    # Find top-level declarations (no leading whitespace)
+    boundaries: list[int] = []
+    for m in re.finditer(r"^((?:#[^\n]*\n)*)(?:class |def |async def )", text, re.MULTILINE):
+        # Only top-level (check that the match position is at column 0 or preceded by comments at column 0)
+        line_start = text.rfind("\n", 0, m.start()) + 1
+        leading = text[line_start:m.start()]
+        if leading.strip() == "" or leading.startswith("#"):
+            boundaries.append(m.start())
+
+    if not boundaries:
+        return [{
+            "text": text,
+            "language": "python",
+            "symbol": filepath,
+            "symbol_type": "file",
+        }]
+
+    # Preamble
+    preamble = text[: boundaries[0]].strip()
+    if preamble:
+        chunks.append({
+            "text": preamble,
+            "language": "python",
+            "symbol": filepath,
+            "symbol_type": "file_overview",
+        })
+
+    for i, b in enumerate(boundaries):
+        end = boundaries[i + 1] if i + 1 < len(boundaries) else len(text)
+        decl_text = text[b:end].rstrip()
+        sym_name, sym_type = _extract_py_symbol(decl_text)
+        chunks.append({
+            "text": decl_text,
+            "language": "python",
+            "symbol": sym_name or f"decl_{i}",
+            "symbol_type": sym_type,
+        })
+
+    return chunks
+
+
 def classify_and_chunk(text: str, filepath: str) -> list[dict]:
     """Determine file type and dispatch to appropriate chunker."""
     ext = Path(filepath).suffix.lower()
@@ -217,6 +497,12 @@ def classify_and_chunk(text: str, filepath: str) -> list[dict]:
     if ext in (".md", ".mmd"):
         raw_chunks = chunk_markdown(text, filepath)
         tagged = [{"chunk_type": "markdown", **c} for c in raw_chunks]
+    elif ext == ".go":
+        raw_chunks = chunk_go(text, filepath)
+        tagged = [{"chunk_type": "go-code", **c} for c in raw_chunks]
+    elif ext == ".py":
+        raw_chunks = chunk_python(text, filepath)
+        tagged = [{"chunk_type": "python-code", **c} for c in raw_chunks]
     elif ext in (".yaml", ".yml"):
         # Is this a values file (Helm)?
         if "values" in name or name == "chart.yaml":
