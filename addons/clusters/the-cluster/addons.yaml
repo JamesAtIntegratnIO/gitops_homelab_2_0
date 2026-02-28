@@ -34,6 +34,8 @@ nginx-gateway-fabric:
     type: manifests
     path: clusters
     manifestPath: addons/nginx-gateway-fabric
+  syncOptions:
+    - RespectIgnoreDifferences=true
   ignoreDifferences:
     - group: gateway.networking.k8s.io
       kind: Gateway
@@ -43,6 +45,10 @@ nginx-gateway-fabric:
       kind: ReferenceGrant
       jqPathExpressions:
         - .status
+    - group: batch
+      kind: Job
+      jqPathExpressions:
+        - .spec.template
 
 external-dns:
   additionalResources:
