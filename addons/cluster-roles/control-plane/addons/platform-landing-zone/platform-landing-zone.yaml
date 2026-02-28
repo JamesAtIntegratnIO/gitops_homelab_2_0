@@ -193,8 +193,98 @@ data:
           "collapsed": false,
           "gridPos": {"h": 1, "w": 24, "x": 0, "y": 13},
           "id": 102,
-          "title": "ArgoCD Applications",
+          "title": "🔥 Fix These First",
           "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Applications currently out of sync with git — your immediate work queue. Click any app name to jump straight to its ArgoCD page and investigate. Empty table = all synced (the goal state).",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false, "filterable": true},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "noValue": "✅ All applications synced"
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "Application"},
+                "properties": [
+                  {"id": "links", "value": [{"title": "Open in ArgoCD →", "url": "https://argocd.cluster.integratn.tech/applications/argocd/${__data.fields.Application}", "targetBlank": true}]},
+                  {"id": "custom.width", "value": 240},
+                  {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                  {"id": "color", "value": {"fixedColor": "#FF9830", "mode": "fixed"}}
+                ]
+              },
+              {
+                "matcher": {"id": "byName", "options": "Health"},
+                "properties": [
+                  {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+                  {"id": "mappings", "value": [{"type": "value", "options": {"Healthy": {"color": "green", "index": 0, "text": "💚 Healthy"}, "Degraded": {"color": "red", "index": 1, "text": "🔴 Degraded"}, "Progressing": {"color": "yellow", "index": 2, "text": "🔄 Progressing"}, "Missing": {"color": "orange", "index": 3, "text": "⚠️ Missing"}, "Suspended": {"color": "blue", "index": 4, "text": "⏸️ Suspended"}, "Unknown": {"color": "text", "index": 5, "text": "❓ Unknown"}}}]},
+                  {"id": "custom.width", "value": 140}
+                ]
+              },
+              {"matcher": {"id": "byName", "options": "Project"}, "properties": [{"id": "custom.width", "value": 130}]},
+              {"matcher": {"id": "byName", "options": "Namespace"}, "properties": [{"id": "custom.width", "value": 150}]}
+            ]
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+          "id": 30,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {"show": true, "reducer": ["count"], "countRows": true, "fields": ""},
+            "sortBy": [{"displayName": "Application", "desc": false}]
+          },
+          "title": "⚠️ OutOfSync Applications",
+          "type": "table",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "argocd_app_info{sync_status!=\"Synced\"}", "format": "table", "instant": true, "refId": "A"}],
+          "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "__name__": true, "instance": true, "job": true, "namespace": true, "dest_server": true, "revision": true, "autosync_enabled": true, "operation_message": true, "operation_retry_count": true, "sync_status": true, "repo": true}, "renameByName": {"name": "Application", "project": "Project", "dest_namespace": "Namespace", "health_status": "Health"}, "indexByName": {"name": 0, "project": 1, "dest_namespace": 2, "health_status": 3}}}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Applications in Degraded health — pods crashing, services unreachable, or resources in error state. Click any app name to jump to ArgoCD and drill into the failing resources. Empty table = everything healthy.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "custom": {"align": "auto", "cellOptions": {"type": "auto"}, "inspect": false, "filterable": true},
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+              "noValue": "💚 All applications healthy"
+            },
+            "overrides": [
+              {
+                "matcher": {"id": "byName", "options": "Application"},
+                "properties": [
+                  {"id": "links", "value": [{"title": "Open in ArgoCD →", "url": "https://argocd.cluster.integratn.tech/applications/argocd/${__data.fields.Application}", "targetBlank": true}]},
+                  {"id": "custom.width", "value": 240},
+                  {"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                  {"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}
+                ]
+              },
+              {
+                "matcher": {"id": "byName", "options": "Sync Status"},
+                "properties": [
+                  {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+                  {"id": "mappings", "value": [{"type": "value", "options": {"Synced": {"color": "green", "index": 0, "text": "✅ Synced"}, "OutOfSync": {"color": "orange", "index": 1, "text": "⚠️ OutOfSync"}, "Unknown": {"color": "text", "index": 2, "text": "❓ Unknown"}}}]},
+                  {"id": "custom.width", "value": 140}
+                ]
+              },
+              {"matcher": {"id": "byName", "options": "Project"}, "properties": [{"id": "custom.width", "value": 130}]},
+              {"matcher": {"id": "byName", "options": "Namespace"}, "properties": [{"id": "custom.width", "value": 150}]}
+            ]
+          },
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+          "id": 31,
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": {"show": true, "reducer": ["count"], "countRows": true, "fields": ""},
+            "sortBy": [{"displayName": "Application", "desc": false}]
+          },
+          "title": "🔴 Degraded Applications",
+          "type": "table",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "argocd_app_info{health_status=\"Degraded\"}", "format": "table", "instant": true, "refId": "A"}],
+          "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "__name__": true, "instance": true, "job": true, "namespace": true, "dest_server": true, "revision": true, "autosync_enabled": true, "operation_message": true, "operation_retry_count": true, "health_status": true, "repo": true}, "renameByName": {"name": "Application", "project": "Project", "dest_namespace": "Namespace", "sync_status": "Sync Status"}, "indexByName": {"name": 0, "project": 1, "dest_namespace": 2, "sync_status": 3}}}]
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -248,7 +338,7 @@ data:
               }
             ]
           },
-          "gridPos": {"h": 12, "w": 16, "x": 0, "y": 14},
+          "gridPos": {"h": 12, "w": 16, "x": 0, "y": 22},
           "id": 10,
           "options": {
             "showHeader": true,
@@ -295,7 +385,7 @@ data:
               {"matcher": {"id": "byName", "options": "Unknown"}, "properties": [{"id": "color", "value": {"fixedColor": "text", "mode": "fixed"}}]}
             ]
           },
-          "gridPos": {"h": 6, "w": 8, "x": 16, "y": 14},
+          "gridPos": {"h": 6, "w": 8, "x": 16, "y": 22},
           "id": 11,
           "options": {
             "displayLabels": ["name", "value"],
@@ -321,7 +411,7 @@ data:
               {"matcher": {"id": "byName", "options": "Unknown"}, "properties": [{"id": "color", "value": {"fixedColor": "text", "mode": "fixed"}}]}
             ]
           },
-          "gridPos": {"h": 6, "w": 8, "x": 16, "y": 20},
+          "gridPos": {"h": 6, "w": 8, "x": 16, "y": 28},
           "id": 12,
           "options": {
             "displayLabels": ["name", "value"],
@@ -336,7 +426,7 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 26},
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 34},
           "id": 103,
           "title": "Resource Usage — Top Namespaces",
           "type": "row"
@@ -352,7 +442,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 27},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 35},
           "id": 13,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "title": "CPU Usage — Top 10 Namespaces",
@@ -370,7 +460,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 27},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 35},
           "id": 14,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "sortBy": "Mean", "sortDesc": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "title": "Memory Usage — Top 10 Namespaces",
@@ -379,7 +469,7 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 35},
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 43},
           "id": 104,
           "title": "Control Plane Golden Signals",
           "type": "row"
@@ -396,7 +486,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 36},
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 44},
           "id": 20,
           "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
           "title": "API Server p99 Latency",
@@ -415,7 +505,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 36},
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 44},
           "id": 21,
           "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
           "title": "API Server Error Rate",
@@ -434,7 +524,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 36},
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 44},
           "id": 22,
           "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
           "title": "etcd Fragmentation Ratio",
@@ -452,7 +542,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 4, "x": 12, "y": 36},
+          "gridPos": {"h": 4, "w": 4, "x": 12, "y": 44},
           "id": 23,
           "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
           "title": "etcd DB Size",
@@ -471,7 +561,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 4, "x": 16, "y": 36},
+          "gridPos": {"h": 4, "w": 4, "x": 16, "y": 44},
           "id": 24,
           "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
           "title": "Kratix Error Rate",
@@ -489,7 +579,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 4, "w": 4, "x": 20, "y": 36},
+          "gridPos": {"h": 4, "w": 4, "x": 20, "y": 44},
           "id": 25,
           "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
           "title": "ArgoCD Sync Failures (1h)",
@@ -507,7 +597,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
           "id": 26,
           "options": {"legend": {"calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "title": "API Server Latency (p50/p95/p99)",
@@ -531,7 +621,7 @@ data:
             },
             "overrides": []
           },
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
           "id": 27,
           "options": {"legend": {"calcs": ["mean", "min"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "title": "etcd Fragmentation Over Time",
@@ -540,7 +630,7 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 48},
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 56},
           "id": 106,
           "title": "Capacity Headroom",
           "type": "row"
@@ -560,7 +650,7 @@ data:
               {"matcher": {"id": "byName", "options": "Used"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}
             ]
           },
-          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 49},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 57},
           "id": 28,
           "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "title": "CPU: Used vs Requested vs Allocatable",
@@ -586,7 +676,7 @@ data:
               {"matcher": {"id": "byName", "options": "Used"}, "properties": [{"id": "color", "value": {"fixedColor": "blue", "mode": "fixed"}}]}
             ]
           },
-          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 49},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 57},
           "id": 29,
           "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}},
           "title": "Memory: Used vs Requested vs Allocatable",
@@ -599,10 +689,43 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 57},
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 65},
           "id": 105,
           "title": "Active Alerts",
           "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of critical-severity alerts currently firing. These require immediate action — typically indicate data loss risk or service outage.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+          "gridPos": {"h": 3, "w": 8, "x": 0, "y": 66},
+          "id": 32,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "🔴 Critical",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(ALERTS{alertstate=\"firing\", severity=\"critical\", alertname!=\"Watchdog\", alertname!=\"InfoInhibitor\"}) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of warning-severity alerts currently firing. These indicate degrading conditions that will become critical if not addressed.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []},
+          "gridPos": {"h": 3, "w": 8, "x": 8, "y": 66},
+          "id": 33,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "🟠 Warning",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(ALERTS{alertstate=\"firing\", severity=\"warning\", alertname!=\"Watchdog\", alertname!=\"InfoInhibitor\"}) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "description": "Number of info-severity alerts currently firing. Typically FYI-level — review but not urgent.",
+          "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "blue", "value": 1}]}}, "overrides": []},
+          "gridPos": {"h": 3, "w": 8, "x": 16, "y": 66},
+          "id": 34,
+          "options": {"colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+          "title": "🔵 Info",
+          "type": "stat",
+          "targets": [{"datasource": {"type": "prometheus", "uid": "${datasource}"}, "expr": "count(ALERTS{alertstate=\"firing\", severity=\"info\", alertname!=\"Watchdog\", alertname!=\"InfoInhibitor\"}) or vector(0)", "legendFormat": "", "refId": "A", "instant": true}]
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
@@ -639,7 +762,7 @@ data:
               }
             ]
           },
-          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 58},
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 69},
           "id": 15,
           "options": {
             "showHeader": true,
@@ -672,7 +795,7 @@ data:
         },
         {
           "collapsed": false,
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 66},
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 77},
           "id": 107,
           "title": "Recent Error Logs",
           "type": "row"
@@ -680,7 +803,7 @@ data:
         {
           "datasource": {"type": "loki", "uid": "${lokids}"},
           "description": "Recent error, panic, and fatal log lines across all namespaces. Use the namespace and pod filters to narrow down.",
-          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 67},
+          "gridPos": {"h": 10, "w": 24, "x": 0, "y": 78},
           "id": 16,
           "options": {
             "showTime": true,
