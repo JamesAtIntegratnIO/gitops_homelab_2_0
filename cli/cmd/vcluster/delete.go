@@ -53,23 +53,15 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 			fmt.Printf("%s Removed %s\n", tui.SuccessStyle.Render(tui.IconCheck), relPath)
 
 			// Git handling
-			gitMode := cfg.GitMode
-			if gitMode == "auto" || gitMode == "prompt" {
-				shouldCommit := gitMode == "auto"
-				if gitMode == "prompt" && cfg.Interactive {
-					shouldCommit, _ = tui.Confirm("Commit and push?")
-				}
-				if shouldCommit {
-					repo, err := git.DetectRepo(repoPath)
-					if err != nil {
-						return fmt.Errorf("git repo: %w", err)
-					}
-					msg := git.FormatCommitMessage("delete vcluster", name, "")
-					if err := repo.CommitAndPush([]string{relPath}, msg); err != nil {
-						return fmt.Errorf("git commit/push: %w", err)
-					}
-					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
-				}
+			if _, err := git.HandleGitWorkflow(git.WorkflowOpts{
+				RepoPath:    repoPath,
+				Paths:       []string{relPath},
+				Action:      "delete vcluster",
+				Resource:    name,
+				GitMode:     cfg.GitMode,
+				Interactive: cfg.Interactive,
+			}); err != nil {
+				return err
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will remove the resource and Kratix will clean up."))

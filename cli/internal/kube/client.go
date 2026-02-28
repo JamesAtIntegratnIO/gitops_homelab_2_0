@@ -574,3 +574,78 @@ func (c *Client) QueryPrometheusRaw(ctx context.Context, promNamespace, promServ
 	}
 	return resp, nil
 }
+
+// DeploymentInfo holds basic information about a deployment.
+type DeploymentInfo struct {
+	Name     string
+	Replicas int32
+	ArgoApp  string // ArgoCD app name from tracking annotation, if any
+}
+
+// ListDeployments returns deployment info for all deployments in a namespace.
+func (c *Client) ListDeployments(ctx context.Context, namespace string) ([]DeploymentInfo, error) {
+	deploys, err := c.Clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing deployments: %w", err)
+	}
+
+	var result []DeploymentInfo
+	for _, d := range deploys.Items {
+		info := DeploymentInfo{
+			Name:     d.Name,
+			Replicas: *d.Spec.Replicas,
+		}
+		if tracking, ok := d.Annotations["argocd.argoproj.io/tracking-id"]; ok {
+			parts := splitFirst(tracking, ":")
+			info.ArgoApp = parts
+		}
+		result = append(result, info)
+	}
+	return result, nil
+}
+
+// ScaleDeployment sets the replica count for a deployment.
+func (c *Client) ScaleDeployment(ctx context.Context, namespace, name string, replicas int32) error {
+	scale, err := c.Clientset.AppsV1().Deployments(namespace).GetScale(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("getting scale: %w", err)
+	}
+	scale.Spec.Replicas = replicas
+	_, err = c.Clientset.AppsV1().Deployments(namespace).UpdateScale(ctx, name, scale, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("scaling deployment %s: %w", name, err)
+	}
+	return nil
+}
+
+// DisableArgoAutoSync removes the syncPolicy from an ArgoCD application.
+func (c *Client) DisableArgoAutoSync(ctx context.Context, argoNamespace, appName string) error {
+	patch := []byte(`{"spec":{"syncPolicy":null}}`)
+	_, err := c.Dynamic.Resource(ArgoCDApplicationGVR).Namespace(argoNamespace).Patch(
+		ctx, appName, types.MergePatchType, patch, metav1.PatchOptions{})
+	if err != nil {
+		return fmt.Errorf("disabling auto-sync for %s: %w", appName, err)
+	}
+	return nil
+}
+
+// EnableArgoAutoSync restores the automated sync policy on an ArgoCD application.
+func (c *Client) EnableArgoAutoSync(ctx context.Context, argoNamespace, appName string) error {
+	patch := []byte(`{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}`)
+	_, err := c.Dynamic.Resource(ArgoCDApplicationGVR).Namespace(argoNamespace).Patch(
+		ctx, appName, types.MergePatchType, patch, metav1.PatchOptions{})
+	if err != nil {
+		return fmt.Errorf("enabling auto-sync for %s: %w", appName, err)
+	}
+	return nil
+}
+
+// splitFirst splits a string on the first occurrence of sep and returns the first part.
+func splitFirst(s, sep string) string {
+	for i := 0; i < len(s); i++ {
+		if i+len(sep) <= len(s) && s[i:i+len(sep)] == sep {
+			return s[:i]
+		}
+	}
+	return s
+}

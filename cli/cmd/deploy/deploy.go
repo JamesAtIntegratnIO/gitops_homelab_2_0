@@ -269,58 +269,24 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 			}
 
 			// Add git step based on mode
-			repo, gitErr := git.DetectRepo(cfg.RepoPath)
-			if gitErr == nil {
-				switch cfg.GitMode {
-				case "auto":
-					deploySteps = append(deploySteps, tui.Step{
-						Title: "Committing and pushing",
-						Run: func() (string, error) {
-							msg := git.FormatCommitMessage("deploy", workload.Metadata.Name, result.TargetCluster)
-							if err := repo.CommitAndPush(writtenPaths, msg); err != nil {
-								return "", err
-							}
-							return msg, nil
-						},
-					})
-				case "generate":
-					deploySteps = append(deploySteps, tui.Step{
-						Title: "Committing changes",
-						Run: func() (string, error) {
-							if err := repo.Add(writtenPaths...); err != nil {
-								return "", err
-							}
-							msg := git.FormatCommitMessage("deploy", workload.Metadata.Name, result.TargetCluster)
-							if err := repo.Commit(msg); err != nil {
-								return "", err
-							}
-							return msg + " (push manually)", nil
-						},
-					})
-				case "prompt":
-					ok, _ := tui.Confirm("Commit and push changes?")
-					if ok {
-						deploySteps = append(deploySteps, tui.Step{
-							Title: "Committing and pushing",
-							Run: func() (string, error) {
-								msg := git.FormatCommitMessage("deploy", workload.Metadata.Name, result.TargetCluster)
-								if err := repo.CommitAndPush(writtenPaths, msg); err != nil {
-									return "", err
-								}
-								return msg, nil
-							},
-						})
-					} else {
-						deploySteps = append(deploySteps, tui.Step{
-							Title: "Staging files",
-							Run: func() (string, error) {
-								_ = repo.Add(writtenPaths...)
-								return "staged — commit manually", nil
-							},
-						})
-					}
+			gitMode := cfg.GitMode
+			if gitMode == "prompt" && cfg.Interactive {
+				ok, _ := tui.Confirm("Commit and push changes?")
+				if ok {
+					gitMode = "auto"
+				} else {
+					gitMode = "stage-only"
 				}
 			}
+			gitStep := git.HandleGitWorkflowStep(git.WorkflowOpts{
+				RepoPath: cfg.RepoPath,
+				Paths:    writtenPaths,
+				Action:   "deploy",
+				Resource: workload.Metadata.Name,
+				Details:  result.TargetCluster,
+				GitMode:  gitMode,
+			})
+			deploySteps = append(deploySteps, gitStep)
 
 			results, err = tui.RunSteps("Deploying "+workload.Metadata.Name, deploySteps)
 			if err != nil {
@@ -475,35 +441,17 @@ and removing its values directory. ArgoCD will clean up the resources on next sy
 				tui.SuccessStyle.Render(tui.IconCheck), workloadName, cluster)
 
 			// Git operations
-			repo, err := git.DetectRepo(cfg.RepoPath)
-			if err != nil {
-				return nil
-			}
-
-			switch cfg.GitMode {
-			case "auto":
-				msg := git.FormatCommitMessage("remove", workloadName, cluster)
-				if err := repo.CommitAndPush(removedPaths, msg); err != nil {
-					return fmt.Errorf("git commit/push: %w", err)
-				}
-				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
-
-			case "generate":
-				if err := repo.Add(removedPaths...); err == nil {
-					msg := git.FormatCommitMessage("remove", workloadName, cluster)
-					_ = repo.Commit(msg)
-				}
-				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render(tui.IconCheck))
-
-			case "prompt":
-				ok, _ := tui.Confirm("Commit and push removal?")
-				if ok {
-					msg := git.FormatCommitMessage("remove", workloadName, cluster)
-					if err := repo.CommitAndPush(removedPaths, msg); err != nil {
-						return fmt.Errorf("git commit/push: %w", err)
-					}
-					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
-				}
+			if _, err := git.HandleGitWorkflow(git.WorkflowOpts{
+				RepoPath:      cfg.RepoPath,
+				Paths:         removedPaths,
+				Action:        "remove",
+				Resource:      workloadName,
+				Details:       cluster,
+				GitMode:       cfg.GitMode,
+				Interactive:   cfg.Interactive,
+				ConfirmPrompt: "Commit and push removal?",
+			}); err != nil {
+				return err
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will remove the workload on next sync."))

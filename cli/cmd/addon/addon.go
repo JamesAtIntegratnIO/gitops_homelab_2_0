@@ -314,30 +314,16 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 				}
 			}
 
-			switch cfg.GitMode {
-			case "auto":
-				msg := git.FormatCommitMessage("enable addon", addonName, layer+"/"+env)
-				if err := repo.CommitAndPush(relPaths, msg); err != nil {
-					return fmt.Errorf("git commit/push: %w", err)
-				}
-				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
-
-			case "generate":
-				if err := repo.Add(relPaths...); err == nil {
-					msg := git.FormatCommitMessage("enable addon", addonName, layer+"/"+env)
-					_ = repo.Commit(msg)
-				}
-				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render(tui.IconCheck))
-
-			case "prompt":
-				ok, _ := tui.Confirm("Commit and push changes?")
-				if ok {
-					msg := git.FormatCommitMessage("enable addon", addonName, layer+"/"+env)
-					if err := repo.CommitAndPush(relPaths, msg); err != nil {
-						return fmt.Errorf("git commit/push: %w", err)
-					}
-					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
-				}
+			if _, err := git.HandleGitWorkflow(git.WorkflowOpts{
+				RepoPath:    cfg.RepoPath,
+				Paths:       relPaths,
+				Action:      "enable addon",
+				Resource:    addonName,
+				Details:     layer + "/" + env,
+				GitMode:     cfg.GitMode,
+				Interactive: cfg.Interactive,
+			}); err != nil {
+				return err
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will sync the addon on next reconciliation."))
@@ -457,30 +443,16 @@ Without --remove, the entry remains but is marked disabled.`,
 				action = "remove addon"
 			}
 
-			switch cfg.GitMode {
-			case "auto":
-				msg := git.FormatCommitMessage(action, addonName, layer+"/"+env)
-				if err := repo.CommitAndPush(relPaths, msg); err != nil {
-					return fmt.Errorf("git commit/push: %w", err)
-				}
-				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
-
-			case "generate":
-				if err := repo.Add(relPaths...); err == nil {
-					msg := git.FormatCommitMessage(action, addonName, layer+"/"+env)
-					_ = repo.Commit(msg)
-				}
-				fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render(tui.IconCheck))
-
-			case "prompt":
-				ok, _ := tui.Confirm("Commit and push changes?")
-				if ok {
-					msg := git.FormatCommitMessage(action, addonName, layer+"/"+env)
-					if err := repo.CommitAndPush(relPaths, msg); err != nil {
-						return fmt.Errorf("git commit/push: %w", err)
-					}
-					fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
-				}
+			if _, err := git.HandleGitWorkflow(git.WorkflowOpts{
+				RepoPath:    cfg.RepoPath,
+				Paths:       relPaths,
+				Action:      action,
+				Resource:    addonName,
+				Details:     layer + "/" + env,
+				GitMode:     cfg.GitMode,
+				Interactive: cfg.Interactive,
+			}); err != nil {
+				return err
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will reflect the change on next sync."))

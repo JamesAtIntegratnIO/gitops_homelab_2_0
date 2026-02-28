@@ -22,6 +22,12 @@ type Config struct {
 	Interactive bool `yaml:"interactive"`
 	// KubeContext is the kubectl context to use.
 	KubeContext string `yaml:"kubeContext,omitempty"`
+	// OutputFormat controls output rendering: "text" (default), "json", or "yaml".
+	OutputFormat string `yaml:"outputFormat,omitempty"`
+	// Verbose enables debug-level output.
+	Verbose bool `yaml:"verbose,omitempty"`
+	// Quiet suppresses informational output, showing only results and errors.
+	Quiet bool `yaml:"quiet,omitempty"`
 	// Platform holds platform-specific settings.
 	Platform PlatformConfig `yaml:"platform"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
@@ -14,7 +15,6 @@ import (
 
 var (
 	kubeconfigOutput string
-	kubeconfigMerge  bool
 )
 
 func newKubeconfigCmd() *cobra.Command {
@@ -35,7 +35,8 @@ Examples:
 	}
 
 	cmd.Flags().StringVarP(&kubeconfigOutput, "output", "o", "", "output file path (default: ~/.kube/hctl/<name>.yaml)")
-	cmd.Flags().BoolVar(&kubeconfigMerge, "merge", false, "merge into existing KUBECONFIG (not yet implemented)")
+	// TODO: implement --merge to merge into existing KUBECONFIG
+	// cmd.Flags().BoolVar(&kubeconfigMerge, "merge", false, "merge into existing KUBECONFIG")
 
 	return cmd
 }
@@ -113,11 +114,7 @@ func runKubeconfig(cmd *cobra.Command, args []string) error {
 }
 
 func writeFile(path string, data []byte) error {
-	return writeFileWithPerm(path, data, 0o600)
-}
-
-func writeFileWithPerm(path string, data []byte, perm uint32) error {
-	return nil // placeholder — os.WriteFile is used directly where needed
+	return os.WriteFile(path, data, 0o600)
 }
 
 func newConnectCmd() *cobra.Command {

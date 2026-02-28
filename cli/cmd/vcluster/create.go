@@ -594,43 +594,24 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		gitMode = "auto"
 	}
 
-	switch gitMode {
-	case "auto":
-		repo, err := git.DetectRepo(repoPath)
-		if err != nil {
-			return fmt.Errorf("git repo: %w", err)
-		}
-		msg := git.FormatCommitMessage("create vcluster", name, fmt.Sprintf("%s, %d replicas", preset, spec.VCluster.Replicas))
-		if err := repo.CommitAndPush([]string{relPath}, msg); err != nil {
-			return fmt.Errorf("git commit/push: %w", err)
-		}
-		fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
-	case "prompt":
-		if interactive {
-			confirmed, _ := tui.Confirm("Commit and push?")
-			if confirmed {
-				repo, err := git.DetectRepo(repoPath)
-				if err != nil {
-					return fmt.Errorf("git repo: %w", err)
-				}
-				msg := git.FormatCommitMessage("create vcluster", name, fmt.Sprintf("%s, %d replicas", preset, spec.VCluster.Replicas))
-				if err := repo.CommitAndPush([]string{relPath}, msg); err != nil {
-					return fmt.Errorf("git commit/push: %w", err)
-				}
-				fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
-			} else {
-				fmt.Println(tui.DimStyle.Render("  Skipped git commit. Run manually: git add && git commit && git push"))
-			}
-		}
-	default:
-		fmt.Println(tui.DimStyle.Render("  Generated only. Commit and push when ready."))
+	gitResult, err := git.HandleGitWorkflow(git.WorkflowOpts{
+		RepoPath:    repoPath,
+		Paths:       []string{relPath},
+		Action:      "create vcluster",
+		Resource:    name,
+		Details:     fmt.Sprintf("%s, %d replicas", preset, spec.VCluster.Replicas),
+		GitMode:     gitMode,
+		Interactive: interactive,
+	})
+	if err != nil {
+		return err
 	}
 
 	fmt.Printf("\n%s\n", tui.DimStyle.Render("Next: ArgoCD will sync the resource and Kratix will provision the vCluster."))
 	fmt.Printf("%s\n", tui.DimStyle.Render("Monitor with: hctl vcluster status "+name))
 
 	// ── Wait for provisioning ────────────────────────────────────────
-	committed := gitMode == "auto" || (gitMode == "prompt" && interactive)
+	committed := gitResult == git.GitCommitted
 	if createWait && committed {
 		if err := watchProvisioning(cfg, name, hostname, spec); err != nil {
 			// Non-fatal — the resource was already committed

@@ -11,6 +11,8 @@ import (
 	"github.com/jamesatintegratnio/hctl/cmd/secret"
 	"github.com/jamesatintegratnio/hctl/cmd/vcluster"
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
+	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -20,8 +22,11 @@ var (
 	// Commit is set at build time via ldflags.
 	Commit = "none"
 
-	cfgFile     string
-	nonInteract bool
+	cfgFile      string
+	nonInteract  bool
+	outputFormat string
+	verboseFlag  bool
+	quietFlag    bool
 )
 
 var rootCmd = &cobra.Command{
@@ -38,7 +43,7 @@ addon management, platform diagnostics, and day-to-day operational tasks.`,
 func Execute() error {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		return err
+		os.Exit(hcerrors.ExitCode(err))
 	}
 	return nil
 }
@@ -48,6 +53,9 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default $XDG_CONFIG_HOME/hctl/config.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&nonInteract, "non-interactive", false, "disable interactive prompts")
+	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "output format: text, json, yaml")
+	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "enable verbose/debug output")
+	rootCmd.PersistentFlags().BoolVarP(&quietFlag, "quiet", "q", false, "suppress informational output")
 
 	// Register sub-command groups
 	rootCmd.AddCommand(initCmd)
@@ -70,13 +78,33 @@ func init() {
 func initConfig() {
 	cfg, err := config.Load(cfgFile)
 	if err != nil {
-		// Config is optional on first run; init command will create it
 		cfg = config.Default()
+		// Auto-create config on first run if no custom path was specified
+		if cfgFile == "" {
+			if saveErr := config.Save(cfg); saveErr == nil {
+				fmt.Fprintf(os.Stderr, "Created default config at %s\n", config.ConfigPath())
+			}
+		}
 	}
 	if nonInteract {
 		cfg.Interactive = false
 	}
+	// CLI flags override config file values
+	if outputFormat != "" {
+		cfg.OutputFormat = outputFormat
+	}
+	if verboseFlag {
+		cfg.Verbose = true
+	}
+	if quietFlag {
+		cfg.Quiet = true
+	}
 	config.Set(cfg)
+
+	// Wire output format into TUI layer
+	if cfg.OutputFormat != "" {
+		tui.SetOutputFormat(cfg.OutputFormat)
+	}
 }
 
 // --- Inline simple commands ---
