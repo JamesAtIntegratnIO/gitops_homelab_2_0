@@ -3,6 +3,10 @@ nginx:
     loadBalancerIP: 10.0.4.205
     externalTrafficPolicy: Cluster
 
+nginxGateway:
+  snippetsFilters:
+    enable: true
+
 gateways:
   - name: nginx-gateway
     namespace: nginx-gateway

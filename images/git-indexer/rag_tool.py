@@ -56,13 +56,23 @@ class Tools:
         return self._qdrant
 
     def _embed(self, text: str) -> list[float]:
-        resp = requests.post(
-            f"{self.valves.OLLAMA_URL}/api/embed",
-            json={"model": self.valves.EMBEDDING_MODEL, "input": [text]},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.json()["embeddings"][0]
+        """Embed text via Ollama. Uses a long initial timeout to cover model cold-starts."""
+        last_exc: Exception | None = None
+        # First attempt gets 120s (cold-start can take 25-30s loading model into RAM).
+        # Retry once with 60s in case of transient network blip.
+        for attempt, timeout in enumerate((120, 60), 1):
+            try:
+                resp = requests.post(
+                    f"{self.valves.OLLAMA_URL}/api/embed",
+                    json={"model": self.valves.EMBEDDING_MODEL, "input": [text]},
+                    timeout=timeout,
+                )
+                resp.raise_for_status()
+                return resp.json()["embeddings"][0]
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+                last_exc = exc
+                log.warning("Embed attempt %d/%d timed out (%ds): %s", attempt, 2, timeout, exc)
+        raise last_exc  # type: ignore[misc]
 
     def _format_results(self, results, prefix: str = "") -> str:
         if not results:

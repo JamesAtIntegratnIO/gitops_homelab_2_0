@@ -1,0 +1,48 @@
+---
+# SnippetsFilter: Authentik forward-auth for Qdrant Dashboard
+# Injects nginx auth_request directives that delegate authentication
+# to Authentik's embedded outpost. On 401, redirects to Authentik login.
+apiVersion: gateway.nginx.org/v1alpha1
+kind: SnippetsFilter
+metadata:
+  name: authentik-forward-auth
+  namespace: ai
+spec:
+  snippets:
+    - context: http.server
+      value: |
+        # Authentik outpost forward-auth endpoint
+        location /outpost.goauthentik.io/ {
+            proxy_pass          http://authentik-server.authentik.svc.cluster.local/outpost.goauthentik.io/;
+            proxy_set_header    Host $host;
+            proxy_set_header    X-Original-URL $scheme://$http_host$request_uri;
+            proxy_set_header    X-Real-IP $remote_addr;
+            proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header    X-Forwarded-Proto $scheme;
+            proxy_set_header    Content-Length "";
+            proxy_pass_request_body off;
+        }
+
+        # Redirect unauthenticated users to Authentik login
+        location @goauthentik_proxy_signin {
+            internal;
+            add_header Set-Cookie $auth_cookie;
+            return 302 /outpost.goauthentik.io/start?rd=$request_uri;
+        }
+    - context: http.server.location
+      value: |
+        # Forward auth subrequest to Authentik embedded outpost
+        auth_request        /outpost.goauthentik.io/auth/nginx;
+        error_page          401 = @goauthentik_proxy_signin;
+
+        # Pass auth cookie back to client
+        auth_request_set $auth_cookie $upstream_http_set_cookie;
+        add_header Set-Cookie $auth_cookie;
+
+        # Forward authenticated user info headers
+        auth_request_set $authentik_username $upstream_http_x_authentik_username;
+        auth_request_set $authentik_groups $upstream_http_x_authentik_groups;
+        auth_request_set $authentik_email $upstream_http_x_authentik_email;
+        proxy_set_header X-authentik-username $authentik_username;
+        proxy_set_header X-authentik-groups $authentik_groups;
+        proxy_set_header X-authentik-email $authentik_email;

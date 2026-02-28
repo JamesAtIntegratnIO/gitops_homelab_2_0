@@ -56,3 +56,18 @@ authentik:
     type: manifests
     path: clusters
     manifestPath: addons/authentik
+
+qdrant:
+  additionalResources:
+    type: manifests
+    path: clusters
+    manifestPath: addons/qdrant
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .status
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
+      jqPathExpressions:
+        - .status

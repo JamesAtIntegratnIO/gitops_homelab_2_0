@@ -386,3 +386,49 @@ data:
           meta_icon: https://raw.githubusercontent.com/open-webui/open-webui/main/static/favicon.png
           meta_description: AI Platform Assistant
           policy_engine_mode: all
+
+  06-qdrant-proxy-provider.yaml: |
+    # Authentik Blueprint: Qdrant Dashboard Proxy Provider
+    # Creates a forward-auth proxy provider for the Qdrant vector database dashboard.
+    # Uses Authentik's embedded outpost — no standalone outpost deployment needed.
+    version: 1
+    metadata:
+      name: qdrant-proxy-provider
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # Proxy Provider (forward_single mode)
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: qdrant-proxy-provider
+        id: qdrant-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://qdrant.cluster.integratn.tech
+          access_token_validity: minutes=60
+
+      # Application
+      - model: authentik_core.application
+        identifiers:
+          slug: qdrant
+        attrs:
+          name: Qdrant Dashboard
+          provider: !Find [authentik_providers_proxy.proxyprovider, [name, qdrant-proxy-provider]]
+          open_in_new_tab: true
+          launch_url: https://qdrant.cluster.integratn.tech
+          group: Platform Services
+          meta_icon: https://qdrant.tech/img/logo.png
+          meta_description: Vector Database Dashboard
+          policy_engine_mode: all
+
+      # Outpost (embedded — runs inside Authentik server)
+      - model: authentik_outposts.outpost
+        identifiers:
+          name: authentik Embedded Outpost
+        attrs:
+          type: proxy
+          managed: goauthentik.io/outposts/embedded
+          providers:
+            - !Find [authentik_providers_proxy.proxyprovider, [name, qdrant-proxy-provider]]
