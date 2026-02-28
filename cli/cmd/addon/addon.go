@@ -119,15 +119,61 @@ func newAddonListCmd() *cobra.Command {
 					var sb strings.Builder
 					sb.WriteString(tui.HeaderStyle.Render("Addon: "+addonName) + "\n\n")
 
-					// Show value file layers
+					// Resolve the values folder name the same way the ApplicationSet does:
+					// valuesFolderName → chartName → addonName (normalized)
+					folderName := addonName
+					if entry, ok := entries[addonName]; ok {
+						if vfn, ok := entry["valuesFolderName"].(string); ok && vfn != "" {
+							folderName = vfn
+						} else if cn, ok := entry["chartName"].(string); ok && cn != "" {
+							folderName = cn
+						}
+					}
+
+					// Show value file layers matching the ApplicationSet valueFiles order:
+					//   environments/<env>/addons/<folder>/values.yaml
+					//   cluster-roles/<role>/addons/<folder>/values.yaml  (all roles)
+					//   clusters/<cluster>/addons/<folder>/values.yaml    (all clusters)
 					sb.WriteString("  Value layers:\n")
-					layers := []struct {
+
+					type valueLayer struct {
 						label string
 						path  string
-					}{
-						{"environment", filepath.Join(repoPath, "addons", "environments", env, "addons", addonName, "values.yaml")},
-						{"cluster-role", filepath.Join(repoPath, "addons", "cluster-roles", "control-plane", "addons", addonName, "values.yaml")},
 					}
+					var layers []valueLayer
+
+					// 1. Environment layer
+					layers = append(layers, valueLayer{
+						label: fmt.Sprintf("environment/%s", env),
+						path:  filepath.Join(repoPath, "addons", "environments", env, "addons", folderName, "values.yaml"),
+					})
+
+					// 2. Cluster-role layers (discover all roles)
+					rolesDir := filepath.Join(repoPath, "addons", "cluster-roles")
+					if roleDirs, err := os.ReadDir(rolesDir); err == nil {
+						for _, d := range roleDirs {
+							if d.IsDir() {
+								layers = append(layers, valueLayer{
+									label: fmt.Sprintf("cluster-role/%s", d.Name()),
+									path:  filepath.Join(rolesDir, d.Name(), "addons", folderName, "values.yaml"),
+								})
+							}
+						}
+					}
+
+					// 3. Cluster layers (discover all clusters)
+					clustersDir := filepath.Join(repoPath, "addons", "clusters")
+					if clusterDirs, err := os.ReadDir(clustersDir); err == nil {
+						for _, d := range clusterDirs {
+							if d.IsDir() {
+								layers = append(layers, valueLayer{
+									label: fmt.Sprintf("cluster/%s", d.Name()),
+									path:  filepath.Join(clustersDir, d.Name(), "addons", folderName, "values.yaml"),
+								})
+							}
+						}
+					}
+
 					for _, l := range layers {
 						if _, err := os.Stat(l.path); err == nil {
 							sb.WriteString(fmt.Sprintf("    ✓ %s: %s\n", l.label, l.path))
