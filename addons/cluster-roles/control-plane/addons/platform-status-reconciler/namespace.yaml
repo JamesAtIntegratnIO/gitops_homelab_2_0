@@ -6,3 +6,5 @@ metadata:
     app.kubernetes.io/name: platform-status-reconciler
     app.kubernetes.io/part-of: platform
     app.kubernetes.io/managed-by: argocd
+    # Opt out of VPA Auto mode — pin resources in Git to prevent throttling
+    goldilocks.fairwinds.com/vpa-update-mode: "Off"

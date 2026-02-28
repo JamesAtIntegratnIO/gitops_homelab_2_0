@@ -40,11 +40,11 @@ spec:
               protocol: TCP
           resources:
             requests:
-              cpu: 20m
-              memory: 32Mi
-            limits:
-              cpu: 200m
+              cpu: 50m
               memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
           livenessProbe:
             httpGet:
               path: /healthz
