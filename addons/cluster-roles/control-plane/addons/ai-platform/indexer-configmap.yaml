@@ -14,4 +14,4 @@ data:
   # Directories/patterns to skip
   EXCLUDE_PATTERNS: "vendor/,node_modules/,*.lock,.git/,bin/,result/"
   # Max tokens per chunk
-  CHUNK_MAX_TOKENS: "512"
+  CHUNK_MAX_TOKENS: "256"

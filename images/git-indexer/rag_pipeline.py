@@ -1,7 +1,7 @@
 """
 title: Homelab Platform RAG
 author: homelab
-version: 0.4.1
+version: 0.5.0
 license: MIT
 description: Retrieves context from Qdrant and live observability data (Prometheus, Alertmanager, Loki) with intent-driven metric queries.
 requirements: qdrant-client, requests
@@ -349,9 +349,9 @@ class Pipeline:
             default="nomic-embed-text",
             description="Embedding model name",
         )
-        TOP_K: int = Field(default=8, description="Number of chunks to retrieve")
+        TOP_K: int = Field(default=3, description="Number of chunks to retrieve")
         SCORE_THRESHOLD: float = Field(
-            default=0.3, description="Minimum similarity score"
+            default=0.5, description="Minimum similarity score"
         )
 
         # --- Observability ---
@@ -372,7 +372,7 @@ class Pipeline:
             description="Loki gateway URL",
         )
         LOKI_LOG_LINES: int = Field(
-            default=25, description="Max log lines to include"
+            default=10, description="Max log lines to include"
         )
         LOKI_LOOKBACK: str = Field(
             default="1h", description="Loki time window (e.g. 1h, 30m, 6h)"
@@ -389,6 +389,12 @@ class Pipeline:
             default=10,
             description="Maximum number of Prometheus queries for topic deep-dives per message. "
             "Prevents excessive query load when many topics match.",
+        )
+        MAX_CONTEXT_CHARS: int = Field(
+            default=12000,
+            description="Hard cap on total injected context characters (RAG + observability). "
+            "Prevents context-length overflow that stalls the model. "
+            "RAG gets 40%% of the budget, observability gets 60%%.",
         )
 
     # ---- lifecycle --------------------------------------------------------
@@ -1086,6 +1092,16 @@ RULES:
                 self._obs_cache.set(logs_cache_key, logs_block)
 
             obs_block = f"{alerts_block}\n{health_block}\n{topic_block}\n{logs_block}"
+
+        # --- Enforce hard context-size cap ---
+        budget = self.valves.MAX_CONTEXT_CHARS
+        rag_budget = int(budget * 0.4)
+        obs_budget = int(budget * 0.6)
+
+        if len(rag_block) > rag_budget:
+            rag_block = rag_block[:rag_budget] + "\n\n*[RAG context truncated]*\n"
+        if len(obs_block) > obs_budget:
+            obs_block = obs_block[:obs_budget] + "\n\n*[Observability context truncated]*\n"
 
         # --- Build augmented system message ---
         augmented_system = f"{self.SYSTEM_PREAMBLE}\n{rag_block}\n{obs_block}"
