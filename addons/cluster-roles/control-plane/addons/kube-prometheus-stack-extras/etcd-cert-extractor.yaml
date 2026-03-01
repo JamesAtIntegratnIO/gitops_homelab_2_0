@@ -73,6 +73,7 @@ spec:
             runAsUser: 0
             capabilities:
               drop: [ALL]
+              add: [DAC_READ_SEARCH]
             seccompProfile:
               type: RuntimeDefault
       volumes:
