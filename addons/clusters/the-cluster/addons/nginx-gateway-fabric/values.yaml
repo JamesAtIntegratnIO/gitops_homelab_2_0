@@ -2,10 +2,6 @@ nginx:
   service:
     loadBalancerIP: 10.0.4.205
     externalTrafficPolicy: Cluster
-    # Cluster is single-stack IPv4 — prevent PreferDualStack warnings from MetalLB
-    ipFamilyPolicy: SingleStack
-    ipFamilies:
-      - IPv4
 
 nginxGateway:
   snippetsFilters:
