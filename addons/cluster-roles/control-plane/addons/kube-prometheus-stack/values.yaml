@@ -168,24 +168,24 @@ kube-state-metrics:
       cpu: 200m
       memory: 256Mi
   # Relax probes — KSM can be briefly slow during large list/watch cycles
-  customLivenessProbe:
-    httpGet:
-      path: /livez
-      port: http
-      scheme: HTTP
-    initialDelaySeconds: 5
-    timeoutSeconds: 10
-    periodSeconds: 15
+  livenessProbe:
     failureThreshold: 5
-  customReadinessProbe:
     httpGet:
-      path: /readyz
-      port: metrics
-      scheme: HTTP
+      httpHeaders: []
+      scheme: http
     initialDelaySeconds: 5
-    timeoutSeconds: 10
     periodSeconds: 15
+    successThreshold: 1
+    timeoutSeconds: 10
+  readinessProbe:
     failureThreshold: 5
+    httpGet:
+      httpHeaders: []
+      scheme: http
+    initialDelaySeconds: 5
+    periodSeconds: 15
+    successThreshold: 1
+    timeoutSeconds: 10
 
 # kube-proxy is replaced by Cilium eBPF — nothing to monitor
 kubeProxy:
