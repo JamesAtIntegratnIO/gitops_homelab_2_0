@@ -58,6 +58,14 @@ The `resources_list` and `resources_get` tools **always require `apiVersion`**. 
 
 If unsure of an apiVersion, use `pods_list` or `pods_get` for pod-specific queries (which don't require apiVersion), or try `v1` for core resources and `apps/v1` for workloads.
 
+### Prometheus MCP — Banned/Dangerous Tools
+
+**NEVER call `get_targets`**. It returns the full target dump (~7MB / 100k+ lines) with no filter parameter, which overflows the context window and breaks the chat. Instead use:
+- `execute_query` with `up` — to check which targets are up/down
+- `execute_query` with `up{job="<name>"}` — to check a specific scrape job
+- `execute_query` with `scrape_duration_seconds` or `scrape_samples_scraped` — for scrape health metrics
+- `list_metrics` with `filter_pattern` — to discover available metrics by pattern
+
 ### Tool Usage Rules
 
 - **Read-only is safe**: All your cluster tools are read-only. There is zero risk in querying. Query liberally.
