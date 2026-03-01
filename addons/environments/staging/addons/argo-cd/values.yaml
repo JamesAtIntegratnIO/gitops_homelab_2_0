@@ -8,7 +8,7 @@ server:
     
   service:
     annotations:
-      metallb.universe.tf/address-pool: default
+      metallb.io/address-pool: default
   ingress:
     enabled: false
     ingressClassName: nginx

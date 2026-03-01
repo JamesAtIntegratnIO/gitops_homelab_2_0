@@ -157,6 +157,36 @@ kubeScheduler:
     enabled: true
     https: true
     insecureSkipVerify: true
+# kube-state-metrics: set resource requests/limits and tune probes to prevent
+# transient 503 liveness failures caused by short CPU starvation on busy nodes.
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  # Relax probes — KSM can be briefly slow during large list/watch cycles
+  customLivenessProbe:
+    httpGet:
+      path: /livez
+      port: http
+      scheme: HTTP
+    initialDelaySeconds: 5
+    timeoutSeconds: 10
+    periodSeconds: 15
+    failureThreshold: 5
+  customReadinessProbe:
+    httpGet:
+      path: /readyz
+      port: metrics
+      scheme: HTTP
+    initialDelaySeconds: 5
+    timeoutSeconds: 10
+    periodSeconds: 15
+    failureThreshold: 5
+
 # kube-proxy is replaced by Cilium eBPF — nothing to monitor
 kubeProxy:
   enabled: false
@@ -193,6 +223,11 @@ grafana:
       folderAnnotation: grafana_folder
       provider:
         foldersFromFilesStructure: false
+    securityContext:
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
   admin:
     existingSecret: grafana-admin
     userKey: admin-user
@@ -233,12 +268,6 @@ grafana:
     allowPrivilegeEscalation: false
     capabilities:
       drop: [ALL]
-  sidecar:
-    securityContext:
-      readOnlyRootFilesystem: true
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop: [ALL]
   extraEmptyDirMounts:
     - name: tmp
       mountPath: /tmp

@@ -398,3 +398,12 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # Kubelet liveness/readiness probes (from control-plane nodes)
+    - from:
+        - ipBlock:
+            cidr: 10.0.4.0/24
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8081

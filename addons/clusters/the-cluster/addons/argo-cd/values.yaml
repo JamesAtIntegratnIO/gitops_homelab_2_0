@@ -47,7 +47,7 @@ server:
       memory: 512Mi
   service:
     annotations:
-      metallb.universe.tf/loadBalancerIPs: 10.0.4.201
+      metallb.io/loadBalancerIPs: 10.0.4.201
   extensions:
     enabled: true
     extensionList:

@@ -40,3 +40,45 @@ spec:
           annotations:
             summary: "Platform status reconciler is not running"
             description: "The platform-status-reconciler deployment is not serving metrics, status updates will be stale."
+
+    - name: platform.vcluster.etcd
+      rules:
+        - alert: VClusterEtcdPodNotReady
+          expr: |
+            kube_pod_status_ready{namespace=~"vcluster-.*", pod=~".*-etcd-.*", condition="true"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VCluster etcd pod {{ $labels.pod }} not ready"
+            description: "etcd pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has not been Ready for 5 minutes. This can cause hidden API server degradation (gRPC connect failures) even when ArgoCD reports the vcluster as Healthy."
+            runbook_url: "https://github.com/jamesatintegratnio/gitops_homelab_2_0/blob/main/docs/kratix-troubleshooting.md"
+
+        - alert: VClusterEtcdHighRestarts
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace=~"vcluster-.*", pod=~".*-etcd-.*"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "VCluster etcd pod {{ $labels.pod }} restarting frequently"
+            description: "etcd pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted {{ $value }} times in the last hour. Frequent restarts cause transient gRPC connectivity failures from the vcluster API server."
+
+        - alert: VClusterEtcdQuorumAtRisk
+          expr: |
+            (
+              count by (namespace) (
+                kube_pod_status_ready{namespace=~"vcluster-.*", pod=~".*-etcd-.*", condition="true"} == 1
+              )
+              < ceil(
+                count by (namespace) (
+                  kube_pod_status_ready{namespace=~"vcluster-.*", pod=~".*-etcd-.*", condition="true"}
+                ) / 2 + 1
+              )
+            )
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "VCluster etcd quorum at risk in {{ $labels.namespace }}"
+            description: "Fewer than quorum etcd pods are Ready in {{ $labels.namespace }}. The vcluster API server will become unavailable if another etcd pod fails."
