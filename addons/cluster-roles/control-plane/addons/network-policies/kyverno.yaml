@@ -1,5 +1,19 @@
 # kyverno: Policy engine — admission controller + background controller + reports controller
 ---
+# Default deny all ingress/egress — explicit allow policies below punch holes.
+# The Kyverno generate policy auto-creates this for new namespaces, but the
+# kyverno namespace predates that policy, so we define it explicitly here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: kyverno
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

@@ -288,6 +288,28 @@ kube-prometheus-stack:
       - CreateNamespace=true
       - ServerSideApply=true
 
+kube-prometheus-stack-extras:
+  enabled: true
+  type: manifest
+  namespace: monitoring
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/kube-prometheus-stack-extras
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+  info:
+    - name: Description
+      value: Extra raw manifests for kube-prometheus-stack (etcd cert extraction, etc.)
+
 loki:
   enabled: true
   namespace: loki
