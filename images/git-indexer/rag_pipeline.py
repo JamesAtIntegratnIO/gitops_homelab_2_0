@@ -1,7 +1,7 @@
 """
 title: Homelab Platform RAG
 author: homelab
-version: 0.4.0
+version: 0.4.1
 license: MIT
 description: Retrieves context from Qdrant and live observability data (Prometheus, Alertmanager, Loki) with intent-driven metric queries.
 requirements: qdrant-client, requests
@@ -440,6 +440,28 @@ class Pipeline:
         )
         resp.raise_for_status()
         return resp.json()["embedding"]
+
+    @staticmethod
+    def _content_to_text(content) -> str:
+        """Normalise message content to a plain string.
+
+        Open WebUI sends multimodal messages (images, files) as a list:
+            [{"type": "text", "text": "..."}, {"type": "image_url", ...}]
+        This helper extracts and joins the text parts so downstream code
+        that expects a plain string (embedding, keyword matching, etc.)
+        doesn't break.
+        """
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    parts.append(item.get("text", ""))
+                elif isinstance(item, str):
+                    parts.append(item)
+            return " ".join(parts) if parts else ""
+        return str(content) if content else ""
 
     def _retrieve(self, query: str) -> list[dict]:
         """Retrieve top-K relevant chunks from Qdrant."""
@@ -991,7 +1013,7 @@ RULES:
         user_msg = None
         for msg in reversed(messages):
             if msg.get("role") == "user":
-                user_msg = msg.get("content", "")
+                user_msg = self._content_to_text(msg.get("content", ""))
                 break
         if not user_msg:
             return body
