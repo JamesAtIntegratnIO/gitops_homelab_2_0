@@ -1,7 +1,7 @@
 """
 title: Homelab Platform RAG
 author: homelab
-version: 0.2.0
+version: 0.3.0
 license: MIT
 description: Search indexed GitOps platform docs and configuration from Qdrant. Pair with MCP tools for live cluster data.
 requirements: qdrant-client, requests
@@ -40,9 +40,9 @@ class Tools:
             default="nomic-embed-text",
             description="Embedding model name",
         )
-        TOP_K: int = Field(default=8, description="Number of chunks to retrieve")
+        TOP_K: int = Field(default=5, description="Number of chunks to retrieve")
         SCORE_THRESHOLD: float = Field(
-            default=0.3, description="Minimum similarity score",
+            default=0.4, description="Minimum similarity score",
         )
 
     def __init__(self):

@@ -10,10 +10,7 @@ ollamaUrls:
 openaiBaseApiUrl: ""
 
 pipelines:
-  enabled: true
-  extraEnvVars:
-    - name: PIPELINES_URLS
-      value: "https://raw.githubusercontent.com/JamesAtIntegratnIO/gitops_homelab_2_0/main/images/git-indexer/rag_pipeline.py"
+  enabled: false
 
 image:
   tag: ""  # Use chart default
@@ -70,11 +67,11 @@ extraEnvVars:
       secretKeyRef:
         name: open-webui-secrets
         key: openai-api-key
-  # Both Pipelines (local RAG) and OpenAI (ChatGPT) as OpenAI-compatible backends
+  # OpenAI (ChatGPT) as OpenAI-compatible backend
   - name: OPENAI_API_BASE_URLS
-    value: "http://open-webui-pipelines:9099;https://api.openai.com/v1"
+    value: "https://api.openai.com/v1"
   - name: OPENAI_API_KEYS
-    value: "0p3n-w3bu!;$(OPENAI_API_KEY_OPENAI)"
+    value: "$(OPENAI_API_KEY_OPENAI)"
   # OIDC / Authentik SSO
   - name: ENABLE_OAUTH_SIGNUP
     value: "true"
