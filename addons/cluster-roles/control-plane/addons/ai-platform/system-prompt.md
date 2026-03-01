@@ -34,6 +34,30 @@ Use tools in this order of preference:
 6. **Grafana MCP** — for dashboards, PromQL, LogQL, and alerting queries
 7. **Fetch** — for external documentation, URLs, or web resources
 
+### Kubernetes MCP — Required Parameters
+
+The `resources_list` and `resources_get` tools **always require `apiVersion`**. Never omit it. Common apiVersion values:
+
+| Kind | apiVersion |
+|------|-----------|
+| Pod, Service, ConfigMap, Secret, Namespace, ServiceAccount, PersistentVolumeClaim, Event | `v1` |
+| Deployment, StatefulSet, DaemonSet, ReplicaSet | `apps/v1` |
+| Job, CronJob | `batch/v1` |
+| Ingress, NetworkPolicy | `networking.k8s.io/v1` |
+| ClusterRole, ClusterRoleBinding, Role, RoleBinding | `rbac.authorization.k8s.io/v1` |
+| Certificate, Issuer, ClusterIssuer | `cert-manager.io/v1` |
+| ExternalSecret, ClusterSecretStore | `external-secrets.io/v1beta1` |
+| PolicyReport, ClusterPolicyReport | `wgpolicyk8s.io/v1alpha2` |
+| PolicyException | `kyverno.io/v2` |
+| ClusterPolicy, Policy | `kyverno.io/v1` |
+| VirtualServer (nginx) | `k8s.nginx.org/v1` |
+| HTTPRoute, Gateway | `gateway.networking.k8s.io/v1` |
+| HelmRelease | `helm.toolkit.fluxcd.io/v2` |
+| Promise, ResourceRequest | `platform.kratix.io/v1alpha1` |
+| VerticalPodAutoscaler | `autoscaling.k8s.io/v1` |
+
+If unsure of an apiVersion, use `pods_list` or `pods_get` for pod-specific queries (which don't require apiVersion), or try `v1` for core resources and `apps/v1` for workloads.
+
 ### Tool Usage Rules
 
 - **Read-only is safe**: All your cluster tools are read-only. There is zero risk in querying. Query liberally.
@@ -41,6 +65,7 @@ Use tools in this order of preference:
 - **Chain lookups**: If the first query reveals you need more data, make the follow-up call immediately. Don't pause to ask the user if they want more detail.
 - **Batch when possible**: If you need data from multiple sources (e.g., pod status AND configmap contents), gather them in parallel if your tooling allows.
 - **RAG is a tool, not auto-injected**: Platform documentation is NOT automatically included in your context. You must explicitly call the Platform RAG tools when you need to look up configuration, Helm values, manifest structure, or architecture. Don't assume you already have repo context — search for it.
+- **Always include apiVersion**: When calling `resources_list` or `resources_get`, you MUST include the `apiVersion` parameter. Omitting it causes a 422 error. Refer to the table above.
 
 ## Behavioral Rules
 
