@@ -1,4 +1,4 @@
-# Open WebUI Helm values (chart v12.5.0) — external Ollama, Pipelines enabled
+# Open WebUI Helm values (chart v12.5.0, app v0.8.6) — external Ollama, Pipelines disabled
 ollama:
   enabled: false
 
@@ -6,14 +6,14 @@ ollamaUrls:
   - "http://10.0.3.4:11434"
 
 # Disable the chart's singular OpenAI URL — we set the plural OPENAI_API_BASE_URLS
-# in extraEnvVars to support Pipelines + OpenAI side-by-side.
+# in extraEnvVars to support OpenAI API directly.
 openaiBaseApiUrl: ""
 
 pipelines:
   enabled: false
 
 image:
-  tag: ""  # Use chart default
+  tag: "v0.8.6"  # Pinned ahead of chart release (chart 12.5.0 ships 0.8.5)
 
 resources:
   requests:
