@@ -1,14 +1,15 @@
-# Goldilocks - VPA-based resource recommendation and auto-tuning
-# VPA runs in Auto mode: it will actually set requests/limits on pods
-# ArgoCD is configured to ignore resource drift so it doesn't fight VPA
+# Goldilocks - VPA-based resource recommendations (recommendation-only mode)
+# VPA recommender runs but does NOT auto-apply changes to pods.
+# Use the Goldilocks dashboard to view recommendations and manually set
+# resource requests/limits in Git.
 
-# VPA subchart — enables all 3 components for Auto mode
+# VPA subchart — recommender only (updater + admission controller disabled)
 vpa:
   enabled: true
   admissionController:
-    enabled: true
+    enabled: false
   updater:
-    enabled: true
+    enabled: false
   recommender:
     extraArgs:
       v: "4"
@@ -37,8 +38,8 @@ controller:
     # Exclude system namespaces and trivy-system (ephemeral scan jobs
     # create unresolvable owner chains that spam controller logs)
     exclude-namespaces: "kube-system,kube-public,kube-node-lease,goldilocks,trivy-system"
-    # VPA update mode is controlled per-namespace via label:
-    # goldilocks.fairwinds.com/vpa-update-mode=Auto
+    # VPA update mode: Off = recommendation-only (no pod mutations)
+    # Goldilocks dashboard still shows recommendations for all workloads
   resources:
     requests:
       cpu: 25m

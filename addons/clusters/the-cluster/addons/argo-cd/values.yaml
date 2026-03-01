@@ -136,19 +136,6 @@ configs:
         - profile
         - email
         - groups
-    # Ignore container resource drift — VPA Auto mode manages requests/limits
-    resource.customizations.ignoreDifferences.apps_Deployment: |
-      jqPathExpressions:
-        - .spec.template.spec.containers[].resources
-        - .spec.template.spec.initContainers[]?.resources
-    resource.customizations.ignoreDifferences.apps_StatefulSet: |
-      jqPathExpressions:
-        - .spec.template.spec.containers[].resources
-        - .spec.template.spec.initContainers[]?.resources
-    resource.customizations.ignoreDifferences.apps_DaemonSet: |
-      jqPathExpressions:
-        - .spec.template.spec.containers[].resources
-        - .spec.template.spec.initContainers[]?.resources
     # Ignore webhook caBundle drift — cert-manager rotates these automatically
     resource.customizations.ignoreDifferences.admissionregistration.k8s.io_MutatingWebhookConfiguration: |
       jqPathExpressions:
