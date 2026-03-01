@@ -1,0 +1,23 @@
+# Kyverno PolicyException: Allow etcd-cert-extractor Job to run privileged
+# This one-shot Job reads Talos etcd TLS certs from /system/secrets/etcd/
+# which is a protected host path requiring privileged access on Talos Linux.
+---
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: etcd-cert-extractor-privileged
+  namespace: monitoring
+spec:
+  exceptions:
+    - policyName: disallow-privileged-containers
+      ruleNames:
+        - deny-privileged-containers
+  match:
+    any:
+      - resources:
+          kinds:
+            - Pod
+          namespaces:
+            - monitoring
+          names:
+            - etcd-secret-writer-*

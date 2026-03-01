@@ -67,13 +67,9 @@ spec:
             - mountPath: /tmp
               name: tmp
           securityContext:
-            privileged: false
-            allowPrivilegeEscalation: false
+            privileged: true
             readOnlyRootFilesystem: true
             runAsUser: 0
-            capabilities:
-              drop: [ALL]
-              add: [DAC_READ_SEARCH]
             seccompProfile:
               type: RuntimeDefault
       volumes:
