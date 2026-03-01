@@ -411,6 +411,10 @@ class Pipeline:
     def _embed(self, text: str) -> list[float]:
         """Embed a single query string via Ollama.  Tries /api/embed first,
         then falls back to the older /api/embeddings endpoint."""
+        if not isinstance(text, str):
+            text = self._content_to_text(text)
+        if not text.strip():
+            return []
         base = self.valves.OLLAMA_URL
 
         # --- Newer endpoint (Ollama ≥ 0.4.0) ---
@@ -465,8 +469,14 @@ class Pipeline:
 
     def _retrieve(self, query: str) -> list[dict]:
         """Retrieve top-K relevant chunks from Qdrant."""
+        if not isinstance(query, str):
+            query = self._content_to_text(query)
+        if not query.strip():
+            return []
         try:
             query_vector = self._embed(query)
+            if not query_vector:
+                return []
         except Exception as exc:
             log.warning("Embedding failed: %s", exc)
             return []
