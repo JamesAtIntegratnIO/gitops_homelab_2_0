@@ -356,6 +356,69 @@ data:
 - `environment: production` - Environment-based ApplicationSet routing
 - Custom labels (team, etc.) - User-defined selectors
 
+### Product Promises
+
+#### http-service
+**Purpose:** One-CR experience to deploy an HTTP service with full platform wiring: namespace, deployment, service, HTTPRoute (Gateway API), ExternalSecrets (1Password), NetworkPolicy, and optional Prometheus monitoring.
+
+**Location:** [promises/http-service/](../promises/http-service/)
+
+**ResourceRequest:** `HTTPService` (`platform.integratn.tech/v1alpha1`)
+
+**What It Does:**
+1. Creates a dedicated Namespace (sync-wave 0)
+2. Generates an ArgoCD Application pointing at the [Stakater `application`](https://github.com/stakater/application) Helm chart (v6.16.1)
+3. Creates ExternalSecret(s) wired to 1Password via ClusterSecretStore (if secrets specified)
+4. Creates NetworkPolicy set: default-deny + allow-gateway + allow-DNS + allow-monitoring
+
+**Key Fields:**
+```yaml
+apiVersion: platform.integratn.tech/v1alpha1
+kind: HTTPService
+metadata:
+  name: my-api
+  namespace: platform-requests
+spec:
+  name: my-api
+  image:
+    repository: docker.io/nginxinc/nginx-unprivileged
+    tag: v1.0.0
+  port: 8080
+  replicas: 2
+  ingress:
+    enabled: true
+    hostname: my-api.cluster.integratn.tech
+  secrets:
+    - onePasswordItem: my-api-db
+      keys:
+        - secretKey: DB_PASSWORD
+          property: password
+  monitoring:
+    enabled: true
+  securityContext:
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+  helmOverrides: {}   # Escape hatch for raw Stakater chart values
+```
+
+**Pipeline:** Go binary using [kratix-go SDK](https://github.com/syntasso/kratix-go) v0.1.0
+
+**Image Compatibility:** Cluster-wide Kyverno policies drop all Linux capabilities and disable privilege escalation. Use non-root images (e.g., `nginxinc/nginx-unprivileged`) or add capabilities back via `helmOverrides`. See [README](../promises/http-service/README.md#security--image-compatibility) for details.
+
+**Deployed Resources:**
+```
+HTTPService CR  →  Kratix Pipeline  →  GitStateStore
+    │
+    ├─► Namespace (sync-wave 0)
+    ├─► NetworkPolicy: default-deny, allow-dns, allow-gateway (sync-wave 5)
+    ├─► ExternalSecret(s) (sync-wave 5, if secrets configured)
+    └─► ArgoCD Application (sync-wave 10)
+            │
+            ├─► Deployment + Service + ServiceAccount
+            ├─► HTTPRoute (Gateway API → nginx-gateway)
+            └─► ServiceMonitor (optional)
+```
+
 ### ArgoCD Helper Promises
 
 #### argocd-project
@@ -987,6 +1050,7 @@ gh run watch
 ## Key Files Reference
 
 ### Promise Definitions
+- **HTTP service**: [promises/http-service/promise.yaml](../promises/http-service/promise.yaml)
 - **vCluster orchestrator**: [promises/vcluster-orchestrator/promise.yaml](../promises/vcluster-orchestrator/promise.yaml)
 - **vCluster core**: [promises/vcluster-core/promise.yaml](../promises/vcluster-core/promise.yaml)
 - **CoreDNS**: [promises/vcluster-coredns/promise.yaml](../promises/vcluster-coredns/promise.yaml)
@@ -997,6 +1061,7 @@ gh run watch
 - **ArgoCD application helper**: [promises/argocd-application/promise.yaml](../promises/argocd-application/promise.yaml)
 
 ### Pipeline Scripts
+- **HTTP service configure** (Go): [promises/http-service/workflows/resource/configure/main.go](../promises/http-service/workflows/resource/configure/main.go)
 - **Orchestrator configure**: [promises/vcluster-orchestrator/pipelines/configure-pipeline.sh](../promises/vcluster-orchestrator/pipelines/configure-pipeline.sh)
 - **Core render**: [promises/vcluster-core/pipelines/configure-pipeline.sh](../promises/vcluster-core/pipelines/configure-pipeline.sh)
 

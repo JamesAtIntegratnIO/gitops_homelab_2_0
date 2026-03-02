@@ -10,7 +10,7 @@ From a single `HTTPService` CR, the pipeline generates:
 
 | Resource | Source | Purpose |
 |----------|--------|---------|
-| **Namespace** | ArgoCD `CreateNamespace=true` | Isolated namespace for the app |
+| **Namespace** | Pipeline output (sync-wave 0) | Isolated namespace for the app |
 | **Deployment** | Stakater chart | Container with probes, resources, security context |
 | **Service** | Stakater chart | ClusterIP service |
 | **HTTPRoute** | Stakater chart | Gateway API route → `nginx-gateway` → TLS via cert-manager |
@@ -32,15 +32,35 @@ metadata:
 spec:
   name: hello-world
   image:
-    repository: docker.io/nginxdemos/hello
+    repository: docker.io/nginxinc/nginx-unprivileged
     tag: latest
+  port: 8080
 ```
 
-This creates a deployment at `https://hello-world.cluster.integratn.tech` with sensible defaults (1 replica, 100m/128Mi requests, health checks on `/healthz`, default-deny NetworkPolicy).
+This creates a deployment at `https://hello-world.cluster.integratn.tech` with sensible defaults (1 replica, 100m/128Mi requests, health checks on `/`, default-deny NetworkPolicy).
+
+### With Security Hardening
+
+```yaml
+apiVersion: platform.integratn.tech/v1alpha1
+kind: HTTPService
+metadata:
+  name: my-api
+  namespace: platform-requests
+spec:
+  name: my-api
+  image:
+    repository: ghcr.io/my-org/my-api
+    tag: v1.2.3
+  securityContext:
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    runAsUser: 65532
+```
 
 ### Full-Featured
 
-See [examples/full-featured.yaml](examples/full-featured.yaml) for all available fields including secrets, monitoring, persistence, and custom env vars.
+All available fields including secrets, monitoring, persistence, env vars, and `helmOverrides` escape hatch are documented in the API Reference below.
 
 ## API Reference
 
@@ -70,7 +90,7 @@ See [examples/full-featured.yaml](examples/full-featured.yaml) for all available
 | `spec.ingress.path` | `/` | URL path prefix |
 | `spec.secrets` | `[]` | ExternalSecrets (1Password) |
 | `spec.env` | `{}` | Plain env vars |
-| `spec.healthCheck.path` | `/healthz` | Probe path |
+| `spec.healthCheck.path` | `/` | Probe path |
 | `spec.healthCheck.port` | `{port}` | Probe port |
 | `spec.monitoring.enabled` | `false` | Create ServiceMonitor |
 | `spec.monitoring.path` | `/metrics` | Metrics path |
@@ -78,6 +98,10 @@ See [examples/full-featured.yaml](examples/full-featured.yaml) for all available
 | `spec.persistence.enabled` | `false` | Create PVC |
 | `spec.persistence.size` | `1Gi` | Volume size |
 | `spec.persistence.mountPath` | `/data` | Mount path |
+| `spec.securityContext.runAsNonRoot` | `false` | Require non-root user |
+| `spec.securityContext.readOnlyRootFilesystem` | `false` | Mount root fs read-only |
+| `spec.securityContext.runAsUser` | _(unset)_ | Run as specific UID |
+| `spec.securityContext.runAsGroup` | _(unset)_ | Run as specific GID |
 | `spec.helmOverrides` | `{}` | Raw Stakater chart values (escape hatch) |
 
 ### Secrets Example
@@ -93,6 +117,67 @@ spec:
 ```
 
 The pipeline generates an `ExternalSecret` backed by the `onepassword-connect` ClusterSecretStore. **No `kind: Secret` is ever written to git.**
+
+## Security & Image Compatibility
+
+### Cluster Security Policies
+
+This cluster enforces security baselines via **Kyverno mutating policies** that are applied to all pods:
+
+| Policy | Effect |
+|--------|--------|
+| `mutate-restrict-escalation` | Injects `allowPrivilegeEscalation: false` and `capabilities.drop: ["ALL"]` |
+| `mutate-seccomp-default` | Injects `seccompProfile.type: RuntimeDefault` |
+| `restrict-image-registries` | Warns (audit) on images from unapproved registries |
+
+Because **all Linux capabilities are dropped**, images that require capabilities like `CHOWN`, `SETUID`, `SETGID`, or `NET_BIND_SERVICE` will fail at runtime.
+
+### Choosing a Compatible Image
+
+**Recommended:** Use images designed to run as non-root without special capabilities:
+
+| Image | Works | Notes |
+|-------|-------|-------|
+| `docker.io/nginxinc/nginx-unprivileged` | ✅ | Runs as UID 101, listens on 8080 |
+| `ghcr.io/your-org/your-app` | ✅ | Purpose-built images (best practice) |
+| `docker.io/nginxdemos/hello` | ❌ | Runs as root, needs `CHOWN` capability |
+| `docker.io/library/nginx` | ❌ | Runs as root, binds port 80, needs capabilities |
+
+**Rule of thumb:** If an image runs as root or calls `chown`/`setuid` in its entrypoint, it won't work without adding capabilities back.
+
+### Adding Capabilities (Escape Hatch)
+
+If you must run an image that requires specific capabilities, use `helmOverrides`:
+
+```yaml
+spec:
+  helmOverrides:
+    deployment:
+      containerSecurityContext:
+        capabilities:
+          add:
+            - CHOWN
+            - SETUID
+            - SETGID
+          drop:
+            - ALL
+```
+
+> **Note:** The Kyverno `mutate-restrict-escalation` policy will still inject `allowPrivilegeEscalation: false` and `capabilities.drop: ALL`. Your `helmOverrides` capabilities are applied at the chart level, but the Kyverno mutation happens after admission. To truly override, consider a Kyverno policy exception for the namespace.
+
+### Security Context Defaults
+
+The pipeline defaults are **permissive** (`runAsNonRoot: false`, `readOnlyRootFilesystem: false`) to ensure standard Docker Hub images work out-of-the-box. The Stakater application chart itself defaults to hardened settings, but the pipeline explicitly overrides those chart defaults.
+
+For production workloads, explicitly set `securityContext` in your CR:
+
+```yaml
+spec:
+  securityContext:
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    runAsUser: 65532
+```
 
 ## Platform Conventions
 
