@@ -16,7 +16,7 @@ const (
 	defaultSecretStoreKind = "ClusterSecretStore"
 	stakaterChartRepo    = "https://stakater.github.io/stakater-charts"
 	stakaterChartName    = "application"
-	stakaterChartVersion = "8.0.0"
+	stakaterChartVersion = "6.16.1"
 	argoCDProject        = "default"
 )
 
