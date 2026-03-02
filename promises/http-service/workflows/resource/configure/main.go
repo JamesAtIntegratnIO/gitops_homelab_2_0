@@ -131,8 +131,30 @@ func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
 	return config, nil
 }
 
-// handleConfigure generates the ArgoCD Application + ExternalSecrets.
+// handleConfigure generates the Namespace + ArgoCD Application + ExternalSecrets + NetworkPolicies.
 func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
+	// 0. Create the target Namespace first (low sync-wave so it exists before everything else)
+	ns := Resource{
+		APIVersion: "v1",
+		Kind:       "Namespace",
+		Metadata: ObjectMeta{
+			Name: config.Namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "kratix",
+				"kratix.io/promise-name":       "http-service",
+				"app.kubernetes.io/part-of":    config.Name,
+				"app.kubernetes.io/team":       config.Team,
+			},
+			Annotations: map[string]string{
+				"argocd.argoproj.io/sync-wave": "0",
+			},
+		},
+	}
+	if err := writeYAML(sdk, "resources/namespace.yaml", ns); err != nil {
+		return fmt.Errorf("write Namespace: %w", err)
+	}
+	log.Printf("✓ Rendered Namespace: %s", config.Namespace)
+
 	// 1. Build Stakater application chart values
 	values := buildStakaterValues(config)
 
@@ -545,6 +567,9 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 				"kratix.io/promise-name":       "http-service",
 				"app.kubernetes.io/part-of":    config.Name,
 			},
+			Annotations: map[string]string{
+				"argocd.argoproj.io/sync-wave": "5",
+			},
 		},
 		Spec: map[string]interface{}{
 			"podSelector": map[string]interface{}{
@@ -567,6 +592,9 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 				"app.kubernetes.io/managed-by": "kratix",
 				"kratix.io/promise-name":       "http-service",
 				"app.kubernetes.io/part-of":    config.Name,
+			},
+			Annotations: map[string]string{
+				"argocd.argoproj.io/sync-wave": "5",
 			},
 		},
 		Spec: map[string]interface{}{
@@ -611,6 +639,9 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 					"kratix.io/promise-name":       "http-service",
 					"app.kubernetes.io/part-of":    config.Name,
 				},
+				Annotations: map[string]string{
+					"argocd.argoproj.io/sync-wave": "5",
+				},
 			},
 			Spec: map[string]interface{}{
 				"podSelector": map[string]interface{}{
@@ -653,6 +684,9 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 				"app.kubernetes.io/managed-by": "kratix",
 				"kratix.io/promise-name":       "http-service",
 				"app.kubernetes.io/part-of":    config.Name,
+			},
+			Annotations: map[string]string{
+				"argocd.argoproj.io/sync-wave": "5",
 			},
 		},
 		Spec: map[string]interface{}{
