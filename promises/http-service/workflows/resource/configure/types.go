@@ -106,6 +106,12 @@ type HTTPServiceConfig struct {
 	PersistenceClass   string
 	PersistenceMountPath string
 
+	// Security
+	RunAsNonRoot          *bool
+	ReadOnlyRootFilesystem *bool
+	RunAsUser             *int64
+	RunAsGroup            *int64
+
 	// Escape hatch
 	HelmOverrides map[string]interface{}
 

@@ -107,7 +107,7 @@ func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
 	config.EnvFromSecrets = extractStringSlice(resource, "spec.envFromSecrets")
 
 	// Health checks
-	config.HealthCheckPath, _ = getStringValueWithDefault(resource, "spec.healthCheck.path", "/healthz")
+	config.HealthCheckPath, _ = getStringValueWithDefault(resource, "spec.healthCheck.path", "/")
 	config.HealthCheckPort, _ = getIntValueWithDefault(resource, "spec.healthCheck.port", config.Port)
 
 	// Monitoring
@@ -120,6 +120,22 @@ func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
 	config.PersistenceSize, _ = getStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
 	config.PersistenceClass, _ = getStringValue(resource, "spec.persistence.storageClass")
 	config.PersistenceMountPath, _ = getStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
+
+	// Security context
+	if v, err := getBoolValue(resource, "spec.securityContext.runAsNonRoot"); err == nil {
+		config.RunAsNonRoot = &v
+	}
+	if v, err := getBoolValue(resource, "spec.securityContext.readOnlyRootFilesystem"); err == nil {
+		config.ReadOnlyRootFilesystem = &v
+	}
+	if v, err := getIntValue(resource, "spec.securityContext.runAsUser"); err == nil {
+		v64 := int64(v)
+		config.RunAsUser = &v64
+	}
+	if v, err := getIntValue(resource, "spec.securityContext.runAsGroup"); err == nil {
+		v64 := int64(v)
+		config.RunAsGroup = &v64
+	}
 
 	// Helm overrides
 	if val, err := resource.GetValue("spec.helmOverrides"); err == nil && val != nil {
@@ -276,6 +292,34 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	return nil
 }
 
+// buildSecurityContext creates the container security context from config.
+// The Stakater chart defaults to runAsNonRoot=true and readOnlyRootFilesystem=true,
+// so we must explicitly set false when the user hasn't opted into hardening.
+// This ensures standard Docker Hub images work out-of-the-box.
+func buildSecurityContext(config *HTTPServiceConfig) map[string]interface{} {
+	ctx := map[string]interface{}{}
+
+	// Default to false (override chart defaults) unless user explicitly sets true
+	if config.RunAsNonRoot != nil {
+		ctx["runAsNonRoot"] = *config.RunAsNonRoot
+	} else {
+		ctx["runAsNonRoot"] = false
+	}
+	if config.ReadOnlyRootFilesystem != nil {
+		ctx["readOnlyRootFilesystem"] = *config.ReadOnlyRootFilesystem
+	} else {
+		ctx["readOnlyRootFilesystem"] = false
+	}
+	if config.RunAsUser != nil {
+		ctx["runAsUser"] = *config.RunAsUser
+	}
+	if config.RunAsGroup != nil {
+		ctx["runAsGroup"] = *config.RunAsGroup
+	}
+
+	return ctx
+}
+
 // buildStakaterValues constructs the Helm values for the Stakater application chart.
 func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 	values := map[string]interface{}{
@@ -340,10 +384,7 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 					"scheme": "HTTP",
 				},
 			},
-			"containerSecurityContext": map[string]interface{}{
-				"readOnlyRootFilesystem": true,
-				"runAsNonRoot":           true,
-			},
+			"containerSecurityContext": buildSecurityContext(config),
 			"revisionHistoryLimit": 3,
 			"reloadOnChange":       true,
 		},

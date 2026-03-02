@@ -194,7 +194,7 @@ spec:
                         path:
                           type: string
                           description: HTTP path for health check
-                          default: /healthz
+                          default: /
                         port:
                           type: integer
                           description: Port for health check (defaults to app port)
@@ -234,7 +234,25 @@ spec:
                         mountPath:
                           type: string
                           default: /data
-
+                    # ── Security ─────────────────────────────
+                    securityContext:
+                      type: object
+                      description: Container security context
+                      properties:
+                        runAsNonRoot:
+                          type: boolean
+                          description: Require non-root user (set true for hardened images)
+                          default: false
+                        readOnlyRootFilesystem:
+                          type: boolean
+                          description: Mount root filesystem as read-only
+                          default: false
+                        runAsUser:
+                          type: integer
+                          description: Run container as this UID
+                        runAsGroup:
+                          type: integer
+                          description: Run container as this GID
                     # ── Helm Overrides ───────────────────
                     helmOverrides:
                       type: object

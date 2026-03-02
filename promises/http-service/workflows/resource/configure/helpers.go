@@ -41,6 +41,33 @@ func getIntValueWithDefault(resource kratix.Resource, path string, defaultValue 
 	return defaultValue, nil
 }
 
+func getIntValue(resource kratix.Resource, path string) (int, error) {
+	val, err := resource.GetValue(path)
+	if err != nil {
+		return 0, err
+	}
+	switch v := val.(type) {
+	case int:
+		return v, nil
+	case int64:
+		return int(v), nil
+	case float64:
+		return int(v), nil
+	}
+	return 0, fmt.Errorf("value at %s is not an integer", path)
+}
+
+func getBoolValue(resource kratix.Resource, path string) (bool, error) {
+	val, err := resource.GetValue(path)
+	if err != nil {
+		return false, err
+	}
+	if b, ok := val.(bool); ok {
+		return b, nil
+	}
+	return false, fmt.Errorf("value at %s is not a bool", path)
+}
+
 func getBoolValueWithDefault(resource kratix.Resource, path string, defaultValue bool) (bool, error) {
 	val, err := resource.GetValue(path)
 	if err != nil {
