@@ -17,12 +17,19 @@ type ObjectMeta struct {
 	Finalizers  []string          `json:"finalizers,omitempty"`
 }
 
-// ApplicationSpec is the ArgoCD Application spec.
-type ApplicationSpec struct {
-	Project     string      `json:"project"`
-	Source      AppSource   `json:"source"`
-	Destination Destination `json:"destination"`
-	SyncPolicy  interface{} `json:"syncPolicy,omitempty"`
+// ArgoCDApplicationSpec is the spec for a platform.integratn.tech/v1alpha1 ArgoCDApplication
+// sub-ResourceRequest. The argocd-application promise pipeline reads these fields to
+// construct the actual argoproj.io/v1alpha1 Application.
+type ArgoCDApplicationSpec struct {
+	Name        string            `json:"name"`
+	Namespace   string            `json:"namespace,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Finalizers  []string          `json:"finalizers,omitempty"`
+	Project     string            `json:"project"`
+	Source      AppSource         `json:"source"`
+	Destination Destination       `json:"destination"`
+	SyncPolicy  interface{}       `json:"syncPolicy,omitempty"`
 }
 
 // AppSource defines the Helm chart source.

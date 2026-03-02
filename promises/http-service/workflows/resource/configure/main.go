@@ -147,7 +147,7 @@ func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
 	return config, nil
 }
 
-// handleConfigure generates the Namespace + ArgoCD Application + ExternalSecrets + NetworkPolicies.
+// handleConfigure generates the Namespace + ArgoCDApplication sub-ResourceRequest + ExternalSecrets + NetworkPolicies.
 func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// 0. Create the target Namespace first (low sync-wave so it exists before everything else)
 	ns := Resource{
@@ -179,28 +179,37 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		values = deepMerge(values, config.HelmOverrides)
 	}
 
-	// 3. Build ArgoCD Application pointing at the Stakater chart
-	app := Resource{
-		APIVersion: "argoproj.io/v1alpha1",
-		Kind:       "Application",
+	// 3. Build ArgoCDApplication sub-ResourceRequest (delegates to the argocd-application promise)
+	appLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "kratix",
+		"kratix.io/promise-name":       "http-service",
+		"app.kubernetes.io/part-of":    config.Name,
+		"app.kubernetes.io/team":       config.Team,
+	}
+
+	appRequest := Resource{
+		APIVersion: "platform.integratn.tech/v1alpha1",
+		Kind:       "ArgoCDApplication",
 		Metadata: ObjectMeta{
 			Name:      config.Name,
-			Namespace: "argocd",
+			Namespace: "platform-requests",
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by": "kratix",
+				"app.kubernetes.io/name":       "argocd-application",
 				"kratix.io/promise-name":       "http-service",
 				"app.kubernetes.io/part-of":    config.Name,
 				"app.kubernetes.io/team":       config.Team,
 			},
+		},
+		Spec: ArgoCDApplicationSpec{
+			Name:      config.Name,
+			Namespace: "argocd",
 			Annotations: map[string]string{
 				"argocd.argoproj.io/sync-wave": "10",
 			},
-			Finalizers: []string{
-				"resources-finalizer.argocd.argoproj.io",
-			},
-		},
-		Spec: ApplicationSpec{
-			Project: argoCDProject,
+			Labels:     appLabels,
+			Finalizers: []string{"resources-finalizer.argocd.argoproj.io"},
+			Project:    argoCDProject,
 			Source: AppSource{
 				RepoURL:        stakaterChartRepo,
 				Chart:          stakaterChartName,
@@ -227,10 +236,10 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		},
 	}
 
-	if err := writeYAML(sdk, "resources/argocd-application.yaml", app); err != nil {
-		return fmt.Errorf("write ArgoCD Application: %w", err)
+	if err := writeYAML(sdk, "resources/argocd-application-request.yaml", appRequest); err != nil {
+		return fmt.Errorf("write ArgoCDApplication request: %w", err)
 	}
-	log.Printf("✓ Rendered ArgoCD Application: %s", config.Name)
+	log.Printf("✓ Rendered ArgoCDApplication sub-ResourceRequest: %s", config.Name)
 
 	// 4. Build ExternalSecrets (these go directly, not through Stakater, 
 	//    because we need them created before the Deployment references them)
@@ -265,21 +274,22 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	return nil
 }
 
-// handleDelete cleans up the ArgoCD Application.
+// handleDelete cleans up the ArgoCDApplication sub-ResourceRequest.
 func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
-	app := Resource{
-		APIVersion: "argoproj.io/v1alpha1",
-		Kind:       "Application",
+	// Emit a minimal ArgoCDApplication resource so Kratix knows what to delete
+	appRequest := Resource{
+		APIVersion: "platform.integratn.tech/v1alpha1",
+		Kind:       "ArgoCDApplication",
 		Metadata: ObjectMeta{
 			Name:      config.Name,
-			Namespace: "argocd",
+			Namespace: "platform-requests",
 		},
 	}
 
-	if err := writeYAML(sdk, "resources/delete-application.yaml", app); err != nil {
-		return fmt.Errorf("write delete application: %w", err)
+	if err := writeYAML(sdk, "resources/delete-argocdapplication-"+config.Name+".yaml", appRequest); err != nil {
+		return fmt.Errorf("write delete ArgoCDApplication request: %w", err)
 	}
-	log.Printf("✓ Delete scheduled for HTTP Service: %s", config.Name)
+	log.Printf("✓ Delete scheduled for ArgoCDApplication: %s", config.Name)
 
 	status := kratix.NewStatus()
 	status.Set("phase", "Deleting")
