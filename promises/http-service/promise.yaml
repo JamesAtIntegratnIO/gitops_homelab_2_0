@@ -1,0 +1,287 @@
+apiVersion: platform.kratix.io/v1alpha1
+kind: Promise
+metadata:
+  name: http-service
+  labels:
+    kratix.io/promise-type: product
+    kratix.io/promise-version: v1alpha1
+spec:
+  destinationSelectors:
+    - matchLabels:
+        capability.vcluster: "true"
+
+  api:
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: httpservices.platform.integratn.tech
+    spec:
+      group: platform.integratn.tech
+      scope: Namespaced
+      names:
+        plural: httpservices
+        singular: httpservice
+        kind: HTTPService
+        shortNames:
+          - httpsvc
+      versions:
+        - name: v1alpha1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required:
+                    - name
+                    - image
+                  properties:
+                    # ── Identity ──────────────────────────
+                    name:
+                      type: string
+                      description: Application name (used for namespace, deployment, service, route)
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    namespace:
+                      type: string
+                      description: Target namespace (defaults to app name)
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    team:
+                      type: string
+                      description: Team that owns this service (used for labels)
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+
+                    # ── Container ─────────────────────────
+                    image:
+                      type: object
+                      required:
+                        - repository
+                      properties:
+                        repository:
+                          type: string
+                          description: Container image repository (e.g. docker.io/nginx)
+                        tag:
+                          type: string
+                          description: Image tag
+                          default: latest
+                        pullPolicy:
+                          type: string
+                          description: Image pull policy
+                          default: IfNotPresent
+                          enum:
+                            - Always
+                            - IfNotPresent
+                            - Never
+                    command:
+                      type: array
+                      description: Override container command
+                      items:
+                        type: string
+                    args:
+                      type: array
+                      description: Override container args
+                      items:
+                        type: string
+
+                    # ── Scaling ───────────────────────────
+                    replicas:
+                      type: integer
+                      description: Number of replicas
+                      default: 1
+                      minimum: 1
+                      maximum: 10
+                    resources:
+                      type: object
+                      description: CPU/memory requests and limits
+                      properties:
+                        requests:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: 100m
+                            memory:
+                              type: string
+                              default: 128Mi
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: 500m
+                            memory:
+                              type: string
+                              default: 256Mi
+
+                    # ── Networking ────────────────────────
+                    port:
+                      type: integer
+                      description: Container port the app listens on
+                      default: 8080
+                      minimum: 1
+                      maximum: 65535
+                    ingress:
+                      type: object
+                      description: Expose via HTTPRoute (Gateway API)
+                      properties:
+                        enabled:
+                          type: boolean
+                          description: Create an HTTPRoute for this service
+                          default: true
+                        hostname:
+                          type: string
+                          description: "FQDN hostname (defaults to {name}.cluster.integratn.tech)"
+                          pattern: '^([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)+[a-z]{2,}$'
+                          maxLength: 253
+                        path:
+                          type: string
+                          description: URL path prefix
+                          default: /
+
+                    # ── Secrets (1Password) ──────────────
+                    secrets:
+                      type: array
+                      description: ExternalSecrets wired to 1Password via ClusterSecretStore
+                      items:
+                        type: object
+                        required:
+                          - onePasswordItem
+                          - keys
+                        properties:
+                          name:
+                            type: string
+                            description: "Secret name (defaults to {app}-{onePasswordItem})"
+                          onePasswordItem:
+                            type: string
+                            description: Item name in 1Password vault
+                          keys:
+                            type: array
+                            description: Key mappings from 1Password to K8s Secret
+                            items:
+                              type: object
+                              required:
+                                - secretKey
+                                - property
+                              properties:
+                                secretKey:
+                                  type: string
+                                  description: Key in the Kubernetes Secret
+                                property:
+                                  type: string
+                                  description: Property name in the 1Password item
+
+                    # ── Environment ──────────────────────
+                    env:
+                      type: object
+                      description: Plain-text environment variables
+                      additionalProperties:
+                        type: string
+                    envFromSecrets:
+                      type: array
+                      description: Mount entire secrets as envFrom
+                      items:
+                        type: string
+
+                    # ── Health Checks ────────────────────
+                    healthCheck:
+                      type: object
+                      description: Readiness and liveness probes (HTTP GET)
+                      properties:
+                        path:
+                          type: string
+                          description: HTTP path for health check
+                          default: /healthz
+                        port:
+                          type: integer
+                          description: Port for health check (defaults to app port)
+
+                    # ── Observability ────────────────────
+                    monitoring:
+                      type: object
+                      description: Prometheus ServiceMonitor settings
+                      properties:
+                        enabled:
+                          type: boolean
+                          description: Create a ServiceMonitor
+                          default: false
+                        path:
+                          type: string
+                          description: Metrics endpoint path
+                          default: /metrics
+                        interval:
+                          type: string
+                          description: Scrape interval
+                          default: 30s
+
+                    # ── Storage ──────────────────────────
+                    persistence:
+                      type: object
+                      description: Optional persistent volume
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        size:
+                          type: string
+                          default: 1Gi
+                        storageClass:
+                          type: string
+                          description: Leave empty for cluster default
+                        mountPath:
+                          type: string
+                          default: /data
+
+                    # ── Helm Overrides ───────────────────
+                    helmOverrides:
+                      type: object
+                      description: Raw Stakater application chart values to merge (escape hatch)
+                      x-kubernetes-preserve-unknown-fields: true
+
+                status:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+
+  workflows:
+    resource:
+      configure:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: http-service-configure
+          spec:
+            containers:
+              - name: configure
+                image: ghcr.io/jamesatintegratnio/http-service-configure:latest
+                imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault
+      delete:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: http-service-delete
+          spec:
+            containers:
+              - name: delete
+                image: ghcr.io/jamesatintegratnio/http-service-configure:latest
+                imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault
