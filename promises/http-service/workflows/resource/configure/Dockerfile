@@ -10,10 +10,10 @@ WORKDIR /workspace
 # Copy shared module first (for caching)
 COPY _shared/kratixutil/ ./_shared/kratixutil/
 
-# Copy promise-specific go mod files
-COPY http-service/workflows/resource/configure/go.mod ./http-service/workflows/resource/configure/
+# Copy promise-specific go mod and sum files
+COPY http-service/workflows/resource/configure/go.mod http-service/workflows/resource/configure/go.sum ./http-service/workflows/resource/configure/
 WORKDIR /workspace/http-service/workflows/resource/configure
-RUN go mod tidy && go mod download
+RUN go mod download
 
 # Copy source code
 COPY http-service/workflows/resource/configure/*.go ./

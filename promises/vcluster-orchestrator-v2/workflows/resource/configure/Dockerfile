@@ -10,10 +10,10 @@ WORKDIR /workspace
 # Copy shared module first (for caching)
 COPY _shared/kratixutil/ ./_shared/kratixutil/
 
-# Copy promise-specific go mod files
-COPY vcluster-orchestrator-v2/workflows/resource/configure/go.mod ./vcluster-orchestrator-v2/workflows/resource/configure/
+# Copy promise-specific go mod and sum files
+COPY vcluster-orchestrator-v2/workflows/resource/configure/go.mod vcluster-orchestrator-v2/workflows/resource/configure/go.sum ./vcluster-orchestrator-v2/workflows/resource/configure/
 WORKDIR /workspace/vcluster-orchestrator-v2/workflows/resource/configure
-RUN go mod tidy && go mod download
+RUN go mod download
 
 # Copy source code
 COPY vcluster-orchestrator-v2/workflows/resource/configure/*.go ./

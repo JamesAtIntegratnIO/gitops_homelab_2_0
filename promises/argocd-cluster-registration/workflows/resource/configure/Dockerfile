@@ -1,4 +1,5 @@
 # Multi-stage build for argocd-cluster-registration configure pipeline
+# Build context: promises/
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 
 ARG TARGETOS
@@ -6,12 +7,13 @@ ARG TARGETARCH
 
 WORKDIR /workspace
 
-# Copy go mod files
-COPY go.mod ./
+# Copy go mod and sum files
+COPY argocd-cluster-registration/workflows/resource/configure/go.mod argocd-cluster-registration/workflows/resource/configure/go.sum ./argocd-cluster-registration/workflows/resource/configure/
+WORKDIR /workspace/argocd-cluster-registration/workflows/resource/configure
+RUN go mod download
 
 # Copy source code
-COPY *.go ./
-RUN go mod tidy && go mod download
+COPY argocd-cluster-registration/workflows/resource/configure/*.go ./
 
 # Build static binary
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
@@ -29,7 +31,7 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /
 
 # Copy binary from builder
-COPY --from=builder /workspace/configure /usr/local/bin/configure
+COPY --from=builder /workspace/argocd-cluster-registration/workflows/resource/configure/configure /usr/local/bin/configure
 
 # Run as non-root
 USER 65532:65532
