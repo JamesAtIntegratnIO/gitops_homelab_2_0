@@ -1,4 +1,5 @@
 # Multi-stage build for http-service configure pipeline
+# Build context: promises/ (to access _shared/kratixutil)
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 
 ARG TARGETOS
@@ -6,12 +7,16 @@ ARG TARGETARCH
 
 WORKDIR /workspace
 
-# Copy go mod files
-COPY go.mod ./
+# Copy shared module first (for caching)
+COPY _shared/kratixutil/ ./_shared/kratixutil/
+
+# Copy promise-specific go mod files
+COPY http-service/workflows/resource/configure/go.mod ./http-service/workflows/resource/configure/
+WORKDIR /workspace/http-service/workflows/resource/configure
+RUN go mod tidy && go mod download
 
 # Copy source code
-COPY *.go ./
-RUN go mod tidy && go mod download
+COPY http-service/workflows/resource/configure/*.go ./
 
 # Build static binary
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
@@ -29,7 +34,7 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /
 
 # Copy binary from builder
-COPY --from=builder /workspace/configure /usr/local/bin/configure
+COPY --from=builder /workspace/http-service/workflows/resource/configure/configure /usr/local/bin/configure
 
 # Run as non-root
 USER 65532:65532

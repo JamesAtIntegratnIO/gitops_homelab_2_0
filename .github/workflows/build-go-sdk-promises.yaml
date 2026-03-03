@@ -6,9 +6,11 @@ on:
       - main
     paths:
       - 'promises/*/workflows/**'
+      - 'promises/_shared/**'
   pull_request:
     paths:
       - 'promises/*/workflows/**'
+      - 'promises/_shared/**'
   workflow_dispatch:
     inputs:
       promise:
@@ -44,22 +46,30 @@ jobs:
           else
             # Detect changes
             if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep '^promises/.*/workflows/' || true)
+              changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD || true)
             else
               if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
-                changed_files=$(git diff --name-only --root ${{ github.sha }} | grep '^promises/.*/workflows/' || true)
+                changed_files=$(git diff --name-only --root ${{ github.sha }} || true)
               elif git cat-file -e ${{ github.event.before }}^{commit} 2>/dev/null; then
-                changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '^promises/.*/workflows/' || true)
+                changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} || true)
               else
-                changed_files=$(git diff --name-only HEAD~1 HEAD | grep '^promises/.*/workflows/' || true)
+                changed_files=$(git diff --name-only HEAD~1 HEAD || true)
               fi
             fi
             
-            if [[ -z "$changed_files" ]]; then
-              echo "promises=[]" >> $GITHUB_OUTPUT
-            else
-              promises=$(echo "$changed_files" | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            # If shared module changed, rebuild ALL promises
+            shared_changed=$(echo "$changed_files" | grep '^promises/_shared/' || true)
+            if [[ -n "$shared_changed" ]]; then
+              promises=$(find promises -mindepth 4 -maxdepth 4 -type f -path 'promises/*/workflows/resource/configure/Dockerfile' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
               echo "promises=${promises}" >> $GITHUB_OUTPUT
+            else
+              workflow_changes=$(echo "$changed_files" | grep '^promises/.*/workflows/' || true)
+              if [[ -z "$workflow_changes" ]]; then
+                echo "promises=[]" >> $GITHUB_OUTPUT
+              else
+                promises=$(echo "$workflow_changes" | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+                echo "promises=${promises}" >> $GITHUB_OUTPUT
+              fi
             fi
           fi
 
@@ -116,7 +126,8 @@ jobs:
         if: steps.check-configure.outputs.exists == 'true'
         uses: docker/build-push-action@v5
         with:
-          context: ./promises/${{ matrix.promise }}/workflows/resource/configure
+          context: ./promises
+          file: ./promises/${{ matrix.promise }}/workflows/resource/configure/Dockerfile
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-configure.outputs.tags }}
@@ -187,7 +198,8 @@ jobs:
         if: steps.check-delete.outputs.exists == 'true'
         uses: docker/build-push-action@v5
         with:
-          context: ./promises/${{ matrix.promise }}/workflows/resource/delete
+          context: ./promises
+          file: ./promises/${{ matrix.promise }}/workflows/resource/delete/Dockerfile
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-delete.outputs.tags }}
@@ -215,7 +227,7 @@ jobs:
           for promise in promises/*/workflows/resource/configure; do
             if [[ -f "$promise/main.go" ]]; then
               echo "Checking $promise..."
-              docker run --rm -v "$(pwd)/$promise:/workspace" -w /workspace golang:1.24-alpine sh -c "go mod tidy && go build -o /dev/null ." || exit 1
+              docker run --rm -v "$(pwd)/promises:/workspace" -w "/workspace/$(echo $promise | sed 's|^promises/||')" golang:1.24-alpine sh -c "go mod tidy && go build -o /dev/null ." || exit 1
             fi
           done
           echo "✅ All Go code validated"
