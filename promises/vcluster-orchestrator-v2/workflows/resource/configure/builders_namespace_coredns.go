@@ -1,18 +1,22 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
 
-func buildNamespace(config *VClusterConfig) Resource {
-	labels := mergeStringMap(map[string]string{
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+)
+
+func buildNamespace(config *VClusterConfig) u.Resource {
+	labels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name":        "vcluster-namespace",
 		"vcluster.loft.sh/namespace":    "true",
 		"platform.integratn.tech/type":  "vcluster",
-	}, baseLabels(config, config.Name))
+	}, u.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
 
-	return Resource{
+	return u.Resource{
 		APIVersion: "v1",
 		Kind:       "Namespace",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			config.TargetNamespace,
 			"",
 			labels,
@@ -21,11 +25,11 @@ func buildNamespace(config *VClusterConfig) Resource {
 	}
 }
 
-func buildCorednsConfigMap(config *VClusterConfig) Resource {
-	labels := mergeStringMap(map[string]string{
+func buildCorednsConfigMap(config *VClusterConfig) u.Resource {
+	labels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name":     "coredns",
 		"app.kubernetes.io/instance": fmt.Sprintf("vc-%s", config.Name),
-	}, baseLabels(config, config.Name))
+	}, u.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
 
 	corefile := fmt.Sprintf(`.:1053 {
     errors
@@ -51,10 +55,10 @@ func buildCorednsConfigMap(config *VClusterConfig) Resource {
 import /etc/coredns/custom/*.server
 `, config.ClusterDomain)
 
-	return Resource{
+	return u.Resource{
 		APIVersion: "v1",
 		Kind:       "ConfigMap",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("vc-%s-coredns", config.Name),
 			config.TargetNamespace,
 			labels,

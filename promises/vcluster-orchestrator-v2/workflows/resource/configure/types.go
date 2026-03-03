@@ -1,70 +1,5 @@
 package main
 
-import (
-	"encoding/json"
-	"fmt"
-	"strings"
-)
-
-// toMap converts a struct to map[string]interface{} via JSON roundtrip.
-// Used at the merge boundary where typed structs meet mergeMaps.
-func toMap(v interface{}) (map[string]interface{}, error) {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return nil, fmt.Errorf("toMap marshal: %w", err)
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal(data, &m); err != nil {
-		return nil, fmt.Errorf("toMap unmarshal: %w", err)
-	}
-	return m, nil
-}
-
-// deleteFromResource creates a minimal delete resource from a typed Resource.
-func deleteFromResource(r Resource) Resource {
-	return Resource{
-		APIVersion: r.APIVersion,
-		Kind:       r.Kind,
-		Metadata: ObjectMeta{
-			Name:      r.Metadata.Name,
-			Namespace: r.Metadata.Namespace,
-		},
-	}
-}
-
-// deleteOutputPathForResource computes the output file path for a delete resource.
-func deleteOutputPathForResource(prefix string, r Resource) string {
-	if prefix == "" {
-		prefix = "resources/"
-	}
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
-}
-
-// ============================================================================
-// Core Kubernetes Types
-// ============================================================================
-
-// Resource is a generic Kubernetes resource with typed spec.
-type Resource struct {
-	APIVersion string      `json:"apiVersion"`
-	Kind       string      `json:"kind"`
-	Metadata   ObjectMeta  `json:"metadata"`
-	Spec       interface{} `json:"spec,omitempty"`
-	Data       interface{} `json:"data,omitempty"`
-	Rules      interface{} `json:"rules,omitempty"`
-}
-
-// ObjectMeta is a lightweight Kubernetes metadata block.
-type ObjectMeta struct {
-	Name        string            `json:"name"`
-	Namespace   string            `json:"namespace,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
 // ============================================================================
 // RBAC Types (PolicyRule kept for VCluster RBAC config)
 // ============================================================================
@@ -87,8 +22,17 @@ type JobSpec struct {
 }
 
 type PodTemplateSpec struct {
-	Metadata *ObjectMeta `json:"metadata,omitempty"`
-	Spec     PodSpec     `json:"spec"`
+	Metadata *ObjectMetaLocal `json:"metadata,omitempty"`
+	Spec     PodSpec          `json:"spec"`
+}
+
+// ObjectMetaLocal is used only for embedded pod template metadata in Job specs.
+// Kubernetes resources use u.ObjectMeta from the shared module.
+type ObjectMetaLocal struct {
+	Name        string            `json:"name,omitempty"`
+	Namespace   string            `json:"namespace,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 type PodSpec struct {
@@ -108,8 +52,8 @@ type Container struct {
 }
 
 type EnvVar struct {
-	Name      string       `json:"name"`
-	Value     string       `json:"value,omitempty"`
+	Name      string        `json:"name"`
+	Value     string        `json:"value,omitempty"`
 	ValueFrom *EnvVarSource `json:"valueFrom,omitempty"`
 }
 
@@ -143,15 +87,15 @@ type SecretVolume struct {
 // ============================================================================
 
 type CertificateSpec struct {
-	IsCA           bool              `json:"isCA,omitempty"`
-	CommonName     string            `json:"commonName"`
-	SecretName     string            `json:"secretName"`
-	DNSNames       []string          `json:"dnsNames,omitempty"`
-	IPAddresses    []string          `json:"ipAddresses,omitempty"`
-	Usages         []string          `json:"usages,omitempty"`
-	PrivateKey     *PrivateKeySpec   `json:"privateKey,omitempty"`
-	IssuerRef      IssuerRef         `json:"issuerRef"`
-	SecretTemplate *SecretTemplate   `json:"secretTemplate,omitempty"`
+	IsCA        bool             `json:"isCA,omitempty"`
+	CommonName  string           `json:"commonName"`
+	SecretName  string           `json:"secretName"`
+	DNSNames    []string         `json:"dnsNames,omitempty"`
+	IPAddresses []string         `json:"ipAddresses,omitempty"`
+	Usages      []string         `json:"usages,omitempty"`
+	PrivateKey  *PrivateKeySpec  `json:"privateKey,omitempty"`
+	IssuerRef   IssuerRef        `json:"issuerRef"`
+	SecretTemplate *SecretTemplate `json:"secretTemplate,omitempty"`
 }
 
 type PrivateKeySpec struct {
@@ -181,97 +125,19 @@ type CAIssuer struct {
 }
 
 // ============================================================================
-// ArgoCD Kratix ResourceRequest Types
-// ============================================================================
-
-type ArgoCDProjectSpec struct {
-	Namespace                  string               `json:"namespace"`
-	Name                       string               `json:"name"`
-	Description                string               `json:"description"`
-	Annotations                map[string]string     `json:"annotations,omitempty"`
-	Labels                     map[string]string     `json:"labels,omitempty"`
-	SourceRepos                []string              `json:"sourceRepos"`
-	Destinations               []ProjectDestination  `json:"destinations"`
-	ClusterResourceWhitelist   []ResourceFilter      `json:"clusterResourceWhitelist,omitempty"`
-	NamespaceResourceWhitelist []ResourceFilter      `json:"namespaceResourceWhitelist,omitempty"`
-}
-
-type ProjectDestination struct {
-	Namespace string `json:"namespace"`
-	Server    string `json:"server"`
-}
-
-type ResourceFilter struct {
-	Group string `json:"group"`
-	Kind  string `json:"kind"`
-}
-
-type ArgoCDApplicationSpec struct {
-	Name        string            `json:"name"`
-	Namespace   string            `json:"namespace"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-	Finalizers  []string          `json:"finalizers,omitempty"`
-	Project     string            `json:"project"`
-	Destination Destination       `json:"destination"`
-	Source      AppSource         `json:"source"`
-	SyncPolicy  interface{}      `json:"syncPolicy,omitempty"`
-}
-
-type Destination struct {
-	Server    string `json:"server"`
-	Namespace string `json:"namespace"`
-}
-
-type AppSource struct {
-	RepoURL        string     `json:"repoURL"`
-	Chart          string     `json:"chart,omitempty"`
-	TargetRevision string     `json:"targetRevision"`
-	Helm           *HelmSource `json:"helm,omitempty"`
-}
-
-type HelmSource struct {
-	ReleaseName  string      `json:"releaseName,omitempty"`
-	ValuesObject interface{} `json:"valuesObject,omitempty"`
-}
-
-// SyncPolicy for ArgoCD applications.
-type SyncPolicy struct {
-	Automated   *AutomatedSync `json:"automated,omitempty"`
-	SyncOptions []string       `json:"syncOptions,omitempty"`
-}
-
-type AutomatedSync struct {
-	SelfHeal bool `json:"selfHeal"`
-	Prune    bool `json:"prune"`
-}
-
-type ArgoCDClusterRegistrationSpec struct {
-	Name                string            `json:"name"`
-	TargetNamespace     string            `json:"targetNamespace"`
-	KubeconfigSecret    string            `json:"kubeconfigSecret"`
-	ExternalServerURL   string            `json:"externalServerURL"`
-	Environment         string            `json:"environment,omitempty"`
-	BaseDomain          string            `json:"baseDomain,omitempty"`
-	BaseDomainSanitized string            `json:"baseDomainSanitized,omitempty"`
-	ClusterLabels       map[string]string `json:"clusterLabels,omitempty"`
-	ClusterAnnotations  map[string]string `json:"clusterAnnotations,omitempty"`
-	SyncJobName         string            `json:"syncJobName,omitempty"`
-}
-
-// ============================================================================
 // VCluster Helm Values Types
 // ============================================================================
 
 type VClusterValues struct {
-	ControlPlane     ControlPlane         `json:"controlPlane"`
-	Deploy           DeployConfig         `json:"deploy,omitempty"`
-	Integrations     Integrations         `json:"integrations"`
-	Telemetry        EnabledFlag          `json:"telemetry"`
-	Logging          LoggingConfig        `json:"logging"`
-	Networking       NetworkingConfig     `json:"networking"`
-	Sync             SyncConfig           `json:"sync"`
-	RBAC             RBACConfig           `json:"rbac"`
-	ExportKubeConfig interface{}          `json:"exportKubeConfig,omitempty"`
+	ControlPlane     ControlPlane    `json:"controlPlane"`
+	Deploy           DeployConfig    `json:"deploy,omitempty"`
+	Integrations     Integrations    `json:"integrations"`
+	Telemetry        EnabledFlag     `json:"telemetry"`
+	Logging          LoggingConfig   `json:"logging"`
+	Networking       NetworkingConfig `json:"networking"`
+	Sync             SyncConfig      `json:"sync"`
+	RBAC             RBACConfig      `json:"rbac"`
+	ExportKubeConfig interface{}     `json:"exportKubeConfig,omitempty"`
 }
 
 type EnabledFlag struct {
@@ -279,15 +145,15 @@ type EnabledFlag struct {
 }
 
 type ControlPlane struct {
-	Distro         DistroConfig       `json:"distro"`
-	ServiceMonitor ServiceMonitor     `json:"serviceMonitor"`
-	StatefulSet    StatefulSetConfig  `json:"statefulSet"`
-	CoreDNS        CoreDNSConfig      `json:"coredns"`
-	Ingress        EnabledFlag        `json:"ingress"`
-	Advanced       AdvancedConfig     `json:"advanced"`
-	Service        ServiceConfig      `json:"service"`
-	BackingStore   interface{}        `json:"backingStore,omitempty"`
-	Proxy          *ProxyConfig       `json:"proxy,omitempty"`
+	Distro         DistroConfig      `json:"distro"`
+	ServiceMonitor ServiceMonitor    `json:"serviceMonitor"`
+	StatefulSet    StatefulSetConfig `json:"statefulSet"`
+	CoreDNS        CoreDNSConfig     `json:"coredns"`
+	Ingress        EnabledFlag       `json:"ingress"`
+	Advanced       AdvancedConfig    `json:"advanced"`
+	Service        ServiceConfig     `json:"service"`
+	BackingStore   interface{}       `json:"backingStore,omitempty"`
+	Proxy          *ProxyConfig      `json:"proxy,omitempty"`
 }
 
 type DistroConfig struct {
@@ -372,9 +238,9 @@ type ServiceConfig struct {
 }
 
 type ServiceSpecConfig struct {
-	Type           string       `json:"type"`
+	Type           string        `json:"type"`
 	Ports          []ServicePort `json:"ports"`
-	LoadBalancerIP string       `json:"loadBalancerIP,omitempty"`
+	LoadBalancerIP string        `json:"loadBalancerIP,omitempty"`
 }
 
 type ServicePort struct {
@@ -413,8 +279,8 @@ type ESFromHostConfig struct {
 }
 
 type ClusterStoresConfig struct {
-	Enabled  bool            `json:"enabled"`
-	Selector LabelSelector   `json:"selector"`
+	Enabled  bool          `json:"enabled"`
+	Selector LabelSelector `json:"selector"`
 }
 
 type LabelSelector struct {
@@ -423,8 +289,8 @@ type LabelSelector struct {
 }
 
 type IntegrationCertManager struct {
-	Enabled bool           `json:"enabled"`
-	Sync    CMSyncConfig   `json:"sync"`
+	Enabled bool         `json:"enabled"`
+	Sync    CMSyncConfig `json:"sync"`
 }
 
 type CMSyncConfig struct {
@@ -475,14 +341,14 @@ type SyncToHost struct {
 }
 
 type SyncFromHost struct {
-	StorageClasses EnabledFlag       `json:"storageClasses"`
-	IngressClasses EnabledFlag       `json:"ingressClasses"`
-	Secrets        SecretSyncConfig  `json:"secrets"`
+	StorageClasses EnabledFlag      `json:"storageClasses"`
+	IngressClasses EnabledFlag      `json:"ingressClasses"`
+	Secrets        SecretSyncConfig `json:"secrets"`
 }
 
 type SecretSyncConfig struct {
-	Enabled  bool              `json:"enabled"`
-	Mappings SecretMappings    `json:"mappings"`
+	Enabled  bool           `json:"enabled"`
+	Mappings SecretMappings `json:"mappings"`
 }
 
 type SecretMappings struct {

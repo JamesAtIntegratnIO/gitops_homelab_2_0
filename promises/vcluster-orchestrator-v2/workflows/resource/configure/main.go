@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 
 	kratix "github.com/syntasso/kratix-go"
+
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // VClusterConfig holds all configuration for template rendering
@@ -132,27 +133,27 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 
 	// Extract basic fields
 	var err error
-	config.Name, err = getStringValue(resource, "spec.name")
+	config.Name, err = u.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return nil, fmt.Errorf("spec.name not found: %w", err)
 	}
 
-	config.TargetNamespace, _ = getStringValue(resource, "spec.targetNamespace")
+	config.TargetNamespace, _ = u.GetStringValue(resource, "spec.targetNamespace")
 	if config.TargetNamespace == "" {
 		config.TargetNamespace = config.Namespace
 	}
 
-	config.ProjectName, _ = getStringValue(resource, "spec.projectName")
+	config.ProjectName, _ = u.GetStringValue(resource, "spec.projectName")
 	if config.ProjectName == "" {
 		config.ProjectName = "vcluster-" + config.Name
 	}
 
 	// Extract vcluster spec
-	config.K8sVersion, _ = getStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
-	config.Preset, _ = getStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
-	config.IsolationMode, _ = getStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
-	config.ClusterDomain, _ = getStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
-	config.PersistenceClass, _ = getStringValue(resource, "spec.vcluster.persistence.storageClass")
+	config.K8sVersion, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
+	config.Preset, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
+	config.IsolationMode, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
+	config.ClusterDomain, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
+	config.PersistenceClass, _ = u.GetStringValue(resource, "spec.vcluster.persistence.storageClass")
 
 	// Apply preset defaults
 	applyPresetDefaults(config, resource)
@@ -177,10 +178,10 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Extract exposure configuration
-	config.Hostname, _ = getStringValue(resource, "spec.exposure.hostname")
-	config.Subnet, _ = getStringValue(resource, "spec.exposure.subnet")
-	config.VIP, _ = getStringValue(resource, "spec.exposure.vip")
-	config.APIPort, _ = getIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
+	config.Hostname, _ = u.GetStringValue(resource, "spec.exposure.hostname")
+	config.Subnet, _ = u.GetStringValue(resource, "spec.exposure.subnet")
+	config.VIP, _ = u.GetStringValue(resource, "spec.exposure.vip")
+	config.APIPort, _ = u.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
 
 	// Calculate VIP if needed (offset 200 aligns with MetalLB pool 10.0.4.200-253)
 	if config.Subnet != "" && config.VIP == "" {
@@ -200,7 +201,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Set hostname if not specified
-	config.BaseDomain, _ = getStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain")
+	config.BaseDomain, _ = u.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain")
 	if config.BaseDomain == "" || config.BaseDomain == "null" {
 		config.BaseDomain = "integratn.tech"
 	}
@@ -221,7 +222,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		defaultExport["server"] = config.ExternalServerURL
 	}
 	if len(config.ExportKubeConfig) > 0 {
-		config.ExportKubeConfig = mergeMaps(defaultExport, config.ExportKubeConfig)
+		config.ExportKubeConfig = u.DeepMerge(defaultExport, config.ExportKubeConfig)
 	} else if len(defaultExport) > 0 {
 		config.ExportKubeConfig = defaultExport
 	}
@@ -235,17 +236,17 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Extract integration configuration
-	config.CertManagerIssuerLabels = extractLabels(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
+	config.CertManagerIssuerLabels = u.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
 	if len(config.CertManagerIssuerLabels) == 0 {
 		config.CertManagerIssuerLabels = map[string]string{"integratn.tech/cluster-issuer": "letsencrypt-prod"}
 	}
 
-	config.ExternalSecretsStoreLabels = extractLabels(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
+	config.ExternalSecretsStoreLabels = u.ExtractStringMap(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
 	if len(config.ExternalSecretsStoreLabels) == 0 {
 		config.ExternalSecretsStoreLabels = map[string]string{"integratn.tech/cluster-secret-store": "onepassword-store"}
 	}
 
-	config.ArgoCDEnvironment, _ = getStringValue(resource, "spec.integrations.argocd.environment")
+	config.ArgoCDEnvironment, _ = u.GetStringValue(resource, "spec.integrations.argocd.environment")
 	if config.ArgoCDEnvironment == "" {
 		if config.Preset == "prod" {
 			config.ArgoCDEnvironment = "production"
@@ -254,13 +255,13 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		}
 	}
 
-	config.ArgoCDClusterLabels = extractLabels(resource, "spec.integrations.argocd.clusterLabels")
-	config.ArgoCDClusterAnnotations = extractLabels(resource, "spec.integrations.argocd.clusterAnnotations")
+	config.ArgoCDClusterLabels = u.ExtractStringMap(resource, "spec.integrations.argocd.clusterLabels")
+	config.ArgoCDClusterAnnotations = u.ExtractStringMap(resource, "spec.integrations.argocd.clusterAnnotations")
 
-	config.WorkloadRepoURL, _ = getStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", "https://github.com/jamesatintegratnio/gitops_homelab_2_0")
-	config.WorkloadRepoBasePath, _ = getStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
-	config.WorkloadRepoPath, _ = getStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
-	config.WorkloadRepoRevision, _ = getStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
+	config.WorkloadRepoURL, _ = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", "https://github.com/jamesatintegratnio/gitops_homelab_2_0")
+	config.WorkloadRepoBasePath, _ = u.GetStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
+	config.WorkloadRepoPath, _ = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
+	config.WorkloadRepoRevision, _ = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
 
 	defaultClusterLabels := map[string]string{
 		"argocd.argoproj.io/secret-type": "cluster",
@@ -314,10 +315,10 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Extract ArgoCD application configuration
-	config.ArgoCDRepoURL, _ = getStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
-	config.ArgoCDChart, _ = getStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
-	config.ArgoCDTargetRevision, _ = getStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
-	config.ArgoCDDestServer, _ = getStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
+	config.ArgoCDRepoURL, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
+	config.ArgoCDChart, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
+	config.ArgoCDTargetRevision, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
+	config.ArgoCDDestServer, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
 
 	// Extract sync policy
 	if val, err := resource.GetValue("spec.argocdApplication.syncPolicy"); err == nil && val != nil {
@@ -336,11 +337,11 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	if config.ArgoCDSyncPolicy == nil {
 		config.ArgoCDSyncPolicy = defaultSyncPolicy
 	} else {
-		config.ArgoCDSyncPolicy = mergeMaps(defaultSyncPolicy, config.ArgoCDSyncPolicy)
+		config.ArgoCDSyncPolicy = u.DeepMerge(defaultSyncPolicy, config.ArgoCDSyncPolicy)
 	}
 
 	// Extract network policy configuration
-	if val, err := getBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
+	if val, err := u.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
 		config.EnableNFS = val
 	}
 	config.ExtraEgress = extractExtraEgress(resource)
@@ -349,7 +350,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
 	
 	// Generate unique job name with reconcile token if present
-	reconcileAt, _ := getStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
+	reconcileAt, _ := u.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
 	if reconcileAt != "" {
 		// Extract just numbers from reconcile-at
 		token := ""
@@ -562,33 +563,12 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 	}
 
 	// Convert typed struct to map for merging with HelmOverrides
-	valuesMap, err := toMap(values)
+	valuesMap, err := u.ToMap(values)
 	if err != nil {
 		log.Fatalf("ERROR: Failed to convert values to map: %v", err)
 	}
 
-	return mergeMaps(valuesMap, config.HelmOverrides)
-}
-
-func mergeMaps(dst, src map[string]interface{}) map[string]interface{} {
-	if dst == nil {
-		dst = map[string]interface{}{}
-	}
-	if src == nil {
-		return dst
-	}
-	for key, value := range src {
-		if srcMap, ok := value.(map[string]interface{}); ok {
-			if dstMap, ok := dst[key].(map[string]interface{}); ok {
-				dst[key] = mergeMaps(dstMap, srcMap)
-				continue
-			}
-			dst[key] = mergeMaps(map[string]interface{}{}, srcMap)
-			continue
-		}
-		dst[key] = value
-	}
-	return dst
+	return u.DeepMerge(valuesMap, config.HelmOverrides)
 }
 
 func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
@@ -621,29 +601,29 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 	}
 
 	// Apply replicas
-	if val, err := getIntValue(resource, "spec.vcluster.replicas"); err == nil && val > 0 {
+	if val, err := u.GetIntValue(resource, "spec.vcluster.replicas"); err == nil && val > 0 {
 		config.Replicas = val
 	} else {
 		config.Replicas = defaults.Replicas
 	}
 
 	// Apply resource requests/limits
-	config.CPURequest, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.requests.cpu", defaults.CPURequest)
-	config.MemoryRequest, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.requests.memory", defaults.MemoryRequest)
-	config.CPULimit, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.limits.cpu", defaults.CPULimit)
-	config.MemoryLimit, _ = getStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults.MemoryLimit)
+	config.CPURequest, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.cpu", defaults.CPURequest)
+	config.MemoryRequest, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.memory", defaults.MemoryRequest)
+	config.CPULimit, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.cpu", defaults.CPULimit)
+	config.MemoryLimit, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults.MemoryLimit)
 
 	// Apply persistence
-	if val, err := getBoolValue(resource, "spec.vcluster.persistence.enabled"); err == nil {
+	if val, err := u.GetBoolValue(resource, "spec.vcluster.persistence.enabled"); err == nil {
 		config.PersistenceEnabled = val
 	} else {
 		config.PersistenceEnabled = defaults.PersistenceEnabled
 	}
 
-	config.PersistenceSize, _ = getStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
+	config.PersistenceSize, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
 
 	// Apply coredns replicas
-	if val, err := getIntValue(resource, "spec.vcluster.coredns.replicas"); err == nil && val > 0 {
+	if val, err := u.GetIntValue(resource, "spec.vcluster.coredns.replicas"); err == nil && val > 0 {
 		config.CorednsReplicas = val
 	} else {
 		config.CorednsReplicas = defaults.CorednsReplicas
@@ -653,32 +633,32 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	log.Println("--- Rendering orchestrator resources ---")
 
-	resourceRequests := map[string]Resource{
+	resourceRequests := map[string]u.Resource{
 		"resources/argocd-project-request.yaml":              buildArgoCDProjectRequest(config),
 		"resources/argocd-application-request.yaml":          buildArgoCDApplicationRequest(config),
 		"resources/argocd-cluster-registration-request.yaml": buildArgoCDClusterRegistrationRequest(config),
 	}
 
 	for path, obj := range resourceRequests {
-		if err := writeYAML(sdk, path, obj); err != nil {
+		if err := u.WriteYAML(sdk, path, obj); err != nil {
 			return fmt.Errorf("write %s: %w", path, err)
 		}
 		log.Printf("✓ Rendered: %s", path)
 	}
 
-	if err := writeYAML(sdk, "resources/namespace.yaml", buildNamespace(config)); err != nil {
+	if err := u.WriteYAML(sdk, "resources/namespace.yaml", buildNamespace(config)); err != nil {
 		return fmt.Errorf("write namespace: %w", err)
 	}
 	log.Printf("✓ Rendered: %s", "resources/namespace.yaml")
 
 	if docs := buildEtcdCertificates(config); len(docs) > 0 {
-		if err := writeYAMLDocuments(sdk, "resources/etcd-certificates.yaml", docs); err != nil {
+		if err := u.WriteYAMLDocuments(sdk, "resources/etcd-certificates.yaml", docs); err != nil {
 			return fmt.Errorf("write etcd certificates: %w", err)
 		}
 		log.Printf("✓ Rendered: %s", "resources/etcd-certificates.yaml")
 	}
 
-	if err := writeYAML(sdk, "resources/coredns-configmap.yaml", buildCorednsConfigMap(config)); err != nil {
+	if err := u.WriteYAML(sdk, "resources/coredns-configmap.yaml", buildCorednsConfigMap(config)); err != nil {
 		return fmt.Errorf("write coredns configmap: %w", err)
 	}
 	log.Printf("✓ Rendered: %s", "resources/coredns-configmap.yaml")
@@ -686,7 +666,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	// Per-vcluster network policies (NFS, extra egress)
 	netPolicies := buildNetworkPolicies(config)
 	if len(netPolicies) > 0 {
-		if err := writeYAMLDocuments(sdk, "resources/network-policies.yaml", netPolicies); err != nil {
+		if err := u.WriteYAMLDocuments(sdk, "resources/network-policies.yaml", netPolicies); err != nil {
 			return fmt.Errorf("write network policies: %w", err)
 		}
 		log.Printf("✓ Rendered: resources/network-policies.yaml (%d policies)", len(netPolicies))
@@ -740,10 +720,10 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
-	outputs := map[string]Resource{}
+	outputs := map[string]u.Resource{}
 
 	// Delete all created resources
-	allResources := []Resource{
+	allResources := []u.Resource{
 		buildArgoCDProjectRequest(config),
 		buildArgoCDApplicationRequest(config),
 		buildArgoCDClusterRegistrationRequest(config),
@@ -751,33 +731,33 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	}
 
 	for _, obj := range allResources {
-		deleteObj := deleteFromResource(obj)
-		path := deleteOutputPathForResource("resources", obj)
+		deleteObj := u.DeleteFromResource(obj)
+		path := u.DeleteOutputPathForResource("resources", obj)
 		outputs[path] = deleteObj
 	}
 
 	// Delete per-vcluster network policies
 	for _, obj := range buildNetworkPolicies(config) {
-		deleteObj := deleteFromResource(obj)
-		path := deleteOutputPathForResource("resources", obj)
+		deleteObj := u.DeleteFromResource(obj)
+		path := u.DeleteOutputPathForResource("resources", obj)
 		outputs[path] = deleteObj
 	}
 
 	if etcdEnabled(config) {
 		for _, obj := range buildEtcdCertificates(config) {
-			deleteObj := deleteFromResource(obj)
-			path := deleteOutputPathForResource("resources", obj)
+			deleteObj := u.DeleteFromResource(obj)
+			path := u.DeleteOutputPathForResource("resources", obj)
 			outputs[path] = deleteObj
 		}
 	}
 
-	outputs["resources/delete-vcluster-clusterrole.yaml"] = deleteResource(
+	outputs["resources/delete-vcluster-clusterrole.yaml"] = u.DeleteResource(
 		"rbac.authorization.k8s.io/v1",
 		"ClusterRole",
 		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
 		"",
 	)
-	outputs["resources/delete-vcluster-clusterrolebinding.yaml"] = deleteResource(
+	outputs["resources/delete-vcluster-clusterrolebinding.yaml"] = u.DeleteResource(
 		"rbac.authorization.k8s.io/v1",
 		"ClusterRoleBinding",
 		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
@@ -785,25 +765,25 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	)
 
 	if etcdEnabled(config) {
-		outputs["resources/delete-etcd-ca-secret.yaml"] = deleteResource(
+		outputs["resources/delete-etcd-ca-secret.yaml"] = u.DeleteResource(
 			"v1",
 			"Secret",
 			fmt.Sprintf("%s-etcd-ca", config.Name),
 			config.TargetNamespace,
 		)
-		outputs["resources/delete-etcd-server-secret.yaml"] = deleteResource(
+		outputs["resources/delete-etcd-server-secret.yaml"] = u.DeleteResource(
 			"v1",
 			"Secret",
 			fmt.Sprintf("%s-etcd-server", config.Name),
 			config.TargetNamespace,
 		)
-		outputs["resources/delete-etcd-peer-secret.yaml"] = deleteResource(
+		outputs["resources/delete-etcd-peer-secret.yaml"] = u.DeleteResource(
 			"v1",
 			"Secret",
 			fmt.Sprintf("%s-etcd-peer", config.Name),
 			config.TargetNamespace,
 		)
-		outputs["resources/delete-etcd-merged-secret.yaml"] = deleteResource(
+		outputs["resources/delete-etcd-merged-secret.yaml"] = u.DeleteResource(
 			"v1",
 			"Secret",
 			fmt.Sprintf("%s-etcd-certs", config.Name),
@@ -812,85 +792,12 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	}
 
 	for path, obj := range outputs {
-		if err := writeYAML(sdk, path, obj); err != nil {
+		if err := u.WriteYAML(sdk, path, obj); err != nil {
 			return fmt.Errorf("write delete output %s: %w", path, err)
 		}
 	}
 
 	return nil
-}
-
-// Helper functions
-func getStringValue(resource kratix.Resource, path string) (string, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return "", err
-	}
-	if str, ok := val.(string); ok {
-		return str, nil
-	}
-	return "", fmt.Errorf("%s is not a string", path)
-}
-
-func getStringValueWithDefault(resource kratix.Resource, path, defaultValue string) (string, error) {
-	val, err := getStringValue(resource, path)
-	if err != nil || val == "" || val == "null" {
-		return defaultValue, nil
-	}
-	return val, nil
-}
-
-func getIntValue(resource kratix.Resource, path string) (int, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return 0, err
-	}
-	switch v := val.(type) {
-	case int:
-		return v, nil
-	case float64:
-		return int(v), nil
-	case string:
-		return strconv.Atoi(v)
-	}
-	return 0, fmt.Errorf("%s is not an integer", path)
-}
-
-func getIntValueWithDefault(resource kratix.Resource, path string, defaultValue int) (int, error) {
-	val, err := getIntValue(resource, path)
-	if err != nil || val == 0 {
-		return defaultValue, nil
-	}
-	return val, nil
-}
-
-func getBoolValue(resource kratix.Resource, path string) (bool, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return false, err
-	}
-	if b, ok := val.(bool); ok {
-		return b, nil
-	}
-	return false, fmt.Errorf("%s is not a boolean", path)
-}
-
-func extractLabels(resource kratix.Resource, path string) map[string]string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-
-	labels := make(map[string]string)
-	if m, ok := val.(map[string]interface{}); ok {
-		for k, v := range m {
-			if str, ok := v.(string); ok {
-				labels[k] = str
-			}
-		}
-	}
-
-	return labels
 }
 
 // IP utility functions

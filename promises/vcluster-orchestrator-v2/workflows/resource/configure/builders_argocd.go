@@ -1,11 +1,15 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
 
-func buildArgoCDProjectRequest(config *VClusterConfig) Resource {
-	metadataLabels := mergeStringMap(map[string]string{
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+)
+
+func buildArgoCDProjectRequest(config *VClusterConfig) u.Resource {
+	metadataLabels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "argocd-project",
-	}, baseLabels(config, config.Name))
+	}, u.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
 
 	specLabels := map[string]string{
 		"app.kubernetes.io/managed-by":     "kratix",
@@ -14,16 +18,16 @@ func buildArgoCDProjectRequest(config *VClusterConfig) Resource {
 		"kratix.io/resource-name":          config.Name,
 	}
 
-	return Resource{
+	return u.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "ArgoCDProject",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			config.ProjectName,
 			config.Namespace,
 			metadataLabels,
 			nil,
 		),
-		Spec: ArgoCDProjectSpec{
+		Spec: u.ArgoCDProjectSpec{
 			Namespace:   "argocd",
 			Name:        config.ProjectName,
 			Description: fmt.Sprintf("VCluster project for %s", config.Name),
@@ -32,28 +36,28 @@ func buildArgoCDProjectRequest(config *VClusterConfig) Resource {
 			},
 			Labels:      specLabels,
 			SourceRepos: []string{"https://charts.loft.sh"},
-			Destinations: []ProjectDestination{
+			Destinations: []u.ProjectDestination{
 				{
 					Namespace: config.TargetNamespace,
 					Server:    "https://kubernetes.default.svc",
 				},
 			},
-			ClusterResourceWhitelist: []ResourceFilter{
+			ClusterResourceWhitelist: []u.ResourceFilter{
 				{Group: "*", Kind: "*"},
 			},
-			NamespaceResourceWhitelist: []ResourceFilter{
+			NamespaceResourceWhitelist: []u.ResourceFilter{
 				{Group: "*", Kind: "*"},
 			},
 		},
 	}
 }
 
-func buildArgoCDApplicationRequest(config *VClusterConfig) Resource {
-	metadataLabels := mergeStringMap(map[string]string{
+func buildArgoCDApplicationRequest(config *VClusterConfig) u.Resource {
+	metadataLabels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "argocd-application",
-	}, baseLabels(config, config.Name))
+	}, u.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
 
-	spec := ArgoCDApplicationSpec{
+	spec := u.ArgoCDApplicationSpec{
 		Name:      fmt.Sprintf("vcluster-%s", config.Name),
 		Namespace: "argocd",
 		Annotations: map[string]string{
@@ -61,15 +65,15 @@ func buildArgoCDApplicationRequest(config *VClusterConfig) Resource {
 		},
 		Finalizers: []string{"resources-finalizer.argocd.argoproj.io"},
 		Project:    config.ProjectName,
-		Destination: Destination{
+		Destination: u.Destination{
 			Server:    config.ArgoCDDestServer,
 			Namespace: config.TargetNamespace,
 		},
-		Source: AppSource{
+		Source: u.AppSource{
 			RepoURL:        config.ArgoCDRepoURL,
 			Chart:          config.ArgoCDChart,
 			TargetRevision: config.ArgoCDTargetRevision,
-			Helm: &HelmSource{
+			Helm: &u.HelmSource{
 				ReleaseName:  config.Name,
 				ValuesObject: config.ValuesObject,
 			},
@@ -77,10 +81,10 @@ func buildArgoCDApplicationRequest(config *VClusterConfig) Resource {
 		SyncPolicy: config.ArgoCDSyncPolicy,
 	}
 
-	return Resource{
+	return u.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "ArgoCDApplication",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("vcluster-%s", config.Name),
 			config.Namespace,
 			metadataLabels,
@@ -90,12 +94,12 @@ func buildArgoCDApplicationRequest(config *VClusterConfig) Resource {
 	}
 }
 
-func buildArgoCDClusterRegistrationRequest(config *VClusterConfig) Resource {
-	metadataLabels := mergeStringMap(map[string]string{
+func buildArgoCDClusterRegistrationRequest(config *VClusterConfig) u.Resource {
+	metadataLabels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "argocd-cluster-registration",
-	}, baseLabels(config, config.Name))
+	}, u.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
 
-	spec := ArgoCDClusterRegistrationSpec{
+	spec := u.ArgoCDClusterRegistrationSpec{
 		Name:              config.Name,
 		TargetNamespace:   config.TargetNamespace,
 		KubeconfigSecret:  fmt.Sprintf("vc-%s", config.Name),
@@ -108,10 +112,10 @@ func buildArgoCDClusterRegistrationRequest(config *VClusterConfig) Resource {
 		SyncJobName:       config.KubeconfigSyncJobName,
 	}
 
-	return Resource{
+	return u.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "ArgoCDClusterRegistration",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("%s-cluster-registration", config.Name),
 			config.Namespace,
 			metadataLabels,

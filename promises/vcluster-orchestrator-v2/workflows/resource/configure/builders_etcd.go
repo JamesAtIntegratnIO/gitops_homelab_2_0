@@ -1,23 +1,27 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
 
-func buildEtcdCertificates(config *VClusterConfig) []Resource {
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+)
+
+func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 	if !etcdEnabled(config) {
 		return nil
 	}
 
 	labels := func(name string) map[string]string {
-		return mergeStringMap(map[string]string{
+		return u.MergeStringMap(map[string]string{
 			"app.kubernetes.io/instance": config.Name,
 			"app.kubernetes.io/name":     name,
-		}, baseLabels(config, config.Name))
+		}, u.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
 	}
 
-	caCert := Resource{
+	caCert := u.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Certificate",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("%s-etcd-ca", config.Name),
 			config.TargetNamespace,
 			labels("etcd-ca"),
@@ -39,10 +43,10 @@ func buildEtcdCertificates(config *VClusterConfig) []Resource {
 		},
 	}
 
-	selfsignedIssuer := Resource{
+	selfsignedIssuer := u.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Issuer",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("%s-etcd-selfsigned", config.Name),
 			config.TargetNamespace,
 			labels("etcd-issuer"),
@@ -53,10 +57,10 @@ func buildEtcdCertificates(config *VClusterConfig) []Resource {
 		},
 	}
 
-	caIssuer := Resource{
+	caIssuer := u.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Issuer",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("%s-etcd-ca", config.Name),
 			config.TargetNamespace,
 			labels("etcd-ca-issuer"),
@@ -69,10 +73,10 @@ func buildEtcdCertificates(config *VClusterConfig) []Resource {
 		},
 	}
 
-	mergeJob := Resource{
+	mergeJob := u.Resource{
 		APIVersion: "batch/v1",
 		Kind:       "Job",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("%s-etcd-certs-merge", config.Name),
 			config.TargetNamespace,
 			labels("etcd-certs-job"),
@@ -80,7 +84,7 @@ func buildEtcdCertificates(config *VClusterConfig) []Resource {
 		),
 		Spec: JobSpec{
 			Template: PodTemplateSpec{
-				Metadata: &ObjectMeta{
+				Metadata: &ObjectMetaLocal{
 					Labels: map[string]string{
 						"app": "etcd-certs-merge",
 					},
@@ -100,10 +104,10 @@ func buildEtcdCertificates(config *VClusterConfig) []Resource {
 		},
 	}
 
-	serverCert := Resource{
+	serverCert := u.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Certificate",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("%s-etcd-server", config.Name),
 			config.TargetNamespace,
 			labels("etcd-server-cert"),
@@ -133,10 +137,10 @@ func buildEtcdCertificates(config *VClusterConfig) []Resource {
 		},
 	}
 
-	peerCert := Resource{
+	peerCert := u.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Certificate",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("%s-etcd-peer", config.Name),
 			config.TargetNamespace,
 			labels("etcd-peer-cert"),
@@ -165,7 +169,7 @@ func buildEtcdCertificates(config *VClusterConfig) []Resource {
 		},
 	}
 
-	return []Resource{caCert, selfsignedIssuer, caIssuer, mergeJob, serverCert, peerCert}
+	return []u.Resource{caCert, selfsignedIssuer, caIssuer, mergeJob, serverCert, peerCert}
 }
 
 func buildEtcdDNSNames(config *VClusterConfig) []string {
