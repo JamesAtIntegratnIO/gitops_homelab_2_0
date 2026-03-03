@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: http-services-placeholder
+  namespace: platform-requests
+  labels:
+    app.kubernetes.io/managed-by: argocd
+data:
+  note: "Placeholder to keep ArgoCD app alive when no HTTP services are deployed"
