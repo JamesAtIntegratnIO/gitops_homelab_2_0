@@ -40,7 +40,7 @@ jobs:
               echo "promises=[\"${{ inputs.promise }}\"]" >> $GITHUB_OUTPUT
             else
               # Build all promises with workflows/resource/configure/Dockerfile
-              promises=$(find promises -mindepth 4 -maxdepth 4 -type f -path 'promises/*/workflows/resource/configure/Dockerfile' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+              promises=$(find promises -mindepth 5 -maxdepth 5 -type f -path 'promises/*/workflows/resource/configure/Dockerfile' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
               echo "promises=${promises}" >> $GITHUB_OUTPUT
             fi
           else
@@ -60,7 +60,7 @@ jobs:
             # If shared module changed, rebuild ALL promises
             shared_changed=$(echo "$changed_files" | grep '^promises/_shared/' || true)
             if [[ -n "$shared_changed" ]]; then
-              promises=$(find promises -mindepth 4 -maxdepth 4 -type f -path 'promises/*/workflows/resource/configure/Dockerfile' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+              promises=$(find promises -mindepth 5 -maxdepth 5 -type f -path 'promises/*/workflows/resource/configure/Dockerfile' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
               echo "promises=${promises}" >> $GITHUB_OUTPUT
             else
               workflow_changes=$(echo "$changed_files" | grep '^promises/.*/workflows/' || true)
