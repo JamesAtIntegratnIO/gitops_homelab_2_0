@@ -1,0 +1,147 @@
+apiVersion: platform.kratix.io/v1alpha1
+kind: Promise
+metadata:
+  name: gateway-route
+  labels:
+    kratix.io/promise-type: platform
+    kratix.io/promise-version: v1alpha1
+spec:
+  destinationSelectors:
+    - matchLabels:
+        capability.vcluster: "true"
+
+  api:
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name: gatewayroutes.platform.integratn.tech
+    spec:
+      group: platform.integratn.tech
+      scope: Namespaced
+      names:
+        plural: gatewayroutes
+        singular: gatewayroute
+        kind: GatewayRoute
+        shortNames:
+          - gwr
+      versions:
+        - name: v1alpha1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required:
+                    - name
+                    - namespace
+                    - hostname
+                    - backendRef
+                  properties:
+                    name:
+                      type: string
+                      description: Route name (used as resource name prefix)
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    namespace:
+                      type: string
+                      description: Namespace where the HTTPRoute(s) will be created
+                      pattern: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+                      maxLength: 63
+                    hostname:
+                      type: string
+                      description: "FQDN hostname for the route (e.g. myapp.cluster.integratn.tech)"
+                      pattern: '^([a-z0-9]([-a-z0-9]*[a-z0-9])?\.)+[a-z]{2,}$'
+                      maxLength: 253
+                    path:
+                      type: string
+                      description: URL path prefix to match
+                      default: /
+                    backendRef:
+                      type: object
+                      description: Backend service to route traffic to
+                      required:
+                        - name
+                        - port
+                      properties:
+                        name:
+                          type: string
+                          description: Service name
+                        port:
+                          type: integer
+                          description: Service port
+                          minimum: 1
+                          maximum: 65535
+                    gateway:
+                      type: object
+                      description: Gateway to attach routes to (defaults to nginx-gateway)
+                      properties:
+                        name:
+                          type: string
+                          description: Gateway name
+                          default: nginx-gateway
+                        namespace:
+                          type: string
+                          description: Gateway namespace
+                          default: nginx-gateway
+                    httpRedirect:
+                      type: boolean
+                      description: Create HTTP→HTTPS 301 redirect route
+                      default: true
+                    ownerPromise:
+                      type: string
+                      description: Name of the parent promise (for labeling)
+                    sectionName:
+                      type: string
+                      description: "HTTPS listener section name on the gateway (default: https)"
+                      default: https
+                    httpSectionName:
+                      type: string
+                      description: "HTTP listener section name on the gateway (default: http)"
+                      default: http
+                status:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+
+  workflows:
+    resource:
+      configure:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: gateway-route-configure
+          spec:
+            containers:
+              - name: configure
+                image: ghcr.io/jamesatintegratnio/gateway-route-configure:latest
+                imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault
+      delete:
+        - apiVersion: platform.kratix.io/v1alpha1
+          kind: Pipeline
+          metadata:
+            name: gateway-route-delete
+          spec:
+            containers:
+              - name: delete
+                image: ghcr.io/jamesatintegratnio/gateway-route-configure:latest
+                imagePullPolicy: Always
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  readOnlyRootFilesystem: true
+                  runAsNonRoot: true
+                  runAsUser: 65532
+                  capabilities:
+                    drop: ["ALL"]
+                  seccompProfile:
+                    type: RuntimeDefault
