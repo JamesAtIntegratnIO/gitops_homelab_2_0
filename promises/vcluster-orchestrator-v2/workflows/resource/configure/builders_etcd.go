@@ -73,6 +73,63 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 		},
 	}
 
+	// ServiceAccount, Role, and RoleBinding for the merge job.
+	// We create a dedicated SA instead of relying on vc-{name} which is
+	// only created when the vcluster Helm chart is deployed (circular dependency).
+	mergeSAName := fmt.Sprintf("%s-etcd-certs-merge", config.Name)
+
+	mergeServiceAccount := u.Resource{
+		APIVersion: "v1",
+		Kind:       "ServiceAccount",
+		Metadata: u.ResourceMeta(
+			mergeSAName,
+			config.TargetNamespace,
+			labels("etcd-certs-merge-sa"),
+			nil,
+		),
+	}
+
+	mergeRole := u.Resource{
+		APIVersion: "rbac.authorization.k8s.io/v1",
+		Kind:       "Role",
+		Metadata: u.ResourceMeta(
+			mergeSAName,
+			config.TargetNamespace,
+			labels("etcd-certs-merge-role"),
+			nil,
+		),
+		Rules: []PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"secrets"},
+				Verbs:     []string{"get", "list", "create", "update", "patch"},
+			},
+		},
+	}
+
+	mergeRoleBinding := u.Resource{
+		APIVersion: "rbac.authorization.k8s.io/v1",
+		Kind:       "RoleBinding",
+		Metadata: u.ResourceMeta(
+			mergeSAName,
+			config.TargetNamespace,
+			labels("etcd-certs-merge-binding"),
+			nil,
+		),
+		RoleRef: &u.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     mergeSAName,
+		},
+		Subjects: []u.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      mergeSAName,
+				Namespace: config.TargetNamespace,
+			},
+		},
+	}
+
 	mergeJob := u.Resource{
 		APIVersion: "batch/v1",
 		Kind:       "Job",
@@ -91,7 +148,7 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 				},
 				Spec: PodSpec{
 					RestartPolicy:      "OnFailure",
-					ServiceAccountName: fmt.Sprintf("vc-%s", config.Name),
+				ServiceAccountName: mergeSAName,
 					Containers: []Container{
 						{
 							Name:    "merge-certs",
@@ -169,7 +226,7 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 		},
 	}
 
-	return []u.Resource{caCert, selfsignedIssuer, caIssuer, mergeJob, serverCert, peerCert}
+	return []u.Resource{mergeServiceAccount, mergeRole, mergeRoleBinding, caCert, selfsignedIssuer, caIssuer, mergeJob, serverCert, peerCert}
 }
 
 func buildEtcdDNSNames(config *VClusterConfig) []string {

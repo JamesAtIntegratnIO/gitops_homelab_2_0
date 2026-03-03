@@ -22,6 +22,22 @@ type Resource struct {
 	Spec       interface{} `json:"spec,omitempty"`
 	Data       interface{} `json:"data,omitempty"`
 	Rules      interface{} `json:"rules,omitempty"`
+	RoleRef    *RoleRef    `json:"roleRef,omitempty"`
+	Subjects   []Subject   `json:"subjects,omitempty"`
+}
+
+// RoleRef references a Role or ClusterRole for a RoleBinding.
+type RoleRef struct {
+	APIGroup string `json:"apiGroup"`
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+}
+
+// Subject identifies the entity bound by a RoleBinding.
+type Subject struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // ObjectMeta is a lightweight Kubernetes metadata block.
