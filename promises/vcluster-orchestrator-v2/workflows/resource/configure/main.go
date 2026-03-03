@@ -1,14 +1,20 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"strings"
+	"time"
 
 	kratix "github.com/syntasso/kratix-go"
 
 	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // VClusterConfig holds all configuration for template rendering
@@ -708,6 +714,100 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	return nil
 }
 
+// cleanupHostPVs deletes host-level PersistentVolumes that were created by the
+// vcluster syncer. These PVs are NOT in the Kratix state store, so they cannot
+// be cleaned up via the normal Kratix output mechanism. They must be deleted via
+// direct Kubernetes API calls using the pipeline pod's ServiceAccount.
+//
+// Synced PVs are identified by the label:
+//
+//	vcluster.loft.sh/managed-by: {vcluster-name}-x-{namespace}
+func cleanupHostPVs(config *VClusterConfig) error {
+	labelValue := fmt.Sprintf("%s-x-%s", config.Name, config.TargetNamespace)
+	labelSelector := fmt.Sprintf("vcluster.loft.sh/managed-by=%s", labelValue)
+
+	log.Printf("Cleaning up host PVs with label selector: %s", labelSelector)
+
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get in-cluster config: %w", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	pvList, err := clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list PVs with selector %s: %w", labelSelector, err)
+	}
+
+	if len(pvList.Items) == 0 {
+		log.Println("No host PVs found to clean up")
+		return nil
+	}
+
+	log.Printf("Found %d host PV(s) to delete", len(pvList.Items))
+
+	var errs []string
+	for _, pv := range pvList.Items {
+		log.Printf("  Deleting PV: %s (status: %s)", pv.Name, pv.Status.Phase)
+		if err := clientset.CoreV1().PersistentVolumes().Delete(ctx, pv.Name, metav1.DeleteOptions{}); err != nil {
+			errs = append(errs, fmt.Sprintf("failed to delete PV %s: %v", pv.Name, err))
+			log.Printf("  ✗ Failed to delete PV %s: %v", pv.Name, err)
+		} else {
+			log.Printf("  ✓ Deleted PV: %s", pv.Name)
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("errors deleting PVs: %s", strings.Join(errs, "; "))
+	}
+
+	log.Printf("✓ Successfully cleaned up %d host PV(s)", len(pvList.Items))
+	return nil
+}
+
+// cleanupNamespace deletes the vcluster target namespace, which cascade-deletes
+// all namespace-scoped resources (PVCs, pods, services, etc.).
+// This ensures no orphaned resources remain after vcluster deletion.
+func cleanupNamespace(config *VClusterConfig) error {
+	log.Printf("Cleaning up namespace: %s", config.TargetNamespace)
+
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get in-cluster config: %w", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// Check if namespace exists before trying to delete
+	_, err = clientset.CoreV1().Namespaces().Get(ctx, config.TargetNamespace, metav1.GetOptions{})
+	if err != nil {
+		log.Printf("Namespace %s not found or already deleted, skipping", config.TargetNamespace)
+		return nil
+	}
+
+	if err := clientset.CoreV1().Namespaces().Delete(ctx, config.TargetNamespace, metav1.DeleteOptions{}); err != nil {
+		return fmt.Errorf("failed to delete namespace %s: %w", config.TargetNamespace, err)
+	}
+
+	log.Printf("✓ Namespace %s scheduled for deletion", config.TargetNamespace)
+	return nil
+}
+
 func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	log.Printf("--- Handling delete for vcluster: %s ---", config.Name)
 
@@ -719,6 +819,24 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	if err := sdk.WriteStatus(status); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
+
+	// --- Direct API cleanup for resources NOT in the Kratix state store ---
+	// These resources are created by the vcluster syncer directly on the host
+	// cluster and must be cleaned up via direct API calls.
+
+	// Clean up host-level PVs created by the vcluster syncer
+	if err := cleanupHostPVs(config); err != nil {
+		// Log but don't fail — PV cleanup is best-effort to avoid blocking
+		// the rest of the delete pipeline
+		log.Printf("⚠ Warning: PV cleanup encountered errors: %v", err)
+	}
+
+	// Clean up the vcluster namespace (cascade-deletes PVCs, pods, etc.)
+	if err := cleanupNamespace(config); err != nil {
+		log.Printf("⚠ Warning: Namespace cleanup encountered errors: %v", err)
+	}
+
+	// --- Kratix state store cleanup (removes manifests → ArgoCD deletes from cluster) ---
 
 	outputs := map[string]u.Resource{}
 
