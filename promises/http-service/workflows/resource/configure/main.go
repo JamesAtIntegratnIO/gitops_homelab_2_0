@@ -156,10 +156,11 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		Metadata: ObjectMeta{
 			Name: config.Namespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "kratix",
-				"kratix.io/promise-name":       "http-service",
-				"app.kubernetes.io/part-of":    config.Name,
-				"app.kubernetes.io/team":       config.Team,
+				"app.kubernetes.io/managed-by":          "kratix",
+				"kratix.io/promise-name":                "http-service",
+				"app.kubernetes.io/part-of":             config.Name,
+				"app.kubernetes.io/team":                config.Team,
+				"platform.integratn.tech/gateway-access": "true",
 			},
 			Annotations: map[string]string{
 				"argocd.argoproj.io/sync-wave": "0",
@@ -602,37 +603,15 @@ func buildExternalSecrets(config *HTTPServiceConfig) []Resource {
 	return resources
 }
 
-// buildNetworkPolicies creates a default-deny + allow-ingress-from-gateway policy set.
+// buildNetworkPolicies creates allow-ingress-from-gateway + allow-dns policies.
+// NOTE: We do NOT generate a default-deny policy here because the platform's
+// Kyverno ClusterPolicy (generate-default-deny-netpol) automatically creates a
+// default-deny-all NetworkPolicy in every new namespace. Our job is only to
+// punch the specific holes needed for the service to function.
 func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 	var policies []Resource
 
-	// 1. Default deny all ingress
-	policies = append(policies, Resource{
-		APIVersion: "networking.k8s.io/v1",
-		Kind:       "NetworkPolicy",
-		Metadata: ObjectMeta{
-			Name:      fmt.Sprintf("%s-default-deny", config.Name),
-			Namespace: config.Namespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "kratix",
-				"kratix.io/promise-name":       "http-service",
-				"app.kubernetes.io/part-of":    config.Name,
-			},
-			Annotations: map[string]string{
-				"argocd.argoproj.io/sync-wave": "5",
-			},
-		},
-		Spec: map[string]interface{}{
-			"podSelector": map[string]interface{}{
-				"matchLabels": map[string]string{
-					"app.kubernetes.io/name": config.Name,
-				},
-			},
-			"policyTypes": []string{"Ingress"},
-		},
-	})
-
-	// 2. Allow ingress from the gateway namespace
+	// Allow ingress from the gateway namespace
 	policies = append(policies, Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
@@ -677,7 +656,7 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 		},
 	})
 
-	// 3. Allow monitoring scrape if enabled
+	// Allow monitoring scrape if enabled
 	if config.MonitoringEnabled {
 		policies = append(policies, Resource{
 			APIVersion: "networking.k8s.io/v1",
@@ -724,7 +703,7 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 		})
 	}
 
-	// 4. Allow DNS egress (all pods need this)
+	// Allow DNS egress (all pods need this)
 	policies = append(policies, Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",

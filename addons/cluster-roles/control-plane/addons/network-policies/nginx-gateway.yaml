@@ -149,6 +149,11 @@ spec:
         - namespaceSelector:
             matchLabels:
               platform.integratn.tech/type: vcluster
+    # Kratix-managed service namespaces (http-service promise, etc.)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              platform.integratn.tech/gateway-access: "true"
     # Goldilocks dashboard
     - to:
         - namespaceSelector:
