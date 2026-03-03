@@ -94,6 +94,20 @@ rules:
   - apiGroups: ["platform.kratix.io"]
     resources: ["promises", "works", "workplacements", "destinations"]
     verbs: ["get", "list", "watch"]
+  # Prometheus monitoring (ServiceMonitors, PrometheusRules, etc.)
+  - apiGroups: ["monitoring.coreos.com"]
+    resources:
+      - servicemonitors
+      - podmonitors
+      - prometheusrules
+      - probes
+      - alertmanagers
+      - alertmanagerconfigs
+      - prometheuses
+      - prometheusagents
+      - scrapeconfigs
+      - thanosrulers
+    verbs: ["get", "list", "watch"]
   # CRD introspection (discover available resource types)
   - apiGroups: ["apiextensions.k8s.io"]
     resources: ["customresourcedefinitions"]

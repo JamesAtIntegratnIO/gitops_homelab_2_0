@@ -55,6 +55,8 @@ The `resources_list` and `resources_get` tools **always require `apiVersion`**. 
 | HelmRelease | `helm.toolkit.fluxcd.io/v2` |
 | Promise, ResourceRequest | `platform.kratix.io/v1alpha1` |
 | VerticalPodAutoscaler | `autoscaling.k8s.io/v1` |
+| ServiceMonitor, PodMonitor, PrometheusRule, Probe | `monitoring.coreos.com/v1` |
+| AlertmanagerConfig, ScrapeConfig, PrometheusAgent | `monitoring.coreos.com/v1alpha1` |
 
 If unsure of an apiVersion, use `pods_list` or `pods_get` for pod-specific queries (which don't require apiVersion), or try `v1` for core resources and `apps/v1` for workloads.
 
