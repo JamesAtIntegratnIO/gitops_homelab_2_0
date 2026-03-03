@@ -469,8 +469,9 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 			"enabled": true,
 			"parentRefs": []map[string]interface{}{
 				{
-					"name":      config.GatewayName,
-					"namespace": config.GatewayNS,
+					"name":        config.GatewayName,
+					"namespace":   config.GatewayNS,
+					"sectionName": "https",
 				},
 			},
 			"hostnames": []string{config.IngressHostname},
