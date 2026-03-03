@@ -1,5 +1,23 @@
 applicationName: sonarr
 extraObjects:
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: sonarr-allow-postgres-egress
+      namespace: media
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: sonarr
+      policyTypes:
+        - Egress
+      egress:
+        - to:
+            - ipBlock:
+                cidr: 10.0.3.1/32
+          ports:
+            - protocol: TCP
+              port: 5432
   - apiVersion: external-secrets.io/v1beta1
     kind: ExternalSecret
     metadata:

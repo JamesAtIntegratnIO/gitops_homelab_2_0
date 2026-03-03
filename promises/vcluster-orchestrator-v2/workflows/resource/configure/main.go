@@ -534,7 +534,7 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 				Pods:              EnabledFlag{Enabled: true},
 				PersistentVolumes: EnabledFlag{Enabled: true},
 				Ingresses:         EnabledFlag{Enabled: true},
-				NetworkPolicies:   EnabledFlag{Enabled: false},
+				NetworkPolicies:   EnabledFlag{Enabled: true},
 			},
 			FromHost: SyncFromHost{
 				StorageClasses: EnabledFlag{Enabled: true},
