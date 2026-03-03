@@ -71,6 +71,33 @@ platform-vclusters:
     - name: Description
       value: Kratix ResourceRequests for vCluster provisioning
 
+platform-http-services:
+  enabled: true
+  type: manifest
+  namespace: platform-requests
+  project: platform
+  defaultVersion: "main"
+  selector:
+    matchExpressions:
+      - key: enable_kratix
+        operator: In
+        values: ['true']
+  manifestSource:
+    repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+    targetRevision: main
+    path: platform/http-services
+    directory:
+      recurse: true
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+  info:
+    - name: Description
+      value: Kratix ResourceRequests for HTTP service provisioning
+
 observability-secrets:
   enabled: true
   type: manifest
