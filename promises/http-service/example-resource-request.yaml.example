@@ -1,0 +1,106 @@
+# Example HTTPService Resource Request
+#
+# This creates a fully-managed HTTP service with:
+#   - Deployment via Stakater application chart (through argocd-application promise)
+#   - HTTPRoute for Gateway API ingress
+#   - NetworkPolicies (default-deny + allow-gateway + allow-dns)
+#   - ExternalSecrets backed by 1Password (optional)
+#   - ServiceMonitor for Prometheus (optional)
+#
+# Minimal example:
+#   spec:
+#     name: my-app
+#     image:
+#       repository: docker.io/nginxinc/nginx-unprivileged
+#
+# NOTE: Images must be compatible with Kyverno policies:
+#   - No CHOWN capability (dropped by mutate-restrict-escalation)
+#   - Runs as non-root OR explicitly set securityContext.runAsNonRoot: false
+#   - Recommended: nginxinc/nginx-unprivileged, distroless images, s6-overlay images
+#
+apiVersion: platform.integratn.tech/v1alpha1
+kind: HTTPService
+metadata:
+  name: my-app
+  namespace: platform-requests
+spec:
+  # ── Identity ──────────────────────────
+  name: my-app
+  namespace: my-app          # defaults to spec.name
+  team: platform             # used for labels
+
+  # ── Container ─────────────────────────
+  image:
+    repository: docker.io/nginxinc/nginx-unprivileged
+    tag: latest
+    pullPolicy: IfNotPresent
+  # command: ["/bin/sh"]     # override entrypoint
+  # args: ["-c", "echo hi"] # override args
+
+  # ── Scaling ───────────────────────────
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  # ── Networking ────────────────────────
+  port: 8080
+  ingress:
+    enabled: true
+    # hostname: my-app.cluster.integratn.tech  # auto-generated from name
+    path: /
+
+  # ── Health Checks ─────────────────────
+  healthCheck:
+    path: /
+    port: 8080
+
+  # ── Security ──────────────────────────
+  # securityContext:
+  #   runAsNonRoot: true       # set true for hardened images
+  #   readOnlyRootFilesystem: true
+  #   runAsUser: 65532
+  #   runAsGroup: 65532
+
+  # ── Secrets (1Password) ───────────────
+  # secrets:
+  #   - name: my-app-credentials       # K8s Secret name
+  #     onePasswordItem: my-app-creds  # 1Password vault item
+  #     keys:
+  #       - secretKey: password
+  #         property: password
+  #       - secretKey: api-token
+  #         property: api-token
+
+  # ── Environment ───────────────────────
+  # env:
+  #   LOG_LEVEL: info
+  #   APP_PORT: "8080"
+  # envFromSecrets:
+  #   - my-app-credentials
+
+  # ── Observability ─────────────────────
+  # monitoring:
+  #   enabled: true
+  #   path: /metrics
+  #   interval: 30s
+
+  # ── Storage ───────────────────────────
+  # persistence:
+  #   enabled: true
+  #   size: 1Gi
+  #   storageClass: ""  # leave empty for cluster default
+  #   mountPath: /data
+
+  # ── Helm Overrides (escape hatch) ─────
+  # helmOverrides:
+  #   deployment:
+  #     tolerations:
+  #       - key: "dedicated"
+  #         operator: "Equal"
+  #         value: "app"
+  #         effect: "NoSchedule"
