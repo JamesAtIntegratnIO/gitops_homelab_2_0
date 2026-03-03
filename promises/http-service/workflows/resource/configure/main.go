@@ -259,7 +259,16 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	}
 	log.Printf("✓ Rendered NetworkPolicies")
 
-	// 6. Write status
+	// 6. HTTP→HTTPS redirect route (targets the gateway's "http" listener)
+	if config.IngressEnabled {
+		redirect := buildHTTPRedirect(config)
+		if err := writeYAML(sdk, "resources/http-redirect.yaml", redirect); err != nil {
+			return fmt.Errorf("write HTTP redirect: %w", err)
+		}
+		log.Printf("✓ Rendered HTTP→HTTPS redirect route")
+	}
+
+	// 7. Write status
 	status := kratix.NewStatus()
 	status.Set("phase", "Configured")
 	status.Set("message", fmt.Sprintf("HTTP Service %s configured", config.Name))
@@ -739,4 +748,59 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 	})
 
 	return policies
+}
+
+// buildHTTPRedirect creates an HTTPRoute that redirects HTTP→HTTPS (301).
+// It targets the gateway's "http" listener section so that any plain HTTP
+// request is automatically redirected to the HTTPS equivalent.
+func buildHTTPRedirect(config *HTTPServiceConfig) Resource {
+	return Resource{
+		APIVersion: "gateway.networking.k8s.io/v1",
+		Kind:       "HTTPRoute",
+		Metadata: ObjectMeta{
+			Name:      fmt.Sprintf("%s-http-redirect", config.Name),
+			Namespace: config.Namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "kratix",
+				"kratix.io/promise-name":       "http-service",
+				"app.kubernetes.io/part-of":    config.Name,
+			},
+			Annotations: map[string]string{
+				"argocd.argoproj.io/sync-wave": "10",
+			},
+		},
+		Spec: map[string]interface{}{
+			"hostnames": []string{config.IngressHostname},
+			"parentRefs": []map[string]interface{}{
+				{
+					"group":       "gateway.networking.k8s.io",
+					"kind":        "Gateway",
+					"name":        config.GatewayName,
+					"namespace":   config.GatewayNS,
+					"sectionName": "http",
+				},
+			},
+			"rules": []map[string]interface{}{
+				{
+					"matches": []map[string]interface{}{
+						{
+							"path": map[string]interface{}{
+								"type":  "PathPrefix",
+								"value": "/",
+							},
+						},
+					},
+					"filters": []map[string]interface{}{
+						{
+							"type": "RequestRedirect",
+							"requestRedirect": map[string]interface{}{
+								"scheme":     "https",
+								"statusCode": 301,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 }
