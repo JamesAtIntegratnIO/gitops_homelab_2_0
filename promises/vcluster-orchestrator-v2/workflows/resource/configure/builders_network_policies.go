@@ -25,6 +25,7 @@ func buildNetworkPolicies(config *VClusterConfig) []u.Resource {
 		buildCorednsHostDNSPolicy(config),
 		buildIntraNamespacePolicy(config),
 		buildVClusterExternalPolicy(config),
+		buildVClusterLBSNATPolicy(config),
 	)
 
 	// --- Optional policies ---
@@ -212,10 +213,18 @@ func buildVClusterExternalPolicy(config *VClusterConfig) u.Resource {
 			"podSelector": map[string]interface{}{},
 			"policyTypes": []string{"Ingress", "Egress"},
 			"ingress": []map[string]interface{}{
-				// vCluster API LB: ArgoCD app-controller + LAN clients
+				// vCluster API LB: accept from ArgoCD namespace and RFC-1918
+				// networks on port 8443.
 				// NOTE: vCluster Service maps port 443 → targetPort 8443.
 				// Cilium (kube-proxy replacement) DNATs to the targetPort before
 				// policy evaluation, so the ingress port must be 8443.
+				//
+				// IMPORTANT: With Cilium KPR + externalTrafficPolicy: Cluster,
+				// external traffic is SNAT'd to the cilium_host IP (a pod-CIDR
+				// address). Cilium excludes cluster-internal IPs from ipBlock
+				// matching per K8s spec. The companion CiliumNetworkPolicy
+				// "allow-vcluster-lb-snat" handles this via fromEntities.
+				// This ipBlock rule covers direct pod-to-pod or ETP:Local cases.
 				{
 					"from": []map[string]interface{}{
 						{
@@ -309,6 +318,53 @@ func buildVClusterExternalPolicy(config *VClusterConfig) u.Resource {
 }
 
 // --- Optional per-vcluster policies ---
+
+// buildVClusterLBSNATPolicy creates a CiliumNetworkPolicy that allows external
+// traffic reaching the vCluster API LoadBalancer.
+//
+// With Cilium kube-proxy replacement + externalTrafficPolicy: Cluster, external
+// packets are DNAT'd + SNAT'd at the MetalLB announcing node. The SNAT source
+// IP is the cilium_host0 address (a pod-CIDR IP, e.g. 10.244.x.x). Because
+// Cilium excludes cluster-internal IPs from K8s NetworkPolicy ipBlock matching
+// (per the K8s spec: "ipBlock selects cluster-external IPs"), standard
+// NetworkPolicy rules cannot match this traffic.
+//
+// This CiliumNetworkPolicy uses fromEntities to match by Cilium security
+// identity instead of IP ranges:
+//   - host: traffic from the local node (cilium_host0 SNAT on same node)
+//   - remote-node: traffic from other nodes (cilium_host0 SNAT cross-node)
+//   - world: traffic with preserved external source IP (e.g., ETP:Local)
+func buildVClusterLBSNATPolicy(config *VClusterConfig) u.Resource {
+	return u.Resource{
+		APIVersion: "cilium.io/v2",
+		Kind:       "CiliumNetworkPolicy",
+		Metadata: u.ResourceMeta(
+			"allow-vcluster-lb-snat",
+			config.TargetNamespace,
+			netpolicyLabels(config, "allow-vcluster-lb-snat"),
+			nil,
+		),
+		Spec: map[string]interface{}{
+			"endpointSelector": map[string]interface{}{
+				"matchLabels": map[string]string{
+					"app": "vcluster",
+				},
+			},
+			"ingress": []map[string]interface{}{
+				{
+					"fromEntities": []string{"host", "remote-node", "world"},
+					"toPorts": []map[string]interface{}{
+						{
+							"ports": []map[string]interface{}{
+								{"port": "8443", "protocol": "TCP"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
 
 // buildNFSEgressPolicy creates a NetworkPolicy allowing NFS egress.
 func buildNFSEgressPolicy(config *VClusterConfig) u.Resource {
