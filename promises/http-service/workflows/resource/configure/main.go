@@ -5,20 +5,87 @@ import (
 	"log"
 
 	kratix "github.com/syntasso/kratix-go"
+
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // Platform-wide defaults — baked into every HTTP service.
 const (
-	defaultBaseDomain    = "cluster.integratn.tech"
-	defaultGatewayName   = "nginx-gateway"
-	defaultGatewayNS     = "nginx-gateway"
-	defaultSecretStore   = "onepassword-connect"
+	defaultBaseDomain      = "cluster.integratn.tech"
+	defaultGatewayName     = "nginx-gateway"
+	defaultGatewayNS       = "nginx-gateway"
+	defaultSecretStore     = "onepassword-store"
 	defaultSecretStoreKind = "ClusterSecretStore"
-	stakaterChartRepo    = "https://stakater.github.io/stakater-charts"
-	stakaterChartName    = "application"
-	stakaterChartVersion = "6.16.1"
-	argoCDProject        = "default"
+	stakaterChartRepo      = "https://stakater.github.io/stakater-charts"
+	stakaterChartName      = "application"
+	stakaterChartVersion   = "6.16.1"
+	argoCDProject          = "default"
 )
+
+// HTTPServiceConfig holds the fully resolved config from the CR.
+type HTTPServiceConfig struct {
+	Name      string
+	Namespace string
+	Team      string
+
+	// Image
+	ImageRepository string
+	ImageTag        string
+	ImagePullPolicy string
+	Command         []string
+	Args            []string
+
+	// Scaling
+	Replicas      int
+	CPURequest    string
+	MemoryRequest string
+	CPULimit      string
+	MemoryLimit   string
+
+	// Networking
+	Port            int
+	IngressEnabled  bool
+	IngressHostname string
+	IngressPath     string
+
+	// Secrets
+	Secrets []u.SecretRef
+
+	// Environment
+	Env            map[string]string
+	EnvFromSecrets []string
+
+	// Health checks
+	HealthCheckPath string
+	HealthCheckPort int
+
+	// Monitoring
+	MonitoringEnabled  bool
+	MonitoringPath     string
+	MonitoringInterval string
+
+	// Storage
+	PersistenceEnabled   bool
+	PersistenceSize      string
+	PersistenceClass     string
+	PersistenceMountPath string
+
+	// Security
+	RunAsNonRoot           *bool
+	ReadOnlyRootFilesystem *bool
+	RunAsUser              *int64
+	RunAsGroup             *int64
+
+	// Escape hatch
+	HelmOverrides map[string]interface{}
+
+	// Platform defaults
+	BaseDomain      string
+	GatewayName     string
+	GatewayNS       string
+	SecretStoreName string
+	SecretStoreKind string
+}
 
 func main() {
 	sdk := kratix.New()
@@ -60,79 +127,79 @@ func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
 		BaseDomain:      defaultBaseDomain,
 		GatewayName:     defaultGatewayName,
 		GatewayNS:       defaultGatewayNS,
-		SecretStoreName:  defaultSecretStore,
-		SecretStoreKind:  defaultSecretStoreKind,
+		SecretStoreName: defaultSecretStore,
+		SecretStoreKind: defaultSecretStoreKind,
 	}
 
 	var err error
-	config.Name, err = getStringValue(resource, "spec.name")
+	config.Name, err = u.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return nil, fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	config.Namespace, _ = getStringValueWithDefault(resource, "spec.namespace", config.Name)
-	config.Team, _ = getStringValueWithDefault(resource, "spec.team", "platform")
+	config.Namespace, _ = u.GetStringValueWithDefault(resource, "spec.namespace", config.Name)
+	config.Team, _ = u.GetStringValueWithDefault(resource, "spec.team", "platform")
 
 	// Image
-	config.ImageRepository, err = getStringValue(resource, "spec.image.repository")
+	config.ImageRepository, err = u.GetStringValue(resource, "spec.image.repository")
 	if err != nil {
 		return nil, fmt.Errorf("spec.image.repository is required: %w", err)
 	}
-	config.ImageTag, _ = getStringValueWithDefault(resource, "spec.image.tag", "latest")
-	config.ImagePullPolicy, _ = getStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
-	config.Command = extractStringSlice(resource, "spec.command")
-	config.Args = extractStringSlice(resource, "spec.args")
+	config.ImageTag, _ = u.GetStringValueWithDefault(resource, "spec.image.tag", "latest")
+	config.ImagePullPolicy, _ = u.GetStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
+	config.Command = u.ExtractStringSlice(resource, "spec.command")
+	config.Args = u.ExtractStringSlice(resource, "spec.args")
 
 	// Scaling
-	config.Replicas, _ = getIntValueWithDefault(resource, "spec.replicas", 1)
-	config.CPURequest, _ = getStringValueWithDefault(resource, "spec.resources.requests.cpu", "100m")
-	config.MemoryRequest, _ = getStringValueWithDefault(resource, "spec.resources.requests.memory", "128Mi")
-	config.CPULimit, _ = getStringValueWithDefault(resource, "spec.resources.limits.cpu", "500m")
-	config.MemoryLimit, _ = getStringValueWithDefault(resource, "spec.resources.limits.memory", "256Mi")
+	config.Replicas, _ = u.GetIntValueWithDefault(resource, "spec.replicas", 1)
+	config.CPURequest, _ = u.GetStringValueWithDefault(resource, "spec.resources.requests.cpu", "100m")
+	config.MemoryRequest, _ = u.GetStringValueWithDefault(resource, "spec.resources.requests.memory", "128Mi")
+	config.CPULimit, _ = u.GetStringValueWithDefault(resource, "spec.resources.limits.cpu", "500m")
+	config.MemoryLimit, _ = u.GetStringValueWithDefault(resource, "spec.resources.limits.memory", "256Mi")
 
 	// Networking
-	config.Port, _ = getIntValueWithDefault(resource, "spec.port", 8080)
-	config.IngressEnabled, _ = getBoolValueWithDefault(resource, "spec.ingress.enabled", true)
-	config.IngressHostname, _ = getStringValue(resource, "spec.ingress.hostname")
+	config.Port, _ = u.GetIntValueWithDefault(resource, "spec.port", 8080)
+	config.IngressEnabled, _ = u.GetBoolValueWithDefault(resource, "spec.ingress.enabled", true)
+	config.IngressHostname, _ = u.GetStringValue(resource, "spec.ingress.hostname")
 	if config.IngressHostname == "" {
 		config.IngressHostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
 	}
-	config.IngressPath, _ = getStringValueWithDefault(resource, "spec.ingress.path", "/")
+	config.IngressPath, _ = u.GetStringValueWithDefault(resource, "spec.ingress.path", "/")
 
 	// Secrets
-	config.Secrets = extractSecrets(resource)
+	config.Secrets = u.ExtractSecrets(resource, "spec.secrets")
 
 	// Environment
-	config.Env = extractStringMap(resource, "spec.env")
-	config.EnvFromSecrets = extractStringSlice(resource, "spec.envFromSecrets")
+	config.Env = u.ExtractStringMap(resource, "spec.env")
+	config.EnvFromSecrets = u.ExtractStringSlice(resource, "spec.envFromSecrets")
 
 	// Health checks
-	config.HealthCheckPath, _ = getStringValueWithDefault(resource, "spec.healthCheck.path", "/")
-	config.HealthCheckPort, _ = getIntValueWithDefault(resource, "spec.healthCheck.port", config.Port)
+	config.HealthCheckPath, _ = u.GetStringValueWithDefault(resource, "spec.healthCheck.path", "/")
+	config.HealthCheckPort, _ = u.GetIntValueWithDefault(resource, "spec.healthCheck.port", config.Port)
 
 	// Monitoring
-	config.MonitoringEnabled, _ = getBoolValueWithDefault(resource, "spec.monitoring.enabled", false)
-	config.MonitoringPath, _ = getStringValueWithDefault(resource, "spec.monitoring.path", "/metrics")
-	config.MonitoringInterval, _ = getStringValueWithDefault(resource, "spec.monitoring.interval", "30s")
+	config.MonitoringEnabled, _ = u.GetBoolValueWithDefault(resource, "spec.monitoring.enabled", false)
+	config.MonitoringPath, _ = u.GetStringValueWithDefault(resource, "spec.monitoring.path", "/metrics")
+	config.MonitoringInterval, _ = u.GetStringValueWithDefault(resource, "spec.monitoring.interval", "30s")
 
 	// Storage
-	config.PersistenceEnabled, _ = getBoolValueWithDefault(resource, "spec.persistence.enabled", false)
-	config.PersistenceSize, _ = getStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
-	config.PersistenceClass, _ = getStringValue(resource, "spec.persistence.storageClass")
-	config.PersistenceMountPath, _ = getStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
+	config.PersistenceEnabled, _ = u.GetBoolValueWithDefault(resource, "spec.persistence.enabled", false)
+	config.PersistenceSize, _ = u.GetStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
+	config.PersistenceClass, _ = u.GetStringValue(resource, "spec.persistence.storageClass")
+	config.PersistenceMountPath, _ = u.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
 
 	// Security context
-	if v, err := getBoolValue(resource, "spec.securityContext.runAsNonRoot"); err == nil {
+	if v, err := u.GetBoolValue(resource, "spec.securityContext.runAsNonRoot"); err == nil {
 		config.RunAsNonRoot = &v
 	}
-	if v, err := getBoolValue(resource, "spec.securityContext.readOnlyRootFilesystem"); err == nil {
+	if v, err := u.GetBoolValue(resource, "spec.securityContext.readOnlyRootFilesystem"); err == nil {
 		config.ReadOnlyRootFilesystem = &v
 	}
-	if v, err := getIntValue(resource, "spec.securityContext.runAsUser"); err == nil {
+	if v, err := u.GetIntValue(resource, "spec.securityContext.runAsUser"); err == nil {
 		v64 := int64(v)
 		config.RunAsUser = &v64
 	}
-	if v, err := getIntValue(resource, "spec.securityContext.runAsGroup"); err == nil {
+	if v, err := u.GetIntValue(resource, "spec.securityContext.runAsGroup"); err == nil {
 		v64 := int64(v)
 		config.RunAsGroup = &v64
 	}
@@ -147,19 +214,19 @@ func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
 	return config, nil
 }
 
-// handleConfigure generates the Namespace + ArgoCDApplication sub-ResourceRequest + ExternalSecrets + NetworkPolicies.
+// handleConfigure generates the Namespace + ArgoCD app + sub-ResourceRequests + NetworkPolicies.
 func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// 0. Create the target Namespace first (low sync-wave so it exists before everything else)
-	ns := Resource{
+	ns := u.Resource{
 		APIVersion: "v1",
 		Kind:       "Namespace",
-		Metadata: ObjectMeta{
+		Metadata: u.ObjectMeta{
 			Name: config.Namespace,
 			Labels: map[string]string{
-				"app.kubernetes.io/managed-by":          "kratix",
-				"kratix.io/promise-name":                "http-service",
-				"app.kubernetes.io/part-of":             config.Name,
-				"app.kubernetes.io/team":                config.Team,
+				"app.kubernetes.io/managed-by":           "kratix",
+				"kratix.io/promise-name":                 "http-service",
+				"app.kubernetes.io/part-of":              config.Name,
+				"app.kubernetes.io/team":                 config.Team,
 				"platform.integratn.tech/gateway-access": "true",
 			},
 			Annotations: map[string]string{
@@ -167,7 +234,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 			},
 		},
 	}
-	if err := writeYAML(sdk, "resources/namespace.yaml", ns); err != nil {
+	if err := u.WriteYAML(sdk, "resources/namespace.yaml", ns); err != nil {
 		return fmt.Errorf("write Namespace: %w", err)
 	}
 	log.Printf("✓ Rendered Namespace: %s", config.Namespace)
@@ -177,7 +244,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 
 	// 2. Deep-merge any helmOverrides on top
 	if config.HelmOverrides != nil {
-		values = deepMerge(values, config.HelmOverrides)
+		values = u.DeepMerge(values, config.HelmOverrides)
 	}
 
 	// 3. Build ArgoCDApplication sub-ResourceRequest (delegates to the argocd-application promise)
@@ -188,10 +255,10 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		"app.kubernetes.io/team":       config.Team,
 	}
 
-	appRequest := Resource{
+	appRequest := u.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "ArgoCDApplication",
-		Metadata: ObjectMeta{
+		Metadata: u.ObjectMeta{
 			Name:      config.Name,
 			Namespace: "platform-requests",
 			Labels: map[string]string{
@@ -202,7 +269,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 				"app.kubernetes.io/team":       config.Team,
 			},
 		},
-		Spec: ArgoCDApplicationSpec{
+		Spec: u.ArgoCDApplicationSpec{
 			Name:      config.Name,
 			Namespace: "argocd",
 			Annotations: map[string]string{
@@ -211,16 +278,16 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 			Labels:     appLabels,
 			Finalizers: []string{"resources-finalizer.argocd.argoproj.io"},
 			Project:    argoCDProject,
-			Source: AppSource{
+			Source: u.AppSource{
 				RepoURL:        stakaterChartRepo,
 				Chart:          stakaterChartName,
 				TargetRevision: stakaterChartVersion,
-				Helm: &HelmSource{
+				Helm: &u.HelmSource{
 					ReleaseName:  config.Name,
 					ValuesObject: values,
 				},
 			},
-			Destination: Destination{
+			Destination: u.Destination{
 				Server:    "https://kubernetes.default.svc",
 				Namespace: config.Namespace,
 			},
@@ -237,35 +304,34 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		},
 	}
 
-	if err := writeYAML(sdk, "resources/argocd-application-request.yaml", appRequest); err != nil {
+	if err := u.WriteYAML(sdk, "resources/argocd-application-request.yaml", appRequest); err != nil {
 		return fmt.Errorf("write ArgoCDApplication request: %w", err)
 	}
 	log.Printf("✓ Rendered ArgoCDApplication sub-ResourceRequest: %s", config.Name)
 
-	// 4. Build ExternalSecrets (these go directly, not through Stakater, 
-	//    because we need them created before the Deployment references them)
+	// 4. Emit PlatformExternalSecret sub-ResourceRequest (delegates to external-secret promise)
 	if len(config.Secrets) > 0 {
-		externalSecrets := buildExternalSecrets(config)
-		if err := writeYAMLDocuments(sdk, "resources/external-secrets.yaml", externalSecrets); err != nil {
-			return fmt.Errorf("write ExternalSecrets: %w", err)
+		esRequest := buildExternalSecretRequest(config)
+		if err := u.WriteYAML(sdk, "resources/external-secret-request.yaml", esRequest); err != nil {
+			return fmt.Errorf("write PlatformExternalSecret request: %w", err)
 		}
-		log.Printf("✓ Rendered %d ExternalSecret(s)", len(config.Secrets))
+		log.Printf("✓ Rendered PlatformExternalSecret sub-ResourceRequest (%d secret(s))", len(config.Secrets))
 	}
 
-	// 5. Build a default deny-all + allow-ingress NetworkPolicy
+	// 5. Build NetworkPolicies (remain inline — too variable for a sub-promise)
 	netpols := buildNetworkPolicies(config)
-	if err := writeYAMLDocuments(sdk, "resources/network-policies.yaml", netpols); err != nil {
+	if err := u.WriteYAMLDocuments(sdk, "resources/network-policies.yaml", netpols); err != nil {
 		return fmt.Errorf("write NetworkPolicies: %w", err)
 	}
 	log.Printf("✓ Rendered NetworkPolicies")
 
-	// 6. HTTP→HTTPS redirect route (targets the gateway's "http" listener)
+	// 6. Emit GatewayRoute sub-ResourceRequest (delegates to gateway-route promise)
 	if config.IngressEnabled {
-		redirect := buildHTTPRedirect(config)
-		if err := writeYAML(sdk, "resources/http-redirect.yaml", redirect); err != nil {
-			return fmt.Errorf("write HTTP redirect: %w", err)
+		gwRequest := buildGatewayRouteRequest(config)
+		if err := u.WriteYAML(sdk, "resources/gateway-route-request.yaml", gwRequest); err != nil {
+			return fmt.Errorf("write GatewayRoute request: %w", err)
 		}
-		log.Printf("✓ Rendered HTTP→HTTPS redirect route")
+		log.Printf("✓ Rendered GatewayRoute sub-ResourceRequest")
 	}
 
 	// 7. Write status
@@ -284,22 +350,53 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	return nil
 }
 
-// handleDelete cleans up the ArgoCDApplication sub-ResourceRequest.
+// handleDelete cleans up sub-ResourceRequests.
 func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
-	// Emit a minimal ArgoCDApplication resource so Kratix knows what to delete
-	appRequest := Resource{
+	// Delete ArgoCDApplication sub-ResourceRequest
+	appRequest := u.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "ArgoCDApplication",
-		Metadata: ObjectMeta{
+		Metadata: u.ObjectMeta{
 			Name:      config.Name,
 			Namespace: "platform-requests",
 		},
 	}
-
-	if err := writeYAML(sdk, "resources/delete-argocdapplication-"+config.Name+".yaml", appRequest); err != nil {
+	if err := u.WriteYAML(sdk, "resources/delete-argocdapplication-"+config.Name+".yaml", appRequest); err != nil {
 		return fmt.Errorf("write delete ArgoCDApplication request: %w", err)
 	}
 	log.Printf("✓ Delete scheduled for ArgoCDApplication: %s", config.Name)
+
+	// Delete PlatformExternalSecret sub-ResourceRequest
+	if len(config.Secrets) > 0 {
+		esRequest := u.Resource{
+			APIVersion: "platform.integratn.tech/v1alpha1",
+			Kind:       "PlatformExternalSecret",
+			Metadata: u.ObjectMeta{
+				Name:      fmt.Sprintf("%s-secrets", config.Name),
+				Namespace: "platform-requests",
+			},
+		}
+		if err := u.WriteYAML(sdk, "resources/delete-externalsecret-"+config.Name+".yaml", esRequest); err != nil {
+			return fmt.Errorf("write delete PlatformExternalSecret request: %w", err)
+		}
+		log.Printf("✓ Delete scheduled for PlatformExternalSecret: %s", config.Name)
+	}
+
+	// Delete GatewayRoute sub-ResourceRequest
+	if config.IngressEnabled {
+		gwRequest := u.Resource{
+			APIVersion: "platform.integratn.tech/v1alpha1",
+			Kind:       "GatewayRoute",
+			Metadata: u.ObjectMeta{
+				Name:      fmt.Sprintf("%s-route", config.Name),
+				Namespace: "platform-requests",
+			},
+		}
+		if err := u.WriteYAML(sdk, "resources/delete-gatewayroute-"+config.Name+".yaml", gwRequest); err != nil {
+			return fmt.Errorf("write delete GatewayRoute request: %w", err)
+		}
+		log.Printf("✓ Delete scheduled for GatewayRoute: %s", config.Name)
+	}
 
 	status := kratix.NewStatus()
 	status.Set("phase", "Deleting")
@@ -312,14 +409,101 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	return nil
 }
 
+// ============================================================================
+// Sub-ResourceRequest Builders
+// ============================================================================
+
+// buildExternalSecretRequest creates a PlatformExternalSecret sub-ResourceRequest
+// that delegates to the external-secret promise.
+func buildExternalSecretRequest(config *HTTPServiceConfig) u.Resource {
+	// Convert SecretRef slice to the format expected by the external-secret promise
+	secrets := []map[string]interface{}{}
+	for _, s := range config.Secrets {
+		keys := []map[string]string{}
+		for _, k := range s.Keys {
+			keys = append(keys, map[string]string{
+				"secretKey": k.SecretKey,
+				"property":  k.Property,
+			})
+		}
+
+		secret := map[string]interface{}{
+			"onePasswordItem": s.OnePasswordItem,
+			"keys":            keys,
+		}
+		if s.Name != "" {
+			secret["name"] = s.Name
+		}
+		secrets = append(secrets, secret)
+	}
+
+	return u.Resource{
+		APIVersion: "platform.integratn.tech/v1alpha1",
+		Kind:       "PlatformExternalSecret",
+		Metadata: u.ObjectMeta{
+			Name:      fmt.Sprintf("%s-secrets", config.Name),
+			Namespace: "platform-requests",
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "kratix",
+				"kratix.io/promise-name":       "http-service",
+				"app.kubernetes.io/part-of":    config.Name,
+			},
+		},
+		Spec: map[string]interface{}{
+			"namespace":       config.Namespace,
+			"appName":         config.Name,
+			"secretStoreName": config.SecretStoreName,
+			"secretStoreKind": config.SecretStoreKind,
+			"ownerPromise":    "http-service",
+			"secrets":         secrets,
+		},
+	}
+}
+
+// buildGatewayRouteRequest creates a GatewayRoute sub-ResourceRequest
+// that delegates to the gateway-route promise.
+func buildGatewayRouteRequest(config *HTTPServiceConfig) u.Resource {
+	spec := map[string]interface{}{
+		"name":      config.Name,
+		"namespace": config.Namespace,
+		"hostname":  config.IngressHostname,
+		"path":      config.IngressPath,
+		"backendRef": map[string]interface{}{
+			"name": config.Name,
+			"port": config.Port,
+		},
+		"gateway": map[string]interface{}{
+			"name":      config.GatewayName,
+			"namespace": config.GatewayNS,
+		},
+		"httpRedirect": true,
+		"ownerPromise": "http-service",
+	}
+
+	return u.Resource{
+		APIVersion: "platform.integratn.tech/v1alpha1",
+		Kind:       "GatewayRoute",
+		Metadata: u.ObjectMeta{
+			Name:      fmt.Sprintf("%s-route", config.Name),
+			Namespace: "platform-requests",
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "kratix",
+				"kratix.io/promise-name":       "http-service",
+				"app.kubernetes.io/part-of":    config.Name,
+			},
+		},
+		Spec: spec,
+	}
+}
+
+// ============================================================================
+// Stakater Values Builder
+// ============================================================================
+
 // buildSecurityContext creates the container security context from config.
-// The Stakater chart defaults to runAsNonRoot=true and readOnlyRootFilesystem=true,
-// so we must explicitly set false when the user hasn't opted into hardening.
-// This ensures standard Docker Hub images work out-of-the-box.
 func buildSecurityContext(config *HTTPServiceConfig) map[string]interface{} {
 	ctx := map[string]interface{}{}
 
-	// Default to false (override chart defaults) unless user explicitly sets true
 	if config.RunAsNonRoot != nil {
 		ctx["runAsNonRoot"] = *config.RunAsNonRoot
 	} else {
@@ -341,6 +525,7 @@ func buildSecurityContext(config *HTTPServiceConfig) map[string]interface{} {
 }
 
 // buildStakaterValues constructs the Helm values for the Stakater application chart.
+// HTTPRoute is DISABLED here — the gateway-route sub-promise owns routing.
 func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 	values := map[string]interface{}{
 		"applicationName": config.Name,
@@ -405,8 +590,8 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 				},
 			},
 			"containerSecurityContext": buildSecurityContext(config),
-			"revisionHistoryLimit": 3,
-			"reloadOnChange":       true,
+			"revisionHistoryLimit":    3,
+			"reloadOnChange":          true,
 		},
 
 		// ── Service ─────────────────────────────────────
@@ -448,14 +633,12 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 	// ── EnvFrom (mount secrets) ─────────────────────
 	if len(config.EnvFromSecrets) > 0 || len(config.Secrets) > 0 {
 		envFrom := map[string]interface{}{}
-		// Wire up any explicitly requested envFrom secrets
 		for _, s := range config.EnvFromSecrets {
 			envFrom[s] = map[string]interface{}{
 				"type":       "secret",
 				"nameSuffix": s,
 			}
 		}
-		// Also wire up ExternalSecrets so the deployment gets them
 		for _, s := range config.Secrets {
 			secretName := s.Name
 			if secretName == "" {
@@ -472,38 +655,8 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 		}
 	}
 
-	// ── HTTPRoute (Gateway API) ─────────────────────
-	if config.IngressEnabled {
-		values["httpRoute"] = map[string]interface{}{
-			"enabled": true,
-			"parentRefs": []map[string]interface{}{
-				{
-					"name":        config.GatewayName,
-					"namespace":   config.GatewayNS,
-					"sectionName": "https",
-				},
-			},
-			"hostnames": []string{config.IngressHostname},
-			"rules": []map[string]interface{}{
-				{
-					"matches": []map[string]interface{}{
-						{
-							"path": map[string]interface{}{
-								"type":  "PathPrefix",
-								"value": config.IngressPath,
-							},
-						},
-					},
-					"backendRefs": []map[string]interface{}{
-						{
-							"name": config.Name,
-							"port": config.Port,
-						},
-					},
-				},
-			},
-		}
-	}
+	// ── HTTPRoute DISABLED — owned by gateway-route sub-promise ──
+	values["httpRoute"] = map[string]interface{}{"enabled": false}
 
 	// ── ServiceMonitor ──────────────────────────────
 	if config.MonitoringEnabled {
@@ -557,75 +710,27 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 	values["pdb"] = map[string]interface{}{"enabled": false}
 	values["grafanaDashboard"] = map[string]interface{}{"enabled": false}
 	values["backup"] = map[string]interface{}{"enabled": false}
-	values["networkPolicy"] = map[string]interface{}{"enabled": false} // We render our own
+	values["networkPolicy"] = map[string]interface{}{"enabled": false}
 
 	return values
 }
 
-// buildExternalSecrets creates ExternalSecret resources backed by 1Password.
-func buildExternalSecrets(config *HTTPServiceConfig) []Resource {
-	var resources []Resource
-
-	for _, s := range config.Secrets {
-		secretName := s.Name
-		if secretName == "" {
-			secretName = fmt.Sprintf("%s-%s", config.Name, s.OnePasswordItem)
-		}
-
-		data := []map[string]interface{}{}
-		for _, k := range s.Keys {
-			data = append(data, map[string]interface{}{
-				"secretKey": k.SecretKey,
-				"remoteRef": map[string]interface{}{
-					"key":      s.OnePasswordItem,
-					"property": k.Property,
-				},
-			})
-		}
-
-		es := Resource{
-			APIVersion: "external-secrets.io/v1beta1",
-			Kind:       "ExternalSecret",
-			Metadata: ObjectMeta{
-				Name:      secretName,
-				Namespace: config.Namespace,
-				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "kratix",
-					"kratix.io/promise-name":       "http-service",
-					"app.kubernetes.io/part-of":    config.Name,
-				},
-			},
-			Spec: map[string]interface{}{
-				"secretStoreRef": map[string]interface{}{
-					"name": config.SecretStoreName,
-					"kind": config.SecretStoreKind,
-				},
-				"target": map[string]interface{}{
-					"name": secretName,
-				},
-				"data": data,
-			},
-		}
-
-		resources = append(resources, es)
-	}
-
-	return resources
-}
+// ============================================================================
+// Network Policies (remain inline — too variable for a sub-promise)
+// ============================================================================
 
 // buildNetworkPolicies creates allow-ingress-from-gateway + allow-dns policies.
 // NOTE: We do NOT generate a default-deny policy here because the platform's
 // Kyverno ClusterPolicy (generate-default-deny-netpol) automatically creates a
-// default-deny-all NetworkPolicy in every new namespace. Our job is only to
-// punch the specific holes needed for the service to function.
-func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
-	var policies []Resource
+// default-deny-all NetworkPolicy in every new namespace.
+func buildNetworkPolicies(config *HTTPServiceConfig) []u.Resource {
+	var policies []u.Resource
 
 	// Allow ingress from the gateway namespace
-	policies = append(policies, Resource{
+	policies = append(policies, u.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: ObjectMeta{
+		Metadata: u.ObjectMeta{
 			Name:      fmt.Sprintf("%s-allow-gateway", config.Name),
 			Namespace: config.Namespace,
 			Labels: map[string]string{
@@ -668,10 +773,10 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 
 	// Allow monitoring scrape if enabled
 	if config.MonitoringEnabled {
-		policies = append(policies, Resource{
+		policies = append(policies, u.Resource{
 			APIVersion: "networking.k8s.io/v1",
 			Kind:       "NetworkPolicy",
-			Metadata: ObjectMeta{
+			Metadata: u.ObjectMeta{
 				Name:      fmt.Sprintf("%s-allow-monitoring", config.Name),
 				Namespace: config.Namespace,
 				Labels: map[string]string{
@@ -714,10 +819,10 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 	}
 
 	// Allow DNS egress (all pods need this)
-	policies = append(policies, Resource{
+	policies = append(policies, u.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: ObjectMeta{
+		Metadata: u.ObjectMeta{
 			Name:      fmt.Sprintf("%s-allow-dns", config.Name),
 			Namespace: config.Namespace,
 			Labels: map[string]string{
@@ -748,59 +853,4 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []Resource {
 	})
 
 	return policies
-}
-
-// buildHTTPRedirect creates an HTTPRoute that redirects HTTP→HTTPS (301).
-// It targets the gateway's "http" listener section so that any plain HTTP
-// request is automatically redirected to the HTTPS equivalent.
-func buildHTTPRedirect(config *HTTPServiceConfig) Resource {
-	return Resource{
-		APIVersion: "gateway.networking.k8s.io/v1",
-		Kind:       "HTTPRoute",
-		Metadata: ObjectMeta{
-			Name:      fmt.Sprintf("%s-http-redirect", config.Name),
-			Namespace: config.Namespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "kratix",
-				"kratix.io/promise-name":       "http-service",
-				"app.kubernetes.io/part-of":    config.Name,
-			},
-			Annotations: map[string]string{
-				"argocd.argoproj.io/sync-wave": "10",
-			},
-		},
-		Spec: map[string]interface{}{
-			"hostnames": []string{config.IngressHostname},
-			"parentRefs": []map[string]interface{}{
-				{
-					"group":       "gateway.networking.k8s.io",
-					"kind":        "Gateway",
-					"name":        config.GatewayName,
-					"namespace":   config.GatewayNS,
-					"sectionName": "http",
-				},
-			},
-			"rules": []map[string]interface{}{
-				{
-					"matches": []map[string]interface{}{
-						{
-							"path": map[string]interface{}{
-								"type":  "PathPrefix",
-								"value": "/",
-							},
-						},
-					},
-					"filters": []map[string]interface{}{
-						{
-							"type": "RequestRedirect",
-							"requestRedirect": map[string]interface{}{
-								"scheme":     "https",
-								"statusCode": 301,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
 }
