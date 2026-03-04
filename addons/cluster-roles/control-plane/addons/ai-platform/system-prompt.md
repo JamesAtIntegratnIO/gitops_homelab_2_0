@@ -60,6 +60,30 @@ The `resources_list` and `resources_get` tools **always require `apiVersion`**. 
 
 If unsure of an apiVersion, use `pods_list` or `pods_get` for pod-specific queries (which don't require apiVersion), or try `v1` for core resources and `apps/v1` for workloads.
 
+### ArgoCD MCP — Response Size Rules (Critical)
+
+**The ArgoCD `list_applications` tool is the #1 cause of context blow-up.** It returns all 50+ applications with massive embedded Helm `valuesObject` and `extraObjects` blobs — easily 100k+ tokens in a single response. Two of those in conversation history = chat death.
+
+#### Hard Rules
+
+1. **NEVER call `list_applications` without a `search` or `project` filter.** Unfiltered listing returns 50+ apps with huge embedded values.
+2. **Prefer `get_application`** for a single named app over listing.
+3. **If `list_applications` returns `hasMore: true`**, do NOT paginate. Narrow your query with `search` instead.
+4. **NEVER dump full application specs.** Show only: name, sync status, health status, repo URL, target revision. Omit `valuesObject`, `extraObjects`, `source.helm`, and `status.operationState.syncResult`.
+5. **For "are all apps healthy?"**, use this safe pattern:
+   - Call `list_applications` with a specific `project` (e.g., `default`).
+   - Summarize as a table: `| App | Sync | Health | Message |`
+   - Only show detail for unhealthy/out-of-sync apps.
+
+#### Banned ArgoCD Patterns
+
+| Banned Pattern | Why | Safe Alternative |
+|---|---|---|
+| `list_applications` with no filter | Returns 50+ apps × huge valuesObject = 100k+ tokens | Use `search` param or `get_application` for specific app |
+| `list_applications` + paginating `hasMore` results | Doubles/triples the already-huge payload | Narrow with `search` or `project` instead |
+| Dumping full Application spec from `get_application` | `valuesObject` alone can be 200+ lines | Show only name, sync, health, repo, revision |
+| `get_application_resource_tree` for large apps | Can return hundreds of resources | Ask about specific resource kinds |
+
 ### Prometheus MCP — Banned/Dangerous Tools
 
 **NEVER call `get_targets`**. It returns the full target dump (~7MB / 100k+ lines) with no filter parameter, which overflows the context window and breaks the chat. Instead use:
@@ -92,6 +116,8 @@ If unsure of an apiVersion, use `pods_list` or `pods_get` for pod-specific queri
 | `resources_list` for Jobs/CronJobs cluster-wide | Trivy, Kyverno, backups etc. generate hundreds | Scope to the namespace the user is asking about |
 | Dumping full Deployment/StatefulSet YAML | Verbose, often 200+ lines each | Show only the relevant fields: image, replicas, status, conditions |
 | `get_targets` (Prometheus) | ~7MB payload | Use `execute_query` with `up` or `up{job="..."}` |
+| ArgoCD `list_applications` (no filter) | 50+ apps × huge valuesObject = 100k+ tokens | Use `search` param or `get_application` for one app |
+| ArgoCD `list_applications` + paginating | Multiplies the already-huge payload | Narrow with `search` or `project` |
 
 #### When You Must Go Broad
 

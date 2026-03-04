@@ -92,7 +92,30 @@ rules:
     verbs: ["get"]
   # Kratix core resources
   - apiGroups: ["platform.kratix.io"]
-    resources: ["promises", "works", "workplacements", "destinations"]
+    resources: ["promises", "works", "workplacements", "destinations", "resourcerequests"]
+    verbs: ["get", "list", "watch"]
+  # cert-manager (certificate status, issuer health)
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates", "issuers", "clusterissuers", "certificaterequests", "orders", "challenges"]
+    verbs: ["get", "list", "watch"]
+  # Kyverno policies (policy reports, compliance status)
+  - apiGroups: ["kyverno.io"]
+    resources: ["clusterpolicies", "policies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["kyverno.io"]
+    resources: ["policyexceptions"]
+    verbs: ["get", "list", "watch"]
+  # Kyverno/wgpolicyk8s policy reports
+  - apiGroups: ["wgpolicyk8s.io"]
+    resources: ["policyreports", "clusterpolicyreports"]
+    verbs: ["get", "list", "watch"]
+  # PodDisruptionBudgets (common debugging resource)
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+  # Leases (leader election debugging)
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
     verbs: ["get", "list", "watch"]
   # Prometheus monitoring (ServiceMonitors, PrometheusRules, etc.)
   - apiGroups: ["monitoring.coreos.com"]
