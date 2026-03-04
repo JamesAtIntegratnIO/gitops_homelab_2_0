@@ -30,15 +30,20 @@ var (
 	sharedErr    error
 )
 
-// Shared returns a lazily-initialized kube client using config.Get().KubeContext.
-// Subsequent calls return the same client and error. Call ResetShared() in tests
-// to clear the cached client.
-func Shared() (*Client, error) {
+// SharedWithConfig returns a lazily-initialized kube client using the supplied
+// kubeContext. Subsequent calls return the same client and error regardless of
+// the kubeContext value. Call ResetShared() in tests to clear the cached client.
+func SharedWithConfig(kubeContext string) (*Client, error) {
 	sharedOnce.Do(func() {
-		cfg := config.Get()
-		sharedClient, sharedErr = NewClient(cfg.KubeContext)
+		sharedClient, sharedErr = NewClient(kubeContext)
 	})
 	return sharedClient, sharedErr
+}
+
+// Shared returns a lazily-initialized kube client using config.Get().KubeContext.
+// It is a convenience wrapper intended for the cmd/ layer (composition root).
+func Shared() (*Client, error) {
+	return SharedWithConfig(config.Get().KubeContext)
 }
 
 // ResetShared clears the cached client so the next Shared() call re-initializes.

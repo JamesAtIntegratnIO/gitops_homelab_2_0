@@ -956,9 +956,7 @@ func TestBuildStakaterValues_NoExtraObjects(t *testing.T) {
 
 func TestTranslate_BasicWorkload(t *testing.T) {
 	t.Parallel()
-	// Set config so Translate can use config.Get()
-	config.Set(&config.Config{DefaultCluster: "test-cluster"})
-	defer config.Set(config.Default())
+	cfg := &config.Config{DefaultCluster: "test-cluster"}
 
 	w := &score.Workload{
 		APIVersion: "score.dev/v1b1",
@@ -975,7 +973,7 @@ func TestTranslate_BasicWorkload(t *testing.T) {
 		},
 	}
 
-	result, err := Translate(w, "test-cluster")
+	result, err := Translate(w, "test-cluster", cfg)
 	if err != nil {
 		t.Fatalf("Translate: %v", err)
 	}
@@ -1000,8 +998,7 @@ func TestTranslate_BasicWorkload(t *testing.T) {
 
 func TestTranslate_ClusterFromAnnotation(t *testing.T) {
 	t.Parallel()
-	config.Set(&config.Config{DefaultCluster: "fallback"})
-	defer config.Set(config.Default())
+	cfg := &config.Config{DefaultCluster: "fallback"}
 
 	w := &score.Workload{
 		APIVersion: "score.dev/v1b1",
@@ -1014,7 +1011,7 @@ func TestTranslate_ClusterFromAnnotation(t *testing.T) {
 		},
 	}
 
-	result, err := Translate(w, "")
+	result, err := Translate(w, "", cfg)
 	if err != nil {
 		t.Fatalf("Translate: %v", err)
 	}
@@ -1025,8 +1022,7 @@ func TestTranslate_ClusterFromAnnotation(t *testing.T) {
 
 func TestTranslate_NamespaceOverride(t *testing.T) {
 	t.Parallel()
-	config.Set(&config.Config{DefaultCluster: "my-cluster"})
-	defer config.Set(config.Default())
+	cfg := &config.Config{DefaultCluster: "my-cluster"}
 
 	w := &score.Workload{
 		APIVersion: "score.dev/v1b1",
@@ -1039,7 +1035,7 @@ func TestTranslate_NamespaceOverride(t *testing.T) {
 		},
 	}
 
-	result, err := Translate(w, "my-cluster")
+	result, err := Translate(w, "my-cluster", cfg)
 	if err != nil {
 		t.Fatalf("Translate: %v", err)
 	}
@@ -1050,8 +1046,7 @@ func TestTranslate_NamespaceOverride(t *testing.T) {
 
 func TestTranslate_NoCluster_ReturnsError(t *testing.T) {
 	t.Parallel()
-	config.Set(&config.Config{DefaultCluster: ""})
-	defer config.Set(config.Default())
+	cfg := &config.Config{DefaultCluster: ""}
 
 	w := &score.Workload{
 		APIVersion: "score.dev/v1b1",
@@ -1061,7 +1056,7 @@ func TestTranslate_NoCluster_ReturnsError(t *testing.T) {
 		},
 	}
 
-	_, err := Translate(w, "")
+	_, err := Translate(w, "", cfg)
 	if err == nil {
 		t.Fatal("expected error when no cluster specified")
 	}
@@ -1069,8 +1064,7 @@ func TestTranslate_NoCluster_ReturnsError(t *testing.T) {
 
 func TestTranslate_UnknownResourceType_ReturnsError(t *testing.T) {
 	t.Parallel()
-	config.Set(&config.Config{DefaultCluster: "test"})
-	defer config.Set(config.Default())
+	cfg := &config.Config{DefaultCluster: "test"}
 
 	w := &score.Workload{
 		APIVersion: "score.dev/v1b1",
@@ -1083,7 +1077,7 @@ func TestTranslate_UnknownResourceType_ReturnsError(t *testing.T) {
 		},
 	}
 
-	_, err := Translate(w, "test")
+	_, err := Translate(w, "test", cfg)
 	if err == nil {
 		t.Fatal("expected error for unknown resource type")
 	}

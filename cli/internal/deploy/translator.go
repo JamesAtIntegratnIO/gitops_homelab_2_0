@@ -38,8 +38,12 @@ var secretRefRegex = regexp.MustCompile(`^\$\(([^:]+):([^)]+)\)$`)
 var scoreVarRegex = regexp.MustCompile(`\$\{resources\.([^.]+)\.([^}]+)\}`)
 
 // Translate converts a Score workload into platform resources.
-func Translate(workload *score.Workload, cluster string) (*TranslateResult, error) {
-	cfg := config.Get()
+// cfg is the active configuration; passing it explicitly avoids a hidden
+// dependency on the config.Get() global singleton.
+func Translate(workload *score.Workload, cluster string, cfg *config.Config) (*TranslateResult, error) {
+	if cfg == nil {
+		cfg = config.Get()
+	}
 
 	if cluster == "" {
 		cluster = workload.TargetCluster()

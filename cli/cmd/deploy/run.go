@@ -63,7 +63,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 				{
 					Title: "Translating to platform resources",
 					Run: func() (string, error) {
-						r, err := deploylib.Translate(workload, cluster)
+						r, err := deploylib.Translate(workload, cluster, cfg)
 						if err != nil {
 							return "", fmt.Errorf("translating workload: %w", err)
 						}
@@ -186,8 +186,8 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 				cancel()
 
 				if aErr == nil {
-					syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
-					healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
+					syncStatus := unstr.MustString(app.Object, "status", "sync", "status")
+					healthStatus := unstr.MustString(app.Object, "status", "health", "status")
 					phase := fmt.Sprintf("%s/%s", syncStatus, healthStatus)
 
 					if syncStatus == "Synced" && healthStatus == "Healthy" {
