@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -34,7 +34,6 @@ Useful for maintenance or cost-saving on idle namespaces.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ns := args[0]
-			cfg := config.Get()
 
 			confirmed, confirmErr := tui.Confirm(fmt.Sprintf("Scale down all deployments in namespace %q?", ns))
 			if confirmErr != nil {
@@ -45,9 +44,9 @@ Useful for maintenance or cost-saving on idle namespaces.`,
 				return nil
 			}
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -57,7 +56,7 @@ Useful for maintenance or cost-saving on idle namespaces.`,
 
 			deploys, err := client.ListDeployments(ctx, ns)
 			if err != nil {
-				return err
+				return hcerrors.NewPlatformError("listing deployments in %s: %w", ns, err)
 			}
 
 			if len(deploys) == 0 {
@@ -92,11 +91,10 @@ func newScaleUpCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ns := args[0]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -106,7 +104,7 @@ func newScaleUpCmd() *cobra.Command {
 
 			deploys, err := client.ListDeployments(ctx, ns)
 			if err != nil {
-				return err
+				return hcerrors.NewPlatformError("listing deployments in %s: %w", ns, err)
 			}
 
 			if len(deploys) == 0 {

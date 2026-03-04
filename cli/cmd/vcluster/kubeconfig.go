@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -76,11 +76,10 @@ func resolveVClusterKubeconfig(ctx context.Context, client *kube.Client, name st
 
 func runKubeconfig(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	cfg := config.Get()
 
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
+		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -88,13 +87,13 @@ func runKubeconfig(cmd *cobra.Command, args []string) error {
 
 	kubeconfigData, err := resolveVClusterKubeconfig(ctx, client, name)
 	if err != nil {
-		return err
+		return hcerrors.NewPlatformError("resolving kubeconfig for %s: %w", name, err)
 	}
 
 	// Write output
 	if kubeconfigOutput != "" {
 		if err := writeFile(kubeconfigOutput, kubeconfigData); err != nil {
-			return err
+			return fmt.Errorf("writing kubeconfig to %s: %w", kubeconfigOutput, err)
 		}
 		fmt.Println(kubeconfigOutput)
 	} else {
@@ -121,11 +120,10 @@ func newConnectCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -133,7 +131,7 @@ func newConnectCmd() *cobra.Command {
 
 			kubeconfigData, err := resolveVClusterKubeconfig(ctx, client, name)
 			if err != nil {
-				return err
+				return hcerrors.NewPlatformError("resolving kubeconfig for %s: %w", name, err)
 			}
 
 			path, err := kube.WriteKubeconfig(kubeconfigData, name)

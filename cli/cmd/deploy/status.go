@@ -33,7 +33,7 @@ If no workload name is given, reads from score.yaml in the current directory.`,
 			} else {
 				w, err := score.LoadWorkload("score.yaml")
 				if err != nil {
-					return fmt.Errorf("no workload specified and no score.yaml found: %w", err)
+					return hcerrors.NewUserError("no workload specified and no score.yaml found: %w", err)
 				}
 				workloadName = w.Metadata.Name
 				if cluster == "" {
@@ -48,7 +48,7 @@ If no workload name is given, reads from score.yaml in the current directory.`,
 				return hcerrors.NewUserError("no cluster specified — use --cluster or set defaultCluster")
 			}
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
 				return hcerrors.NewPlatformError("connecting to cluster: %v", err)
 			}
@@ -62,7 +62,7 @@ If no workload name is given, reads from score.yaml in the current directory.`,
 				// Try with cluster prefix
 				app, err = client.GetArgoApp(ctx, "argocd", cluster+"-"+workloadName)
 				if err != nil {
-					return fmt.Errorf("ArgoCD application not found for %q", workloadName)
+					return hcerrors.NewPlatformError("ArgoCD application not found for %q", workloadName)
 				}
 			}
 

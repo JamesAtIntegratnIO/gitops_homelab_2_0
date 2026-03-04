@@ -3,6 +3,7 @@ package vcluster
 import (
 	"fmt"
 
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -22,12 +23,12 @@ func collectNameAndPreset(cmd *cobra.Command, args []string, opts *CreateOptions
 			return "", "", fmt.Errorf("prompting vcluster name: %w", err)
 		}
 		if val == "" {
-			return "", "", fmt.Errorf("name is required")
+			return "", "", hcerrors.NewUserError("name is required")
 		}
 		name = val
 	}
 	if name == "" {
-		return "", "", fmt.Errorf("name is required")
+		return "", "", hcerrors.NewUserError("name is required")
 	}
 
 	// ── Preset ────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ func collectNameAndPreset(cmd *cobra.Command, args []string, opts *CreateOptions
 			return "", "", fmt.Errorf("selecting preset: %w", err)
 		}
 		if idx < 0 {
-			return "", "", fmt.Errorf("cancelled")
+			return "", "", hcerrors.NewUserError("cancelled")
 		}
 		if idx == 0 {
 			preset = "dev"

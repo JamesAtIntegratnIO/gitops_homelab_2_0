@@ -5,6 +5,7 @@ import (
 
 	deploylib "github.com/jamesatintegratnio/hctl/internal/deploy"
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -22,14 +23,14 @@ and removing its values directory. ArgoCD will clean up the resources on next sy
 			workloadName := args[0]
 			cfg := config.Get()
 			if cfg.RepoPath == "" {
-				return fmt.Errorf("repo path not set — run 'hctl init'")
+				return hcerrors.NewUserError("repo path not set \u2014 run 'hctl init'")
 			}
 
 			if cluster == "" {
 				cluster = cfg.DefaultCluster
 			}
 			if cluster == "" {
-				return fmt.Errorf("no cluster specified — use --cluster or set defaultCluster")
+				return hcerrors.NewUserError("no cluster specified \u2014 use --cluster or set defaultCluster")
 			}
 
 			// Confirm removal

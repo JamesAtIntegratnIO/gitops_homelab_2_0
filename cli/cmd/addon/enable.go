@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -39,7 +40,7 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 			addonName := args[0]
 			cfg := config.Get()
 			if cfg.RepoPath == "" {
-				return fmt.Errorf("repo path not set — run 'hctl init'")
+				return hcerrors.NewUserError("repo path not set \u2014 run 'hctl init'")
 			}
 
 			if env == "" {

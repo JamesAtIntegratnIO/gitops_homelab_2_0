@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -34,11 +34,10 @@ func newSecretGetCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ns, name := args[0], args[1]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -46,7 +45,7 @@ func newSecretGetCmd() *cobra.Command {
 
 			data, err := client.GetSecretData(ctx, ns, name)
 			if err != nil {
-				return fmt.Errorf("fetching secret %s/%s: %w", ns, name, err)
+				return hcerrors.NewPlatformError("fetching secret %s/%s: %w", ns, name, err)
 			}
 
 			fmt.Printf("\n%s %s/%s\n\n", tui.TitleStyle.Render("Secret"), ns, name)
@@ -67,11 +66,10 @@ func newSecretListCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ns := args[0]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -79,7 +77,7 @@ func newSecretListCmd() *cobra.Command {
 
 			secrets, err := client.Clientset.CoreV1().Secrets(ns).List(ctx, metav1.ListOptions{})
 			if err != nil {
-				return fmt.Errorf("listing secrets: %w", err)
+				return hcerrors.NewPlatformError("listing secrets: %w", err)
 			}
 
 			if len(secrets.Items) == 0 {

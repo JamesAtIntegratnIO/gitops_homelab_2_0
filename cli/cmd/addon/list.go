@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
@@ -25,7 +26,7 @@ func newAddonListCmd() *cobra.Command {
 			cfg := config.Get()
 			repoPath := cfg.RepoPath
 			if repoPath == "" {
-				return fmt.Errorf("repo path not set — run 'hctl init'")
+				return hcerrors.NewUserError("repo path not set \u2014 run 'hctl init'")
 			}
 
 			if env == "" {
@@ -44,7 +45,7 @@ func newAddonListCmd() *cobra.Command {
 
 			// Try to get ArgoCD app status
 			var appStatus map[string]string
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()

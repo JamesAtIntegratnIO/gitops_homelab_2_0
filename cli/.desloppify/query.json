@@ -1,23 +1,168 @@
 {
-  "command": "resolve",
-  "patterns": [
-    "review::.::holistic::abstraction_fitness::god_function_build_stakater_values::aff0063d"
-  ],
-  "status": "fixed",
-  "resolved": [
-    "review::.::holistic::abstraction_fitness::god_function_build_stakater_values::aff0063d"
-  ],
-  "count": 1,
-  "next_command": "desloppify issues",
-  "overall_score": 62.0,
-  "objective_score": 74.8,
-  "strict_score": 62.0,
-  "verified_strict_score": 74.8,
-  "prev_overall_score": 62.0,
-  "prev_objective_score": 74.8,
-  "prev_strict_score": 62.0,
-  "prev_verified_strict_score": 74.8,
-  "attestation": "I have actually decomposed buildStakaterValues into buildDeploymentSection, buildServiceSection, and buildRouteAndCertSections focused builder functions and I am not gaming the score by resolving without fixing.",
+  "command": "show",
+  "query": "test_coverage",
+  "status_filter": "open",
+  "total": 10,
+  "summary": {
+    "by_tier": {
+      "T3": 10
+    },
+    "by_detector": {
+      "test_coverage": 10
+    },
+    "files": 10
+  },
+  "by_file": {
+    "cmd/ai/ai.go": [
+      {
+        "id": "test_coverage::cmd/ai/ai.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (128 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 128,
+          "importer_count": 0,
+          "loc_weight": 11.313708498984761
+        }
+      }
+    ],
+    "cmd/alerts.go": [
+      {
+        "id": "test_coverage::cmd/alerts.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (150 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 150,
+          "importer_count": 0,
+          "loc_weight": 12.24744871391589
+        }
+      }
+    ],
+    "cmd/completions.go": [
+      {
+        "id": "test_coverage::cmd/completions.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (67 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 67,
+          "importer_count": 0,
+          "loc_weight": 8.18535277187245
+        }
+      }
+    ],
+    "cmd/deploy/init.go": [
+      {
+        "id": "test_coverage::cmd/deploy/init.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (242 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 242,
+          "importer_count": 0,
+          "loc_weight": 15.556349186104045
+        }
+      }
+    ],
+    "cmd/deploy/render.go": [
+      {
+        "id": "test_coverage::cmd/deploy/render.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (196 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 196,
+          "importer_count": 0,
+          "loc_weight": 14.0
+        }
+      }
+    ],
+    "cmd/deploy/run.go": [
+      {
+        "id": "test_coverage::cmd/deploy/run.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (218 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 218,
+          "importer_count": 0,
+          "loc_weight": 14.7648230602334
+        }
+      }
+    ],
+    "cmd/deploy/status.go": [
+      {
+        "id": "test_coverage::cmd/deploy/status.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (265 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 265,
+          "importer_count": 0,
+          "loc_weight": 16.278820596099706
+        }
+      }
+    ],
+    "cmd/doctor.go": [
+      {
+        "id": "test_coverage::cmd/doctor.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (234 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 234,
+          "importer_count": 0,
+          "loc_weight": 15.297058540778355
+        }
+      }
+    ],
+    "cmd/root.go": [
+      {
+        "id": "test_coverage::cmd/root.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (227 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 227,
+          "importer_count": 0,
+          "loc_weight": 15.066519173319364
+        }
+      }
+    ],
+    "cmd/scale/scale.go": [
+      {
+        "id": "test_coverage::cmd/scale/scale.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (136 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 136,
+          "importer_count": 0,
+          "loc_weight": 11.661903789690601
+        }
+      }
+    ]
+  },
+  "total_matching": 41,
+  "hidden": {
+    "by_detector": {
+      "test_coverage": 31
+    },
+    "total": 31
+  },
+  "noise_budget": 10,
+  "noise_global_budget": 0,
   "narrative": {
     "phase": "early_momentum",
     "headline": "Score 62.0/100 with 277 findings open. Keep the momentum going. (18 review findings \u2014 run `desloppify issues`)",
@@ -239,20 +384,6 @@
     },
     "reminders": [
       {
-        "type": "rereview_needed",
-        "message": "Subjective results may be stale after resolve. Re-run `desloppify review --prepare` to refresh, or reset with `desloppify scan --reset-subjective` before a clean rerun.",
-        "command": "desloppify review --prepare",
-        "priority": 1,
-        "severity": "high"
-      },
-      {
-        "type": "rescan_needed",
-        "message": "Rescan to verify \u2014 cascading effects may create new findings.",
-        "command": "desloppify scan",
-        "priority": 1,
-        "severity": "high"
-      },
-      {
         "type": "review_findings_pending",
         "message": "18 review finding(s) need investigation. Run `desloppify issues` to see the work queue.",
         "command": "desloppify issues",
@@ -272,9 +403,7 @@
       "report_scores": 2,
       "review_findings_pending": 2,
       "stagnant_nudge": 4,
-      "feedback_nudge": 1,
-      "rereview_needed": 1,
-      "rescan_needed": 1
+      "feedback_nudge": 1
     }
   },
   "config": {

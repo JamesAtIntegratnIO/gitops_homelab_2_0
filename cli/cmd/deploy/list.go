@@ -8,6 +8,7 @@ import (
 
 	deploylib "github.com/jamesatintegratnio/hctl/internal/deploy"
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
@@ -23,14 +24,14 @@ func newDeployListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Get()
 			if cfg.RepoPath == "" {
-				return fmt.Errorf("repo path not set — run 'hctl init'")
+				return hcerrors.NewUserError("repo path not set \u2014 run 'hctl init'")
 			}
 
 			if cluster == "" {
 				cluster = cfg.DefaultCluster
 			}
 			if cluster == "" {
-				return fmt.Errorf("no cluster specified — use --cluster or set defaultCluster")
+				return hcerrors.NewUserError("no cluster specified \u2014 use --cluster or set defaultCluster")
 			}
 
 			workloads, err := deploylib.ListWorkloads(cfg.RepoPath, cluster)
@@ -58,7 +59,7 @@ func newDeployListCmd() *cobra.Command {
 					}
 					workloadName := row[0]
 
-					client, cErr := kube.NewClient(cfg.KubeContext)
+					client, cErr := kube.Shared()
 					if cErr != nil {
 						return tui.ErrorStyle.Render("Cannot connect: " + cErr.Error())
 					}

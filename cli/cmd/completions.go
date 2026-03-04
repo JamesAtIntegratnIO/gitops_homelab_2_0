@@ -17,7 +17,7 @@ func completeVClusterNames(cmd *cobra.Command, args []string, toComplete string)
 	}
 
 	cfg := config.Get()
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
@@ -56,7 +56,7 @@ func completeWorkloadNames(cmd *cobra.Command, args []string, toComplete string)
 }
 
 // registerCompletions wires up dynamic argument completions for commands.
-func registerCompletions() {
+func registerCompletions(diagnoseCmd, reconcileCmd, traceCmd, upCmd, downCmd, logsCmd, openCmd *cobra.Command) {
 	diagnoseCmd.ValidArgsFunction = completeVClusterNames
 	reconcileCmd.ValidArgsFunction = completeVClusterNames
 	traceCmd.ValidArgsFunction = completeVClusterNames

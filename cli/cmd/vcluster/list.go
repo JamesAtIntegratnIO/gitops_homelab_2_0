@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -21,9 +22,9 @@ func newListCmd() *cobra.Command {
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Get()
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -31,7 +32,7 @@ func newListCmd() *cobra.Command {
 
 			vclusters, err := client.ListVClusters(ctx, cfg.Platform.PlatformNamespace)
 			if err != nil {
-				return fmt.Errorf("listing vclusters: %w", err)
+				return hcerrors.NewPlatformError("listing vclusters: %w", err)
 			}
 
 			if len(vclusters) == 0 {

@@ -66,7 +66,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	})
 
 	if err != nil {
-		return err
+		return fmt.Errorf("initializing hctl: %w", err)
 	}
 
 	// Check if any steps failed
@@ -91,7 +91,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create a single shared kube client for all dashboard sections.
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
 	}
@@ -315,7 +315,7 @@ func phaseStyled(phase string) string {
 
 // runStatusOnce collects platform status and prints it once in structured format.
 func runStatusOnce(cfg *config.Config) error {
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
 	}
@@ -324,14 +324,14 @@ func runStatusOnce(cfg *config.Config) error {
 
 	ps, err := platform.CollectPlatformStatus(ctx, client, cfg.Platform.PlatformNamespace)
 	if err != nil {
-		return err
+		return hcerrors.NewPlatformError("collecting platform status: %w", err)
 	}
 	return tui.RenderOutput(ps, "")
 }
 
 // runStatusWatch continuously polls and prints platform status in structured format.
 func runStatusWatch(cfg *config.Config) error {
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
 	}
@@ -365,12 +365,12 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 	var result *platform.DiagnosticResult
 
-	_, err := tui.Spin("Diagnosing "+name, func() (string, error) {
-		client, err := kube.NewClient(cfg.KubeContext)
-		if err != nil {
-			return "", fmt.Errorf("connecting to cluster: %w", err)
-		}
+	client, err := kube.Shared()
+	if err != nil {
+		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
+	}
 
+	_, err = tui.Spin("Diagnosing "+name, func() (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
@@ -378,7 +378,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		return "", err
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("diagnosing %s: %w", name, err)
 	}
 
 	// Structured output or bundle export
@@ -428,7 +428,7 @@ func runReconcile(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	cfg := config.Get()
 
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
 	}
@@ -438,7 +438,7 @@ func runReconcile(cmd *cobra.Command, args []string) error {
 
 	err = client.SetManualReconciliationLabel(ctx, kube.VClusterOrchestratorV2GVR, cfg.Platform.PlatformNamespace, name)
 	if err != nil {
-		return fmt.Errorf("setting reconciliation label: %w", err)
+		return hcerrors.NewPlatformError("setting reconciliation label: %w", err)
 	}
 
 	fmt.Printf("  %s Set kratix.io/manual-reconciliation=true on %s\n", tui.SuccessStyle.Render(tui.IconCheck), name)

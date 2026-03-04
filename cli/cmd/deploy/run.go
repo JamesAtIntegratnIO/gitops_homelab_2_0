@@ -41,7 +41,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Get()
 			if cfg.RepoPath == "" {
-				return fmt.Errorf("repo path not set — run 'hctl init'")
+				return hcerrors.NewUserError("repo path not set \u2014 run 'hctl init'")
 			}
 
 			// Phase 1: Parse and translate (spinner)
@@ -168,7 +168,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 			// Watch ArgoCD sync progress
 			fmt.Printf("\n%s Watching ArgoCD sync...\n\n", tui.InfoStyle.Render(tui.IconSync))
 			targetCluster := result.TargetCluster
-			client, cErr := kube.NewClient(cfg.KubeContext)
+			client, cErr := kube.Shared()
 			if cErr != nil {
 				return hcerrors.NewPlatformError("connecting to cluster for watch: %v", cErr)
 			}
@@ -201,7 +201,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 				}
 
 				if time.Now().After(deadline) {
-					return fmt.Errorf("timeout waiting for sync after %s", watchTimeout)
+					return hcerrors.NewTimeoutError("timeout waiting for sync after %s", watchTimeout)
 				}
 
 				<-ticker.C

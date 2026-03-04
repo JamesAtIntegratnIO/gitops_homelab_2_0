@@ -7,16 +7,18 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	"github.com/spf13/cobra"
 )
 
-var traceCmd = &cobra.Command{
-	Use:   "trace [resource]",
-	Short: "Trace a resource through the platform lifecycle",
-	Long: `Follows a resource (vCluster, workload, addon) through each stage of the
+func newTraceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "trace [resource]",
+		Short: "Trace a resource through the platform lifecycle",
+		Long: `Follows a resource (vCluster, workload, addon) through each stage of the
 platform lifecycle and shows its current state at each hop.
 
 Lifecycle chain:
@@ -27,8 +29,9 @@ Lifecycle chain:
   5. Runtime resources (Pods, Services)
 
 This gives a complete picture of where a resource is in the delivery pipeline.`,
-	Args: cobra.ExactArgs(1),
-	RunE: runTrace,
+		Args: cobra.ExactArgs(1),
+		RunE: runTrace,
+	}
 }
 
 type traceHop struct {
@@ -41,9 +44,9 @@ func runTrace(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	cfg := config.Get()
 
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
+		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
@@ -19,11 +19,10 @@ func newAddonStatusCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			addonName := args[0]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -31,7 +30,7 @@ func newAddonStatusCmd() *cobra.Command {
 
 			app, err := client.GetArgoApp(ctx, "argocd", addonName)
 			if err != nil {
-				return fmt.Errorf("addon %q not found as ArgoCD application: %w", addonName, err)
+				return hcerrors.NewPlatformError("addon %q not found as ArgoCD application: %w", addonName, err)
 			}
 
 			syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")

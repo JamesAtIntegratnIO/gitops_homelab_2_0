@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -15,10 +16,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var doctorCmd = &cobra.Command{
-	Use:   "doctor",
-	Short: "Check platform prerequisites and connectivity",
-	Long: `Validates that the local environment and platform are correctly configured.
+func newDoctorCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "doctor",
+		Short: "Check platform prerequisites and connectivity",
+		Long: `Validates that the local environment and platform are correctly configured.
 
 Checks include:
   - hctl config file exists and is valid
@@ -28,7 +30,8 @@ Checks include:
   - Git repository is detected and clean
   - Platform namespace exists
   - Kratix CRDs are installed`,
-	RunE: runDoctor,
+		RunE: runDoctor,
+	}
 }
 
 // Check represents a single doctor check.
@@ -110,7 +113,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	if failCount > 0 {
-		return fmt.Errorf("%d check(s) failed", failCount)
+		return hcerrors.NewUserError("%d check(s) failed", failCount)
 	}
 	return nil
 }
@@ -161,7 +164,7 @@ func checkGitRepo(cfg *config.Config) (string, error) {
 }
 
 func checkCluster(cfg *config.Config) (string, error) {
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
 		return "", fmt.Errorf("cannot create client: %w", err)
 	}
@@ -185,7 +188,7 @@ func checkPlatformNamespace(cfg *config.Config) (string, error) {
 	if ns == "" {
 		return "", fmt.Errorf("platformNamespace not configured")
 	}
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
 		return "", err
 	}
@@ -199,7 +202,7 @@ func checkPlatformNamespace(cfg *config.Config) (string, error) {
 }
 
 func checkArgoCD(cfg *config.Config) (string, error) {
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
 		return "", err
 	}
@@ -213,7 +216,7 @@ func checkArgoCD(cfg *config.Config) (string, error) {
 }
 
 func checkKratixCRDs(cfg *config.Config) (string, error) {
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.Shared()
 	if err != nil {
 		return "", err
 	}

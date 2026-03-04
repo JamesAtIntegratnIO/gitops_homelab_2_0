@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -24,9 +25,9 @@ func newStatusCmd() *cobra.Command {
 			name := args[0]
 			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -46,7 +47,7 @@ func newStatusCmd() *cobra.Command {
 			// Full diagnostic chain
 			result, err := platform.DiagnoseVCluster(ctx, client, cfg.Platform.PlatformNamespace, name)
 			if err != nil {
-				return err
+				return hcerrors.NewPlatformError("diagnosing vcluster %s: %w", name, err)
 			}
 
 			fmt.Printf("\n  %s\n", tui.TitleStyle.Render(name))

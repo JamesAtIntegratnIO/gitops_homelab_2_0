@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -41,10 +41,9 @@ func newReindexCmd() *cobra.Command {
 		Short: "Trigger the git-indexer job",
 		Long:  "Creates a one-off Job from the git-indexer CronJob to re-index the repository into the RAG vector store.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := config.Get()
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.Shared()
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), timeout+10*time.Second)
@@ -96,7 +95,7 @@ func newReindexCmd() *cobra.Command {
 			for {
 				select {
 				case <-ctx.Done():
-					return fmt.Errorf("timed out waiting for job to complete")
+					return hcerrors.NewTimeoutError("timed out waiting for job to complete")
 				case <-ticker.C:
 					j, err := client.Clientset.BatchV1().Jobs(aiNamespace).Get(ctx, created.Name, metav1.GetOptions{})
 					if err != nil {
@@ -114,7 +113,7 @@ func newReindexCmd() *cobra.Command {
 					}
 
 					if time.Now().After(deadline) {
-						return fmt.Errorf("timed out after %s — job still running", timeout)
+						return hcerrors.NewTimeoutError("timed out after %s \u2014 job still running", timeout)
 					}
 				}
 			}

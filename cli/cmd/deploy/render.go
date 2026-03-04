@@ -8,6 +8,7 @@ import (
 
 	deploylib "github.com/jamesatintegratnio/hctl/internal/deploy"
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/score"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -30,7 +31,7 @@ Supports --output json/yaml for machine-readable output.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workload, err := score.LoadWorkload(scoreFile)
 			if err != nil {
-				return fmt.Errorf("loading score workload: %w", err)
+				return hcerrors.NewUserError("loading score workload: %w", err)
 			}
 
 			result, err := deploylib.Translate(workload, cluster)
@@ -90,12 +91,12 @@ Exit codes: 0 = no changes, 1 = error, 2 = changes detected.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Get()
 			if cfg.RepoPath == "" {
-				return fmt.Errorf("repo path not set — run 'hctl init'")
+				return hcerrors.NewUserError("repo path not set \u2014 run 'hctl init'")
 			}
 
 			workload, err := score.LoadWorkload(scoreFile)
 			if err != nil {
-				return fmt.Errorf("loading score workload: %w", err)
+				return hcerrors.NewUserError("loading score workload: %w", err)
 			}
 
 			result, err := deploylib.Translate(workload, cluster)

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -32,7 +33,7 @@ Without --remove, the entry remains but is marked disabled.`,
 			addonName := args[0]
 			cfg := config.Get()
 			if cfg.RepoPath == "" {
-				return fmt.Errorf("repo path not set — run 'hctl init'")
+				return hcerrors.NewUserError("repo path not set \u2014 run 'hctl init'")
 			}
 
 			if env == "" {
@@ -53,7 +54,7 @@ Without --remove, the entry remains but is marked disabled.`,
 			}
 
 			if _, ok := entries[addonName]; !ok {
-				return fmt.Errorf("addon %q not found in %s", addonName, addonsPath)
+				return hcerrors.NewUserError("addon %q not found in %s", addonName, addonsPath)
 			}
 
 			if cfg.Interactive {

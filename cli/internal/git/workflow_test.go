@@ -1,8 +1,53 @@
 package git
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 )
+
+// mockUI captures calls to the UI interface for assertion.
+type mockUI struct {
+	confirmAnswer bool
+	confirmErr    error
+	successMsgs   []string
+	dimMsgs       []string
+}
+
+func (m *mockUI) Confirm(_ string) (bool, error) { return m.confirmAnswer, m.confirmErr }
+func (m *mockUI) PrintSuccess(msg string)         { m.successMsgs = append(m.successMsgs, msg) }
+func (m *mockUI) PrintDim(msg string)             { m.dimMsgs = append(m.dimMsgs, msg) }
+
+// setupWorkflowRepo creates a temp git repo with a dirty file for testing.
+func setupWorkflowRepo(t *testing.T) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+		{"git", "checkout", "-b", "main"},
+		{"git", "commit", "--allow-empty", "-m", "initial"},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("setup %v: %s: %v", args, out, err)
+		}
+	}
+
+	// Create a file to commit
+	filePath := "test-file.yaml"
+	absPath := filepath.Join(dir, filePath)
+	if err := os.WriteFile(absPath, []byte("key: value\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir, filePath
+}
 
 func TestWorkflowOptsDefaults(t *testing.T) {
 	opts := WorkflowOpts{
@@ -95,5 +140,165 @@ func TestFormatCommitMessage(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("FormatCommitMessage(%q, %q, %q) = %q, want %q", tt.action, tt.resource, tt.details, got, tt.want)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// HandleGitWorkflow with real repos and mock UI
+// ---------------------------------------------------------------------------
+
+func TestHandleGitWorkflow_GenerateMode_WithRepo(t *testing.T) {
+	dir, filePath := setupWorkflowRepo(t)
+
+	ui := &mockUI{}
+	result, err := HandleGitWorkflow(WorkflowOpts{
+		RepoPath: dir,
+		Paths:    []string{filePath},
+		Action:   "deploy",
+		Resource: "myapp",
+		GitMode:  "generate",
+		UI:       ui,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != GitCommittedLocal {
+		t.Errorf("expected GitCommittedLocal, got %v", result)
+	}
+	if len(ui.successMsgs) != 1 {
+		t.Errorf("expected 1 success message, got %d", len(ui.successMsgs))
+	}
+
+	// Verify the repo is clean (file was committed)
+	repo := &Repo{Root: dir}
+	clean, _ := repo.IsClean()
+	if !clean {
+		t.Error("repo should be clean after generate mode commit")
+	}
+}
+
+func TestHandleGitWorkflow_PromptMode_Confirmed(t *testing.T) {
+	dir, filePath := setupWorkflowRepo(t)
+
+	ui := &mockUI{confirmAnswer: true}
+	// Push will fail (no remote) but commit should succeed
+	result, err := HandleGitWorkflow(WorkflowOpts{
+		RepoPath:    dir,
+		Paths:       []string{filePath},
+		Action:      "deploy",
+		Resource:    "myapp",
+		GitMode:     "prompt",
+		Interactive: true,
+		UI:          ui,
+	})
+	// The error is expected because there's no remote to push to
+	if err == nil {
+		t.Log("Note: push succeeded (unexpected in test but not fatal)")
+	}
+	// Result should be GitCommitted even though push failed
+	if result != GitCommitted {
+		t.Errorf("expected GitCommitted, got %v", result)
+	}
+}
+
+func TestHandleGitWorkflow_PromptMode_Declined(t *testing.T) {
+	dir, filePath := setupWorkflowRepo(t)
+
+	ui := &mockUI{confirmAnswer: false}
+	result, err := HandleGitWorkflow(WorkflowOpts{
+		RepoPath:    dir,
+		Paths:       []string{filePath},
+		Action:      "deploy",
+		Resource:    "myapp",
+		GitMode:     "prompt",
+		Interactive: true,
+		UI:          ui,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != GitStaged {
+		t.Errorf("expected GitStaged, got %v", result)
+	}
+	if len(ui.dimMsgs) == 0 {
+		t.Error("expected a dim message about skipping git commit")
+	}
+}
+
+func TestHandleGitWorkflow_PromptMode_NoUI(t *testing.T) {
+	dir, filePath := setupWorkflowRepo(t)
+
+	result, err := HandleGitWorkflow(WorkflowOpts{
+		RepoPath:    dir,
+		Paths:       []string{filePath},
+		Action:      "deploy",
+		Resource:    "myapp",
+		GitMode:     "prompt",
+		Interactive: true,
+		UI:          nil, // no UI = skip
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != GitSkipped {
+		t.Errorf("expected GitSkipped when UI is nil, got %v", result)
+	}
+}
+
+func TestHandleGitWorkflow_DefaultMode(t *testing.T) {
+	dir, filePath := setupWorkflowRepo(t)
+
+	ui := &mockUI{}
+	result, err := HandleGitWorkflow(WorkflowOpts{
+		RepoPath: dir,
+		Paths:    []string{filePath},
+		Action:   "deploy",
+		Resource: "myapp",
+		GitMode:  "", // default/unknown mode
+		UI:       ui,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != GitSkipped {
+		t.Errorf("expected GitSkipped for default mode, got %v", result)
+	}
+	if len(ui.dimMsgs) == 0 {
+		t.Error("expected a dim message about generate-only")
+	}
+}
+
+func TestHandleGitWorkflow_AutoMode_WithRepo(t *testing.T) {
+	dir, filePath := setupWorkflowRepo(t)
+
+	ui := &mockUI{}
+	// Auto mode will try commit + push. Push fails (no remote).
+	result, err := HandleGitWorkflow(WorkflowOpts{
+		RepoPath: dir,
+		Paths:    []string{filePath},
+		Action:   "deploy",
+		Resource: "myapp",
+		GitMode:  "auto",
+		UI:       ui,
+	})
+	// Push should fail, so we expect an error
+	if err == nil {
+		t.Log("Note: auto mode push succeeded unexpectedly")
+	}
+	if result != GitCommitted {
+		t.Errorf("expected GitCommitted, got %v", result)
+	}
+}
+
+func TestGitResultConstants(t *testing.T) {
+	t.Parallel()
+	// Verify the constants are distinct
+	results := []GitResult{GitCommitted, GitCommittedLocal, GitStaged, GitSkipped, GitNoRepo}
+	seen := make(map[GitResult]bool)
+	for _, r := range results {
+		if seen[r] {
+			t.Errorf("duplicate GitResult value: %d", r)
+		}
+		seen[r] = true
 	}
 }

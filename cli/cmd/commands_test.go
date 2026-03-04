@@ -34,6 +34,9 @@ func TestPhaseStyled(t *testing.T) {
 }
 
 func TestRootCmdStructure(t *testing.T) {
+	// Ensure commands are set up (replaces former init()-based registration)
+	setupOnce.Do(setupCommands)
+
 	// Verify the root command exists and has expected configuration
 	if rootCmd == nil {
 		t.Fatal("rootCmd is nil")
@@ -52,4 +55,127 @@ func TestRootCmdStructure(t *testing.T) {
 			t.Errorf("missing persistent flag %q", name)
 		}
 	}
+}
+
+func TestSetupCommands_RegistersSubcommands(t *testing.T) {
+	setupOnce.Do(setupCommands)
+
+	// Expected top-level subcommand names
+	expectedCmds := []string{
+		"version",
+		"init",
+		"status",
+		"diagnose",
+		"reconcile",
+		"context",
+		"alerts",
+		"completion",
+		"vcluster",
+		"deploy",
+		"addon",
+		"scale",
+		"secret",
+		"ai",
+		"up",
+		"down",
+		"open",
+		"logs",
+		"doctor",
+		"trace",
+	}
+
+	// Build a set of registered command names
+	registeredNames := make(map[string]bool)
+	for _, cmd := range rootCmd.Commands() {
+		registeredNames[cmd.Name()] = true
+	}
+
+	for _, name := range expectedCmds {
+		if !registeredNames[name] {
+			t.Errorf("missing expected subcommand %q", name)
+		}
+	}
+}
+
+func TestSetupCommands_PersistentFlags(t *testing.T) {
+	setupOnce.Do(setupCommands)
+
+	expectedFlags := []string{
+		"config",
+		"non-interactive",
+		"output",
+		"verbose",
+		"quiet",
+	}
+
+	flags := rootCmd.PersistentFlags()
+	for _, name := range expectedFlags {
+		if flags.Lookup(name) == nil {
+			t.Errorf("missing persistent flag %q", name)
+		}
+	}
+}
+
+func TestSetupCommands_SilenceSettings(t *testing.T) {
+	setupOnce.Do(setupCommands)
+
+	if !rootCmd.SilenceUsage {
+		t.Error("SilenceUsage should be true")
+	}
+	if !rootCmd.SilenceErrors {
+		t.Error("SilenceErrors should be true")
+	}
+}
+
+func TestSetupCommands_CommandAliases(t *testing.T) {
+	setupOnce.Do(setupCommands)
+
+	// Verify some commands have proper configuration
+	for _, cmd := range rootCmd.Commands() {
+		switch cmd.Name() {
+		case "diagnose":
+			if cmd.Args == nil {
+				t.Error("diagnose should require exactly 1 arg")
+			}
+		case "reconcile":
+			if cmd.Args == nil {
+				t.Error("reconcile should require exactly 1 arg")
+			}
+		case "completion":
+			if cmd.Args == nil {
+				t.Error("completion should require exactly 1 arg")
+			}
+		}
+	}
+}
+
+func TestSetupCommands_StatusHasWatchFlag(t *testing.T) {
+	setupOnce.Do(setupCommands)
+
+	for _, cmd := range rootCmd.Commands() {
+		if cmd.Name() == "status" {
+			if cmd.Flags().Lookup("watch") == nil {
+				t.Error("status command missing --watch flag")
+			}
+			if cmd.Flags().Lookup("interval") == nil {
+				t.Error("status command missing --interval flag")
+			}
+			return
+		}
+	}
+	t.Error("status command not found")
+}
+
+func TestSetupCommands_DiagnoseHasBundleFlag(t *testing.T) {
+	setupOnce.Do(setupCommands)
+
+	for _, cmd := range rootCmd.Commands() {
+		if cmd.Name() == "diagnose" {
+			if cmd.Flags().Lookup("bundle") == nil {
+				t.Error("diagnose command missing --bundle flag")
+			}
+			return
+		}
+	}
+	t.Error("diagnose command not found")
 }
