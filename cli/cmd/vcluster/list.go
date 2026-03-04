@@ -43,8 +43,8 @@ func newListCmd() *cobra.Command {
 			var rows [][]string
 			for _, vc := range vclusters {
 				name := vc.GetName()
-				preset, _, _ := unstr.NestedString(vc.Object, "spec", "vcluster", "preset")
-				hostname, _, _ := unstr.NestedString(vc.Object, "spec", "exposure", "hostname")
+				preset := unstr.MustString(vc.Object, "spec", "vcluster", "preset")
+				hostname := unstr.MustString(vc.Object, "spec", "exposure", "hostname")
 				age := time.Since(vc.GetCreationTimestamp().Time).Round(time.Minute)
 
 				// Check ArgoCD app health
@@ -55,8 +55,8 @@ func newListCmd() *cobra.Command {
 				}
 				health := tui.DimStyle.Render("unknown")
 				if err == nil {
-					syncStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "sync", "status")
-					healthStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "health", "status")
+					syncStatus := unstr.MustString(argoApp.Object, "status", "sync", "status")
+					healthStatus := unstr.MustString(argoApp.Object, "status", "health", "status")
 					if syncStatus == "Synced" && healthStatus == "Healthy" {
 						health = tui.SuccessStyle.Render("Healthy")
 					} else {

@@ -41,8 +41,8 @@ func loadArgoCDSection(client *kube.Client) (string, error) {
 	synced, outOfSync, degraded, healthy := 0, 0, 0, 0
 	var unhealthyRows [][]string
 	for _, app := range apps {
-		syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
-		healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
+		syncStatus := unstr.MustString(app.Object, "status", "sync", "status")
+		healthStatus := unstr.MustString(app.Object, "status", "health", "status")
 		if syncStatus == "Synced" {
 			synced++
 		} else {
@@ -91,7 +91,7 @@ func loadPromisesSection(client *kube.Client) (string, error) {
 	var rows [][]string
 	for _, p := range promises {
 		status := "Unknown"
-		conditions, _, _ := unstr.NestedSlice(p.Object, "status", "conditions")
+		conditions := unstr.MustSlice(p.Object, "status", "conditions")
 		for _, c := range conditions {
 			if cm, ok := c.(map[string]interface{}); ok {
 				if cm["type"] == "Available" {
@@ -123,14 +123,14 @@ func loadVClustersSection(client *kube.Client, platformNS string) (string, error
 	var rows [][]string
 	for _, vc := range vclusters {
 		name := vc.GetName()
-		preset, _, _ := unstr.NestedString(vc.Object, "spec", "vcluster", "preset")
-		hostname, _, _ := unstr.NestedString(vc.Object, "spec", "exposure", "hostname")
+		preset := unstr.MustString(vc.Object, "spec", "vcluster", "preset")
+		hostname := unstr.MustString(vc.Object, "spec", "exposure", "hostname")
 
 		argoApp, err := client.GetArgoApp(ctx, "argocd", name)
 		health := tui.DimStyle.Render("unknown")
 		if err == nil {
-			syncStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "sync", "status")
-			healthStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "health", "status")
+			syncStatus := unstr.MustString(argoApp.Object, "status", "sync", "status")
+			healthStatus := unstr.MustString(argoApp.Object, "status", "health", "status")
 			if syncStatus == "Synced" && healthStatus == "Healthy" {
 				health = tui.SuccessStyle.Render("Healthy")
 			} else {

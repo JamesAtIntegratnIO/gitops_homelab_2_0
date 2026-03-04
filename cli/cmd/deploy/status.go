@@ -66,9 +66,9 @@ If no workload name is given, reads from score.yaml in the current directory.`,
 				}
 			}
 
-			syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
-			healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
-			revision, _, _ := unstr.NestedString(app.Object, "status", "sync", "revision")
+			syncStatus := unstr.MustString(app.Object, "status", "sync", "status")
+			healthStatus := unstr.MustString(app.Object, "status", "health", "status")
+			revision := unstr.MustString(app.Object, "status", "sync", "revision")
 
 			fmt.Printf("\n%s\n\n", tui.TitleStyle.Render(workloadName))
 			fmt.Printf("  Cluster:  %s\n", cluster)

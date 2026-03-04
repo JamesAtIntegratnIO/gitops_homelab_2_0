@@ -1,3 +1,15 @@
+// Package provisioners implements a registry of resource provisioners that
+// translate Score resource declarations (postgres, redis, route, volume, dns)
+// into platform-native Kubernetes manifests (ExternalSecrets, HTTPRoutes, PVCs, etc.).
+//
+// This package is consumed by internal/deploy/translator.go, which orchestrates
+// full Score-to-Stakater translation. The Translator calls Registry.Get() to
+// resolve each Score resource type, then applies provisioner outputs (manifests
+// and placeholder substitutions) into the final Stakater Application chart values.
+//
+// In short: provisioners own *per-resource-type* generation logic; translator.go
+// owns the overall workload-level orchestration that stitches provisioner outputs
+// together with container specs, environment variables, and chart metadata.
 package provisioners
 
 import (

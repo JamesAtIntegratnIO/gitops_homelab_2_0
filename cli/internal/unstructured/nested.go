@@ -68,3 +68,19 @@ func NestedBool(obj map[string]interface{}, fields ...string) (bool, bool, error
 	b, ok := val.(bool)
 	return b, ok, nil
 }
+
+// MustString returns the nested string value or "" if missing/wrong type.
+// It is a convenience wrapper around NestedString for callers that don't
+// need the found/error returns.
+func MustString(obj map[string]interface{}, fields ...string) string {
+	val, _, _ := NestedString(obj, fields...)
+	return val
+}
+
+// MustSlice returns the nested slice value or nil if missing/wrong type.
+// It is a convenience wrapper around NestedSlice for callers that don't
+// need the found/error returns.
+func MustSlice(obj map[string]interface{}, fields ...string) []interface{} {
+	val, _, _ := NestedSlice(obj, fields...)
+	return val
+}

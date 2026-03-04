@@ -59,7 +59,7 @@ func (c *Client) ListArgoAppsForCluster(ctx context.Context, namespace, clusterN
 
 	var result []ArgoAppInfo
 	for _, app := range apps {
-		destName, _, _ := unstr.NestedString(app.Object, "spec", "destination", "name")
+		destName := unstr.MustString(app.Object, "spec", "destination", "name")
 		if destName != clusterName {
 			continue
 		}
@@ -69,13 +69,13 @@ func (c *Client) ListArgoAppsForCluster(ctx context.Context, namespace, clusterN
 			DestName: destName,
 		}
 
-		info.SyncStatus, _, _ = unstr.NestedString(app.Object, "status", "sync", "status")
-		info.HealthStatus, _, _ = unstr.NestedString(app.Object, "status", "health", "status")
+		info.SyncStatus = unstr.MustString(app.Object, "status", "sync", "status")
+		info.HealthStatus = unstr.MustString(app.Object, "status", "health", "status")
 
 		// Check operation state
-		info.OpPhase, _, _ = unstr.NestedString(app.Object, "status", "operationState", "phase")
-		info.OpStartedAt, _, _ = unstr.NestedString(app.Object, "status", "operationState", "startedAt")
-		info.Message, _, _ = unstr.NestedString(app.Object, "status", "operationState", "message")
+		info.OpPhase = unstr.MustString(app.Object, "status", "operationState", "phase")
+		info.OpStartedAt = unstr.MustString(app.Object, "status", "operationState", "startedAt")
+		info.Message = unstr.MustString(app.Object, "status", "operationState", "message")
 
 		// Check retry count
 		retryVal, found, _ := unstr.NestedInt64(app.Object, "status", "operationState", "retryCount")
@@ -112,7 +112,7 @@ func (c *Client) TriggerArgoAppSync(ctx context.Context, namespace, name string)
 		return fmt.Errorf("getting app %s: %w", name, err)
 	}
 
-	revision, _, _ := unstr.NestedString(app.Object, "spec", "source", "targetRevision")
+	revision := unstr.MustString(app.Object, "spec", "source", "targetRevision")
 
 	patch := fmt.Sprintf(`{"operation":{"initiatedBy":{"username":"hctl"},"sync":{"revision":"%s"}}}`, revision)
 	_, err = c.Dynamic.Resource(ArgoCDApplicationGVR).Namespace(namespace).Patch(

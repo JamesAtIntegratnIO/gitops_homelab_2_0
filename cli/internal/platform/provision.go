@@ -124,8 +124,8 @@ func WaitForArgoSync(ctx context.Context, client *kube.Client, name string, poll
 			continue
 		}
 
-		syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
-		healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
+		syncStatus := unstr.MustString(app.Object, "status", "sync", "status")
+		healthStatus := unstr.MustString(app.Object, "status", "health", "status")
 
 		if syncStatus == "Synced" && healthStatus == "Healthy" {
 			return "synced and healthy", nil

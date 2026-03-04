@@ -75,8 +75,8 @@ func newDeployListCmd() *cobra.Command {
 						app, aErr = client.GetArgoApp(ctx, "argocd", cluster+"-"+workloadName)
 					}
 					if aErr == nil {
-						syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
-						healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
+						syncStatus := unstr.MustString(app.Object, "status", "sync", "status")
+						healthStatus := unstr.MustString(app.Object, "status", "health", "status")
 						statusStr := syncStatus + "/" + healthStatus
 						if syncStatus == "Synced" && healthStatus == "Healthy" {
 							sb.WriteString("  Status: " + tui.SuccessStyle.Render(statusStr) + "\n")

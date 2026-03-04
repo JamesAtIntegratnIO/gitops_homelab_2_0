@@ -141,7 +141,7 @@ func (c *WorkPlacementChecker) Check(ctx context.Context, client *kube.Client, s
 
 	for _, wp := range placements.Items {
 		if strings.Contains(wp.GetName(), state.Name) {
-			conditions, _, _ := unstr.NestedSlice(wp.Object, "status", "conditions")
+			conditions := unstr.MustSlice(wp.Object, "status", "conditions")
 			failing := false
 			for _, cond := range conditions {
 				if cm, ok := cond.(map[string]interface{}); ok {
@@ -192,8 +192,8 @@ func (c *ArgoCDAppChecker) Check(ctx context.Context, client *kube.Client, state
 		}}, false
 	}
 
-	syncStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "sync", "status")
-	healthStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "health", "status")
+	syncStatus := unstr.MustString(argoApp.Object, "status", "sync", "status")
+	healthStatus := unstr.MustString(argoApp.Object, "status", "health", "status")
 	status := StatusOK
 	if syncStatus != "Synced" || healthStatus != "Healthy" {
 		status = StatusWarning

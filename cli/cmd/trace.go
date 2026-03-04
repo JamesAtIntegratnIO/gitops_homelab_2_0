@@ -57,7 +57,7 @@ func runTrace(cmd *cobra.Command, args []string) error {
 	// Stage 1: Kratix ResourceRequest (VClusterOrchestratorV2)
 	vc, vcErr := client.GetVCluster(ctx, cfg.Platform.PlatformNamespace, name)
 	if vcErr == nil {
-		phase, _, _ := unstr.NestedString(vc.Object, "status", "phase")
+		phase := unstr.MustString(vc.Object, "status", "phase")
 		if phase == "" {
 			phase = "Unknown"
 		}
@@ -68,8 +68,8 @@ func runTrace(cmd *cobra.Command, args []string) error {
 		})
 
 		// Stage 2: Pipeline Job
-		pipelineMsg, _, _ := unstr.NestedString(vc.Object, "status", "message")
-		conditions, _, _ := unstr.NestedSlice(vc.Object, "status", "conditions")
+		pipelineMsg := unstr.MustString(vc.Object, "status", "message")
+		conditions := unstr.MustSlice(vc.Object, "status", "conditions")
 		pipelineStatus := "Unknown"
 		if len(conditions) > 0 {
 			pipelineStatus = "Completed"
@@ -106,9 +106,9 @@ func runTrace(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if aErr == nil {
-		syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
-		healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
-		revision, _, _ := unstr.NestedString(app.Object, "status", "sync", "revision")
+		syncStatus := unstr.MustString(app.Object, "status", "sync", "status")
+		healthStatus := unstr.MustString(app.Object, "status", "health", "status")
+		revision := unstr.MustString(app.Object, "status", "sync", "revision")
 		argoStatus := fmt.Sprintf("%s/%s", syncStatus, healthStatus)
 		details := ""
 		if revision != "" {
