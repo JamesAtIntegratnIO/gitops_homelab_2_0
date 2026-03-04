@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -56,7 +55,7 @@ type StatusCondition struct {
 }
 
 // GetStatusContract reads the .status contract from a VClusterOrchestratorV2 resource.
-func GetStatusContract(ctx context.Context, client *kube.Client, namespace, name string) (*StatusContract, error) {
+func GetStatusContract(ctx context.Context, client KubeClient, namespace, name string) (*StatusContract, error) {
 	vc, err := client.GetVCluster(ctx, namespace, name)
 	if err != nil {
 		return nil, err

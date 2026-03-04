@@ -8,14 +8,13 @@ import (
 
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ResourceRequestChecker verifies the vCluster ResourceRequest exists and
 // populates shared diagnostic state (VCluster, TargetNS).
 type ResourceRequestChecker struct{}
 
-func (c *ResourceRequestChecker) Check(ctx context.Context, client *kube.Client, state *DiagnosticState) ([]DiagnosticStep, bool) {
+func (c *ResourceRequestChecker) Check(ctx context.Context, client KubeClient, state *DiagnosticState) ([]DiagnosticStep, bool) {
 	vc, err := client.GetVCluster(ctx, state.Namespace, state.Name)
 	if err != nil {
 		return []DiagnosticStep{{
@@ -42,10 +41,8 @@ func (c *ResourceRequestChecker) Check(ctx context.Context, client *kube.Client,
 // PipelineJobChecker verifies Kratix pipeline jobs for the resource.
 type PipelineJobChecker struct{}
 
-func (c *PipelineJobChecker) Check(ctx context.Context, client *kube.Client, state *DiagnosticState) ([]DiagnosticStep, bool) {
-	jobs, err := client.Clientset.BatchV1().Jobs(state.Namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("kratix.io/resource-name=%s", state.Name),
-	})
+func (c *PipelineJobChecker) Check(ctx context.Context, client KubeClient, state *DiagnosticState) ([]DiagnosticStep, bool) {
+	jobs, err := client.ListJobs(ctx, state.Namespace, fmt.Sprintf("kratix.io/resource-name=%s", state.Name))
 	if err != nil {
 		return []DiagnosticStep{{
 			Name:    "Pipeline Job",
@@ -54,7 +51,7 @@ func (c *PipelineJobChecker) Check(ctx context.Context, client *kube.Client, sta
 			Details: err.Error(),
 		}}, false
 	}
-	if len(jobs.Items) == 0 {
+	if len(jobs) == 0 {
 		return []DiagnosticStep{{
 			Name:    "Pipeline Job",
 			Status:  StatusWarning,
@@ -62,7 +59,7 @@ func (c *PipelineJobChecker) Check(ctx context.Context, client *kube.Client, sta
 		}}, false
 	}
 
-	latest := jobs.Items[len(jobs.Items)-1]
+	latest := jobs[len(jobs)-1]
 	succeeded := false
 	for _, cond := range latest.Status.Conditions {
 		if cond.Type == "Complete" && cond.Status == "True" {
@@ -97,8 +94,8 @@ func (c *PipelineJobChecker) Check(ctx context.Context, client *kube.Client, sta
 // WorkChecker verifies Kratix Work resources exist for the vCluster.
 type WorkChecker struct{}
 
-func (c *WorkChecker) Check(ctx context.Context, client *kube.Client, state *DiagnosticState) ([]DiagnosticStep, bool) {
-	works, err := client.Dynamic.Resource(kube.WorkGVR).Namespace(state.Namespace).List(ctx, metav1.ListOptions{})
+func (c *WorkChecker) Check(ctx context.Context, client KubeClient, state *DiagnosticState) ([]DiagnosticStep, bool) {
+	works, err := client.ListWorks(ctx, state.Namespace)
 	if err != nil {
 		return []DiagnosticStep{{
 			Name:    "Work",
@@ -108,7 +105,7 @@ func (c *WorkChecker) Check(ctx context.Context, client *kube.Client, state *Dia
 		}}, false
 	}
 
-	for _, w := range works.Items {
+	for _, w := range works {
 		if strings.Contains(w.GetName(), state.Name) {
 			return []DiagnosticStep{{
 				Name:    "Work",
@@ -128,8 +125,8 @@ func (c *WorkChecker) Check(ctx context.Context, client *kube.Client, state *Dia
 // WorkPlacementChecker verifies Kratix WorkPlacement scheduling.
 type WorkPlacementChecker struct{}
 
-func (c *WorkPlacementChecker) Check(ctx context.Context, client *kube.Client, state *DiagnosticState) ([]DiagnosticStep, bool) {
-	placements, err := client.Dynamic.Resource(kube.WorkPlacementGVR).Namespace(state.Namespace).List(ctx, metav1.ListOptions{})
+func (c *WorkPlacementChecker) Check(ctx context.Context, client KubeClient, state *DiagnosticState) ([]DiagnosticStep, bool) {
+	placements, err := client.ListWorkPlacements(ctx, state.Namespace)
 	if err != nil {
 		return []DiagnosticStep{{
 			Name:    "WorkPlacement",
@@ -139,7 +136,7 @@ func (c *WorkPlacementChecker) Check(ctx context.Context, client *kube.Client, s
 		}}, false
 	}
 
-	for _, wp := range placements.Items {
+	for _, wp := range placements {
 		if strings.Contains(wp.GetName(), state.Name) {
 			conditions := unstr.MustSlice(wp.Object, "status", "conditions")
 			failing := false
@@ -176,7 +173,7 @@ func (c *WorkPlacementChecker) Check(ctx context.Context, client *kube.Client, s
 // ArgoCDAppChecker verifies the ArgoCD application for the vCluster.
 type ArgoCDAppChecker struct{}
 
-func (c *ArgoCDAppChecker) Check(ctx context.Context, client *kube.Client, state *DiagnosticState) ([]DiagnosticStep, bool) {
+func (c *ArgoCDAppChecker) Check(ctx context.Context, client KubeClient, state *DiagnosticState) ([]DiagnosticStep, bool) {
 	argoAppName := "vcluster-" + state.Name
 	argoApp, err := client.GetArgoApp(ctx, "argocd", argoAppName)
 	if err != nil {
@@ -208,7 +205,7 @@ func (c *ArgoCDAppChecker) Check(ctx context.Context, client *kube.Client, state
 // PodChecker verifies pods are running in the target namespace.
 type PodChecker struct{}
 
-func (c *PodChecker) Check(ctx context.Context, client *kube.Client, state *DiagnosticState) ([]DiagnosticStep, bool) {
+func (c *PodChecker) Check(ctx context.Context, client KubeClient, state *DiagnosticState) ([]DiagnosticStep, bool) {
 	pods, err := client.ListPods(ctx, state.TargetNS, "")
 	if err != nil {
 		return []DiagnosticStep{{
@@ -243,7 +240,7 @@ func (c *PodChecker) Check(ctx context.Context, client *kube.Client, state *Diag
 // PodResourceChecker verifies pod resource allocation and restart counts.
 type PodResourceChecker struct{}
 
-func (c *PodResourceChecker) Check(ctx context.Context, client *kube.Client, state *DiagnosticState) ([]DiagnosticStep, bool) {
+func (c *PodResourceChecker) Check(ctx context.Context, client KubeClient, state *DiagnosticState) ([]DiagnosticStep, bool) {
 	podResources, err := client.GetPodResourceInfo(ctx, state.TargetNS, "app=vcluster")
 	if err == nil && len(podResources) > 0 {
 		return c.buildSteps(podResources, false, state.Name), false
@@ -291,7 +288,7 @@ func (c *PodResourceChecker) buildSteps(podResources []kube.PodResourceInfo, fil
 // SubAppHealthChecker verifies ArgoCD sub-application health and selfHeal policies.
 type SubAppHealthChecker struct{}
 
-func (c *SubAppHealthChecker) Check(ctx context.Context, client *kube.Client, state *DiagnosticState) ([]DiagnosticStep, bool) {
+func (c *SubAppHealthChecker) Check(ctx context.Context, client KubeClient, state *DiagnosticState) ([]DiagnosticStep, bool) {
 	subApps, err := client.ListArgoAppsForCluster(ctx, "argocd", state.Name)
 	if err != nil || len(subApps) == 0 {
 		return nil, false

@@ -6,10 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ProvisionPhase represents a phase in the provisioning lifecycle.
@@ -49,7 +47,7 @@ type ProvisionHealth struct {
 
 // WaitForRequest polls until the ResourceRequest exists in the cluster.
 // This is the first phase after git push — ArgoCD must sync the request.
-func WaitForRequest(ctx context.Context, client *kube.Client, namespace, name string, pollInterval time.Duration) (string, error) {
+func WaitForRequest(ctx context.Context, client KubeClient, namespace, name string, pollInterval time.Duration) (string, error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -68,7 +66,7 @@ func WaitForRequest(ctx context.Context, client *kube.Client, namespace, name st
 }
 
 // WaitForPipeline polls until the Kratix pipeline job completes.
-func WaitForPipeline(ctx context.Context, client *kube.Client, namespace, name string, pollInterval time.Duration) (string, error) {
+func WaitForPipeline(ctx context.Context, client KubeClient, namespace, name string, pollInterval time.Duration) (string, error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -76,20 +74,18 @@ func WaitForPipeline(ctx context.Context, client *kube.Client, namespace, name s
 		default:
 		}
 
-		jobs, err := client.Clientset.BatchV1().Jobs(namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("kratix.io/resource-name=%s", name),
-		})
+		jobs, err := client.ListJobs(ctx, namespace, fmt.Sprintf("kratix.io/resource-name=%s", name))
 		if err != nil {
 			time.Sleep(pollInterval)
 			continue
 		}
 
-		if len(jobs.Items) == 0 {
+		if len(jobs) == 0 {
 			time.Sleep(pollInterval)
 			continue
 		}
 
-		latest := jobs.Items[len(jobs.Items)-1]
+		latest := jobs[len(jobs)-1]
 		for _, cond := range latest.Status.Conditions {
 			if cond.Type == "Complete" && cond.Status == "True" {
 				return fmt.Sprintf("job %s completed", latest.Name), nil
@@ -104,7 +100,7 @@ func WaitForPipeline(ctx context.Context, client *kube.Client, namespace, name s
 }
 
 // WaitForArgoSync polls until the ArgoCD application is synced and healthy.
-func WaitForArgoSync(ctx context.Context, client *kube.Client, name string, pollInterval time.Duration) (string, error) {
+func WaitForArgoSync(ctx context.Context, client KubeClient, name string, pollInterval time.Duration) (string, error) {
 	argoAppName := "vcluster-" + name
 
 	for {
@@ -140,7 +136,7 @@ func WaitForArgoSync(ctx context.Context, client *kube.Client, name string, poll
 }
 
 // WaitForClusterReady polls until the vCluster pods are running in the target namespace.
-func WaitForClusterReady(ctx context.Context, client *kube.Client, name string, pollInterval time.Duration) (string, error) {
+func WaitForClusterReady(ctx context.Context, client KubeClient, name string, pollInterval time.Duration) (string, error) {
 	targetNs := name
 
 	for {
@@ -177,7 +173,7 @@ func WaitForClusterReady(ctx context.Context, client *kube.Client, name string, 
 }
 
 // CollectProvisionResult gathers the final result after provisioning completes.
-func CollectProvisionResult(ctx context.Context, client *kube.Client, namespace, name string) (*ProvisionResult, error) {
+func CollectProvisionResult(ctx context.Context, client KubeClient, namespace, name string) (*ProvisionResult, error) {
 	result := &ProvisionResult{Name: name}
 
 	// Try to get status contract first (most complete source)

@@ -132,7 +132,7 @@ func ResolveWorkloadURL(workloadName, cluster, repoPath, kubeContext string) (st
 // FindWorkloadPods locates pods for a workload in the given namespace, trying
 // the standard app.kubernetes.io/name label first, then falling back to the
 // simpler app= label.
-func FindWorkloadPods(ctx context.Context, client *kube.Client, namespace, workloadName string) ([]kube.PodInfo, error) {
+func FindWorkloadPods(ctx context.Context, client KubeClient, namespace, workloadName string) ([]kube.PodInfo, error) {
 	pods, err := client.ListPods(ctx, namespace, fmt.Sprintf("app.kubernetes.io/name=%s", workloadName))
 	if err != nil {
 		return nil, fmt.Errorf("listing pods: %w", err)

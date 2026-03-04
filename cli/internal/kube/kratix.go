@@ -39,6 +39,24 @@ func (c *Client) ListPromises(ctx context.Context) ([]unstructured.Unstructured,
 	return list.Items, nil
 }
 
+// ListWorks returns all Kratix Work resources in a namespace.
+func (c *Client) ListWorks(ctx context.Context, namespace string) ([]unstructured.Unstructured, error) {
+	list, err := c.Dynamic.Resource(WorkGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing works: %w", err)
+	}
+	return list.Items, nil
+}
+
+// ListWorkPlacements returns all Kratix WorkPlacement resources in a namespace.
+func (c *Client) ListWorkPlacements(ctx context.Context, namespace string) ([]unstructured.Unstructured, error) {
+	list, err := c.Dynamic.Resource(WorkPlacementGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing workplacements: %w", err)
+	}
+	return list.Items, nil
+}
+
 // SetReconcileAnnotation sets the platform.integratn.tech/reconcile-at annotation on a resource.
 func (c *Client) SetReconcileAnnotation(ctx context.Context, gvr schema.GroupVersionResource, namespace, name, timestamp string) error {
 	obj, err := c.Dynamic.Resource(gvr).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})

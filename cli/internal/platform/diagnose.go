@@ -3,7 +3,6 @@ package platform
 import (
 	"context"
 
-	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -48,7 +47,7 @@ func (s StepStatus) String() string {
 type DiagnosticChecker interface {
 	// Check runs the diagnostic and returns steps plus whether further checks
 	// should be halted (e.g. when the resource is not found).
-	Check(ctx context.Context, client *kube.Client, state *DiagnosticState) (steps []DiagnosticStep, halt bool)
+	Check(ctx context.Context, client KubeClient, state *DiagnosticState) (steps []DiagnosticStep, halt bool)
 }
 
 // DiagnosticState holds shared state accumulated across diagnostic checkers.
@@ -61,7 +60,7 @@ type DiagnosticState struct {
 
 // RunDiagnostics executes a sequence of diagnostic checkers, short-circuiting
 // if any checker signals halt.
-func RunDiagnostics(ctx context.Context, client *kube.Client, checkers []DiagnosticChecker, state *DiagnosticState) *DiagnosticResult {
+func RunDiagnostics(ctx context.Context, client KubeClient, checkers []DiagnosticChecker, state *DiagnosticState) *DiagnosticResult {
 	result := &DiagnosticResult{}
 	for _, c := range checkers {
 		steps, halt := c.Check(ctx, client, state)
@@ -88,7 +87,7 @@ func DefaultCheckers() []DiagnosticChecker {
 }
 
 // DiagnoseVCluster runs the full diagnostic chain for a vCluster resource.
-func DiagnoseVCluster(ctx context.Context, client *kube.Client, namespace, name string) (*DiagnosticResult, error) {
+func DiagnoseVCluster(ctx context.Context, client KubeClient, namespace, name string) (*DiagnosticResult, error) {
 	state := &DiagnosticState{
 		Namespace: namespace,
 		Name:      name,

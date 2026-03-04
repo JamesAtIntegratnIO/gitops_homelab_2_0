@@ -41,6 +41,17 @@ func (c *Client) ListArgoApps(ctx context.Context, namespace string) ([]unstruct
 	return list.Items, nil
 }
 
+// ListArgoAppsWithSelector returns ArgoCD Application resources matching a label selector.
+func (c *Client) ListArgoAppsWithSelector(ctx context.Context, namespace, labelSelector string) ([]unstructured.Unstructured, error) {
+	list, err := c.Dynamic.Resource(ArgoCDApplicationGVR).Namespace(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing argocd applications: %w", err)
+	}
+	return list.Items, nil
+}
+
 // GetArgoApp returns a specific ArgoCD Application.
 func (c *Client) GetArgoApp(ctx context.Context, namespace, name string) (*unstructured.Unstructured, error) {
 	obj, err := c.Dynamic.Resource(ArgoCDApplicationGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
