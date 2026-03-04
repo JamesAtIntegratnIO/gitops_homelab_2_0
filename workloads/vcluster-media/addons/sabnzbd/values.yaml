@@ -1,5 +1,27 @@
 applicationName: sabnzbd
 extraObjects:
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: sabnzbd-allow-nntp-egress
+      namespace: media
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: sabnzbd
+      policyTypes:
+        - Egress
+      egress:
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+                except:
+                  - 10.0.0.0/8
+                  - 172.16.0.0/12
+                  - 192.168.0.0/16
+          ports:
+            - protocol: TCP
+              port: 563
   - apiVersion: v1
     kind: PersistentVolume
     metadata:
