@@ -139,43 +139,6 @@ func TestUnstructuredNestedSlice_Missing(t *testing.T) {
 	}
 }
 
-func TestNestedField_EmptyPath(t *testing.T) {
-	obj := map[string]interface{}{
-		"key": "value",
-	}
-
-	val, found, err := nestedField(obj)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !found {
-		t.Error("expected found for empty path (returns obj itself)")
-	}
-	// Empty path returns the object itself
-	m, ok := val.(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected map, got %T", val)
-	}
-	if m["key"] != "value" {
-		t.Error("expected original object to be returned")
-	}
-}
-
-func TestNestedField_TypeMismatch(t *testing.T) {
-	obj := map[string]interface{}{
-		"name": "not-a-map",
-	}
-
-	// Trying to traverse through a string (not a map)
-	_, found, err := nestedField(obj, "name", "subfield")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if found {
-		t.Error("expected not found when traversing through non-map value")
-	}
-}
-
 func TestDiagnosticResultStructure(t *testing.T) {
 	result := &DiagnosticResult{
 		Steps: []DiagnosticStep{

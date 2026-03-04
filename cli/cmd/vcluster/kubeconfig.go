@@ -41,6 +41,39 @@ Examples:
 	return cmd
 }
 
+// resolveVClusterKubeconfig looks up the kubeconfig for a vCluster by trying
+// common secret name patterns and key names. Returns the raw kubeconfig bytes.
+func resolveVClusterKubeconfig(ctx context.Context, client *kube.Client, name string) ([]byte, error) {
+	secretNames := []string{
+		"vc-" + name,                // vCluster default
+		name + "-kubeconfig",        // ExternalSecret pattern
+		"vc-" + name + "-kubeconfig", // alternate pattern
+	}
+
+	for _, secretName := range secretNames {
+		data, err := client.GetSecretData(ctx, name, secretName)
+		if err != nil {
+			continue
+		}
+		// Look for common kubeconfig keys
+		for _, key := range []string{"config", "value", "kubeconfig"} {
+			if v, ok := data[key]; ok {
+				return v, nil
+			}
+		}
+		// If no known key, try base64 decode of first value
+		for _, v := range data {
+			decoded, err := base64.StdEncoding.DecodeString(string(v))
+			if err == nil && len(decoded) > 0 {
+				return decoded, nil
+			}
+			return v, nil
+		}
+	}
+
+	return nil, fmt.Errorf("kubeconfig secret not found for vCluster %q — tried: %v", name, secretNames)
+}
+
 func runKubeconfig(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	cfg := config.Get()
@@ -53,46 +86,9 @@ func runKubeconfig(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Try common secret name patterns
-	secretNames := []string{
-		"vc-" + name,           // vCluster default
-		name + "-kubeconfig",   // ExternalSecret pattern
-		"vc-" + name + "-kubeconfig",
-	}
-
-	var kubeconfigData []byte
-	for _, secretName := range secretNames {
-		data, err := client.GetSecretData(ctx, name, secretName)
-		if err != nil {
-			continue
-		}
-		// Look for common kubeconfig keys
-		for _, key := range []string{"config", "value", "kubeconfig"} {
-			if v, ok := data[key]; ok {
-				kubeconfigData = v
-				break
-			}
-		}
-		if kubeconfigData != nil {
-			break
-		}
-		// If no known key, try base64 decode of first value
-		for _, v := range data {
-			decoded, err := base64.StdEncoding.DecodeString(string(v))
-			if err == nil && len(decoded) > 0 {
-				kubeconfigData = decoded
-			} else {
-				kubeconfigData = v
-			}
-			break
-		}
-		if kubeconfigData != nil {
-			break
-		}
-	}
-
-	if kubeconfigData == nil {
-		return fmt.Errorf("kubeconfig secret not found for vCluster %q — tried: %v", name, secretNames)
+	kubeconfigData, err := resolveVClusterKubeconfig(ctx, client, name)
+	if err != nil {
+		return err
 	}
 
 	// Write output
@@ -135,26 +131,9 @@ func newConnectCmd() *cobra.Command {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			secretNames := []string{"vc-" + name, name + "-kubeconfig"}
-			var kubeconfigData []byte
-			for _, secretName := range secretNames {
-				data, err := client.GetSecretData(ctx, name, secretName)
-				if err != nil {
-					continue
-				}
-				for _, key := range []string{"config", "value", "kubeconfig"} {
-					if v, ok := data[key]; ok {
-						kubeconfigData = v
-						break
-					}
-				}
-				if kubeconfigData != nil {
-					break
-				}
-			}
-
-			if kubeconfigData == nil {
-				return fmt.Errorf("kubeconfig not found for %q", name)
+			kubeconfigData, err := resolveVClusterKubeconfig(ctx, client, name)
+			if err != nil {
+				return err
 			}
 
 			path, err := kube.WriteKubeconfig(kubeconfigData, name)

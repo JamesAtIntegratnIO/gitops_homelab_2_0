@@ -126,6 +126,39 @@ func buildStakaterValues(w *score.Workload, allOutputs map[string]map[string]str
 	}
 
 	// --- Deployment section ---
+	deployment, additionalContainers := buildDeploymentSection(w, allOutputs)
+	if len(additionalContainers) > 0 {
+		deployment["additionalContainers"] = additionalContainers
+	}
+	values["deployment"] = deployment
+
+	// --- Service section ---
+	if svc := buildServiceSection(w); svc != nil {
+		values["service"] = svc
+	}
+
+	// --- Persistence (disabled, managed via extraObjects) ---
+	values["persistence"] = map[string]interface{}{
+		"enabled": false,
+	}
+
+	// --- HTTPRoute and Certificate from route resources ---
+	buildRouteAndCertSections(w, values)
+
+	// --- Extra objects (provisioner manifests: ExternalSecrets, PVCs) ---
+	if len(extraObjects) > 0 {
+		var extras []interface{}
+		for _, obj := range extraObjects {
+			extras = append(extras, obj)
+		}
+		values["extraObjects"] = extras
+	}
+
+	return values
+}
+
+// buildDeploymentSection constructs the deployment values and additional containers from the Score workload.
+func buildDeploymentSection(w *score.Workload, allOutputs map[string]map[string]string) (map[string]interface{}, []map[string]interface{}) {
 	deployment := map[string]interface{}{}
 
 	// Use the first (or only) container for the primary deployment
@@ -254,124 +287,110 @@ func buildStakaterValues(w *score.Workload, allOutputs map[string]map[string]str
 		deployment["volumeMounts"] = volumeMounts
 	}
 
-	// Additional containers
-	if len(additionalContainers) > 0 {
-		deployment["additionalContainers"] = additionalContainers
+	return deployment, additionalContainers
+}
+
+// buildServiceSection constructs the service values from the Score workload. Returns nil if no service.
+func buildServiceSection(w *score.Workload) map[string]interface{} {
+	if w.Service == nil || len(w.Service.Ports) == 0 {
+		return nil
 	}
 
-	values["deployment"] = deployment
-
-	// --- Service section ---
-	if w.Service != nil && len(w.Service.Ports) > 0 {
-		var servicePorts []map[string]interface{}
-		portNames := make([]string, 0, len(w.Service.Ports))
-		for name := range w.Service.Ports {
-			portNames = append(portNames, name)
-		}
-		sort.Strings(portNames)
-
-		for _, name := range portNames {
-			p := w.Service.Ports[name]
-			sp := map[string]interface{}{
-				"name":       name,
-				"port":       p.Port,
-				"targetPort": p.Port,
-				"protocol":   "TCP",
-			}
-			if p.TargetPort > 0 {
-				sp["targetPort"] = p.TargetPort
-			}
-			if p.Protocol != "" {
-				sp["protocol"] = p.Protocol
-			}
-			servicePorts = append(servicePorts, sp)
-		}
-		values["service"] = map[string]interface{}{
-			"ports": servicePorts,
-		}
+	var servicePorts []map[string]interface{}
+	portNames := make([]string, 0, len(w.Service.Ports))
+	for name := range w.Service.Ports {
+		portNames = append(portNames, name)
 	}
+	sort.Strings(portNames)
 
-	// --- Persistence (disabled, managed via extraObjects) ---
-	values["persistence"] = map[string]interface{}{
-		"enabled": false,
+	for _, name := range portNames {
+		p := w.Service.Ports[name]
+		sp := map[string]interface{}{
+			"name":       name,
+			"port":       p.Port,
+			"targetPort": p.Port,
+			"protocol":   "TCP",
+		}
+		if p.TargetPort > 0 {
+			sp["targetPort"] = p.TargetPort
+		}
+		if p.Protocol != "" {
+			sp["protocol"] = p.Protocol
+		}
+		servicePorts = append(servicePorts, sp)
 	}
+	return map[string]interface{}{
+		"ports": servicePorts,
+	}
+}
 
-	// --- HTTPRoute and Certificate from route resources ---
+// buildRouteAndCertSections adds httpRoute and certificate entries to values if a route resource is present.
+func buildRouteAndCertSections(w *score.Workload, values map[string]interface{}) {
 	for _, res := range w.Resources {
-		if res.Type == "route" {
-			host, _ := res.Params["host"].(string)
-			port := 8080
-			if p, ok := res.Params["port"]; ok {
-				if pi, ok := p.(int); ok {
-					port = pi
-				}
-				if pf, ok := p.(float64); ok {
-					port = int(pf)
-				}
+		if res.Type != "route" {
+			continue
+		}
+		host, _ := res.Params["host"].(string)
+		port := 8080
+		if p, ok := res.Params["port"]; ok {
+			if pi, ok := p.(int); ok {
+				port = pi
 			}
-			path := "/"
-			if p, ok := res.Params["path"].(string); ok {
-				path = p
+			if pf, ok := p.(float64); ok {
+				port = int(pf)
 			}
+		}
+		path := "/"
+		if p, ok := res.Params["path"].(string); ok {
+			path = p
+		}
 
-			if host != "" {
-				values["httpRoute"] = map[string]interface{}{
-					"enabled": true,
-					"parentRefs": []map[string]interface{}{
-						{
-							"name":        "nginx-gateway",
-							"namespace":   "nginx-gateway",
-							"sectionName": "https-public",
-						},
+		if host != "" {
+			values["httpRoute"] = map[string]interface{}{
+				"enabled": true,
+				"parentRefs": []map[string]interface{}{
+					{
+						"name":        "nginx-gateway",
+						"namespace":   "nginx-gateway",
+						"sectionName": "https-public",
 					},
-					"hostnames": []string{host},
-					"rules": []map[string]interface{}{
-						{
-							"backendRefs": []map[string]interface{}{
-								{
-									"name": w.Metadata.Name,
-									"port": port,
-								},
-							},
-							"matches": []map[string]interface{}{
-								{
-									"path": map[string]interface{}{
-										"type":  "PathPrefix",
-										"value": path,
-									},
-								},
+				},
+				"hostnames": []string{host},
+				"rules": []map[string]interface{}{
+					{
+						"backendRefs": []map[string]interface{}{
+							{
+								"name": w.Metadata.Name,
+								"port": port,
 							},
 						},
+						"matches": []map[string]interface{}{
+							{
+								"path": map[string]interface{}{
+									"type":  "PathPrefix",
+									"value": path,
+								},
+							},
+						},
 					},
-				}
-
-				// Auto-generate certificate
-				values["certificate"] = map[string]interface{}{
-					"enabled":    true,
-					"secretName": w.Metadata.Name + "-tls",
-					"dnsNames":   []string{host},
-					"commonName": host,
-					"usages":     []string{"digital signature", "key encipherment", "server auth"},
-					"issuerRef": map[string]interface{}{
-						"name": "letsencrypt-prod",
-						"kind": "ClusterIssuer",
-					},
-				}
+				},
 			}
-			break // only use the first route resource
-		}
-	}
 
-	// --- Extra objects (provisioner manifests: ExternalSecrets, PVCs) ---
-	if len(extraObjects) > 0 {
-		var extras []interface{}
-		for _, obj := range extraObjects {
-			extras = append(extras, obj)
+			// Auto-generate certificate
+			values["certificate"] = map[string]interface{}{
+				"enabled":    true,
+				"secretName": w.Metadata.Name + "-tls",
+				"dnsNames":   []string{host},
+				"commonName": host,
+				"usages":     []string{"digital signature", "key encipherment", "server auth"},
+				"issuerRef": map[string]interface{}{
+					"name": "letsencrypt-prod",
+					"kind": "ClusterIssuer",
+				},
+			}
 		}
-		values["extraObjects"] = extras
+		break // only use the first route resource
 	}
-
-	return values
 }
 
 // buildContainerSpec converts a Score container to a Stakater additional container spec.

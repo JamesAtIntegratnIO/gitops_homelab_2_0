@@ -51,7 +51,7 @@ func (r *Repo) IsClean() (bool, error) {
 func (r *Repo) CurrentBranch() (string, error) {
 	out, err := runGit(r.Root, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("getting current branch: %w", err)
 	}
 	return strings.TrimSpace(out), nil
 }
@@ -76,7 +76,7 @@ func (r *Repo) Push(remote string) error {
 	}
 	branch, err := r.CurrentBranch()
 	if err != nil {
-		return err
+		return fmt.Errorf("determining branch for push: %w", err)
 	}
 	_, err = runGit(r.Root, "push", remote, branch)
 	return err

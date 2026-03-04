@@ -56,7 +56,7 @@ func runAlerts(cmd *cobra.Command, args []string) error {
 			9090,
 		)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("querying firing alerts: %w", err)
 		}
 		return fmt.Sprintf("%d alerts", len(alerts)), nil
 	})

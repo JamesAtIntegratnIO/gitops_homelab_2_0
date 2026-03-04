@@ -8,6 +8,7 @@ import (
 
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -371,36 +372,13 @@ func DiagnoseVCluster(ctx context.Context, client *kube.Client, namespace, name 
 }
 
 // UnstructuredNestedString extracts a string from a nested unstructured object.
+// Delegates to the shared unstructured package.
 func UnstructuredNestedString(obj map[string]interface{}, fields ...string) (string, bool, error) {
-	val, found, err := nestedField(obj, fields...)
-	if !found || err != nil {
-		return "", found, err
-	}
-	s, ok := val.(string)
-	return s, ok, nil
+	return unstr.NestedString(obj, fields...)
 }
 
 // UnstructuredNestedSlice extracts a slice from a nested unstructured object.
+// Delegates to the shared unstructured package.
 func UnstructuredNestedSlice(obj map[string]interface{}, fields ...string) ([]interface{}, bool, error) {
-	val, found, err := nestedField(obj, fields...)
-	if !found || err != nil {
-		return nil, found, err
-	}
-	s, ok := val.([]interface{})
-	return s, ok, nil
-}
-
-func nestedField(obj map[string]interface{}, fields ...string) (interface{}, bool, error) {
-	var current interface{} = obj
-	for _, f := range fields {
-		m, ok := current.(map[string]interface{})
-		if !ok {
-			return nil, false, nil
-		}
-		current, ok = m[f]
-		if !ok {
-			return nil, false, nil
-		}
-	}
-	return current, true, nil
+	return unstr.NestedSlice(obj, fields...)
 }

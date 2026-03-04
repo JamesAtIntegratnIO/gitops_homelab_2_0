@@ -46,7 +46,7 @@ func newSecretGetCmd() *cobra.Command {
 
 			data, err := client.GetSecretData(ctx, ns, name)
 			if err != nil {
-				return err
+				return fmt.Errorf("fetching secret %s/%s: %w", ns, name, err)
 			}
 
 			fmt.Printf("\n%s %s/%s\n\n", tui.TitleStyle.Render("Secret"), ns, name)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
@@ -88,14 +89,16 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return runStatusOnce(cfg)
 	}
 
+	// Create a single shared kube client for all dashboard sections.
+	client, err := kube.NewClient(cfg.KubeContext)
+	if err != nil {
+		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
+	}
+
 	return tui.RunDashboard(tui.IconPlay+" Platform Status", []tui.DashboardSection{
 		{
 			Title: "Nodes",
 			Load: func() (string, error) {
-				client, err := kube.NewClient(cfg.KubeContext)
-				if err != nil {
-					return "", err
-				}
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
@@ -114,10 +117,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		{
 			Title: "ArgoCD",
 			Load: func() (string, error) {
-				client, err := kube.NewClient(cfg.KubeContext)
-				if err != nil {
-					return "", err
-				}
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
@@ -169,10 +168,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		{
 			Title: "Promises",
 			Load: func() (string, error) {
-				client, err := kube.NewClient(cfg.KubeContext)
-				if err != nil {
-					return "", err
-				}
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
@@ -203,10 +198,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		{
 			Title: "vClusters",
 			Load: func() (string, error) {
-				client, err := kube.NewClient(cfg.KubeContext)
-				if err != nil {
-					return "", err
-				}
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
@@ -242,10 +233,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		{
 			Title: "Workloads",
 			Load: func() (string, error) {
-				client, err := kube.NewClient(cfg.KubeContext)
-				if err != nil {
-					return "", err
-				}
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
@@ -270,10 +257,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		{
 			Title: "Addons",
 			Load: func() (string, error) {
-				client, err := kube.NewClient(cfg.KubeContext)
-				if err != nil {
-					return "", err
-				}
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 
@@ -333,7 +316,7 @@ func phaseStyled(phase string) string {
 func runStatusOnce(cfg *config.Config) error {
 	client, err := kube.NewClient(cfg.KubeContext)
 	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
+		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -349,7 +332,7 @@ func runStatusOnce(cfg *config.Config) error {
 func runStatusWatch(cfg *config.Config) error {
 	client, err := kube.NewClient(cfg.KubeContext)
 	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
+		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
 	}
 
 	ticker := time.NewTicker(watchInterval)
@@ -363,7 +346,9 @@ func runStatusWatch(cfg *config.Config) error {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		} else {
-			_ = tui.RenderOutput(ps, "")
+			if err := tui.RenderOutput(ps, ""); err != nil {
+				fmt.Fprintf(os.Stderr, "render error: %v\n", err)
+			}
 		}
 
 		select {
@@ -444,7 +429,7 @@ func runReconcile(cmd *cobra.Command, args []string) error {
 
 	client, err := kube.NewClient(cfg.KubeContext)
 	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
+		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

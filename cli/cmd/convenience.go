@@ -75,7 +75,9 @@ func runUp(cmd *cobra.Command, args []string) error {
 		if d.ArgoApp != "" {
 			fmt.Printf("    %s Re-enabling auto-sync for %s\n",
 				tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
-			_ = client.EnableArgoAutoSync(ctx, "argocd", d.ArgoApp)
+			if err := client.EnableArgoAutoSync(ctx, "argocd", d.ArgoApp); err != nil {
+				fmt.Printf("    %s Failed to enable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), d.ArgoApp, err)
+			}
 		}
 
 		fmt.Printf("    %s Scaling %s to %d\n",
@@ -147,7 +149,9 @@ func runDown(cmd *cobra.Command, args []string) error {
 		if d.ArgoApp != "" {
 			fmt.Printf("    %s Disabling auto-sync for %s\n",
 				tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
-			_ = client.DisableArgoAutoSync(ctx, "argocd", d.ArgoApp)
+			if err := client.DisableArgoAutoSync(ctx, "argocd", d.ArgoApp); err != nil {
+				fmt.Printf("    %s Failed to disable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), d.ArgoApp, err)
+			}
 		}
 
 		fmt.Printf("    %s Scaling %s to 0\n",

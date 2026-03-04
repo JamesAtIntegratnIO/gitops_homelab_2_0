@@ -65,7 +65,9 @@ Useful for maintenance or cost-saving on idle namespaces.`,
 			for _, deploy := range deploys {
 				if deploy.ArgoApp != "" {
 					fmt.Printf("    %s Disabling auto-sync for %s\n", tui.MutedStyle.Render(tui.IconArrow), deploy.ArgoApp)
-					_ = client.DisableArgoAutoSync(ctx, "argocd", deploy.ArgoApp)
+					if err := client.DisableArgoAutoSync(ctx, "argocd", deploy.ArgoApp); err != nil {
+						fmt.Printf("    %s Failed to disable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), deploy.ArgoApp, err)
+					}
 				}
 
 				fmt.Printf("    %s Scaling %s to 0\n", tui.MutedStyle.Render(tui.IconArrow), deploy.Name)
@@ -121,7 +123,9 @@ func newScaleUpCmd() *cobra.Command {
 
 				if deploy.ArgoApp != "" {
 					fmt.Printf("    %s Re-enabling auto-sync for %s\n", tui.MutedStyle.Render(tui.IconArrow), deploy.ArgoApp)
-					_ = client.EnableArgoAutoSync(ctx, "argocd", deploy.ArgoApp)
+					if err := client.EnableArgoAutoSync(ctx, "argocd", deploy.ArgoApp); err != nil {
+						fmt.Printf("    %s Failed to enable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), deploy.ArgoApp, err)
+					}
 				}
 			}
 
