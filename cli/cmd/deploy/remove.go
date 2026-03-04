@@ -62,6 +62,7 @@ and removing its values directory. ArgoCD will clean up the resources on next sy
 				GitMode:       cfg.GitMode,
 				Interactive:   cfg.Interactive,
 				ConfirmPrompt: "Commit and push removal?",
+				UI:            tui.GitUIAdapter{},
 			}); err != nil {
 				return fmt.Errorf("committing workload removal: %w", err)
 			}

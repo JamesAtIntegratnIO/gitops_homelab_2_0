@@ -139,7 +139,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 					gitMode = "stage-only"
 				}
 			}
-			gitStep := git.HandleGitWorkflowStep(git.WorkflowOpts{
+			gitStep := gitWorkflowStep(git.WorkflowOpts{
 				RepoPath: cfg.RepoPath,
 				Paths:    writtenPaths,
 				Action:   "deploy",
@@ -215,4 +215,51 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 	cmd.Flags().BoolVarP(&watchDeploy, "watch", "w", false, "watch ArgoCD sync after deploy")
 	cmd.Flags().DurationVar(&watchTimeout, "timeout", 5*time.Minute, "timeout for --watch")
 	return cmd
+}
+
+// gitWorkflowStep creates a tui.Step that performs git commit/push.
+// This keeps the git package free of TUI dependencies.
+func gitWorkflowStep(opts git.WorkflowOpts) tui.Step {
+	var stepTitle string
+	switch opts.GitMode {
+	case "auto":
+		stepTitle = "Committing and pushing"
+	case "generate":
+		stepTitle = "Committing changes"
+	default:
+		stepTitle = "Staging files"
+	}
+
+	return tui.Step{
+		Title: stepTitle,
+		Run: func() (string, error) {
+			repo, err := git.DetectRepo(opts.RepoPath)
+			if err != nil {
+				return "no git repo detected", nil
+			}
+
+			msg := git.FormatCommitMessage(opts.Action, opts.Resource, opts.Details)
+
+			switch opts.GitMode {
+			case "auto":
+				if err := repo.CommitAndPush(opts.Paths, msg); err != nil {
+					return "", err
+				}
+				return msg, nil
+			case "generate":
+				if err := repo.Add(opts.Paths...); err != nil {
+					return "", err
+				}
+				if err := repo.Commit(msg); err != nil {
+					return "", err
+				}
+				return msg + " (push manually)", nil
+			default:
+				if err := repo.Add(opts.Paths...); err != nil {
+					return "", fmt.Errorf("staging git changes: %w", err)
+				}
+				return "staged — commit manually", nil
+			}
+		},
+	}
 }

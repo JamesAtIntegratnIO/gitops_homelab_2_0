@@ -8,52 +8,55 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
+// CreateOptions holds all flag values for the vcluster create command.
+type CreateOptions struct {
 	// Core
-	createPreset      string
-	createReplicas    int
-	createHostname    string
-	createEnvironment string
-	createAutoCommit  bool
+	Preset      string
+	Replicas    int
+	Hostname    string
+	Environment string
+	AutoCommit  bool
 
 	// vCluster settings
-	createK8sVersion    string
-	createIsolationMode string
+	K8sVersion    string
+	IsolationMode string
 
 	// Exposure
-	createSubnet  string
-	createVIP     string
-	createAPIPort int
+	Subnet  string
+	VIP     string
+	APIPort int
 
 	// Persistence
-	createPersistence     bool
-	createPersistenceSize string
-	createStorageClass    string
+	Persistence     bool
+	PersistenceSize string
+	StorageClass    string
 
 	// Networking
-	createEnableNFS    bool
-	createExtraEgress  []string // "name:cidr:port[:protocol]"
-	createCoreDNSReplicas int
+	EnableNFS       bool
+	ExtraEgress     []string // "name:cidr:port[:protocol]"
+	CoreDNSReplicas int
 
 	// Workload repo
-	createWorkloadRepoURL      string
-	createWorkloadRepoBasePath string
-	createWorkloadRepoPath     string
-	createWorkloadRepoRevision string
+	WorkloadRepoURL      string
+	WorkloadRepoBasePath string
+	WorkloadRepoPath     string
+	WorkloadRepoRevision string
 
 	// ArgoCD cluster
-	createClusterLabels      []string // "key=value"
-	createClusterAnnotations []string // "key=value"
+	ClusterLabels      []string // "key=value"
+	ClusterAnnotations []string // "key=value"
 
 	// ArgoCD app overrides
-	createChartVersion string
+	ChartVersion string
 
 	// Provisioning wait
-	createWait    bool
-	createTimeout int // seconds
-)
+	Wait    bool
+	Timeout int // seconds
+}
 
 func newCreateCmd() *cobra.Command {
+	opts := &CreateOptions{}
+
 	cmd := &cobra.Command{
 		Use:   "create [name]",
 		Short: "Create a new vCluster",
@@ -83,81 +86,83 @@ Examples:
   # Interactive wizard (walks through all options)
   hctl vcluster create`,
 		Args: cobra.MaximumNArgs(1),
-		RunE: runCreate,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runCreate(cmd, args, opts)
+		},
 	}
 
 	// Core flags
-	cmd.Flags().StringVar(&createPreset, "preset", "", "vCluster preset (dev, prod)")
-	cmd.Flags().IntVar(&createReplicas, "replicas", 0, "number of replicas (overrides preset default)")
-	cmd.Flags().StringVar(&createHostname, "hostname", "", "external hostname for the vCluster API")
-	cmd.Flags().StringVar(&createEnvironment, "environment", "production", "ArgoCD environment label")
-	cmd.Flags().BoolVar(&createAutoCommit, "auto-commit", false, "automatically commit and push (overrides gitMode)")
+	cmd.Flags().StringVar(&opts.Preset, "preset", "", "vCluster preset (dev, prod)")
+	cmd.Flags().IntVar(&opts.Replicas, "replicas", 0, "number of replicas (overrides preset default)")
+	cmd.Flags().StringVar(&opts.Hostname, "hostname", "", "external hostname for the vCluster API")
+	cmd.Flags().StringVar(&opts.Environment, "environment", "production", "ArgoCD environment label")
+	cmd.Flags().BoolVar(&opts.AutoCommit, "auto-commit", false, "automatically commit and push (overrides gitMode)")
 
 	// vCluster settings
-	cmd.Flags().StringVar(&createK8sVersion, "k8s-version", "", "Kubernetes version (v1.34.3, 1.34, 1.33, 1.32)")
-	cmd.Flags().StringVar(&createIsolationMode, "isolation", "", "workload isolation mode (standard, strict)")
+	cmd.Flags().StringVar(&opts.K8sVersion, "k8s-version", "", "Kubernetes version (v1.34.3, 1.34, 1.33, 1.32)")
+	cmd.Flags().StringVar(&opts.IsolationMode, "isolation", "", "workload isolation mode (standard, strict)")
 
 	// Exposure
-	cmd.Flags().StringVar(&createSubnet, "subnet", "", "CIDR subnet for VIP allocation (e.g. 10.0.4.0/24)")
-	cmd.Flags().StringVar(&createVIP, "vip", "", "static VIP for the vCluster API (e.g. 10.0.4.210)")
-	cmd.Flags().IntVar(&createAPIPort, "api-port", 443, "API port exposed by the vCluster service")
+	cmd.Flags().StringVar(&opts.Subnet, "subnet", "", "CIDR subnet for VIP allocation (e.g. 10.0.4.0/24)")
+	cmd.Flags().StringVar(&opts.VIP, "vip", "", "static VIP for the vCluster API (e.g. 10.0.4.210)")
+	cmd.Flags().IntVar(&opts.APIPort, "api-port", 443, "API port exposed by the vCluster service")
 
 	// Persistence
-	cmd.Flags().BoolVar(&createPersistence, "persistence", false, "enable control plane persistence (prod preset enables by default)")
-	cmd.Flags().StringVar(&createPersistenceSize, "persistence-size", "", "persistence volume size (e.g. 10Gi)")
-	cmd.Flags().StringVar(&createStorageClass, "storage-class", "", "storage class for persistence volume")
+	cmd.Flags().BoolVar(&opts.Persistence, "persistence", false, "enable control plane persistence (prod preset enables by default)")
+	cmd.Flags().StringVar(&opts.PersistenceSize, "persistence-size", "", "persistence volume size (e.g. 10Gi)")
+	cmd.Flags().StringVar(&opts.StorageClass, "storage-class", "", "storage class for persistence volume")
 
 	// Networking
-	cmd.Flags().BoolVar(&createEnableNFS, "enable-nfs", false, "enable NFS egress network policy")
-	cmd.Flags().StringSliceVar(&createExtraEgress, "extra-egress", nil, "extra egress rule as name:cidr:port[:protocol] (repeatable)")
-	cmd.Flags().IntVar(&createCoreDNSReplicas, "coredns-replicas", 0, "CoreDNS replica count (overrides preset default)")
+	cmd.Flags().BoolVar(&opts.EnableNFS, "enable-nfs", false, "enable NFS egress network policy")
+	cmd.Flags().StringSliceVar(&opts.ExtraEgress, "extra-egress", nil, "extra egress rule as name:cidr:port[:protocol] (repeatable)")
+	cmd.Flags().IntVar(&opts.CoreDNSReplicas, "coredns-replicas", 0, "CoreDNS replica count (overrides preset default)")
 
 	// Workload repo
-	cmd.Flags().StringVar(&createWorkloadRepoURL, "workload-repo-url", "", "Git URL for workload definitions (default: same repo)")
-	cmd.Flags().StringVar(&createWorkloadRepoBasePath, "workload-repo-base-path", "", "base path prefix in workload repo")
-	cmd.Flags().StringVar(&createWorkloadRepoPath, "workload-repo-path", "", "path within repo to workload manifests (default: workloads)")
-	cmd.Flags().StringVar(&createWorkloadRepoRevision, "workload-repo-revision", "", "Git branch/tag for workload repo (default: main)")
+	cmd.Flags().StringVar(&opts.WorkloadRepoURL, "workload-repo-url", "", "Git URL for workload definitions (default: same repo)")
+	cmd.Flags().StringVar(&opts.WorkloadRepoBasePath, "workload-repo-base-path", "", "base path prefix in workload repo")
+	cmd.Flags().StringVar(&opts.WorkloadRepoPath, "workload-repo-path", "", "path within repo to workload manifests (default: workloads)")
+	cmd.Flags().StringVar(&opts.WorkloadRepoRevision, "workload-repo-revision", "", "Git branch/tag for workload repo (default: main)")
 
 	// ArgoCD cluster metadata
-	cmd.Flags().StringSliceVar(&createClusterLabels, "cluster-label", nil, "additional ArgoCD cluster label as key=value (repeatable)")
-	cmd.Flags().StringSliceVar(&createClusterAnnotations, "cluster-annotation", nil, "additional ArgoCD cluster annotation as key=value (repeatable)")
+	cmd.Flags().StringSliceVar(&opts.ClusterLabels, "cluster-label", nil, "additional ArgoCD cluster label as key=value (repeatable)")
+	cmd.Flags().StringSliceVar(&opts.ClusterAnnotations, "cluster-annotation", nil, "additional ArgoCD cluster annotation as key=value (repeatable)")
 
 	// ArgoCD app overrides
-	cmd.Flags().StringVar(&createChartVersion, "chart-version", "", "vCluster Helm chart version (default: platform default)")
+	cmd.Flags().StringVar(&opts.ChartVersion, "chart-version", "", "vCluster Helm chart version (default: platform default)")
 
 	// Provisioning wait
-	cmd.Flags().BoolVar(&createWait, "wait", true, "wait for provisioning to complete after commit")
-	cmd.Flags().IntVar(&createTimeout, "timeout", 300, "timeout in seconds when using --wait (default: 300)")
+	cmd.Flags().BoolVar(&opts.Wait, "wait", true, "wait for provisioning to complete after commit")
+	cmd.Flags().IntVar(&opts.Timeout, "timeout", 300, "timeout in seconds when using --wait (default: 300)")
 
 	return cmd
 }
 
-func runCreate(cmd *cobra.Command, args []string) error {
+func runCreate(cmd *cobra.Command, args []string, opts *CreateOptions) error {
 	cfg := config.Get()
 	interactive := cfg.Interactive && !cmd.Flags().Changed("non-interactive")
 
 	// Phase 1: Collect name and preset
-	name, preset, err := collectNameAndPreset(cmd, args, interactive)
+	name, preset, err := collectNameAndPreset(cmd, args, opts, interactive)
 	if err != nil {
 		return err
 	}
 
 	// Phase 2: Build and configure spec
-	spec, err := buildVClusterSpec(cmd, cfg, name, preset, interactive)
+	spec, err := buildVClusterSpec(cmd, cfg, opts, name, preset, interactive)
 	if err != nil {
 		return err
 	}
 
 	// Phase 3: Marshal, write, and commit
-	committed, err := writeAndCommitVCluster(cfg, name, preset, spec, interactive)
+	committed, err := writeAndCommitVCluster(cfg, opts, name, preset, spec, interactive)
 	if err != nil {
 		return err
 	}
 
 	// Phase 4: Optionally watch provisioning
 	hostname := spec.Exposure.Hostname
-	if createWait && committed {
-		if err := watchProvisioning(cfg, name, hostname, spec); err != nil {
+	if opts.Wait && committed {
+		if err := watchProvisioning(cfg, opts, name, hostname, spec); err != nil {
 			// Non-fatal — the resource was already committed
 			fmt.Printf("\n%s %s\n", tui.WarningStyle.Render(tui.IconWarn), err.Error())
 			fmt.Printf("%s\n", tui.DimStyle.Render("The request was committed. Check status later: hctl vcluster status "+name))

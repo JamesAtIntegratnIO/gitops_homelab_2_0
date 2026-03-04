@@ -9,7 +9,7 @@ import (
 )
 
 // collectNameAndPreset resolves the vCluster name and preset from args, flags, or interactive prompts.
-func collectNameAndPreset(cmd *cobra.Command, args []string, interactive bool) (string, string, error) {
+func collectNameAndPreset(cmd *cobra.Command, args []string, opts *CreateOptions, interactive bool) (string, string, error) {
 	var name string
 	if len(args) > 0 {
 		name = args[0]
@@ -31,7 +31,7 @@ func collectNameAndPreset(cmd *cobra.Command, args []string, interactive bool) (
 	}
 
 	// ── Preset ────────────────────────────────────────────────────────
-	preset := createPreset
+	preset := opts.Preset
 	if interactive && preset == "" {
 		idx, err := tui.Select("Select preset", []string{
 			"dev  — 1 replica, 768Mi, SQLite, no persistence",
@@ -57,7 +57,7 @@ func collectNameAndPreset(cmd *cobra.Command, args []string, interactive bool) (
 }
 
 // collectAdvancedSettings runs the interactive wizard for advanced vCluster settings.
-func collectAdvancedSettings(cmd *cobra.Command, spec *platform.VClusterSpec) error {
+func collectAdvancedSettings(cmd *cobra.Command, opts *CreateOptions, spec *platform.VClusterSpec) error {
 	advanced, _ := tui.Confirm("Customize advanced settings? (k8s version, isolation, environment, persistence, networking)")
 	if !advanced {
 		return nil
@@ -176,12 +176,12 @@ func collectAdvancedSettings(cmd *cobra.Command, spec *platform.VClusterSpec) er
 }
 
 // applyClusterMetadata parses and applies cluster labels and annotations from flags.
-func applyClusterMetadata(cmd *cobra.Command, spec *platform.VClusterSpec) error {
-	if len(createClusterLabels) > 0 && spec.Integrations.ArgoCD != nil {
+func applyClusterMetadata(cmd *cobra.Command, opts *CreateOptions, spec *platform.VClusterSpec) error {
+	if len(opts.ClusterLabels) > 0 && spec.Integrations.ArgoCD != nil {
 		if spec.Integrations.ArgoCD.ClusterLabels == nil {
 			spec.Integrations.ArgoCD.ClusterLabels = map[string]string{}
 		}
-		for _, kv := range createClusterLabels {
+		for _, kv := range opts.ClusterLabels {
 			k, v, err := parseKeyValue(kv)
 			if err != nil {
 				return fmt.Errorf("invalid --cluster-label %q: %w", kv, err)
@@ -189,11 +189,11 @@ func applyClusterMetadata(cmd *cobra.Command, spec *platform.VClusterSpec) error
 			spec.Integrations.ArgoCD.ClusterLabels[k] = v
 		}
 	}
-	if len(createClusterAnnotations) > 0 && spec.Integrations.ArgoCD != nil {
+	if len(opts.ClusterAnnotations) > 0 && spec.Integrations.ArgoCD != nil {
 		if spec.Integrations.ArgoCD.ClusterAnnotations == nil {
 			spec.Integrations.ArgoCD.ClusterAnnotations = map[string]string{}
 		}
-		for _, kv := range createClusterAnnotations {
+		for _, kv := range opts.ClusterAnnotations {
 			k, v, err := parseKeyValue(kv)
 			if err != nil {
 				return fmt.Errorf("invalid --cluster-annotation %q: %w", kv, err)
@@ -205,19 +205,22 @@ func applyClusterMetadata(cmd *cobra.Command, spec *platform.VClusterSpec) error
 }
 
 // collectWorkloadRepo handles workload repo configuration from flags or interactive prompts.
-func collectWorkloadRepo(cmd *cobra.Command, spec *platform.VClusterSpec, interactive bool) error {
-	hasWorkloadFlags := createWorkloadRepoURL != "" || createWorkloadRepoBasePath != "" ||
-		createWorkloadRepoPath != "" || createWorkloadRepoRevision != ""
+func collectWorkloadRepo(cmd *cobra.Command, opts *CreateOptions, spec *platform.VClusterSpec, interactive bool) error {
+	hasWorkloadFlags := opts.WorkloadRepoURL != "" || opts.WorkloadRepoBasePath != "" ||
+		opts.WorkloadRepoPath != "" || opts.WorkloadRepoRevision != ""
 
 	if interactive && !hasWorkloadFlags {
-		confirmed, _ := tui.Confirm("Use a custom workload repository? (default: workloads/ in this repo)")
+		confirmed, confirmErr := tui.Confirm("Use a custom workload repository? (default: workloads/ in this repo)")
+		if confirmErr != nil {
+			return fmt.Errorf("confirming workload repo: %w", confirmErr)
+		}
 		if confirmed {
 			url, err := tui.Input("Workload repo URL", "e.g. https://github.com/myorg/my-workloads", "")
 			if err != nil {
 				return fmt.Errorf("collecting workload repo URL: %w", err)
 			}
 			if url != "" {
-				createWorkloadRepoURL = url
+				opts.WorkloadRepoURL = url
 			}
 
 			basePath, err := tui.Input("Base path in repo (optional)", "e.g. clusters/dev-team-1", "")
@@ -225,7 +228,7 @@ func collectWorkloadRepo(cmd *cobra.Command, spec *platform.VClusterSpec, intera
 				return fmt.Errorf("collecting workload repo base path: %w", err)
 			}
 			if basePath != "" {
-				createWorkloadRepoBasePath = basePath
+				opts.WorkloadRepoBasePath = basePath
 			}
 
 			path, err := tui.Input("Workload path", "directory containing manifests", "workloads")
@@ -233,7 +236,7 @@ func collectWorkloadRepo(cmd *cobra.Command, spec *platform.VClusterSpec, intera
 				return fmt.Errorf("collecting workload path: %w", err)
 			}
 			if path != "" {
-				createWorkloadRepoPath = path
+				opts.WorkloadRepoPath = path
 			}
 
 			rev, err := tui.Input("Git revision (branch/tag)", "", "main")
@@ -241,27 +244,27 @@ func collectWorkloadRepo(cmd *cobra.Command, spec *platform.VClusterSpec, intera
 				return fmt.Errorf("collecting git revision: %w", err)
 			}
 			if rev != "" {
-				createWorkloadRepoRevision = rev
+				opts.WorkloadRepoRevision = rev
 			}
 
-			hasWorkloadFlags = createWorkloadRepoURL != "" || createWorkloadRepoBasePath != "" ||
-				createWorkloadRepoPath != "" || createWorkloadRepoRevision != ""
+			hasWorkloadFlags = opts.WorkloadRepoURL != "" || opts.WorkloadRepoBasePath != "" ||
+				opts.WorkloadRepoPath != "" || opts.WorkloadRepoRevision != ""
 		}
 	}
 
 	if hasWorkloadFlags && spec.Integrations.ArgoCD != nil {
 		spec.Integrations.ArgoCD.WorkloadRepo = &platform.WorkloadRepoConfig{}
-		if createWorkloadRepoURL != "" {
-			spec.Integrations.ArgoCD.WorkloadRepo.URL = createWorkloadRepoURL
+		if opts.WorkloadRepoURL != "" {
+			spec.Integrations.ArgoCD.WorkloadRepo.URL = opts.WorkloadRepoURL
 		}
-		if createWorkloadRepoBasePath != "" {
-			spec.Integrations.ArgoCD.WorkloadRepo.BasePath = createWorkloadRepoBasePath
+		if opts.WorkloadRepoBasePath != "" {
+			spec.Integrations.ArgoCD.WorkloadRepo.BasePath = opts.WorkloadRepoBasePath
 		}
-		if createWorkloadRepoPath != "" {
-			spec.Integrations.ArgoCD.WorkloadRepo.Path = createWorkloadRepoPath
+		if opts.WorkloadRepoPath != "" {
+			spec.Integrations.ArgoCD.WorkloadRepo.Path = opts.WorkloadRepoPath
 		}
-		if createWorkloadRepoRevision != "" {
-			spec.Integrations.ArgoCD.WorkloadRepo.Revision = createWorkloadRepoRevision
+		if opts.WorkloadRepoRevision != "" {
+			spec.Integrations.ArgoCD.WorkloadRepo.Revision = opts.WorkloadRepoRevision
 		}
 	}
 

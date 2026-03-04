@@ -34,7 +34,10 @@ Templates:
 
 			scorePath := "score.yaml"
 			if _, err := os.Stat(scorePath); err == nil {
-				confirmed, _ := tui.Confirm("score.yaml already exists. Overwrite?")
+				confirmed, confirmErr := tui.Confirm("score.yaml already exists. Overwrite?")
+				if confirmErr != nil {
+					return fmt.Errorf("confirming overwrite: %w", confirmErr)
+				}
 				if !confirmed {
 					return nil
 				}

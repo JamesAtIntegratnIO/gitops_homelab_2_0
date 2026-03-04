@@ -18,7 +18,7 @@ import (
 
 // writeAndCommitVCluster marshals the VClusterSpec, writes it to disk, and runs the git workflow.
 // Returns true if the resource was committed.
-func writeAndCommitVCluster(cfg *config.Config, name, preset string, spec platform.VClusterSpec, interactive bool) (bool, error) {
+func writeAndCommitVCluster(cfg *config.Config, opts *CreateOptions, name, preset string, spec platform.VClusterSpec, interactive bool) (bool, error) {
 	resource := platform.NewVClusterResource(spec, cfg.Platform.PlatformNamespace)
 
 	data, err := yaml.Marshal(resource)
@@ -68,7 +68,7 @@ func writeAndCommitVCluster(cfg *config.Config, name, preset string, spec platfo
 
 	// Git handling
 	gitMode := cfg.GitMode
-	if createAutoCommit {
+	if opts.AutoCommit {
 		gitMode = "auto"
 	}
 
@@ -80,6 +80,7 @@ func writeAndCommitVCluster(cfg *config.Config, name, preset string, spec platfo
 		Details:     fmt.Sprintf("%s, %d replicas", preset, spec.VCluster.Replicas),
 		GitMode:     gitMode,
 		Interactive: interactive,
+		UI:          tui.GitUIAdapter{},
 	})
 	if err != nil {
 		return false, fmt.Errorf("running git workflow: %w", err)
@@ -92,14 +93,14 @@ func writeAndCommitVCluster(cfg *config.Config, name, preset string, spec platfo
 }
 
 // watchProvisioning runs the animated provisioning wait sequence.
-func watchProvisioning(cfg *config.Config, name, hostname string, spec platform.VClusterSpec) error {
+func watchProvisioning(cfg *config.Config, opts *CreateOptions, name, hostname string, spec platform.VClusterSpec) error {
 	client, err := kube.NewClient(cfg.KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
 	}
 
 	ns := cfg.Platform.PlatformNamespace
-	timeout := time.Duration(createTimeout) * time.Second
+	timeout := time.Duration(opts.Timeout) * time.Second
 	poll := 3 * time.Second
 
 	steps := []tui.Step{

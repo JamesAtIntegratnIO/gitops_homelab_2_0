@@ -143,6 +143,7 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 				Details:     layer + "/" + env,
 				GitMode:     cfg.GitMode,
 				Interactive: cfg.Interactive,
+				UI:          tui.GitUIAdapter{},
 			}); err != nil {
 				return fmt.Errorf("committing addon changes: %w", err)
 			}

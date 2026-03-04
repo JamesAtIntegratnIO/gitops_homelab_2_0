@@ -124,6 +124,7 @@ Without --remove, the entry remains but is marked disabled.`,
 				Details:     layer + "/" + env,
 				GitMode:     cfg.GitMode,
 				Interactive: cfg.Interactive,
+				UI:          tui.GitUIAdapter{},
 			}); err != nil {
 				return fmt.Errorf("committing addon changes: %w", err)
 			}

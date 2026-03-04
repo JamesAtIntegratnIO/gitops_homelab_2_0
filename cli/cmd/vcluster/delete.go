@@ -63,6 +63,7 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 				Resource:    name,
 				GitMode:     cfg.GitMode,
 				Interactive: cfg.Interactive,
+				UI:          tui.GitUIAdapter{},
 			}); err != nil {
 				return err
 			}
