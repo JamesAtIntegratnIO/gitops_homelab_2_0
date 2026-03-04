@@ -56,13 +56,13 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 			// Determine addons.yaml path based on layer
 			addonsPath, valuesDir, err := resolveLayerPaths(cfg.RepoPath, layer, env, clusterRole, cluster, addonName)
 			if err != nil {
-				return fmt.Errorf("resolving addon paths: %w", err)
+				return hcerrors.NewUserError("resolving addon paths: %w", err)
 			}
 
 			// Read or create addons.yaml
 			entries, err := readAddonsYAML(addonsPath)
 			if err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("reading addons config: %w", err)
+				return hcerrors.NewPlatformError("reading addons config: %w", err)
 			}
 			if entries == nil {
 				entries = make(map[string]map[string]interface{})
@@ -102,20 +102,20 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 
 			// Write addons.yaml
 			if err := writeAddonsYAML(addonsPath, entries); err != nil {
-				return fmt.Errorf("writing addons config: %w", err)
+				return hcerrors.NewPlatformError("writing addons config: %w", err)
 			}
 			changedPaths = append(changedPaths, addonsPath)
 
 			// Scaffold values directory
 			if err := os.MkdirAll(valuesDir, 0o755); err != nil {
-				return fmt.Errorf("creating values directory: %w", err)
+				return hcerrors.NewPlatformError("creating values directory: %w", err)
 			}
 
 			valuesFile := filepath.Join(valuesDir, "values.yaml")
 			if _, err := os.Stat(valuesFile); os.IsNotExist(err) {
 				scaffold := fmt.Sprintf("# %s values\n# Layer: %s\n# See: https://github.com/stakater/application\n", addonName, layer)
 				if err := os.WriteFile(valuesFile, []byte(scaffold), 0o644); err != nil {
-					return fmt.Errorf("writing values scaffold: %w", err)
+					return hcerrors.NewPlatformError("writing values scaffold: %w", err)
 				}
 				changedPaths = append(changedPaths, valuesFile)
 				fmt.Printf("%s Scaffolded %s\n", tui.SuccessStyle.Render(tui.IconCheck), valuesFile)
@@ -146,7 +146,7 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 				Interactive: cfg.Interactive,
 				UI:          tui.GitUIAdapter{},
 			}); err != nil {
-				return fmt.Errorf("committing addon changes: %w", err)
+				return hcerrors.NewPlatformError("committing addon changes: %w", err)
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will sync the addon on next reconciliation."))

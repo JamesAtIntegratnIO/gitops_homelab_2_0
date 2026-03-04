@@ -37,7 +37,7 @@ and removing its values directory. ArgoCD will clean up the resources on next sy
 			if cfg.Interactive {
 				ok, confirmErr := tui.Confirm(fmt.Sprintf("Remove workload %q from cluster %q?", workloadName, cluster))
 				if confirmErr != nil {
-					return fmt.Errorf("confirming operation: %w", confirmErr)
+					return hcerrors.NewUserError("confirming operation: %w", confirmErr)
 				}
 				if !ok {
 					fmt.Println(tui.DimStyle.Render("Cancelled"))
@@ -47,7 +47,7 @@ and removing its values directory. ArgoCD will clean up the resources on next sy
 
 			removedPaths, err := deploylib.RemoveWorkload(cfg.RepoPath, cluster, workloadName)
 			if err != nil {
-				return fmt.Errorf("removing workload files: %w", err)
+				return hcerrors.NewPlatformError("removing workload files: %w", err)
 			}
 
 			fmt.Printf("%s Removed workload %s from %s\n",
@@ -65,7 +65,7 @@ and removing its values directory. ArgoCD will clean up the resources on next sy
 				ConfirmPrompt: "Commit and push removal?",
 				UI:            tui.GitUIAdapter{},
 			}); err != nil {
-				return fmt.Errorf("committing workload removal: %w", err)
+				return hcerrors.NewPlatformError("committing workload removal: %w", err)
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will remove the workload on next sync."))

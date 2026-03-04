@@ -45,12 +45,12 @@ Without --remove, the entry remains but is marked disabled.`,
 
 			addonsPath, valuesDir, err := resolveLayerPaths(cfg.RepoPath, layer, env, clusterRole, cluster, addonName)
 			if err != nil {
-				return fmt.Errorf("resolving addon paths: %w", err)
+				return hcerrors.NewUserError("resolving addon paths: %w", err)
 			}
 
 			entries, err := readAddonsYAML(addonsPath)
 			if err != nil {
-				return fmt.Errorf("reading addons.yaml: %w", err)
+				return hcerrors.NewPlatformError("reading addons.yaml: %w", err)
 			}
 
 			if _, ok := entries[addonName]; !ok {
@@ -65,7 +65,7 @@ Without --remove, the entry remains but is marked disabled.`,
 				label := strings.ToUpper(action[:1]) + action[1:]
 				ok, confirmErr := tui.Confirm(fmt.Sprintf("%s addon %q from %s?", label, addonName, filepath.Base(filepath.Dir(addonsPath))))
 				if confirmErr != nil {
-					return fmt.Errorf("confirming operation: %w", confirmErr)
+					return hcerrors.NewUserError("confirming operation: %w", confirmErr)
 				}
 				if !ok {
 					fmt.Println(tui.DimStyle.Render("Cancelled"))
@@ -94,7 +94,7 @@ Without --remove, the entry remains but is marked disabled.`,
 			}
 
 			if err := writeAddonsYAML(addonsPath, entries); err != nil {
-				return fmt.Errorf("writing addons config: %w", err)
+				return hcerrors.NewPlatformError("writing addons config: %w", err)
 			}
 			changedPaths = append(changedPaths, addonsPath)
 
@@ -127,7 +127,7 @@ Without --remove, the entry remains but is marked disabled.`,
 				Interactive: cfg.Interactive,
 				UI:          tui.GitUIAdapter{},
 			}); err != nil {
-				return fmt.Errorf("committing addon changes: %w", err)
+				return hcerrors.NewPlatformError("committing addon changes: %w", err)
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will reflect the change on next sync."))

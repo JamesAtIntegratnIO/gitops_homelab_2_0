@@ -37,7 +37,7 @@ Useful for maintenance or cost-saving on idle namespaces.`,
 
 			confirmed, confirmErr := tui.Confirm(fmt.Sprintf("Scale down all deployments in namespace %q?", ns))
 			if confirmErr != nil {
-				return fmt.Errorf("confirming scale down: %w", confirmErr)
+				return hcerrors.NewUserError("confirming scale down: %w", confirmErr)
 			}
 			if !confirmed {
 				fmt.Println("Cancelled")

@@ -50,7 +50,7 @@ If no workload name is given, reads from score.yaml in the current directory.`,
 
 			client, err := kube.Shared()
 			if err != nil {
-				return hcerrors.NewPlatformError("connecting to cluster: %v", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

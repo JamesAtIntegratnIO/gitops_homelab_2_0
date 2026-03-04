@@ -35,7 +35,7 @@ func newAddonListCmd() *cobra.Command {
 
 			entries, err := readAddonsYAML(filepath.Join(repoPath, "addons", "environments", env, "addons", "addons.yaml"))
 			if err != nil {
-				return fmt.Errorf("reading addons config: %w", err)
+				return hcerrors.NewPlatformError("reading addons config: %w", err)
 			}
 
 			if len(entries) == 0 {

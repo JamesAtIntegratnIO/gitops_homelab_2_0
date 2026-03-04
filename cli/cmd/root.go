@@ -149,7 +149,9 @@ func initConfig() {
 	}
 	config.Set(cfg)
 
-	// Wire output format into TUI layer
+	// Wire config values into TUI layer (avoids tui→config dependency)
+	tui.SetVerbose(cfg.Verbose)
+	tui.SetQuiet(cfg.Quiet)
 	if cfg.OutputFormat != "" {
 		tui.SetOutputFormat(cfg.OutputFormat)
 	}
@@ -253,7 +255,7 @@ Examples:
 			case "fish":
 				return rootCmd.GenFishCompletion(os.Stdout, true)
 			default:
-				return fmt.Errorf("unsupported shell: %s", args[0])
+				return hcerrors.NewUserError("unsupported shell: %s", args[0])
 			}
 		},
 	}

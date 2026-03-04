@@ -36,7 +36,7 @@ func newDeployListCmd() *cobra.Command {
 
 			workloads, err := deploylib.ListWorkloads(cfg.RepoPath, cluster)
 			if err != nil {
-				return fmt.Errorf("reading workloads: %w", err)
+				return hcerrors.NewPlatformError("reading workloads: %w", err)
 			}
 
 			if len(workloads) == 0 {

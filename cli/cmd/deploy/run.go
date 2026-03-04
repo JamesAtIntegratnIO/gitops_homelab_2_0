@@ -155,7 +155,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 			}
 			for _, r := range results {
 				if r.Err != nil {
-					return fmt.Errorf("deploy failed at %q: %w", r.Title, r.Err)
+					return hcerrors.NewPlatformError("deploy failed at %q: %w", r.Title, r.Err)
 				}
 			}
 

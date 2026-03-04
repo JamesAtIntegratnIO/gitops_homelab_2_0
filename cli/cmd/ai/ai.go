@@ -52,7 +52,7 @@ func newReindexCmd() *cobra.Command {
 			// Get the CronJob to extract the job template
 			cronJob, err := client.Clientset.BatchV1().CronJobs(aiNamespace).Get(ctx, cronJobName, metav1.GetOptions{})
 			if err != nil {
-				return fmt.Errorf("getting cronjob %s/%s: %w", aiNamespace, cronJobName, err)
+				return hcerrors.NewPlatformError("getting cronjob %s/%s: %w", aiNamespace, cronJobName, err)
 			}
 
 			// Build a Job from the CronJob template
@@ -75,7 +75,7 @@ func newReindexCmd() *cobra.Command {
 
 			created, err := client.Clientset.BatchV1().Jobs(aiNamespace).Create(ctx, job, metav1.CreateOptions{})
 			if err != nil {
-				return fmt.Errorf("creating job: %w", err)
+				return hcerrors.NewPlatformError("creating job: %w", err)
 			}
 
 			fmt.Printf("  %s Created job %s/%s\n", tui.SuccessStyle.Render(tui.IconCheck), aiNamespace, created.Name)
@@ -99,7 +99,7 @@ func newReindexCmd() *cobra.Command {
 				case <-ticker.C:
 					j, err := client.Clientset.BatchV1().Jobs(aiNamespace).Get(ctx, created.Name, metav1.GetOptions{})
 					if err != nil {
-						return fmt.Errorf("checking job status: %w", err)
+						return hcerrors.NewPlatformError("checking job status: %w", err)
 					}
 
 					for _, cond := range j.Status.Conditions {
@@ -108,7 +108,7 @@ func newReindexCmd() *cobra.Command {
 							return nil
 						}
 						if cond.Type == batchv1.JobFailed && cond.Status == "True" {
-							return fmt.Errorf("job failed: %s", cond.Message)
+							return hcerrors.NewPlatformError("job failed: %s", cond.Message)
 						}
 					}
 

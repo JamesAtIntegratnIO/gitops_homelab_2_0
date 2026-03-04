@@ -93,13 +93,13 @@ func runKubeconfig(cmd *cobra.Command, args []string) error {
 	// Write output
 	if kubeconfigOutput != "" {
 		if err := writeFile(kubeconfigOutput, kubeconfigData); err != nil {
-			return fmt.Errorf("writing kubeconfig to %s: %w", kubeconfigOutput, err)
+			return hcerrors.NewPlatformError("writing kubeconfig to %s: %w", kubeconfigOutput, err)
 		}
 		fmt.Println(kubeconfigOutput)
 	} else {
 		path, err := kube.WriteKubeconfig(kubeconfigData, name)
 		if err != nil {
-			return fmt.Errorf("writing kubeconfig: %w", err)
+			return hcerrors.NewPlatformError("writing kubeconfig: %w", err)
 		}
 		fmt.Printf("%s Kubeconfig written to %s\n", tui.SuccessStyle.Render(tui.IconCheck), path)
 		fmt.Printf("\n  %s\n", tui.DimStyle.Render(fmt.Sprintf("export KUBECONFIG=%s", path)))
@@ -136,7 +136,7 @@ func newConnectCmd() *cobra.Command {
 
 			path, err := kube.WriteKubeconfig(kubeconfigData, name)
 			if err != nil {
-				return fmt.Errorf("writing kubeconfig: %w", err)
+				return hcerrors.NewPlatformError("writing kubeconfig: %w", err)
 			}
 
 			fmt.Printf("%s Connected to vCluster %s\n", tui.SuccessStyle.Render(tui.IconCheck), name)

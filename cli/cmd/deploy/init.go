@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -36,7 +37,7 @@ Templates:
 			if _, err := os.Stat(scorePath); err == nil {
 				confirmed, confirmErr := tui.Confirm("score.yaml already exists. Overwrite?")
 				if confirmErr != nil {
-					return fmt.Errorf("confirming overwrite: %w", confirmErr)
+					return hcerrors.NewUserError("confirming overwrite: %w", confirmErr)
 				}
 				if !confirmed {
 					return nil
@@ -50,7 +51,7 @@ Templates:
 			scaffold := generateScoreTemplate(template, workloadName, cluster, domain)
 
 			if err := os.WriteFile(scorePath, []byte(scaffold), 0o644); err != nil {
-				return fmt.Errorf("writing score.yaml: %w", err)
+				return hcerrors.NewPlatformError("writing score.yaml: %w", err)
 			}
 
 			fmt.Printf("%s Created score.yaml (template: %s)\n",

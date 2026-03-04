@@ -179,7 +179,7 @@ func runOpen(cmd *cobra.Command, args []string) error {
 
 	url, err := platform.ResolveWorkloadURL(workloadName, cluster, cfg.RepoPath, cfg.KubeContext)
 	if err != nil {
-		return fmt.Errorf("resolving workload URL: %w", err)
+		return hcerrors.NewPlatformError("resolving workload URL: %w", err)
 	}
 
 	fmt.Printf("  %s Opening %s\n", tui.InfoStyle.Render(tui.IconArrow), url)

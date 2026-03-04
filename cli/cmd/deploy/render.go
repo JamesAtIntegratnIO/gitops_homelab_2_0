@@ -36,7 +36,7 @@ Supports --output json/yaml for machine-readable output.`,
 
 			result, err := deploylib.Translate(workload, cluster)
 			if err != nil {
-				return fmt.Errorf("translating workload: %w", err)
+				return hcerrors.NewPlatformError("translating workload: %w", err)
 			}
 
 			// Structured output: emit the full translation result
@@ -101,7 +101,7 @@ Exit codes: 0 = no changes, 1 = error, 2 = changes detected.`,
 
 			result, err := deploylib.Translate(workload, cluster)
 			if err != nil {
-				return fmt.Errorf("translating workload: %w", err)
+				return hcerrors.NewPlatformError("translating workload: %w", err)
 			}
 
 			hasChanges := false

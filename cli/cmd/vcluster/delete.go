@@ -42,7 +42,7 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 			// Confirm deletion
 			confirmed, confirmErr := tui.Confirm(fmt.Sprintf("Delete vCluster %q? This will remove %s and trigger cleanup.", name, filePath))
 			if confirmErr != nil {
-				return fmt.Errorf("confirming operation: %w", confirmErr)
+				return hcerrors.NewUserError("confirming operation: %w", confirmErr)
 			}
 			if !confirmed {
 				fmt.Println("Cancelled")
@@ -50,7 +50,7 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 			}
 
 			if err := os.Remove(filePath); err != nil {
-				return fmt.Errorf("removing file: %w", err)
+				return hcerrors.NewPlatformError("removing file: %w", err)
 			}
 
 			relPath, _ := filepath.Rel(repoPath, filePath)
@@ -66,7 +66,7 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 				Interactive: cfg.Interactive,
 				UI:          tui.GitUIAdapter{},
 			}); err != nil {
-				return fmt.Errorf("committing vcluster deletion: %w", err)
+				return hcerrors.NewPlatformError("committing vcluster deletion: %w", err)
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will remove the resource and Kratix will clean up."))

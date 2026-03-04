@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -144,19 +145,19 @@ func runCreate(cmd *cobra.Command, args []string, opts *CreateOptions) error {
 	// Phase 1: Collect name and preset
 	name, preset, err := collectNameAndPreset(cmd, args, opts, interactive)
 	if err != nil {
-		return fmt.Errorf("collecting parameters: %w", err)
+		return hcerrors.NewUserError("collecting parameters: %w", err)
 	}
 
 	// Phase 2: Build and configure spec
 	spec, err := buildVClusterSpec(cmd, cfg, opts, name, preset, interactive)
 	if err != nil {
-		return fmt.Errorf("building vcluster spec: %w", err)
+		return hcerrors.NewUserError("building vcluster spec: %w", err)
 	}
 
 	// Phase 3: Marshal, write, and commit
 	committed, err := writeAndCommitVCluster(cfg, opts, name, preset, spec, interactive)
 	if err != nil {
-		return fmt.Errorf("writing vcluster: %w", err)
+		return hcerrors.NewPlatformError("writing vcluster: %w", err)
 	}
 
 	// Phase 4: Optionally watch provisioning

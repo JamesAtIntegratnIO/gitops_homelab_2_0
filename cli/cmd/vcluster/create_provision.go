@@ -36,7 +36,7 @@ func writeAndCommitVCluster(cfg *config.Config, opts *CreateOptions, name, prese
 	if repoPath == "" {
 		repo, err := git.DetectRepo("")
 		if err != nil {
-			return false, fmt.Errorf("cannot detect repo — run 'hctl init' first or set repoPath in config")
+			return false, hcerrors.NewUserError("cannot detect repo — run 'hctl init' first or set repoPath in config")
 		}
 		repoPath = repo.Root
 	}
@@ -46,13 +46,13 @@ func writeAndCommitVCluster(cfg *config.Config, opts *CreateOptions, name, prese
 		if interactive {
 			confirmed, confirmErr := tui.Confirm(fmt.Sprintf("File %s already exists. Overwrite?", outPath))
 			if confirmErr != nil {
-				return false, fmt.Errorf("confirming operation: %w", confirmErr)
+				return false, hcerrors.NewUserError("confirming operation: %w", confirmErr)
 			}
 			if !confirmed {
-				return false, fmt.Errorf("cancelled")
+				return false, hcerrors.NewUserError("cancelled")
 			}
 		} else {
-			return false, fmt.Errorf("file already exists: %s (use --auto-commit with caution)", outPath)
+			return false, hcerrors.NewUserError("file already exists: %s (use --auto-commit with caution)", outPath)
 		}
 	}
 
@@ -96,7 +96,7 @@ func writeAndCommitVCluster(cfg *config.Config, opts *CreateOptions, name, prese
 func watchProvisioning(cfg *config.Config, opts *CreateOptions, name, hostname string, spec platform.VClusterSpec) error {
 	client, err := kube.Shared()
 	if err != nil {
-		return hcerrors.NewPlatformError("connecting to cluster: %v", err)
+		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
 
 	ns := cfg.Platform.PlatformNamespace
