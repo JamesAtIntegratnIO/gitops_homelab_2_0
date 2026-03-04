@@ -62,7 +62,10 @@ Without --remove, the entry remains but is marked disabled.`,
 					action = "remove"
 				}
 				label := strings.ToUpper(action[:1]) + action[1:]
-				ok, _ := tui.Confirm(fmt.Sprintf("%s addon %q from %s?", label, addonName, filepath.Base(filepath.Dir(addonsPath))))
+				ok, confirmErr := tui.Confirm(fmt.Sprintf("%s addon %q from %s?", label, addonName, filepath.Base(filepath.Dir(addonsPath))))
+				if confirmErr != nil {
+					return fmt.Errorf("confirming operation: %w", confirmErr)
+				}
 				if !ok {
 					fmt.Println(tui.DimStyle.Render("Cancelled"))
 					return nil

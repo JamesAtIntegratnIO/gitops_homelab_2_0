@@ -7,8 +7,8 @@ import (
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
-	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	"github.com/spf13/cobra"
 )
 
@@ -34,9 +34,9 @@ func newAddonStatusCmd() *cobra.Command {
 				return fmt.Errorf("addon %q not found as ArgoCD application: %w", addonName, err)
 			}
 
-			syncStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "status")
-			healthStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "health", "status")
-			revision, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "revision")
+			syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
+			healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
+			revision, _, _ := unstr.NestedString(app.Object, "status", "sync", "revision")
 
 			fmt.Printf("\n%s\n\n", tui.TitleStyle.Render(addonName))
 			fmt.Printf("  Sync:     %s\n", syncStatus)

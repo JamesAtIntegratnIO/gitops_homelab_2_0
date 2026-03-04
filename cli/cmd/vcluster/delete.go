@@ -39,7 +39,10 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 			}
 
 			// Confirm deletion
-			confirmed, _ := tui.Confirm(fmt.Sprintf("Delete vCluster %q? This will remove %s and trigger cleanup.", name, filePath))
+			confirmed, confirmErr := tui.Confirm(fmt.Sprintf("Delete vCluster %q? This will remove %s and trigger cleanup.", name, filePath))
+			if confirmErr != nil {
+				return fmt.Errorf("confirming operation: %w", confirmErr)
+			}
 			if !confirmed {
 				fmt.Println("Cancelled")
 				return nil

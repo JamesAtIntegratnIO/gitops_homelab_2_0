@@ -11,9 +11,9 @@ import (
 	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
-	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/score"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -186,8 +186,8 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 				cancel()
 
 				if aErr == nil {
-					syncStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "status")
-					healthStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "health", "status")
+					syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
+					healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
 					phase := fmt.Sprintf("%s/%s", syncStatus, healthStatus)
 
 					if syncStatus == "Synced" && healthStatus == "Healthy" {

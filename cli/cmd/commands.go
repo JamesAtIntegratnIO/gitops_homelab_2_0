@@ -14,6 +14,7 @@ import (
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	"github.com/spf13/cobra"
 )
 
@@ -127,8 +128,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				synced, outOfSync, degraded, healthy := 0, 0, 0, 0
 				var unhealthyRows [][]string
 				for _, app := range apps {
-					syncStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "status")
-					healthStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "health", "status")
+					syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
+					healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
 					if syncStatus == "Synced" {
 						synced++
 					} else {
@@ -178,7 +179,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				var rows [][]string
 				for _, p := range promises {
 					status := "Unknown"
-					conditions, _, _ := platform.UnstructuredNestedSlice(p.Object, "status", "conditions")
+					conditions, _, _ := unstr.NestedSlice(p.Object, "status", "conditions")
 					for _, c := range conditions {
 						if cm, ok := c.(map[string]interface{}); ok {
 							if cm["type"] == "Available" {
@@ -211,14 +212,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				var rows [][]string
 				for _, vc := range vclusters {
 					name := vc.GetName()
-					preset, _, _ := platform.UnstructuredNestedString(vc.Object, "spec", "vcluster", "preset")
-					hostname, _, _ := platform.UnstructuredNestedString(vc.Object, "spec", "exposure", "hostname")
+					preset, _, _ := unstr.NestedString(vc.Object, "spec", "vcluster", "preset")
+					hostname, _, _ := unstr.NestedString(vc.Object, "spec", "exposure", "hostname")
 
 					argoApp, err := client.GetArgoApp(ctx, "argocd", name)
 					health := tui.DimStyle.Render("unknown")
 					if err == nil {
-						syncStatus, _, _ := platform.UnstructuredNestedString(argoApp.Object, "status", "sync", "status")
-						healthStatus, _, _ := platform.UnstructuredNestedString(argoApp.Object, "status", "health", "status")
+						syncStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "sync", "status")
+						healthStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "health", "status")
 						if syncStatus == "Synced" && healthStatus == "Healthy" {
 							health = tui.SuccessStyle.Render("Healthy")
 						} else {

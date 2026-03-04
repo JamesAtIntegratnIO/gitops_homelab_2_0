@@ -8,8 +8,8 @@ import (
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
-	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	"github.com/spf13/cobra"
 )
 
@@ -54,7 +54,7 @@ func runTrace(cmd *cobra.Command, args []string) error {
 	// Stage 1: Kratix ResourceRequest (VClusterOrchestratorV2)
 	vc, vcErr := client.GetVCluster(ctx, cfg.Platform.PlatformNamespace, name)
 	if vcErr == nil {
-		phase, _, _ := platform.UnstructuredNestedString(vc.Object, "status", "phase")
+		phase, _, _ := unstr.NestedString(vc.Object, "status", "phase")
 		if phase == "" {
 			phase = "Unknown"
 		}
@@ -65,8 +65,8 @@ func runTrace(cmd *cobra.Command, args []string) error {
 		})
 
 		// Stage 2: Pipeline Job
-		pipelineMsg, _, _ := platform.UnstructuredNestedString(vc.Object, "status", "message")
-		conditions, _, _ := platform.UnstructuredNestedSlice(vc.Object, "status", "conditions")
+		pipelineMsg, _, _ := unstr.NestedString(vc.Object, "status", "message")
+		conditions, _, _ := unstr.NestedSlice(vc.Object, "status", "conditions")
 		pipelineStatus := "Unknown"
 		if len(conditions) > 0 {
 			pipelineStatus = "Completed"
@@ -103,9 +103,9 @@ func runTrace(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if aErr == nil {
-		syncStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "status")
-		healthStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "health", "status")
-		revision, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "revision")
+		syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
+		healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
+		revision, _, _ := unstr.NestedString(app.Object, "status", "sync", "revision")
 		argoStatus := fmt.Sprintf("%s/%s", syncStatus, healthStatus)
 		details := ""
 		if revision != "" {

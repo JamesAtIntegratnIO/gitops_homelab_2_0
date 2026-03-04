@@ -44,7 +44,10 @@ func writeAndCommitVCluster(cfg *config.Config, name, preset string, spec platfo
 	outPath := filepath.Join(repoPath, "platform", "vclusters", name+".yaml")
 	if _, err := os.Stat(outPath); err == nil {
 		if interactive {
-			confirmed, _ := tui.Confirm(fmt.Sprintf("File %s already exists. Overwrite?", outPath))
+			confirmed, confirmErr := tui.Confirm(fmt.Sprintf("File %s already exists. Overwrite?", outPath))
+			if confirmErr != nil {
+				return false, fmt.Errorf("confirming operation: %w", confirmErr)
+			}
 			if !confirmed {
 				return false, fmt.Errorf("cancelled")
 			}

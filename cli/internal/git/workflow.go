@@ -85,7 +85,9 @@ func HandleGitWorkflow(opts WorkflowOpts) (GitResult, error) {
 		confirmed, _ := tui.Confirm(prompt)
 		if !confirmed {
 			// Best-effort stage so files aren't lost
-			_ = repo.Add(opts.Paths...)
+			if err := repo.Add(opts.Paths...); err != nil {
+				return GitSkipped, fmt.Errorf("staging git changes: %w", err)
+			}
 			fmt.Println(tui.DimStyle.Render("  Skipped git commit. Run manually: git add && git commit && git push"))
 			return GitStaged, nil
 		}
@@ -140,7 +142,9 @@ func HandleGitWorkflowStep(opts WorkflowOpts) tui.Step {
 				}
 				return msg + " (push manually)", nil
 			default:
-				_ = repo.Add(opts.Paths...)
+				if err := repo.Add(opts.Paths...); err != nil {
+					return "", fmt.Errorf("staging git changes: %w", err)
+				}
 				return "staged — commit manually", nil
 			}
 		},

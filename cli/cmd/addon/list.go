@@ -10,8 +10,8 @@ import (
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
-	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	"github.com/spf13/cobra"
 )
 
@@ -52,8 +52,8 @@ func newAddonListCmd() *cobra.Command {
 				if err == nil {
 					appStatus = make(map[string]string)
 					for _, app := range argoApps {
-						syncStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "status")
-						healthStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "health", "status")
+					syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
+					healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
 						appStatus[app.GetName()] = fmt.Sprintf("%s/%s", syncStatus, healthStatus)
 					}
 				}

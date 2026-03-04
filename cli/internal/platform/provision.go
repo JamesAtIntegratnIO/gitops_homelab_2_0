@@ -8,6 +8,7 @@ import (
 
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -123,8 +124,8 @@ func WaitForArgoSync(ctx context.Context, client *kube.Client, name string, poll
 			continue
 		}
 
-		syncStatus, _, _ := UnstructuredNestedString(app.Object, "status", "sync", "status")
-		healthStatus, _, _ := UnstructuredNestedString(app.Object, "status", "health", "status")
+		syncStatus, _, _ := unstr.NestedString(app.Object, "status", "sync", "status")
+		healthStatus, _, _ := unstr.NestedString(app.Object, "status", "health", "status")
 
 		if syncStatus == "Synced" && healthStatus == "Healthy" {
 			return "synced and healthy", nil

@@ -168,7 +168,7 @@ func DiagnoseVCluster(ctx context.Context, client *kube.Client, namespace, name 
 			if strings.Contains(wp.GetName(), name) {
 				found = true
 				// Check for failing status
-				conditions, _, _ := UnstructuredNestedSlice(wp.Object, "status", "conditions")
+				conditions, _, _ := unstr.NestedSlice(wp.Object, "status", "conditions")
 				failing := false
 				for _, c := range conditions {
 					if cm, ok := c.(map[string]interface{}); ok {
@@ -205,7 +205,7 @@ func DiagnoseVCluster(ctx context.Context, client *kube.Client, namespace, name 
 
 	// Step 5: Check ArgoCD Application
 	targetNs := name
-	if ns, ok, _ := UnstructuredNestedString(vc.Object, "spec", "targetNamespace"); ok && ns != "" {
+	if ns, ok, _ := unstr.NestedString(vc.Object, "spec", "targetNamespace"); ok && ns != "" {
 		targetNs = ns
 	}
 
@@ -223,8 +223,8 @@ func DiagnoseVCluster(ctx context.Context, client *kube.Client, namespace, name 
 			Details: err.Error(),
 		})
 	} else {
-		syncStatus, _, _ := UnstructuredNestedString(argoApp.Object, "status", "sync", "status")
-		healthStatus, _, _ := UnstructuredNestedString(argoApp.Object, "status", "health", "status")
+		syncStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "sync", "status")
+		healthStatus, _, _ := unstr.NestedString(argoApp.Object, "status", "health", "status")
 		status := StatusOK
 		if syncStatus != "Synced" || healthStatus != "Healthy" {
 			status = StatusWarning
@@ -371,14 +371,3 @@ func DiagnoseVCluster(ctx context.Context, client *kube.Client, namespace, name 
 	return result, nil
 }
 
-// UnstructuredNestedString extracts a string from a nested unstructured object.
-// Delegates to the shared unstructured package.
-func UnstructuredNestedString(obj map[string]interface{}, fields ...string) (string, bool, error) {
-	return unstr.NestedString(obj, fields...)
-}
-
-// UnstructuredNestedSlice extracts a slice from a nested unstructured object.
-// Delegates to the shared unstructured package.
-func UnstructuredNestedSlice(obj map[string]interface{}, fields ...string) ([]interface{}, bool, error) {
-	return unstr.NestedSlice(obj, fields...)
-}
