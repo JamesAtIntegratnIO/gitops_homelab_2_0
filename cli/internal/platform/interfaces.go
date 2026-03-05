@@ -26,7 +26,11 @@ type KubeClient interface {
 	ListPods(ctx context.Context, namespace, labelSelector string) ([]kube.PodInfo, error)
 	GetPodResourceInfo(ctx context.Context, namespace, labelSelector string) ([]kube.PodResourceInfo, error)
 
+	// Node operations
+	ListNodes(ctx context.Context) ([]kube.NodeInfo, error)
+
 	// Kratix / batch operations
+	ListPromises(ctx context.Context) ([]unstructured.Unstructured, error)
 	ListJobs(ctx context.Context, namespace, labelSelector string) ([]batchv1.Job, error)
 	ListWorks(ctx context.Context, namespace string) ([]unstructured.Unstructured, error)
 	ListWorkPlacements(ctx context.Context, namespace string) ([]unstructured.Unstructured, error)

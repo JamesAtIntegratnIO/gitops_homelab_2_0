@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os/exec"
 	"testing"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
@@ -68,6 +69,9 @@ func TestCheckConfigFile_MissingFile(t *testing.T) {
 }
 
 func TestCheckKubectl_Runs(t *testing.T) {
+	if _, err := exec.LookPath("kubectl"); err != nil {
+		t.Skip("requires kubectl in PATH")
+	}
 	cfg := config.Default()
 	detail, err := checkKubectl(cfg)
 	if err != nil {
@@ -78,6 +82,9 @@ func TestCheckKubectl_Runs(t *testing.T) {
 }
 
 func TestCheckGit_Runs(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("requires git in PATH")
+	}
 	cfg := config.Default()
 	detail, err := checkGit(cfg)
 	if err != nil {

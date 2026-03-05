@@ -1167,3 +1167,183 @@ func TestRemoveWorkload_NoValuesDir(t *testing.T) {
 		t.Errorf("expected 1 removed path, got %d: %v", len(removed), removed)
 	}
 }
+
+// TestTranslate_FullPipeline is an integration test that builds a realistic Score
+// workload and verifies the full Translate pipeline produces correct output.
+func TestTranslate_FullPipeline(t *testing.T) {
+	t.Parallel()
+
+	workload := &score.Workload{
+		APIVersion: "score.dev/v1b1",
+		Metadata: score.WorkloadMetadata{
+			Name: "my-web-app",
+			Annotations: map[string]string{
+				"hctl.integratn.tech/cluster": "vcluster-dev",
+			},
+		},
+		Containers: map[string]score.Container{
+			"web": {
+				Image: "ghcr.io/myorg/myapp:v1.2.3",
+				Variables: map[string]string{
+					"PORT":         "8080",
+					"DATABASE_URL": "${resources.db.url}",
+				},
+				Resources: &score.ComputeResources{
+					Requests: map[string]string{"cpu": "100m", "memory": "128Mi"},
+					Limits:   map[string]string{"cpu": "500m", "memory": "256Mi"},
+				},
+				Volumes: map[string]score.Volume{
+					"data": {
+						Source: "storage",
+						Path:   "/data",
+					},
+				},
+			},
+		},
+		Service: &score.Service{
+			Ports: map[string]score.Port{
+				"http": {Port: 8080, Protocol: "TCP"},
+			},
+		},
+		Resources: map[string]score.Resource{
+			"db": {
+				Type: "postgres",
+				Params: map[string]interface{}{
+					"database": "mydb",
+				},
+			},
+			"storage": {
+				Type: "volume",
+				Params: map[string]interface{}{
+					"size": "1Gi",
+				},
+			},
+			"web-route": {
+				Type: "route",
+				Params: map[string]interface{}{
+					"host": "myapp.cluster.integratn.tech",
+					"port": 8080,
+					"path": "/",
+				},
+			},
+		},
+	}
+
+	cfg := config.Default()
+	cfg.DefaultCluster = "vcluster-dev"
+
+	result, err := Translate(context.Background(), workload, "", cfg)
+	if err != nil {
+		t.Fatalf("Translate: %v", err)
+	}
+
+	// Verify basic result fields
+	if result.WorkloadName != "my-web-app" {
+		t.Errorf("WorkloadName = %q, want 'my-web-app'", result.WorkloadName)
+	}
+	if result.TargetCluster != "vcluster-dev" {
+		t.Errorf("TargetCluster = %q, want 'vcluster-dev'", result.TargetCluster)
+	}
+	if result.Namespace != "vcluster-dev" {
+		t.Errorf("Namespace = %q, want 'vcluster-dev'", result.Namespace)
+	}
+
+	// Verify StakaterValues structure
+	values := result.StakaterValues
+	if values == nil {
+		t.Fatal("StakaterValues should not be nil")
+	}
+	if values["applicationName"] != "my-web-app" {
+		t.Errorf("applicationName = %v, want 'my-web-app'", values["applicationName"])
+	}
+
+	// Verify deployment section
+	deployment, ok := values["deployment"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected deployment map in values")
+	}
+
+	// Image should be parsed correctly
+	imgMap, ok := deployment["image"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected image map in deployment")
+	}
+	if imgMap["repository"] != "ghcr.io/myorg/myapp" {
+		t.Errorf("image.repository = %v, want 'ghcr.io/myorg/myapp'", imgMap["repository"])
+	}
+	if imgMap["tag"] != "v1.2.3" {
+		t.Errorf("image.tag = %v, want 'v1.2.3'", imgMap["tag"])
+	}
+
+	// Ports should be present
+	if deployment["ports"] == nil {
+		t.Error("expected ports in deployment")
+	}
+
+	// Resources should be present
+	resources, ok := deployment["resources"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected resources map in deployment")
+	}
+	if resources["requests"] == nil {
+		t.Error("expected requests in resources")
+	}
+	if resources["limits"] == nil {
+		t.Error("expected limits in resources")
+	}
+
+	// Env should be present
+	if deployment["env"] == nil {
+		t.Error("expected env in deployment")
+	}
+
+	// Service section
+	svc, ok := values["service"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected service map in values")
+	}
+	if svc["ports"] == nil {
+		t.Error("expected ports in service")
+	}
+
+	// HTTPRoute section (from route resource)
+	httpRoute, ok := values["httpRoute"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected httpRoute map in values")
+	}
+	if httpRoute["enabled"] != true {
+		t.Error("expected httpRoute.enabled = true")
+	}
+
+	// Certificate section
+	cert, ok := values["certificate"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected certificate map in values")
+	}
+	if cert["enabled"] != true {
+		t.Error("expected certificate.enabled = true")
+	}
+
+	// AddonsEntry
+	if result.AddonsEntry == nil {
+		t.Fatal("AddonsEntry should not be nil")
+	}
+	if result.AddonsEntry["enabled"] != true {
+		t.Error("expected addons entry enabled = true")
+	}
+
+	// Files should contain values.yaml
+	valuesPath := filepath.Join("workloads", "vcluster-dev", "addons", "my-web-app", "values.yaml")
+	if _, ok := result.Files[valuesPath]; !ok {
+		t.Errorf("expected file at %s, got keys: %v", valuesPath, mapKeys(result.Files))
+	}
+}
+
+// mapKeys returns the keys of a map for diagnostic output.
+func mapKeys(m map[string][]byte) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}

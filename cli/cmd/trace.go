@@ -9,6 +9,7 @@ import (
 	"github.com/jamesatintegratnio/hctl/internal/config"
 	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
+	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	"github.com/spf13/cobra"
@@ -42,13 +43,18 @@ type traceHop struct {
 
 func runTrace(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	cfg := config.Get()
 
 	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
 
+	return executeTrace(client, name, config.Get())
+}
+
+// executeTrace contains the core trace logic, accepting the KubeClient interface
+// for testability. runTrace is the cobra glue that creates the concrete client.
+func executeTrace(client platform.KubeClient, name string, cfg *config.Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

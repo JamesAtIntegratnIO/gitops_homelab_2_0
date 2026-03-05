@@ -49,6 +49,10 @@ type fakeKubeClient struct {
 	worksErr        error
 	workPlacements  []unstructured.Unstructured
 	workPlErr       error
+	nodes           []kube.NodeInfo
+	nodesErr        error
+	promises        []unstructured.Unstructured
+	promisesErr     error
 }
 
 func (f *fakeKubeClient) GetVCluster(_ context.Context, _, _ string) (*unstructured.Unstructured, error) {
@@ -95,6 +99,12 @@ func (f *fakeKubeClient) ListWorks(_ context.Context, _ string) ([]unstructured.
 }
 func (f *fakeKubeClient) ListWorkPlacements(_ context.Context, _ string) ([]unstructured.Unstructured, error) {
 	return f.workPlacements, f.workPlErr
+}
+func (f *fakeKubeClient) ListNodes(_ context.Context) ([]kube.NodeInfo, error) {
+	return f.nodes, f.nodesErr
+}
+func (f *fakeKubeClient) ListPromises(_ context.Context) ([]unstructured.Unstructured, error) {
+	return f.promises, f.promisesErr
 }
 
 // ---------------------------------------------------------------------------

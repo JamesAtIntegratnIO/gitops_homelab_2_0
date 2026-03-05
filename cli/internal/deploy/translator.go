@@ -196,14 +196,15 @@ func buildDeploymentSection(w *score.Workload, allOutputs map[string]map[string]
 	// Image
 	if primaryContainer.Image != "" && primaryContainer.Image != "." {
 		parts := strings.SplitN(primaryContainer.Image, ":", 2)
-		deployment["image"] = map[string]interface{}{
+		imgMap := map[string]interface{}{
 			"repository": parts[0],
 		}
 		if len(parts) == 2 {
-			deployment["image"].(map[string]interface{})["tag"] = parts[1]
+			imgMap["tag"] = parts[1]
 		} else {
-			deployment["image"].(map[string]interface{})["tag"] = "latest"
+			imgMap["tag"] = "latest"
 		}
+		deployment["image"] = imgMap
 	}
 
 	// Ports from service

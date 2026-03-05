@@ -98,3 +98,28 @@ func (c *Client) SetManualReconciliationLabel(ctx context.Context, gvr schema.Gr
 	}
 	return nil
 }
+
+// ParsePromiseStatus extracts the availability status from a Kratix Promise
+// unstructured object by inspecting status.conditions for type "Available".
+// Returns "Available", "Unavailable", or "Unknown".
+func ParsePromiseStatus(obj map[string]interface{}) string {
+	conditions, ok := obj["status"].(map[string]interface{})
+	if !ok {
+		return "Unknown"
+	}
+	condList, ok := conditions["conditions"].([]interface{})
+	if !ok {
+		return "Unknown"
+	}
+	for _, c := range condList {
+		if cm, ok := c.(map[string]interface{}); ok {
+			if cm["type"] == "Available" {
+				if cm["status"] == "True" {
+					return "Available"
+				}
+				return "Unavailable"
+			}
+		}
+	}
+	return "Unknown"
+}

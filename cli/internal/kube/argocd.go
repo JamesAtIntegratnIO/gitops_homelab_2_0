@@ -156,3 +156,11 @@ func (c *Client) EnableArgoAutoSync(ctx context.Context, argoNamespace, appName 
 	}
 	return nil
 }
+
+// ParseArgoAppStatus extracts sync and health status strings from an unstructured
+// ArgoCD Application object. Returns empty strings when the status fields are missing.
+func ParseArgoAppStatus(obj map[string]interface{}) (syncStatus, healthStatus string) {
+	syncStatus = unstr.MustString(obj, "status", "sync", "status")
+	healthStatus = unstr.MustString(obj, "status", "health", "status")
+	return syncStatus, healthStatus
+}

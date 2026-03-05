@@ -10,10 +10,11 @@ import (
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
+	k8sunstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // loadNodesSection fetches cluster nodes and renders a table.
-func loadNodesSection(client *kube.Client) (string, error) {
+func loadNodesSection(client platform.KubeClient) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -35,7 +36,7 @@ func formatNodesTable(nodes []kube.NodeInfo) string {
 }
 
 // loadArgoCDSection fetches ArgoCD applications and renders a summary with unhealthy apps.
-func loadArgoCDSection(client *kube.Client) (string, error) {
+func loadArgoCDSection(client platform.KubeClient) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -46,8 +47,8 @@ func loadArgoCDSection(client *kube.Client) (string, error) {
 	synced, outOfSync, degraded, healthy := 0, 0, 0, 0
 	var unhealthyRows [][]string
 	for _, app := range apps {
-		syncStatus := unstr.MustString(app.Object, "status", "sync", "status")
-		healthStatus := unstr.MustString(app.Object, "status", "health", "status")
+		syncStatus, healthStatus := kube.ParseArgoAppStatus(app.Object)
+
 		if syncStatus == "Synced" {
 			synced++
 		} else {
@@ -85,7 +86,7 @@ func loadArgoCDSection(client *kube.Client) (string, error) {
 }
 
 // loadPromisesSection fetches Kratix promises and renders their availability.
-func loadPromisesSection(client *kube.Client) (string, error) {
+func loadPromisesSection(client platform.KubeClient) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -95,18 +96,15 @@ func loadPromisesSection(client *kube.Client) (string, error) {
 	}
 	var rows [][]string
 	for _, p := range promises {
-		status := "Unknown"
-		conditions := unstr.MustSlice(p.Object, "status", "conditions")
-		for _, c := range conditions {
-			if cm, ok := c.(map[string]interface{}); ok {
-				if cm["type"] == "Available" {
-					if cm["status"] == "True" {
-						status = tui.SuccessStyle.Render("Available")
-					} else {
-						status = tui.ErrorStyle.Render("Unavailable")
-					}
-				}
-			}
+		rawStatus := kube.ParsePromiseStatus(p.Object)
+		var status string
+		switch rawStatus {
+		case "Available":
+			status = tui.SuccessStyle.Render("Available")
+		case "Unavailable":
+			status = tui.ErrorStyle.Render("Unavailable")
+		default:
+			status = rawStatus
 		}
 		rows = append(rows, []string{p.GetName(), status})
 	}
@@ -114,7 +112,8 @@ func loadPromisesSection(client *kube.Client) (string, error) {
 }
 
 // loadVClustersSection fetches vclusters and their ArgoCD health status.
-func loadVClustersSection(client *kube.Client, platformNS string) (string, error) {
+// Uses a single batch query for ArgoCD apps instead of per-vcluster lookups.
+func loadVClustersSection(client platform.KubeClient, platformNS string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -125,17 +124,23 @@ func loadVClustersSection(client *kube.Client, platformNS string) (string, error
 	if len(vclusters) == 0 {
 		return tui.DimStyle.Render("  (no vclusters)"), nil
 	}
+
+	// Single batch query for all ArgoCD apps
+	argoApps, _ := client.ListArgoApps(ctx, "argocd")
+	argoIndex := make(map[string]*k8sunstructured.Unstructured, len(argoApps))
+	for i := range argoApps {
+		argoIndex[argoApps[i].GetName()] = &argoApps[i]
+	}
+
 	var rows [][]string
 	for _, vc := range vclusters {
 		name := vc.GetName()
 		preset := unstr.MustString(vc.Object, "spec", "vcluster", "preset")
 		hostname := unstr.MustString(vc.Object, "spec", "exposure", "hostname")
 
-		argoApp, err := client.GetArgoApp(ctx, "argocd", name)
 		health := tui.DimStyle.Render("unknown")
-		if err == nil {
-			syncStatus := unstr.MustString(argoApp.Object, "status", "sync", "status")
-			healthStatus := unstr.MustString(argoApp.Object, "status", "health", "status")
+		if argoApp, ok := argoIndex[name]; ok {
+			syncStatus, healthStatus := kube.ParseArgoAppStatus(argoApp.Object)
 			if syncStatus == "Synced" && healthStatus == "Healthy" {
 				health = tui.SuccessStyle.Render("Healthy")
 			} else {
@@ -148,7 +153,7 @@ func loadVClustersSection(client *kube.Client, platformNS string) (string, error
 }
 
 // loadWorkloadsSection fetches deployed workloads and renders their status.
-func loadWorkloadsSection(client *kube.Client, platformNS string) (string, error) {
+func loadWorkloadsSection(client platform.KubeClient, platformNS string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -170,7 +175,7 @@ func loadWorkloadsSection(client *kube.Client, platformNS string) (string, error
 }
 
 // loadAddonsSection fetches addons grouped by environment and renders them.
-func loadAddonsSection(client *kube.Client, platformNS string) (string, error) {
+func loadAddonsSection(client platform.KubeClient, platformNS string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

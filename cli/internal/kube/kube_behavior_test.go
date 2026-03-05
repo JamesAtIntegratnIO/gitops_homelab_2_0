@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -332,4 +333,212 @@ func TestTriggerArgoAppSync(t *testing.T) {
 	if _, ok := opMap["sync"]; !ok {
 		t.Error("expected sync in operation")
 	}
+}
+
+func TestListPods(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "web-abc123",
+			Namespace: "default",
+			Labels:    map[string]string{"app": "web"},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "web", Image: "nginx:1.25"},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{Name: "web", Ready: true},
+			},
+		},
+	}
+
+	c := newFakeClient([]runtime.Object{pod})
+	ctx := context.Background()
+
+	pods, err := c.ListPods(ctx, "default", "app=web")
+	if err != nil {
+		t.Fatalf("ListPods: %v", err)
+	}
+	if len(pods) != 1 {
+		t.Fatalf("expected 1 pod, got %d", len(pods))
+	}
+	if pods[0].Name != "web-abc123" {
+		t.Errorf("expected pod name web-abc123, got %s", pods[0].Name)
+	}
+	if pods[0].Phase != "Running" {
+		t.Errorf("expected Running phase, got %s", pods[0].Phase)
+	}
+	if pods[0].ReadyContainers != 1 {
+		t.Errorf("expected 1 ready container, got %d", pods[0].ReadyContainers)
+	}
+}
+
+func TestGetPodResourceInfo(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "worker-1",
+			Namespace: "jobs",
+			Labels:    map[string]string{"app": "worker"},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "worker",
+					Image: "worker:latest",
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							"cpu":    mustParseQuantity("100m"),
+							"memory": mustParseQuantity("128Mi"),
+						},
+						Limits: corev1.ResourceList{
+							"cpu":    mustParseQuantity("500m"),
+							"memory": mustParseQuantity("256Mi"),
+						},
+					},
+				},
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodRunning,
+		},
+	}
+
+	c := newFakeClient([]runtime.Object{pod})
+	ctx := context.Background()
+
+	infos, err := c.GetPodResourceInfo(ctx, "jobs", "app=worker")
+	if err != nil {
+		t.Fatalf("GetPodResourceInfo: %v", err)
+	}
+	if len(infos) != 1 {
+		t.Fatalf("expected 1 pod info, got %d", len(infos))
+	}
+	if infos[0].CPURequest != "100m" {
+		t.Errorf("CPURequest = %q, want '100m'", infos[0].CPURequest)
+	}
+	if infos[0].MemoryLimit != "256Mi" {
+		t.Errorf("MemoryLimit = %q, want '256Mi'", infos[0].MemoryLimit)
+	}
+}
+
+func TestListPromises(t *testing.T) {
+	promise := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "platform.kratix.io/v1alpha1",
+			"kind":       "Promise",
+			"metadata": map[string]interface{}{
+				"name": "postgres-instance",
+			},
+			"status": map[string]interface{}{
+				"conditions": []interface{}{
+					map[string]interface{}{
+						"type":   "Available",
+						"status": "True",
+					},
+				},
+			},
+		},
+	}
+
+	c := newFakeClient(nil, promise)
+	ctx := context.Background()
+
+	promises, err := c.ListPromises(ctx)
+	if err != nil {
+		t.Fatalf("ListPromises: %v", err)
+	}
+	if len(promises) != 1 {
+		t.Fatalf("expected 1 promise, got %d", len(promises))
+	}
+	if promises[0].GetName() != "postgres-instance" {
+		t.Errorf("expected name postgres-instance, got %s", promises[0].GetName())
+	}
+}
+
+func TestParseArgoAppStatus(t *testing.T) {
+	obj := map[string]interface{}{
+		"status": map[string]interface{}{
+			"sync":   map[string]interface{}{"status": "Synced"},
+			"health": map[string]interface{}{"status": "Healthy"},
+		},
+	}
+	sync, health := ParseArgoAppStatus(obj)
+	if sync != "Synced" {
+		t.Errorf("sync = %q, want 'Synced'", sync)
+	}
+	if health != "Healthy" {
+		t.Errorf("health = %q, want 'Healthy'", health)
+	}
+
+	// Missing status fields
+	sync2, health2 := ParseArgoAppStatus(map[string]interface{}{})
+	if sync2 != "" || health2 != "" {
+		t.Errorf("expected empty strings for missing status, got sync=%q, health=%q", sync2, health2)
+	}
+}
+
+func TestParsePromiseStatus(t *testing.T) {
+	tests := []struct {
+		name string
+		obj  map[string]interface{}
+		want string
+	}{
+		{
+			name: "available",
+			obj: map[string]interface{}{
+				"status": map[string]interface{}{
+					"conditions": []interface{}{
+						map[string]interface{}{"type": "Available", "status": "True"},
+					},
+				},
+			},
+			want: "Available",
+		},
+		{
+			name: "unavailable",
+			obj: map[string]interface{}{
+				"status": map[string]interface{}{
+					"conditions": []interface{}{
+						map[string]interface{}{"type": "Available", "status": "False"},
+					},
+				},
+			},
+			want: "Unavailable",
+		},
+		{
+			name: "no conditions",
+			obj:  map[string]interface{}{},
+			want: "Unknown",
+		},
+		{
+			name: "no available condition",
+			obj: map[string]interface{}{
+				"status": map[string]interface{}{
+					"conditions": []interface{}{
+						map[string]interface{}{"type": "Ready", "status": "True"},
+					},
+				},
+			},
+			want: "Unknown",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ParsePromiseStatus(tt.obj)
+			if got != tt.want {
+				t.Errorf("ParsePromiseStatus = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func mustParseQuantity(s string) resource.Quantity {
+	q, err := resource.ParseQuantity(s)
+	if err != nil {
+		panic(err)
+	}
+	return q
 }
