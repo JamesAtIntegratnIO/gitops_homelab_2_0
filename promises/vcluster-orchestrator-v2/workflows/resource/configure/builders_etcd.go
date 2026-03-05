@@ -103,7 +103,13 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 			{
 				APIGroups: []string{""},
 				Resources: []string{"secrets"},
-				Verbs:     []string{"get", "list", "create", "update", "patch"},
+				ResourceNames: []string{
+					fmt.Sprintf("%s-etcd-ca", config.Name),
+					fmt.Sprintf("%s-etcd-server", config.Name),
+					fmt.Sprintf("%s-etcd-peer", config.Name),
+					fmt.Sprintf("%s-etcd-certs", config.Name),
+				},
+				Verbs: []string{"get", "list", "create", "update", "patch"},
 			},
 		},
 	}

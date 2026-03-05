@@ -204,16 +204,18 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	// These resources are created by the vcluster syncer directly on the host
 	// cluster and must be cleaned up via direct API calls.
 
+	var cleanupErrs []string
+
 	// Clean up host-level PVs created by the vcluster syncer
 	if err := cleanupHostPVs(config); err != nil {
-		// Log but don't fail — PV cleanup is best-effort to avoid blocking
-		// the rest of the delete pipeline
 		log.Printf("⚠ Warning: PV cleanup encountered errors: %v", err)
+		cleanupErrs = append(cleanupErrs, fmt.Sprintf("PV cleanup: %v", err))
 	}
 
 	// Clean up the vcluster namespace (cascade-deletes PVCs, pods, etc.)
 	if err := cleanupNamespace(config); err != nil {
 		log.Printf("⚠ Warning: Namespace cleanup encountered errors: %v", err)
+		cleanupErrs = append(cleanupErrs, fmt.Sprintf("namespace cleanup: %v", err))
 	}
 
 	// --- Kratix state store cleanup (removes manifests → ArgoCD deletes from cluster) ---
@@ -293,6 +295,10 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		if err := u.WriteYAML(sdk, path, obj); err != nil {
 			return fmt.Errorf("write delete output %s: %w", path, err)
 		}
+	}
+
+	if len(cleanupErrs) > 0 {
+		return fmt.Errorf("cleanup errors: %s", strings.Join(cleanupErrs, "; "))
 	}
 
 	return nil

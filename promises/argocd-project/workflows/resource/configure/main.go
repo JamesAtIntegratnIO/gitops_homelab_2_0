@@ -50,9 +50,9 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	annotations := u.ExtractStringMap(resource, "spec.annotations")
 	labels := u.ExtractStringMap(resource, "spec.labels")
 	sourceRepos := u.ExtractStringSlice(resource, "spec.sourceRepos")
-	destinations := u.ExtractObjectSlice(resource, "spec.destinations")
-	clusterResourceWhitelist := u.ExtractObjectSlice(resource, "spec.clusterResourceWhitelist")
-	namespaceResourceWhitelist := u.ExtractObjectSlice(resource, "spec.namespaceResourceWhitelist")
+	destinations := toProjectDestinations(u.ExtractObjectSlice(resource, "spec.destinations"))
+	clusterResourceWhitelist := toResourceFilters(u.ExtractObjectSlice(resource, "spec.clusterResourceWhitelist"))
+	namespaceResourceWhitelist := toResourceFilters(u.ExtractObjectSlice(resource, "spec.namespaceResourceWhitelist"))
 
 	// Build the ArgoCD AppProject
 	project := u.Resource{
@@ -122,4 +122,42 @@ func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	}
 
 	return nil
+}
+
+// toProjectDestinations converts untyped maps to typed ProjectDestination values.
+func toProjectDestinations(raw []map[string]interface{}) []u.ProjectDestination {
+	if raw == nil {
+		return nil
+	}
+	result := make([]u.ProjectDestination, 0, len(raw))
+	for _, m := range raw {
+		d := u.ProjectDestination{}
+		if v, ok := m["namespace"].(string); ok {
+			d.Namespace = v
+		}
+		if v, ok := m["server"].(string); ok {
+			d.Server = v
+		}
+		result = append(result, d)
+	}
+	return result
+}
+
+// toResourceFilters converts untyped maps to typed ResourceFilter values.
+func toResourceFilters(raw []map[string]interface{}) []u.ResourceFilter {
+	if raw == nil {
+		return nil
+	}
+	result := make([]u.ResourceFilter, 0, len(raw))
+	for _, m := range raw {
+		f := u.ResourceFilter{}
+		if v, ok := m["group"].(string); ok {
+			f.Group = v
+		}
+		if v, ok := m["kind"].(string); ok {
+			f.Kind = v
+		}
+		result = append(result, f)
+	}
+	return result
 }
