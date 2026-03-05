@@ -9,7 +9,10 @@ import (
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 )
 
-// KubeClient defines the Kubernetes operations used by the platform package.
+// KubeClient covers read-only query methods used by platform status collection.
+// Mutation operations and specialized operations (secrets, CRDs) are accessed
+// via kube.Client directly where needed. The interface is intentionally scoped
+// for testability — not every kube.Client method belongs here.
 // Concrete implementations include *kube.Client; tests can provide fakes.
 type KubeClient interface {
 	// VCluster CR operations

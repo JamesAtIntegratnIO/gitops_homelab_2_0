@@ -1,5 +1,11 @@
 // Package unstructured provides helpers for accessing nested fields in
 // Kubernetes unstructured objects (map[string]interface{}).
+//
+// Callers commonly use the triple-discard pattern (val, found, _ := ...)
+// when accessing optional fields. This is intentional — these fields may
+// be absent or have unexpected types, and the zero-value default is the
+// correct fallback. The "found" bool distinguishes present-vs-absent
+// while the error (type-mismatch) is safely ignored for optional data.
 package unstructured
 
 // NestedField traverses a nested map using the given field path and returns

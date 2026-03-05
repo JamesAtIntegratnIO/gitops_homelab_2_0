@@ -104,6 +104,12 @@ type scaleParams struct {
 // runScale is the shared core for runUp and runDown. It resolves the kube
 // client, lists and matches deployments, toggles ArgoCD auto-sync, and scales
 // deployments to the target replica count.
+//
+// This handler intentionally mixes I/O (progress output) with business logic
+// because the step-by-step user feedback is integral to the UX — each
+// deployment scale / sync-toggle must report its own success or failure
+// inline. Extracting I/O would add indirection without testability gain
+// since this path exercises kube.Client directly (no platform.KubeClient).
 func runScale(p scaleParams) error {
 	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {

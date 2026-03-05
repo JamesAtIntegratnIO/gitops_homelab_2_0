@@ -10,6 +10,10 @@ import (
 )
 
 // Client wraps Kubernetes client-go for platform operations.
+//
+// The cmd/ layer imports kube/ directly for lightweight operations (scaling,
+// log streaming, ArgoCD toggling). The platform/ package provides a KubeClient
+// interface for testable status-collection workflows.
 type Client struct {
 	Clientset kubernetes.Interface
 	Dynamic   dynamic.Interface

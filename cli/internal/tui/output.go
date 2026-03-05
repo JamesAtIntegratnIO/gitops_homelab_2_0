@@ -73,21 +73,27 @@ func FprintOutput(w io.Writer, data any, textOutput string) error {
 
 // PrintStructured prints data as JSON or YAML depending on the output format.
 // Returns true if it printed (i.e., structured mode was active), false if text mode.
+// An error is returned if encoding fails (e.g., unmarshalable data).
 // This is useful for commands that want to short-circuit TUI rendering.
-func PrintStructured(data any) bool {
+func PrintStructured(data any) (bool, error) {
 	if !IsStructured() {
-		return false
+		return false, nil
 	}
 	switch outputFormat {
 	case FormatJSON:
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		_ = enc.Encode(data)
+		if err := enc.Encode(data); err != nil {
+			return true, fmt.Errorf("encoding JSON: %w", err)
+		}
 	case FormatYAML:
 		enc := yaml.NewEncoder(os.Stdout)
 		enc.SetIndent(2)
-		_ = enc.Encode(data)
+		if err := enc.Encode(data); err != nil {
+			enc.Close()
+			return true, fmt.Errorf("encoding YAML: %w", err)
+		}
 		enc.Close()
 	}
-	return true
+	return true, nil
 }

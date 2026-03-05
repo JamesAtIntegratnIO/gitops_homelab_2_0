@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/jamesatintegratnio/hctl/internal/kube"
+	"github.com/jamesatintegratnio/hctl/internal/testutil"
 )
 
 func TestProvisionResultTypes(t *testing.T) {
@@ -44,7 +45,7 @@ func TestWaitForRequest_Success(t *testing.T) {
 			"creationTimestamp": time.Now().Add(-2 * time.Minute).Format(time.RFC3339),
 		},
 	}}
-	client := &fakeKubeClient{
+	client := &testutil.FakeKubeClient{
 		VCReturns: []*unstructured.Unstructured{vc},
 		VCErrs:    []error{nil},
 	}
@@ -63,7 +64,7 @@ func TestWaitForRequest_Success(t *testing.T) {
 
 func TestWaitForRequest_Timeout(t *testing.T) {
 	t.Parallel()
-	client := &fakeKubeClient{
+	client := &testutil.FakeKubeClient{
 		VCReturns: []*unstructured.Unstructured{nil},
 		VCErrs:    []error{fmt.Errorf("not found")},
 	}
@@ -88,7 +89,7 @@ func TestWaitForRequest_EventuallyFound(t *testing.T) {
 		},
 	}}
 	// First call: not found; second call: found
-	client := &fakeKubeClient{
+	client := &testutil.FakeKubeClient{
 		VCReturns: []*unstructured.Unstructured{nil, vc},
 		VCErrs:    []error{fmt.Errorf("not found"), nil},
 	}
@@ -135,7 +136,7 @@ func TestCollectProvisionResult_StatusContract(t *testing.T) {
 			},
 		},
 	}}
-	client := &fakeKubeClient{
+	client := &testutil.FakeKubeClient{
 		VCReturns: []*unstructured.Unstructured{vc},
 		VCErrs:    []error{nil},
 	}
@@ -166,7 +167,7 @@ func TestCollectProvisionResult_Fallback(t *testing.T) {
 		"kind":       "VClusterOrchestratorV2",
 		"metadata":   map[string]interface{}{"name": "test-vc"},
 	}}
-	client := &fakeKubeClient{
+	client := &testutil.FakeKubeClient{
 		// First call for GetStatusContract, second for fallback queries
 		VCReturns: []*unstructured.Unstructured{vc, vc},
 		VCErrs:    []error{nil, nil},
@@ -206,7 +207,7 @@ func TestCollectProvisionResult_Fallback_NotAllPodsReady(t *testing.T) {
 		"kind":       "VClusterOrchestratorV2",
 		"metadata":   map[string]interface{}{"name": "test-vc"},
 	}}
-	client := &fakeKubeClient{
+	client := &testutil.FakeKubeClient{
 		VCReturns: []*unstructured.Unstructured{vc, vc},
 		VCErrs:    []error{nil, nil},
 		Pods: []kube.PodInfo{
