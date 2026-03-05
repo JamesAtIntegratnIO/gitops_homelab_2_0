@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // ============================================================================
@@ -12,7 +12,7 @@ import (
 // ============================================================================
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "my-route",
@@ -48,10 +48,10 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 	if config.BackendPort != 8080 {
 		t.Errorf("expected backendPort 8080, got %d", config.BackendPort)
 	}
-	if config.GatewayName != u.DefaultGatewayName {
+	if config.GatewayName != ku.DefaultGatewayName {
 		t.Errorf("expected default gatewayName, got %q", config.GatewayName)
 	}
-	if config.GatewayNS != u.DefaultGatewayNamespace {
+	if config.GatewayNS != ku.DefaultGatewayNamespace {
 		t.Errorf("expected default gatewayNS, got %q", config.GatewayNS)
 	}
 	if !config.HTTPRedirect {
@@ -66,7 +66,7 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 }
 
 func TestBuildConfig_WithOverrides(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "custom-route",
@@ -117,7 +117,7 @@ func TestBuildConfig_WithOverrides(t *testing.T) {
 }
 
 func TestBuildConfig_MissingName(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"namespace": "ns",
@@ -134,7 +134,7 @@ func TestBuildConfig_MissingName(t *testing.T) {
 }
 
 func TestBuildConfig_MissingNamespace(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "route",
@@ -151,7 +151,7 @@ func TestBuildConfig_MissingNamespace(t *testing.T) {
 }
 
 func TestBuildConfig_MissingHostname(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "route",
@@ -169,7 +169,7 @@ func TestBuildConfig_MissingHostname(t *testing.T) {
 }
 
 func TestBuildConfig_MissingBackendName(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "route",
@@ -188,7 +188,7 @@ func TestBuildConfig_MissingBackendName(t *testing.T) {
 }
 
 func TestBuildConfig_MissingBackendPort(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "route",
@@ -274,7 +274,7 @@ func TestBuildHTTPRedirect(t *testing.T) {
 // ============================================================================
 
 func TestHandleConfigure_WithRedirect(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &GatewayRouteConfig{
 		Name:            "test-route",
 		Namespace:       "ns",
@@ -295,26 +295,26 @@ func TestHandleConfigure_WithRedirect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !u.FileExists(dir, "resources/httproute.yaml") {
+	if !ku.FileExists(dir, "resources/httproute.yaml") {
 		t.Error("expected httproute.yaml")
 	}
-	if !u.FileExists(dir, "resources/http-redirect.yaml") {
+	if !ku.FileExists(dir, "resources/http-redirect.yaml") {
 		t.Error("expected http-redirect.yaml")
 	}
 
-	route := u.ReadOutput(t, dir, "resources/httproute.yaml")
+	route := ku.ReadOutput(t, dir, "resources/httproute.yaml")
 	if !strings.Contains(route, "kind: HTTPRoute") {
 		t.Error("expected HTTPRoute kind")
 	}
 
-	redirect := u.ReadOutput(t, dir, "resources/http-redirect.yaml")
+	redirect := ku.ReadOutput(t, dir, "resources/http-redirect.yaml")
 	if !strings.Contains(redirect, "http-redirect") {
 		t.Error("expected redirect route name")
 	}
 }
 
 func TestHandleConfigure_WithoutRedirect(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &GatewayRouteConfig{
 		Name:         "test-route",
 		Namespace:    "ns",
@@ -334,10 +334,10 @@ func TestHandleConfigure_WithoutRedirect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !u.FileExists(dir, "resources/httproute.yaml") {
+	if !ku.FileExists(dir, "resources/httproute.yaml") {
 		t.Error("expected httproute.yaml")
 	}
-	if u.FileExists(dir, "resources/http-redirect.yaml") {
+	if ku.FileExists(dir, "resources/http-redirect.yaml") {
 		t.Error("should not create redirect route when HTTPRedirect is false")
 	}
 }
@@ -347,7 +347,7 @@ func TestHandleConfigure_WithoutRedirect(t *testing.T) {
 // ============================================================================
 
 func TestHandleDelete_WithRedirect(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &GatewayRouteConfig{
 		Name:         "my-route",
 		Namespace:    "ns",
@@ -360,7 +360,7 @@ func TestHandleDelete_WithRedirect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	httpsDelete := u.ReadOutput(t, dir, "resources/delete-httproute-my-route.yaml")
+	httpsDelete := ku.ReadOutput(t, dir, "resources/delete-httproute-my-route.yaml")
 	if !strings.Contains(httpsDelete, "kind: HTTPRoute") {
 		t.Error("expected HTTPRoute in delete")
 	}
@@ -368,14 +368,14 @@ func TestHandleDelete_WithRedirect(t *testing.T) {
 		t.Error("expected route name in delete")
 	}
 
-	redirectDelete := u.ReadOutput(t, dir, "resources/delete-httproute-my-route-redirect.yaml")
+	redirectDelete := ku.ReadOutput(t, dir, "resources/delete-httproute-my-route-redirect.yaml")
 	if !strings.Contains(redirectDelete, "my-route-http-redirect") {
 		t.Error("expected redirect route name in delete")
 	}
 }
 
 func TestHandleDelete_WithoutRedirect(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &GatewayRouteConfig{
 		Name:         "my-route",
 		Namespace:    "ns",
@@ -388,10 +388,10 @@ func TestHandleDelete_WithoutRedirect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !u.FileExists(dir, "resources/delete-httproute-my-route.yaml") {
+	if !ku.FileExists(dir, "resources/delete-httproute-my-route.yaml") {
 		t.Error("expected delete file for HTTPS route")
 	}
-	if u.FileExists(dir, "resources/delete-httproute-my-route-redirect.yaml") {
+	if ku.FileExists(dir, "resources/delete-httproute-my-route-redirect.yaml") {
 		t.Error("should not create delete redirect when HTTPRedirect is false")
 	}
 }

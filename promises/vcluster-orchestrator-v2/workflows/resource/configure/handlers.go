@@ -10,7 +10,7 @@ import (
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -18,32 +18,32 @@ import (
 func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	log.Println("--- Rendering orchestrator resources ---")
 
-	resourceRequests := map[string]u.Resource{
+	resourceRequests := map[string]ku.Resource{
 		"resources/argocd-project-request.yaml":              buildArgoCDProjectRequest(config),
 		"resources/argocd-application-request.yaml":          buildArgoCDApplicationRequest(config),
 		"resources/argocd-cluster-registration-request.yaml": buildArgoCDClusterRegistrationRequest(config),
 	}
 
 	for path, obj := range resourceRequests {
-		if err := u.WriteYAML(sdk, path, obj); err != nil {
+		if err := ku.WriteYAML(sdk, path, obj); err != nil {
 			return fmt.Errorf("write %s: %w", path, err)
 		}
 		log.Printf("✓ Rendered: %s", path)
 	}
 
-	if err := u.WriteYAML(sdk, "resources/namespace.yaml", buildNamespace(config)); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/namespace.yaml", buildNamespace(config)); err != nil {
 		return fmt.Errorf("write namespace: %w", err)
 	}
 	log.Printf("✓ Rendered: %s", "resources/namespace.yaml")
 
 	if docs := buildEtcdCertificates(config); len(docs) > 0 {
-		if err := u.WriteYAMLDocuments(sdk, "resources/etcd-certificates.yaml", docs); err != nil {
+		if err := ku.WriteYAMLDocuments(sdk, "resources/etcd-certificates.yaml", docs); err != nil {
 			return fmt.Errorf("write etcd certificates: %w", err)
 		}
 		log.Printf("✓ Rendered: %s", "resources/etcd-certificates.yaml")
 	}
 
-	if err := u.WriteYAML(sdk, "resources/coredns-configmap.yaml", buildCorednsConfigMap(config)); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/coredns-configmap.yaml", buildCorednsConfigMap(config)); err != nil {
 		return fmt.Errorf("write coredns configmap: %w", err)
 	}
 	log.Printf("✓ Rendered: %s", "resources/coredns-configmap.yaml")
@@ -51,7 +51,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	// Per-vcluster network policies (NFS, extra egress)
 	netPolicies := buildNetworkPolicies(config)
 	if len(netPolicies) > 0 {
-		if err := u.WriteYAMLDocuments(sdk, "resources/network-policies.yaml", netPolicies); err != nil {
+		if err := ku.WriteYAMLDocuments(sdk, "resources/network-policies.yaml", netPolicies); err != nil {
 			return fmt.Errorf("write network policies: %w", err)
 		}
 		log.Printf("✓ Rendered: resources/network-policies.yaml (%d policies)", len(netPolicies))
@@ -209,10 +209,10 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 
 	// --- Kratix state store cleanup (removes manifests → ArgoCD deletes from cluster) ---
 
-	outputs := map[string]u.Resource{}
+	outputs := map[string]ku.Resource{}
 
 	// Delete all created resources
-	allResources := []u.Resource{
+	allResources := []ku.Resource{
 		buildArgoCDProjectRequest(config),
 		buildArgoCDApplicationRequest(config),
 		buildArgoCDClusterRegistrationRequest(config),
@@ -220,33 +220,33 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	}
 
 	for _, obj := range allResources {
-		deleteObj := u.DeleteFromResource(obj)
-		path := u.DeleteOutputPathForResource("resources", obj)
+		deleteObj := ku.DeleteFromResource(obj)
+		path := ku.DeleteOutputPathForResource("resources", obj)
 		outputs[path] = deleteObj
 	}
 
 	// Delete per-vcluster network policies
 	for _, obj := range buildNetworkPolicies(config) {
-		deleteObj := u.DeleteFromResource(obj)
-		path := u.DeleteOutputPathForResource("resources", obj)
+		deleteObj := ku.DeleteFromResource(obj)
+		path := ku.DeleteOutputPathForResource("resources", obj)
 		outputs[path] = deleteObj
 	}
 
 	if etcdEnabled(config) {
 		for _, obj := range buildEtcdCertificates(config) {
-			deleteObj := u.DeleteFromResource(obj)
-			path := u.DeleteOutputPathForResource("resources", obj)
+			deleteObj := ku.DeleteFromResource(obj)
+			path := ku.DeleteOutputPathForResource("resources", obj)
 			outputs[path] = deleteObj
 		}
 	}
 
-	outputs["resources/delete-vcluster-clusterrole.yaml"] = u.DeleteResource(
+	outputs["resources/delete-vcluster-clusterrole.yaml"] = ku.DeleteResource(
 		"rbac.authorization.k8s.io/v1",
 		"ClusterRole",
 		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
 		"",
 	)
-	outputs["resources/delete-vcluster-clusterrolebinding.yaml"] = u.DeleteResource(
+	outputs["resources/delete-vcluster-clusterrolebinding.yaml"] = ku.DeleteResource(
 		"rbac.authorization.k8s.io/v1",
 		"ClusterRoleBinding",
 		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
@@ -254,25 +254,25 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	)
 
 	if etcdEnabled(config) {
-		outputs["resources/delete-etcd-ca-secret.yaml"] = u.DeleteResource(
+		outputs["resources/delete-etcd-ca-secret.yaml"] = ku.DeleteResource(
 			"v1",
 			"Secret",
 			fmt.Sprintf("%s-etcd-ca", config.Name),
 			config.TargetNamespace,
 		)
-		outputs["resources/delete-etcd-server-secret.yaml"] = u.DeleteResource(
+		outputs["resources/delete-etcd-server-secret.yaml"] = ku.DeleteResource(
 			"v1",
 			"Secret",
 			fmt.Sprintf("%s-etcd-server", config.Name),
 			config.TargetNamespace,
 		)
-		outputs["resources/delete-etcd-peer-secret.yaml"] = u.DeleteResource(
+		outputs["resources/delete-etcd-peer-secret.yaml"] = ku.DeleteResource(
 			"v1",
 			"Secret",
 			fmt.Sprintf("%s-etcd-peer", config.Name),
 			config.TargetNamespace,
 		)
-		outputs["resources/delete-etcd-merged-secret.yaml"] = u.DeleteResource(
+		outputs["resources/delete-etcd-merged-secret.yaml"] = ku.DeleteResource(
 			"v1",
 			"Secret",
 			fmt.Sprintf("%s-etcd-certs", config.Name),
@@ -281,7 +281,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	}
 
 	for path, obj := range outputs {
-		if err := u.WriteYAML(sdk, path, obj); err != nil {
+		if err := ku.WriteYAML(sdk, path, obj); err != nil {
 			return fmt.Errorf("write delete output %s: %w", path, err)
 		}
 	}

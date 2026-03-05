@@ -1,7 +1,7 @@
 package main
 
 import (
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -306,7 +306,7 @@ type RBACConfig struct {
 
 type ClusterRoleConfig struct {
 	Enabled    bool           `json:"enabled"`
-	ExtraRules []u.PolicyRule `json:"extraRules"`
+	ExtraRules []ku.PolicyRule `json:"extraRules"`
 }
 
 // ============================================================================

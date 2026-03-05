@@ -6,48 +6,38 @@ import (
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// ExternalSecretConfig holds the resolved configuration from the CR.
-type ExternalSecretConfig struct {
-	AppName         string
-	Namespace       string
-	OwnerPromise    string
-	SecretStoreName string
-	SecretStoreKind string
-	Secrets         []u.SecretRef
-}
-
 func main() {
-	u.RunPromiseWithConfig("External Secret", buildConfig, handleConfigure, handleDelete)
+	ku.RunPromiseWithConfig("External Secret", buildConfig, handleConfigure, handleDelete)
 }
 
 func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ExternalSecretConfig, error) {
 	config := &ExternalSecretConfig{
-		SecretStoreName: u.DefaultSecretStoreName,
-		SecretStoreKind: u.DefaultSecretStoreKind,
+		SecretStoreName: ku.DefaultSecretStoreName,
+		SecretStoreKind: ku.DefaultSecretStoreKind,
 	}
 
 	var err error
-	config.Namespace, err = u.GetStringValue(resource, "spec.namespace")
+	config.Namespace, err = ku.GetStringValue(resource, "spec.namespace")
 	if err != nil {
 		return nil, fmt.Errorf("spec.namespace is required: %w", err)
 	}
 
 	// appName defaults to the resource name
-	config.AppName = u.GetStringValueWithDefault(resource, "spec.appName", resource.GetName())
+	config.AppName = ku.GetStringValueWithDefault(resource, "spec.appName", resource.GetName())
 
-	config.OwnerPromise = u.GetStringValueWithDefault(resource, "spec.ownerPromise", "external-secret")
+	config.OwnerPromise = ku.GetStringValueWithDefault(resource, "spec.ownerPromise", "external-secret")
 
-	if v, err := u.GetStringValue(resource, "spec.secretStoreName"); err == nil && v != "" {
+	if v, err := ku.GetStringValue(resource, "spec.secretStoreName"); err == nil && v != "" {
 		config.SecretStoreName = v
 	}
-	if v, err := u.GetStringValue(resource, "spec.secretStoreKind"); err == nil && v != "" {
+	if v, err := ku.GetStringValue(resource, "spec.secretStoreKind"); err == nil && v != "" {
 		config.SecretStoreKind = v
 	}
 
-	config.Secrets = u.ExtractSecrets(resource, "spec.secrets")
+	config.Secrets = ku.ExtractSecrets(resource, "spec.secrets")
 	if len(config.Secrets) == 0 {
 		return nil, fmt.Errorf("spec.secrets must contain at least one entry")
 	}
@@ -57,7 +47,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ExternalSecret
 
 func handleConfigure(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 	externalSecrets := buildExternalSecrets(config)
-	if err := u.WriteYAMLDocuments(sdk, "resources/external-secrets.yaml", externalSecrets); err != nil {
+	if err := ku.WriteYAMLDocuments(sdk, "resources/external-secrets.yaml", externalSecrets); err != nil {
 		return fmt.Errorf("write ExternalSecrets: %w", err)
 	}
 	log.Printf("✓ Rendered %d ExternalSecret(s)", len(externalSecrets))
@@ -84,7 +74,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 			secretName = fmt.Sprintf("%s-%s", config.AppName, s.OnePasswordItem)
 		}
 
-		deleteObj := u.DeleteResource(
+		deleteObj := ku.DeleteResource(
 			"external-secrets.io/v1beta1",
 			"ExternalSecret",
 			secretName,
@@ -92,7 +82,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 		)
 
 		path := fmt.Sprintf("resources/delete-externalsecret-%s.yaml", secretName)
-		if err := u.WriteYAML(sdk, path, deleteObj); err != nil {
+		if err := ku.WriteYAML(sdk, path, deleteObj); err != nil {
 			return fmt.Errorf("write delete ExternalSecret %s: %w", secretName, err)
 		}
 	}
@@ -108,8 +98,8 @@ func handleDelete(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 	return nil
 }
 
-func buildExternalSecrets(config *ExternalSecretConfig) []u.Resource {
-	var resources []u.Resource
+func buildExternalSecrets(config *ExternalSecretConfig) []ku.Resource {
+	var resources []ku.Resource
 
 	for _, s := range config.Secrets {
 		secretName := s.Name
@@ -117,31 +107,31 @@ func buildExternalSecrets(config *ExternalSecretConfig) []u.Resource {
 			secretName = fmt.Sprintf("%s-%s", config.AppName, s.OnePasswordItem)
 		}
 
-		var data []u.ExternalSecretData
+		var data []ku.ExternalSecretData
 		for _, k := range s.Keys {
-			data = append(data, u.ExternalSecretData{
+			data = append(data, ku.ExternalSecretData{
 				SecretKey: k.SecretKey,
-				RemoteRef: u.RemoteRef{
+				RemoteRef: ku.RemoteRef{
 					Key:      s.OnePasswordItem,
 					Property: k.Property,
 				},
 			})
 		}
 
-		es := u.Resource{
+		es := ku.Resource{
 			APIVersion: "external-secrets.io/v1beta1",
 			Kind:       "ExternalSecret",
-			Metadata: u.ObjectMeta{
+			Metadata: ku.ObjectMeta{
 				Name:      secretName,
 				Namespace: config.Namespace,
-				Labels:    u.BaseLabels(config.OwnerPromise, config.AppName),
+				Labels:    ku.BaseLabels(config.OwnerPromise, config.AppName),
 			},
-			Spec: u.ExternalSecretSpec{
-				SecretStoreRef: u.SecretStoreRef{
+			Spec: ku.ExternalSecretSpec{
+				SecretStoreRef: ku.SecretStoreRef{
 					Name: config.SecretStoreName,
 					Kind: config.SecretStoreKind,
 				},
-				Target: u.ExternalSecretTarget{
+				Target: ku.ExternalSecretTarget{
 					Name: secretName,
 				},
 				Data: data,

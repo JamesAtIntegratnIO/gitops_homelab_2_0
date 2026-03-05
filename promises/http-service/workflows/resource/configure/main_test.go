@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // ============================================================================
@@ -12,7 +12,7 @@ import (
 // ============================================================================
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "my-app",
@@ -57,13 +57,13 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 	if config.BaseDomain != defaultBaseDomain {
 		t.Errorf("expected default base domain, got %q", config.BaseDomain)
 	}
-	if config.SecretStoreName != u.DefaultSecretStoreName {
+	if config.SecretStoreName != ku.DefaultSecretStoreName {
 		t.Errorf("expected default secret store, got %q", config.SecretStoreName)
 	}
 }
 
 func TestBuildConfig_WithAllFields(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "api-server",
@@ -190,7 +190,7 @@ func TestBuildConfig_WithAllFields(t *testing.T) {
 }
 
 func TestBuildConfig_MissingName(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"image": map[string]interface{}{"repository": "nginx"},
@@ -207,7 +207,7 @@ func TestBuildConfig_MissingName(t *testing.T) {
 }
 
 func TestBuildConfig_MissingImageRepository(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "my-app",
@@ -341,7 +341,7 @@ func TestBuildStakaterValues_WithEnvAndSecrets(t *testing.T) {
 		HealthCheckPort: 8080,
 		Env:             map[string]string{"PORT": "8080"},
 		EnvFromSecrets:  []string{"db-creds"},
-		Secrets: []u.SecretRef{
+		Secrets: []ku.SecretRef{
 			{OnePasswordItem: "api-key", Name: "api-secret"},
 		},
 	}
@@ -500,11 +500,11 @@ func TestBuildExternalSecretRequest(t *testing.T) {
 		Namespace:       "production",
 		SecretStoreName: "onepassword-store",
 		SecretStoreKind: "ClusterSecretStore",
-		Secrets: []u.SecretRef{
+		Secrets: []ku.SecretRef{
 			{
 				OnePasswordItem: "my-vault-item",
 				Name:            "app-secret",
-				Keys: []u.SecretKey{
+				Keys: []ku.SecretKey{
 					{SecretKey: "password", Property: "password"},
 				},
 			},
@@ -582,7 +582,7 @@ func TestBuildGatewayRouteRequest(t *testing.T) {
 // ============================================================================
 
 func TestHandleConfigure_MinimalConfig(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:            "web",
 		Namespace:       "web",
@@ -614,7 +614,7 @@ func TestHandleConfigure_MinimalConfig(t *testing.T) {
 	}
 
 	// Namespace
-	ns := u.ReadOutput(t, dir, "resources/namespace.yaml")
+	ns := ku.ReadOutput(t, dir, "resources/namespace.yaml")
 	if !strings.Contains(ns, "kind: Namespace") {
 		t.Error("expected Namespace kind")
 	}
@@ -623,29 +623,29 @@ func TestHandleConfigure_MinimalConfig(t *testing.T) {
 	}
 
 	// ArgoCD application request
-	app := u.ReadOutput(t, dir, "resources/argocd-application-request.yaml")
+	app := ku.ReadOutput(t, dir, "resources/argocd-application-request.yaml")
 	if !strings.Contains(app, "kind: ArgoCDApplication") {
 		t.Error("expected ArgoCDApplication kind")
 	}
 
 	// Network policies
-	if !u.FileExists(dir, "resources/network-policies.yaml") {
+	if !ku.FileExists(dir, "resources/network-policies.yaml") {
 		t.Error("expected network-policies.yaml")
 	}
 
 	// Gateway route request
-	if !u.FileExists(dir, "resources/gateway-route-request.yaml") {
+	if !ku.FileExists(dir, "resources/gateway-route-request.yaml") {
 		t.Error("expected gateway-route-request.yaml")
 	}
 
 	// No external-secret request (no secrets)
-	if u.FileExists(dir, "resources/external-secret-request.yaml") {
+	if ku.FileExists(dir, "resources/external-secret-request.yaml") {
 		t.Error("should not create external-secret request without secrets")
 	}
 }
 
 func TestHandleConfigure_WithSecrets(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:            "web",
 		Namespace:       "web",
@@ -669,10 +669,10 @@ func TestHandleConfigure_WithSecrets(t *testing.T) {
 		SecretStoreName: "onepassword-store",
 		SecretStoreKind: "ClusterSecretStore",
 		BaseDomain:      "cluster.integratn.tech",
-		Secrets: []u.SecretRef{
+		Secrets: []ku.SecretRef{
 			{
 				OnePasswordItem: "my-item",
-				Keys: []u.SecretKey{
+				Keys: []ku.SecretKey{
 					{SecretKey: "pass", Property: "password"},
 				},
 			},
@@ -684,13 +684,13 @@ func TestHandleConfigure_WithSecrets(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !u.FileExists(dir, "resources/external-secret-request.yaml") {
+	if !ku.FileExists(dir, "resources/external-secret-request.yaml") {
 		t.Error("expected external-secret-request.yaml")
 	}
 }
 
 func TestHandleConfigure_IngressDisabled(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:            "worker",
 		Namespace:       "worker",
@@ -719,7 +719,7 @@ func TestHandleConfigure_IngressDisabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if u.FileExists(dir, "resources/gateway-route-request.yaml") {
+	if ku.FileExists(dir, "resources/gateway-route-request.yaml") {
 		t.Error("should not create gateway-route when ingress disabled")
 	}
 }
@@ -729,7 +729,7 @@ func TestHandleConfigure_IngressDisabled(t *testing.T) {
 // ============================================================================
 
 func TestHandleDelete_MinimalConfig(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:           "web",
 		Namespace:      "web",
@@ -742,28 +742,28 @@ func TestHandleDelete_MinimalConfig(t *testing.T) {
 	}
 
 	// ArgoCD deletion
-	if !u.FileExists(dir, "resources/delete-argocdapplication-web.yaml") {
+	if !ku.FileExists(dir, "resources/delete-argocdapplication-web.yaml") {
 		t.Error("expected ArgoCD delete file")
 	}
 
 	// Gateway route deletion
-	if !u.FileExists(dir, "resources/delete-gatewayroute-web.yaml") {
+	if !ku.FileExists(dir, "resources/delete-gatewayroute-web.yaml") {
 		t.Error("expected gateway route delete file")
 	}
 
 	// No external-secret deletion (no secrets)
-	if u.FileExists(dir, "resources/delete-externalsecret-web.yaml") {
+	if ku.FileExists(dir, "resources/delete-externalsecret-web.yaml") {
 		t.Error("should not create external-secret delete without secrets")
 	}
 }
 
 func TestHandleDelete_WithSecrets(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:           "web",
 		Namespace:      "web",
 		IngressEnabled: true,
-		Secrets: []u.SecretRef{
+		Secrets: []ku.SecretRef{
 			{OnePasswordItem: "item"},
 		},
 	}
@@ -773,13 +773,13 @@ func TestHandleDelete_WithSecrets(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !u.FileExists(dir, "resources/delete-externalsecret-web.yaml") {
+	if !ku.FileExists(dir, "resources/delete-externalsecret-web.yaml") {
 		t.Error("expected external-secret delete file")
 	}
 }
 
 func TestHandleDelete_IngressDisabled(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:           "worker",
 		Namespace:      "worker",
@@ -791,7 +791,7 @@ func TestHandleDelete_IngressDisabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if u.FileExists(dir, "resources/delete-gatewayroute-worker.yaml") {
+	if ku.FileExists(dir, "resources/delete-gatewayroute-worker.yaml") {
 		t.Error("should not create gateway-route delete when ingress disabled")
 	}
 }

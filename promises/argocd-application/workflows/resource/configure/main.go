@@ -6,62 +6,62 @@ import (
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 func main() {
-	u.RunPromise("ArgoCD Application Promise Pipeline", handleConfigure, handleDelete)
+	ku.RunPromise("ArgoCD Application Promise Pipeline", handleConfigure, handleDelete)
 }
 
 func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := u.GetStringValue(resource, "spec.name")
+	name, err := ku.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
-	project, err := u.GetStringValue(resource, "spec.project")
+	namespace := ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+	project, err := ku.GetStringValue(resource, "spec.project")
 	if err != nil {
 		return fmt.Errorf("spec.project is required: %w", err)
 	}
 
-	annotations := u.ExtractStringMap(resource, "spec.annotations")
-	labels := u.ExtractStringMap(resource, "spec.labels")
-	finalizers := u.ExtractStringSlice(resource, "spec.finalizers")
+	annotations := ku.ExtractStringMap(resource, "spec.annotations")
+	labels := ku.ExtractStringMap(resource, "spec.labels")
+	finalizers := ku.ExtractStringSlice(resource, "spec.finalizers")
 
 	// Extract source
-	repoURL, err := u.GetStringValue(resource, "spec.source.repoURL")
+	repoURL, err := ku.GetStringValue(resource, "spec.source.repoURL")
 	if err != nil {
 		return fmt.Errorf("spec.source.repoURL is required: %w", err)
 	}
-	chart, _ := u.GetStringValue(resource, "spec.source.chart")
-	targetRevision, err := u.GetStringValue(resource, "spec.source.targetRevision")
+	chart, _ := ku.GetStringValue(resource, "spec.source.chart")
+	targetRevision, err := ku.GetStringValue(resource, "spec.source.targetRevision")
 	if err != nil {
 		return fmt.Errorf("spec.source.targetRevision is required: %w", err)
 	}
 
-	source := u.AppSource{
+	source := ku.AppSource{
 		RepoURL:        repoURL,
 		Chart:          chart,
 		TargetRevision: targetRevision,
 	}
 
 	// Extract helm config
-	releaseName, _ := u.GetStringValue(resource, "spec.source.helm.releaseName")
+	releaseName, _ := ku.GetStringValue(resource, "spec.source.helm.releaseName")
 	valuesObject, _ := resource.GetValue("spec.source.helm.valuesObject")
 	if releaseName != "" || valuesObject != nil {
-		source.Helm = &u.HelmSource{
+		source.Helm = &ku.HelmSource{
 			ReleaseName:  releaseName,
 			ValuesObject: valuesObject,
 		}
 	}
 
 	// Extract destination
-	destServer, err := u.GetStringValue(resource, "spec.destination.server")
+	destServer, err := ku.GetStringValue(resource, "spec.destination.server")
 	if err != nil {
 		return fmt.Errorf("spec.destination.server is required: %w", err)
 	}
-	destNamespace, err := u.GetStringValue(resource, "spec.destination.namespace")
+	destNamespace, err := ku.GetStringValue(resource, "spec.destination.namespace")
 	if err != nil {
 		return fmt.Errorf("spec.destination.namespace is required: %w", err)
 	}
@@ -70,10 +70,10 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	syncPolicy, _ := resource.GetValue("spec.syncPolicy")
 
 	// Build ArgoCD Application
-	app := u.Resource{
+	app := ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "Application",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:        name,
 			Namespace:   namespace,
 			Labels:      labels,
@@ -83,7 +83,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 		Spec: ApplicationSpec{
 			Project: project,
 			Source:  source,
-			Destination: u.Destination{
+			Destination: ku.Destination{
 				Server:    destServer,
 				Namespace: destNamespace,
 			},
@@ -91,7 +91,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 		},
 	}
 
-	if err := u.WriteYAML(sdk, "resources/application.yaml", app); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/application.yaml", app); err != nil {
 		return fmt.Errorf("write application: %w", err)
 	}
 	log.Printf("✓ Rendered ArgoCD Application: %s", name)
@@ -111,23 +111,23 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 }
 
 func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := u.GetStringValue(resource, "spec.name")
+	name, err := ku.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+	namespace := ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
 
-	deleteObj := u.Resource{
+	deleteObj := ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "Application",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
 	}
 
-	if err := u.WriteYAML(sdk, "resources/delete-application.yaml", deleteObj); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/delete-application.yaml", deleteObj); err != nil {
 		return fmt.Errorf("write delete application: %w", err)
 	}
 	log.Printf("✓ Delete scheduled for Application: %s", name)

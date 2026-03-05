@@ -6,7 +6,7 @@ import (
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // Platform-wide defaults — baked into every HTTP service.
@@ -45,7 +45,7 @@ type HTTPServiceConfig struct {
 	IngressPath     string
 
 	// Secrets
-	Secrets []u.SecretRef
+	Secrets []ku.SecretRef
 
 	// Environment
 	Env            map[string]string
@@ -84,88 +84,88 @@ type HTTPServiceConfig struct {
 }
 
 func main() {
-	u.RunPromiseWithConfig("HTTP Service", buildConfig, handleConfigure, handleDelete)
+	ku.RunPromiseWithConfig("HTTP Service", buildConfig, handleConfigure, handleDelete)
 }
 
 // buildConfig extracts all fields from the CR with sensible defaults.
 func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceConfig, error) {
 	config := &HTTPServiceConfig{
 		BaseDomain:      defaultBaseDomain,
-		GatewayName:     u.DefaultGatewayName,
-		GatewayNS:       u.DefaultGatewayNamespace,
-		SecretStoreName: u.DefaultSecretStoreName,
-		SecretStoreKind: u.DefaultSecretStoreKind,
+		GatewayName:     ku.DefaultGatewayName,
+		GatewayNS:       ku.DefaultGatewayNamespace,
+		SecretStoreName: ku.DefaultSecretStoreName,
+		SecretStoreKind: ku.DefaultSecretStoreKind,
 	}
 
 	var err error
-	config.Name, err = u.GetStringValue(resource, "spec.name")
+	config.Name, err = ku.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return nil, fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	config.Namespace = u.GetStringValueWithDefault(resource, "spec.namespace", config.Name)
-	config.Team = u.GetStringValueWithDefault(resource, "spec.team", "platform")
+	config.Namespace = ku.GetStringValueWithDefault(resource, "spec.namespace", config.Name)
+	config.Team = ku.GetStringValueWithDefault(resource, "spec.team", "platform")
 
 	// Image
-	config.ImageRepository, err = u.GetStringValue(resource, "spec.image.repository")
+	config.ImageRepository, err = ku.GetStringValue(resource, "spec.image.repository")
 	if err != nil {
 		return nil, fmt.Errorf("spec.image.repository is required: %w", err)
 	}
-	config.ImageTag = u.GetStringValueWithDefault(resource, "spec.image.tag", "latest")
-	config.ImagePullPolicy = u.GetStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
-	config.Command = u.ExtractStringSlice(resource, "spec.command")
-	config.Args = u.ExtractStringSlice(resource, "spec.args")
+	config.ImageTag = ku.GetStringValueWithDefault(resource, "spec.image.tag", "latest")
+	config.ImagePullPolicy = ku.GetStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
+	config.Command = ku.ExtractStringSlice(resource, "spec.command")
+	config.Args = ku.ExtractStringSlice(resource, "spec.args")
 
 	// Scaling
-	config.Replicas = u.GetIntValueWithDefault(resource, "spec.replicas", 1)
-	config.CPURequest = u.GetStringValueWithDefault(resource, "spec.resources.requests.cpu", "100m")
-	config.MemoryRequest = u.GetStringValueWithDefault(resource, "spec.resources.requests.memory", "128Mi")
-	config.CPULimit = u.GetStringValueWithDefault(resource, "spec.resources.limits.cpu", "500m")
-	config.MemoryLimit = u.GetStringValueWithDefault(resource, "spec.resources.limits.memory", "256Mi")
+	config.Replicas = ku.GetIntValueWithDefault(resource, "spec.replicas", 1)
+	config.CPURequest = ku.GetStringValueWithDefault(resource, "spec.resources.requests.cpu", "100m")
+	config.MemoryRequest = ku.GetStringValueWithDefault(resource, "spec.resources.requests.memory", "128Mi")
+	config.CPULimit = ku.GetStringValueWithDefault(resource, "spec.resources.limits.cpu", "500m")
+	config.MemoryLimit = ku.GetStringValueWithDefault(resource, "spec.resources.limits.memory", "256Mi")
 
 	// Networking
-	config.Port = u.GetIntValueWithDefault(resource, "spec.port", 8080)
-	config.IngressEnabled = u.GetBoolValueWithDefault(resource, "spec.ingress.enabled", true)
-	config.IngressHostname, _ = u.GetStringValue(resource, "spec.ingress.hostname")
+	config.Port = ku.GetIntValueWithDefault(resource, "spec.port", 8080)
+	config.IngressEnabled = ku.GetBoolValueWithDefault(resource, "spec.ingress.enabled", true)
+	config.IngressHostname, _ = ku.GetStringValue(resource, "spec.ingress.hostname")
 	if config.IngressHostname == "" {
 		config.IngressHostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
 	}
-	config.IngressPath = u.GetStringValueWithDefault(resource, "spec.ingress.path", "/")
+	config.IngressPath = ku.GetStringValueWithDefault(resource, "spec.ingress.path", "/")
 
 	// Secrets
-	config.Secrets = u.ExtractSecrets(resource, "spec.secrets")
+	config.Secrets = ku.ExtractSecrets(resource, "spec.secrets")
 
 	// Environment
-	config.Env = u.ExtractStringMap(resource, "spec.env")
-	config.EnvFromSecrets = u.ExtractStringSlice(resource, "spec.envFromSecrets")
+	config.Env = ku.ExtractStringMap(resource, "spec.env")
+	config.EnvFromSecrets = ku.ExtractStringSlice(resource, "spec.envFromSecrets")
 
 	// Health checks
-	config.HealthCheckPath = u.GetStringValueWithDefault(resource, "spec.healthCheck.path", "/")
-	config.HealthCheckPort = u.GetIntValueWithDefault(resource, "spec.healthCheck.port", config.Port)
+	config.HealthCheckPath = ku.GetStringValueWithDefault(resource, "spec.healthCheck.path", "/")
+	config.HealthCheckPort = ku.GetIntValueWithDefault(resource, "spec.healthCheck.port", config.Port)
 
 	// Monitoring
-	config.MonitoringEnabled = u.GetBoolValueWithDefault(resource, "spec.monitoring.enabled", false)
-	config.MonitoringPath = u.GetStringValueWithDefault(resource, "spec.monitoring.path", "/metrics")
-	config.MonitoringInterval = u.GetStringValueWithDefault(resource, "spec.monitoring.interval", "30s")
+	config.MonitoringEnabled = ku.GetBoolValueWithDefault(resource, "spec.monitoring.enabled", false)
+	config.MonitoringPath = ku.GetStringValueWithDefault(resource, "spec.monitoring.path", "/metrics")
+	config.MonitoringInterval = ku.GetStringValueWithDefault(resource, "spec.monitoring.interval", "30s")
 
 	// Storage
-	config.PersistenceEnabled = u.GetBoolValueWithDefault(resource, "spec.persistence.enabled", false)
-	config.PersistenceSize = u.GetStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
-	config.PersistenceClass, _ = u.GetStringValue(resource, "spec.persistence.storageClass")
-	config.PersistenceMountPath = u.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
+	config.PersistenceEnabled = ku.GetBoolValueWithDefault(resource, "spec.persistence.enabled", false)
+	config.PersistenceSize = ku.GetStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
+	config.PersistenceClass, _ = ku.GetStringValue(resource, "spec.persistence.storageClass")
+	config.PersistenceMountPath = ku.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
 
 	// Security context
-	if v, err := u.GetBoolValue(resource, "spec.securityContext.runAsNonRoot"); err == nil {
+	if v, err := ku.GetBoolValue(resource, "spec.securityContext.runAsNonRoot"); err == nil {
 		config.RunAsNonRoot = &v
 	}
-	if v, err := u.GetBoolValue(resource, "spec.securityContext.readOnlyRootFilesystem"); err == nil {
+	if v, err := ku.GetBoolValue(resource, "spec.securityContext.readOnlyRootFilesystem"); err == nil {
 		config.ReadOnlyRootFilesystem = &v
 	}
-	if v, err := u.GetIntValue(resource, "spec.securityContext.runAsUser"); err == nil {
+	if v, err := ku.GetIntValue(resource, "spec.securityContext.runAsUser"); err == nil {
 		v64 := int64(v)
 		config.RunAsUser = &v64
 	}
-	if v, err := u.GetIntValue(resource, "spec.securityContext.runAsGroup"); err == nil {
+	if v, err := ku.GetIntValue(resource, "spec.securityContext.runAsGroup"); err == nil {
 		v64 := int64(v)
 		config.RunAsGroup = &v64
 	}
@@ -183,10 +183,10 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceCon
 // handleConfigure generates the Namespace + ArgoCD app + sub-ResourceRequests + NetworkPolicies.
 func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// 0. Create the target Namespace first (low sync-wave so it exists before everything else)
-	ns := u.Resource{
+	ns := ku.Resource{
 		APIVersion: "v1",
 		Kind:       "Namespace",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name: config.Namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by":           "kratix",
@@ -200,7 +200,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 			},
 		},
 	}
-	if err := u.WriteYAML(sdk, "resources/namespace.yaml", ns); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/namespace.yaml", ns); err != nil {
 		return fmt.Errorf("write Namespace: %w", err)
 	}
 	log.Printf("✓ Rendered Namespace: %s", config.Namespace)
@@ -210,7 +210,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 
 	// 2. Deep-merge any helmOverrides on top
 	if config.HelmOverrides != nil {
-		values = u.DeepMerge(values, config.HelmOverrides)
+		values = ku.DeepMerge(values, config.HelmOverrides)
 	}
 
 	// 3. Build ArgoCDApplication sub-ResourceRequest (delegates to the argocd-application promise)
@@ -221,10 +221,10 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		"app.kubernetes.io/team":       config.Team,
 	}
 
-	appRequest := u.Resource{
+	appRequest := ku.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "ArgoCDApplication",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      config.Name,
 			Namespace: "platform-requests",
 			Labels: map[string]string{
@@ -235,7 +235,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 				"app.kubernetes.io/team":       config.Team,
 			},
 		},
-		Spec: u.ArgoCDApplicationSpec{
+		Spec: ku.ArgoCDApplicationSpec{
 			Name:      config.Name,
 			Namespace: "argocd",
 			Annotations: map[string]string{
@@ -244,16 +244,16 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 			Labels:     appLabels,
 			Finalizers: []string{"resources-finalizer.argocd.argoproj.io"},
 			Project:    argoCDProject,
-			Source: u.AppSource{
+			Source: ku.AppSource{
 				RepoURL:        stakaterChartRepo,
 				Chart:          stakaterChartName,
 				TargetRevision: stakaterChartVersion,
-				Helm: &u.HelmSource{
+				Helm: &ku.HelmSource{
 					ReleaseName:  config.Name,
 					ValuesObject: values,
 				},
 			},
-			Destination: u.Destination{
+			Destination: ku.Destination{
 				Server:    "https://kubernetes.default.svc",
 				Namespace: config.Namespace,
 			},
@@ -270,7 +270,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		},
 	}
 
-	if err := u.WriteYAML(sdk, "resources/argocd-application-request.yaml", appRequest); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/argocd-application-request.yaml", appRequest); err != nil {
 		return fmt.Errorf("write ArgoCDApplication request: %w", err)
 	}
 	log.Printf("✓ Rendered ArgoCDApplication sub-ResourceRequest: %s", config.Name)
@@ -278,7 +278,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// 4. Emit PlatformExternalSecret sub-ResourceRequest (delegates to external-secret promise)
 	if len(config.Secrets) > 0 {
 		esRequest := buildExternalSecretRequest(config)
-		if err := u.WriteYAML(sdk, "resources/external-secret-request.yaml", esRequest); err != nil {
+		if err := ku.WriteYAML(sdk, "resources/external-secret-request.yaml", esRequest); err != nil {
 			return fmt.Errorf("write PlatformExternalSecret request: %w", err)
 		}
 		log.Printf("✓ Rendered PlatformExternalSecret sub-ResourceRequest (%d secret(s))", len(config.Secrets))
@@ -286,7 +286,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 
 	// 5. Build NetworkPolicies (remain inline — too variable for a sub-promise)
 	netpols := buildNetworkPolicies(config)
-	if err := u.WriteYAMLDocuments(sdk, "resources/network-policies.yaml", netpols); err != nil {
+	if err := ku.WriteYAMLDocuments(sdk, "resources/network-policies.yaml", netpols); err != nil {
 		return fmt.Errorf("write NetworkPolicies: %w", err)
 	}
 	log.Printf("✓ Rendered NetworkPolicies")
@@ -294,7 +294,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// 6. Emit GatewayRoute sub-ResourceRequest (delegates to gateway-route promise)
 	if config.IngressEnabled {
 		gwRequest := buildGatewayRouteRequest(config)
-		if err := u.WriteYAML(sdk, "resources/gateway-route-request.yaml", gwRequest); err != nil {
+		if err := ku.WriteYAML(sdk, "resources/gateway-route-request.yaml", gwRequest); err != nil {
 			return fmt.Errorf("write GatewayRoute request: %w", err)
 		}
 		log.Printf("✓ Rendered GatewayRoute sub-ResourceRequest")
@@ -319,30 +319,30 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 // handleDelete cleans up sub-ResourceRequests.
 func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// Delete ArgoCDApplication sub-ResourceRequest
-	appRequest := u.Resource{
+	appRequest := ku.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "ArgoCDApplication",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      config.Name,
 			Namespace: "platform-requests",
 		},
 	}
-	if err := u.WriteYAML(sdk, "resources/delete-argocdapplication-"+config.Name+".yaml", appRequest); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/delete-argocdapplication-"+config.Name+".yaml", appRequest); err != nil {
 		return fmt.Errorf("write delete ArgoCDApplication request: %w", err)
 	}
 	log.Printf("✓ Delete scheduled for ArgoCDApplication: %s", config.Name)
 
 	// Delete PlatformExternalSecret sub-ResourceRequest
 	if len(config.Secrets) > 0 {
-		esRequest := u.Resource{
+		esRequest := ku.Resource{
 			APIVersion: "platform.integratn.tech/v1alpha1",
 			Kind:       "PlatformExternalSecret",
-			Metadata: u.ObjectMeta{
+			Metadata: ku.ObjectMeta{
 				Name:      fmt.Sprintf("%s-secrets", config.Name),
 				Namespace: "platform-requests",
 			},
 		}
-		if err := u.WriteYAML(sdk, "resources/delete-externalsecret-"+config.Name+".yaml", esRequest); err != nil {
+		if err := ku.WriteYAML(sdk, "resources/delete-externalsecret-"+config.Name+".yaml", esRequest); err != nil {
 			return fmt.Errorf("write delete PlatformExternalSecret request: %w", err)
 		}
 		log.Printf("✓ Delete scheduled for PlatformExternalSecret: %s", config.Name)
@@ -350,15 +350,15 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 
 	// Delete GatewayRoute sub-ResourceRequest
 	if config.IngressEnabled {
-		gwRequest := u.Resource{
+		gwRequest := ku.Resource{
 			APIVersion: "platform.integratn.tech/v1alpha1",
 			Kind:       "GatewayRoute",
-			Metadata: u.ObjectMeta{
+			Metadata: ku.ObjectMeta{
 				Name:      fmt.Sprintf("%s-route", config.Name),
 				Namespace: "platform-requests",
 			},
 		}
-		if err := u.WriteYAML(sdk, "resources/delete-gatewayroute-"+config.Name+".yaml", gwRequest); err != nil {
+		if err := ku.WriteYAML(sdk, "resources/delete-gatewayroute-"+config.Name+".yaml", gwRequest); err != nil {
 			return fmt.Errorf("write delete GatewayRoute request: %w", err)
 		}
 		log.Printf("✓ Delete scheduled for GatewayRoute: %s", config.Name)

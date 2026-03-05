@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // ============================================================================
@@ -12,8 +12,8 @@ import (
 // ============================================================================
 
 func TestHandleConfigure_MinimalValid(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, dir := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Name: "test-app",
 		Ns:   "default",
 		Data: map[string]interface{}{
@@ -37,7 +37,7 @@ func TestHandleConfigure_MinimalValid(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := u.ReadOutput(t, dir, "resources/application.yaml")
+	output := ku.ReadOutput(t, dir, "resources/application.yaml")
 	if !strings.Contains(output, "apiVersion: argoproj.io/v1alpha1") {
 		t.Error("expected argoproj.io/v1alpha1 apiVersion")
 	}
@@ -59,8 +59,8 @@ func TestHandleConfigure_MinimalValid(t *testing.T) {
 }
 
 func TestHandleConfigure_WithAllFields(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, dir := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Name: "full-app",
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
@@ -106,7 +106,7 @@ func TestHandleConfigure_WithAllFields(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := u.ReadOutput(t, dir, "resources/application.yaml")
+	output := ku.ReadOutput(t, dir, "resources/application.yaml")
 	if !strings.Contains(output, "namespace: custom-ns") {
 		t.Error("expected custom namespace")
 	}
@@ -128,8 +128,8 @@ func TestHandleConfigure_WithAllFields(t *testing.T) {
 }
 
 func TestHandleConfigure_MissingName(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"project": "default",
@@ -147,8 +147,8 @@ func TestHandleConfigure_MissingName(t *testing.T) {
 }
 
 func TestHandleConfigure_MissingProject(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "my-app",
@@ -166,8 +166,8 @@ func TestHandleConfigure_MissingProject(t *testing.T) {
 }
 
 func TestHandleConfigure_MissingSource(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":    "my-app",
@@ -186,8 +186,8 @@ func TestHandleConfigure_MissingSource(t *testing.T) {
 }
 
 func TestHandleConfigure_MissingDestination(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":    "my-app",
@@ -214,8 +214,8 @@ func TestHandleConfigure_MissingDestination(t *testing.T) {
 // ============================================================================
 
 func TestHandleDelete_Success(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, dir := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "my-app",
@@ -229,7 +229,7 @@ func TestHandleDelete_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := u.ReadOutput(t, dir, "resources/delete-application.yaml")
+	output := ku.ReadOutput(t, dir, "resources/delete-application.yaml")
 	if !strings.Contains(output, "kind: Application") {
 		t.Error("expected kind: Application")
 	}
@@ -242,8 +242,8 @@ func TestHandleDelete_Success(t *testing.T) {
 }
 
 func TestHandleDelete_DefaultNamespace(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, dir := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "my-app",
@@ -256,15 +256,15 @@ func TestHandleDelete_DefaultNamespace(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := u.ReadOutput(t, dir, "resources/delete-application.yaml")
+	output := ku.ReadOutput(t, dir, "resources/delete-application.yaml")
 	if !strings.Contains(output, "namespace: argocd") {
 		t.Error("expected default namespace: argocd")
 	}
 }
 
 func TestHandleDelete_MissingName(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{},
 		},

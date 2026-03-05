@@ -4,7 +4,6 @@ package kratixutil
 // Resource Construction Helpers
 // ============================================================================
 
-// ResourceMeta creates an ObjectMeta with name, namespace, labels, and annotations.
 func ResourceMeta(name, namespace string, labels, annotations map[string]string) ObjectMeta {
 	return ObjectMeta{
 		Name:        name,
@@ -14,7 +13,6 @@ func ResourceMeta(name, namespace string, labels, annotations map[string]string)
 	}
 }
 
-// BaseLabels returns the standard Kratix labels for a resource.
 func BaseLabels(promiseName, resourceName string) map[string]string {
 	return map[string]string{
 		"app.kubernetes.io/managed-by": "kratix",

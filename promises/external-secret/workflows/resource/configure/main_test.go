@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // ============================================================================
@@ -13,7 +13,7 @@ import (
 // ============================================================================
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Name: "my-secret",
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
@@ -44,10 +44,10 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 	if config.AppName != "my-secret" {
 		t.Errorf("expected appName from resource name, got %q", config.AppName)
 	}
-	if config.SecretStoreName != u.DefaultSecretStoreName {
+	if config.SecretStoreName != ku.DefaultSecretStoreName {
 		t.Errorf("expected default secret store, got %q", config.SecretStoreName)
 	}
-	if config.SecretStoreKind != u.DefaultSecretStoreKind {
+	if config.SecretStoreKind != ku.DefaultSecretStoreKind {
 		t.Errorf("expected default secret store kind, got %q", config.SecretStoreKind)
 	}
 	if config.OwnerPromise != "external-secret" {
@@ -59,7 +59,7 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 }
 
 func TestBuildConfig_WithOverrides(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Name: "my-app",
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
@@ -103,7 +103,7 @@ func TestBuildConfig_WithOverrides(t *testing.T) {
 }
 
 func TestBuildConfig_MissingNamespace(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"secrets": []interface{}{
@@ -122,7 +122,7 @@ func TestBuildConfig_MissingNamespace(t *testing.T) {
 }
 
 func TestBuildConfig_NoSecrets(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"namespace": "ns",
@@ -149,11 +149,11 @@ func TestBuildExternalSecrets_SingleSecret(t *testing.T) {
 		OwnerPromise:    "external-secret",
 		SecretStoreName: "onepassword-store",
 		SecretStoreKind: "ClusterSecretStore",
-		Secrets: []u.SecretRef{
+		Secrets: []ku.SecretRef{
 			{
 				Name:            "db-creds",
 				OnePasswordItem: "db-item",
-				Keys: []u.SecretKey{
+				Keys: []ku.SecretKey{
 					{SecretKey: "password", Property: "password"},
 					{SecretKey: "username", Property: "username"},
 				},
@@ -190,10 +190,10 @@ func TestBuildExternalSecrets_DefaultName(t *testing.T) {
 		Namespace:       "ns",
 		SecretStoreName: "store",
 		SecretStoreKind: "ClusterSecretStore",
-		Secrets: []u.SecretRef{
+		Secrets: []ku.SecretRef{
 			{
 				OnePasswordItem: "api-token",
-				Keys:            []u.SecretKey{{SecretKey: "token", Property: "credential"}},
+				Keys:            []ku.SecretKey{{SecretKey: "token", Property: "credential"}},
 			},
 		},
 	}
@@ -210,9 +210,9 @@ func TestBuildExternalSecrets_MultipleSecrets(t *testing.T) {
 		Namespace:       "ns",
 		SecretStoreName: "store",
 		SecretStoreKind: "ClusterSecretStore",
-		Secrets: []u.SecretRef{
-			{Name: "secret-1", OnePasswordItem: "item-1", Keys: []u.SecretKey{{SecretKey: "k", Property: "p"}}},
-			{Name: "secret-2", OnePasswordItem: "item-2", Keys: []u.SecretKey{{SecretKey: "k", Property: "p"}}},
+		Secrets: []ku.SecretRef{
+			{Name: "secret-1", OnePasswordItem: "item-1", Keys: []ku.SecretKey{{SecretKey: "k", Property: "p"}}},
+			{Name: "secret-2", OnePasswordItem: "item-2", Keys: []ku.SecretKey{{SecretKey: "k", Property: "p"}}},
 		},
 	}
 
@@ -233,18 +233,18 @@ func TestBuildExternalSecrets_MultipleSecrets(t *testing.T) {
 // ============================================================================
 
 func TestHandleConfigure_WritesExternalSecrets(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &ExternalSecretConfig{
 		AppName:         "my-app",
 		Namespace:       "production",
 		OwnerPromise:    "external-secret",
 		SecretStoreName: "onepassword-store",
 		SecretStoreKind: "ClusterSecretStore",
-		Secrets: []u.SecretRef{
+		Secrets: []ku.SecretRef{
 			{
 				Name:            "creds",
 				OnePasswordItem: "item",
-				Keys:            []u.SecretKey{{SecretKey: "pass", Property: "password"}},
+				Keys:            []ku.SecretKey{{SecretKey: "pass", Property: "password"}},
 			},
 		},
 	}
@@ -254,7 +254,7 @@ func TestHandleConfigure_WritesExternalSecrets(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := u.ReadOutput(t, dir, "resources/external-secrets.yaml")
+	output := ku.ReadOutput(t, dir, "resources/external-secrets.yaml")
 	if !strings.Contains(output, "kind: ExternalSecret") {
 		t.Error("expected ExternalSecret in output")
 	}
@@ -268,11 +268,11 @@ func TestHandleConfigure_WritesExternalSecrets(t *testing.T) {
 // ============================================================================
 
 func TestHandleDelete_CreatesDeleteFiles(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := &ExternalSecretConfig{
 		AppName:   "my-app",
 		Namespace: "production",
-		Secrets: []u.SecretRef{
+		Secrets: []ku.SecretRef{
 			{Name: "secret-a", OnePasswordItem: "item-a"},
 			{Name: "secret-b", OnePasswordItem: "item-b"},
 		},
@@ -286,7 +286,7 @@ func TestHandleDelete_CreatesDeleteFiles(t *testing.T) {
 	// Check delete files for each secret
 	for _, name := range []string{"secret-a", "secret-b"} {
 		path := fmt.Sprintf("resources/delete-externalsecret-%s.yaml", name)
-		output := u.ReadOutput(t, dir, path)
+		output := ku.ReadOutput(t, dir, path)
 		if !strings.Contains(output, "kind: ExternalSecret") {
 			t.Errorf("expected ExternalSecret in %s", path)
 		}

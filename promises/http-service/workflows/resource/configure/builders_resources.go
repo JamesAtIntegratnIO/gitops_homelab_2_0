@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // ============================================================================
@@ -12,7 +12,7 @@ import (
 
 // buildExternalSecretRequest creates a PlatformExternalSecret sub-ResourceRequest
 // that delegates to the external-secret promise.
-func buildExternalSecretRequest(config *HTTPServiceConfig) u.Resource {
+func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 	// Convert SecretRef slice to the format expected by the external-secret promise
 	secrets := []map[string]interface{}{}
 	for _, s := range config.Secrets {
@@ -34,10 +34,10 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) u.Resource {
 		secrets = append(secrets, secret)
 	}
 
-	return u.Resource{
+	return ku.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "PlatformExternalSecret",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-secrets", config.Name),
 			Namespace: "platform-requests",
 			Labels: map[string]string{
@@ -59,7 +59,7 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) u.Resource {
 
 // buildGatewayRouteRequest creates a GatewayRoute sub-ResourceRequest
 // that delegates to the gateway-route promise.
-func buildGatewayRouteRequest(config *HTTPServiceConfig) u.Resource {
+func buildGatewayRouteRequest(config *HTTPServiceConfig) ku.Resource {
 	spec := map[string]interface{}{
 		"name":      config.Name,
 		"namespace": config.Namespace,
@@ -77,10 +77,10 @@ func buildGatewayRouteRequest(config *HTTPServiceConfig) u.Resource {
 		"ownerPromise": "http-service",
 	}
 
-	return u.Resource{
+	return ku.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "GatewayRoute",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-route", config.Name),
 			Namespace: "platform-requests",
 			Labels: map[string]string{
@@ -101,14 +101,14 @@ func buildGatewayRouteRequest(config *HTTPServiceConfig) u.Resource {
 // NOTE: We do NOT generate a default-deny policy here because the platform's
 // Kyverno ClusterPolicy (generate-default-deny-netpol) automatically creates a
 // default-deny-all NetworkPolicy in every new namespace.
-func buildNetworkPolicies(config *HTTPServiceConfig) []u.Resource {
-	var policies []u.Resource
+func buildNetworkPolicies(config *HTTPServiceConfig) []ku.Resource {
+	var policies []ku.Resource
 
 	// Allow ingress from the gateway namespace
-	policies = append(policies, u.Resource{
+	policies = append(policies, ku.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-allow-gateway", config.Name),
 			Namespace: config.Namespace,
 			Labels: map[string]string{
@@ -151,10 +151,10 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []u.Resource {
 
 	// Allow monitoring scrape if enabled
 	if config.MonitoringEnabled {
-		policies = append(policies, u.Resource{
+		policies = append(policies, ku.Resource{
 			APIVersion: "networking.k8s.io/v1",
 			Kind:       "NetworkPolicy",
-			Metadata: u.ObjectMeta{
+			Metadata: ku.ObjectMeta{
 				Name:      fmt.Sprintf("%s-allow-monitoring", config.Name),
 				Namespace: config.Namespace,
 				Labels: map[string]string{
@@ -197,10 +197,10 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []u.Resource {
 	}
 
 	// Allow DNS egress (all pods need this)
-	policies = append(policies, u.Resource{
+	policies = append(policies, ku.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-allow-dns", config.Name),
 			Namespace: config.Namespace,
 			Labels: map[string]string{

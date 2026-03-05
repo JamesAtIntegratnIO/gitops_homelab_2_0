@@ -7,7 +7,7 @@ import (
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // VClusterConfig holds all configuration for template rendering
@@ -87,7 +87,7 @@ type WorkflowContext struct {
 }
 
 func main() {
-	u.RunPromiseWithConfig("VCluster Orchestrator V2", buildConfig, handleConfigure, handleDelete)
+	ku.RunPromiseWithConfig("VCluster Orchestrator V2", buildConfig, handleConfigure, handleDelete)
 }
 
 func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConfig, error) {
@@ -112,7 +112,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	configureArgoCD(config, resource)
 
 	// Extract network policy configuration
-	if val, err := u.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
+	if val, err := ku.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
 		config.EnableNFS = val
 	}
 	config.ExtraEgress = extractExtraEgress(resource)
@@ -121,7 +121,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
 	
 	// Generate unique job name with reconcile token if present
-	reconcileAt, _ := u.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
+	reconcileAt, _ := ku.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
 	if reconcileAt != "" {
 		token := strings.Map(func(r rune) rune {
 			if r >= '0' && r <= '9' {
@@ -150,27 +150,27 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 // and applies preset defaults.
 func extractBasicFields(config *VClusterConfig, resource kratix.Resource) error {
 	var err error
-	config.Name, err = u.GetStringValue(resource, "spec.name")
+	config.Name, err = ku.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return fmt.Errorf("spec.name not found: %w", err)
 	}
 
-	config.TargetNamespace, _ = u.GetStringValue(resource, "spec.targetNamespace")
+	config.TargetNamespace, _ = ku.GetStringValue(resource, "spec.targetNamespace")
 	if config.TargetNamespace == "" {
 		config.TargetNamespace = config.Namespace
 	}
 
-	config.ProjectName, _ = u.GetStringValue(resource, "spec.projectName")
+	config.ProjectName, _ = ku.GetStringValue(resource, "spec.projectName")
 	if config.ProjectName == "" {
 		config.ProjectName = "vcluster-" + config.Name
 	}
 
 	// Extract vcluster spec
-	config.K8sVersion = u.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
-	config.Preset = u.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
-	config.IsolationMode = u.GetStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
-	config.ClusterDomain = u.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
-	config.PersistenceClass, _ = u.GetStringValue(resource, "spec.vcluster.persistence.storageClass")
+	config.K8sVersion = ku.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
+	config.Preset = ku.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
+	config.IsolationMode = ku.GetStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
+	config.ClusterDomain = ku.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
+	config.PersistenceClass, _ = ku.GetStringValue(resource, "spec.vcluster.persistence.storageClass")
 
 	// Apply preset defaults
 	applyPresetDefaults(config, resource)
@@ -200,10 +200,10 @@ func extractBasicFields(config *VClusterConfig, resource kratix.Resource) error 
 // configureExposure extracts and calculates exposure settings: hostname, subnet,
 // VIP, apiPort, external server URL, exportKubeConfig merge, and proxy extraSANs.
 func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
-	config.Hostname, _ = u.GetStringValue(resource, "spec.exposure.hostname")
-	config.Subnet, _ = u.GetStringValue(resource, "spec.exposure.subnet")
-	config.VIP, _ = u.GetStringValue(resource, "spec.exposure.vip")
-	config.APIPort = u.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
+	config.Hostname, _ = ku.GetStringValue(resource, "spec.exposure.hostname")
+	config.Subnet, _ = ku.GetStringValue(resource, "spec.exposure.subnet")
+	config.VIP, _ = ku.GetStringValue(resource, "spec.exposure.vip")
+	config.APIPort = ku.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
 
 	// Calculate VIP if needed (offset 200 aligns with MetalLB pool 10.0.4.200-253)
 	if config.Subnet != "" && config.VIP == "" {
@@ -223,7 +223,7 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 	}
 
 	// Set hostname if not specified
-	config.BaseDomain, _ = u.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain")
+	config.BaseDomain, _ = ku.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain")
 	if config.BaseDomain == "" || config.BaseDomain == "null" {
 		config.BaseDomain = "integratn.tech"
 	}
@@ -244,7 +244,7 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 		defaultExport["server"] = config.ExternalServerURL
 	}
 	if len(config.ExportKubeConfig) > 0 {
-		config.ExportKubeConfig = u.DeepMerge(defaultExport, config.ExportKubeConfig)
+		config.ExportKubeConfig = ku.DeepMerge(defaultExport, config.ExportKubeConfig)
 	} else if len(defaultExport) > 0 {
 		config.ExportKubeConfig = defaultExport
 	}
@@ -263,17 +263,17 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 // configureIntegrations sets up cert-manager, external-secrets, and ArgoCD integration
 // configuration including cluster labels, annotations, and workload repo settings.
 func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
-	config.CertManagerIssuerLabels = u.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
+	config.CertManagerIssuerLabels = ku.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
 	if len(config.CertManagerIssuerLabels) == 0 {
 		config.CertManagerIssuerLabels = map[string]string{"integratn.tech/cluster-issuer": "letsencrypt-prod"}
 	}
 
-	config.ExternalSecretsStoreLabels = u.ExtractStringMap(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
+	config.ExternalSecretsStoreLabels = ku.ExtractStringMap(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
 	if len(config.ExternalSecretsStoreLabels) == 0 {
 		config.ExternalSecretsStoreLabels = map[string]string{"integratn.tech/cluster-secret-store": "onepassword-store"}
 	}
 
-	config.ArgoCDEnvironment, _ = u.GetStringValue(resource, "spec.integrations.argocd.environment")
+	config.ArgoCDEnvironment, _ = ku.GetStringValue(resource, "spec.integrations.argocd.environment")
 	if config.ArgoCDEnvironment == "" {
 		if config.Preset == "prod" {
 			config.ArgoCDEnvironment = "production"
@@ -282,13 +282,13 @@ func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
 		}
 	}
 
-	config.ArgoCDClusterLabels = u.ExtractStringMap(resource, "spec.integrations.argocd.clusterLabels")
-	config.ArgoCDClusterAnnotations = u.ExtractStringMap(resource, "spec.integrations.argocd.clusterAnnotations")
+	config.ArgoCDClusterLabels = ku.ExtractStringMap(resource, "spec.integrations.argocd.clusterLabels")
+	config.ArgoCDClusterAnnotations = ku.ExtractStringMap(resource, "spec.integrations.argocd.clusterAnnotations")
 
-	config.WorkloadRepoURL = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", "https://github.com/jamesatintegratnio/gitops_homelab_2_0")
-	config.WorkloadRepoBasePath, _ = u.GetStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
-	config.WorkloadRepoPath = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
-	config.WorkloadRepoRevision = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
+	config.WorkloadRepoURL = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", "https://github.com/jamesatintegratnio/gitops_homelab_2_0")
+	config.WorkloadRepoBasePath, _ = ku.GetStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
+	config.WorkloadRepoPath = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
+	config.WorkloadRepoRevision = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
 
 	defaultClusterLabels := map[string]string{
 		"argocd.argoproj.io/secret-type": "cluster",
@@ -323,18 +323,18 @@ func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
 		"workload_repo_revision":                     config.WorkloadRepoRevision,
 	}
 
-	config.ArgoCDClusterLabels = u.MergeStringMap(defaultClusterLabels, config.ArgoCDClusterLabels)
+	config.ArgoCDClusterLabels = ku.MergeStringMap(defaultClusterLabels, config.ArgoCDClusterLabels)
 
-	config.ArgoCDClusterAnnotations = u.MergeStringMap(defaultClusterAnnotations, config.ArgoCDClusterAnnotations)
+	config.ArgoCDClusterAnnotations = ku.MergeStringMap(defaultClusterAnnotations, config.ArgoCDClusterAnnotations)
 }
 
 // configureArgoCD sets up ArgoCD application configuration including repo URL,
 // chart, target revision, destination server, and sync policy with defaults.
 func configureArgoCD(config *VClusterConfig, resource kratix.Resource) {
-	config.ArgoCDRepoURL = u.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
-	config.ArgoCDChart = u.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
-	config.ArgoCDTargetRevision = u.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
-	config.ArgoCDDestServer = u.GetStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
+	config.ArgoCDRepoURL = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
+	config.ArgoCDChart = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
+	config.ArgoCDTargetRevision = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
+	config.ArgoCDDestServer = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
 
 	// Extract sync policy
 	if val, err := resource.GetValue("spec.argocdApplication.syncPolicy"); err == nil && val != nil {
@@ -353,26 +353,18 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) {
 	if config.ArgoCDSyncPolicy == nil {
 		config.ArgoCDSyncPolicy = defaultSyncPolicy
 	} else {
-		config.ArgoCDSyncPolicy = u.DeepMerge(defaultSyncPolicy, config.ArgoCDSyncPolicy)
+		config.ArgoCDSyncPolicy = ku.DeepMerge(defaultSyncPolicy, config.ArgoCDSyncPolicy)
 	}
 }
 
 func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {
-	val, err := resource.GetValue("spec.networkPolicies.extraEgress")
-	if err != nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
+	raw := ku.ExtractObjectSlice(resource, "spec.networkPolicies.extraEgress")
+	if raw == nil {
 		return nil
 	}
 
 	var rules []ExtraEgressRule
-	for _, item := range arr {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
+	for _, m := range raw {
 		rule := ExtraEgressRule{
 			Protocol: "TCP", // default
 		}

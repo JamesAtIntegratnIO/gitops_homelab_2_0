@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 	kratix "github.com/syntasso/kratix-go"
 )
 
@@ -16,7 +16,7 @@ import (
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
 	sdk := kratix.New()
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":              "dev-cluster",
@@ -56,7 +56,7 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 
 func TestBuildConfig_WithOverrides(t *testing.T) {
 	sdk := kratix.New()
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":                   "prod-cluster",
@@ -109,7 +109,7 @@ func TestBuildConfig_WithOverrides(t *testing.T) {
 
 func TestBuildConfig_MissingName(t *testing.T) {
 	sdk := kratix.New()
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"targetNamespace": "ns",
@@ -128,7 +128,7 @@ func TestBuildConfig_MissingName(t *testing.T) {
 
 func TestBuildConfig_MissingTargetNamespace(t *testing.T) {
 	sdk := kratix.New()
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "test",
@@ -147,7 +147,7 @@ func TestBuildConfig_MissingTargetNamespace(t *testing.T) {
 
 func TestBuildConfig_MissingKubeconfigSecret(t *testing.T) {
 	sdk := kratix.New()
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":            "test",
@@ -164,7 +164,7 @@ func TestBuildConfig_MissingKubeconfigSecret(t *testing.T) {
 
 func TestBuildConfig_MissingExternalServerURL(t *testing.T) {
 	sdk := kratix.New()
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":             "test",
@@ -283,7 +283,7 @@ func TestBuildKubeconfigSyncJob(t *testing.T) {
 		t.Errorf("wrong name: %s", job.Metadata.Name)
 	}
 
-	spec, ok := job.Spec.(u.JobSpec)
+	spec, ok := job.Spec.(ku.JobSpec)
 	if !ok {
 		t.Fatal("Spec is not JobSpec")
 	}
@@ -363,7 +363,7 @@ func TestBuildArgoCDClusterExternalSecret_WithClusterAnnotations(t *testing.T) {
 // ============================================================================
 
 func TestHandleConfigure_Success(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := newTestConfig()
 
 	err := handleConfigure(sdk, config)
@@ -379,13 +379,13 @@ func TestHandleConfigure_Success(t *testing.T) {
 		"resources/argocd-cluster-external-secret.yaml",
 	}
 	for _, f := range expectedFiles {
-		if !u.FileExists(dir, f) {
+		if !ku.FileExists(dir, f) {
 			t.Errorf("expected output file %s to exist", f)
 		}
 	}
 
 	// Check RBAC file contains multi-doc
-	rbac := u.ReadOutput(t, dir, "resources/kubeconfig-sync-rbac.yaml")
+	rbac := ku.ReadOutput(t, dir, "resources/kubeconfig-sync-rbac.yaml")
 	if !strings.Contains(rbac, "---") {
 		t.Error("expected multi-doc YAML in RBAC file")
 	}
@@ -402,7 +402,7 @@ func TestHandleConfigure_Success(t *testing.T) {
 // ============================================================================
 
 func TestHandleDelete_CreatesDeleteResources(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := newTestConfig()
 
 	err := handleDelete(sdk, config)
@@ -421,7 +421,7 @@ func TestHandleDelete_CreatesDeleteResources(t *testing.T) {
 
 	// All delete files should contain minimal resources
 	for _, entry := range entries {
-		content := u.ReadOutput(t, dir, "resources/"+entry.Name())
+		content := ku.ReadOutput(t, dir, "resources/"+entry.Name())
 		if !strings.HasPrefix(entry.Name(), "delete-") {
 			t.Errorf("unexpected file: %s", entry.Name())
 		}
@@ -436,16 +436,16 @@ func TestHandleDelete_CreatesDeleteResources(t *testing.T) {
 // ============================================================================
 
 func TestDeleteOutputPath_DefaultPrefix(t *testing.T) {
-	r := u.Resource{Kind: "Service", Metadata: u.ObjectMeta{Name: "web"}}
-	path := u.DeleteOutputPathForResource("", r)
+	r := ku.Resource{Kind: "Service", Metadata: ku.ObjectMeta{Name: "web"}}
+	path := ku.DeleteOutputPathForResource("", r)
 	if path != "resources/delete-service-web.yaml" {
 		t.Errorf("expected 'resources/delete-service-web.yaml', got %q", path)
 	}
 }
 
 func TestDeleteOutputPath_CustomPrefix(t *testing.T) {
-	r := u.Resource{Kind: "Job", Metadata: u.ObjectMeta{Name: "sync"}}
-	path := u.DeleteOutputPathForResource("output", r)
+	r := ku.Resource{Kind: "Job", Metadata: ku.ObjectMeta{Name: "sync"}}
+	path := ku.DeleteOutputPathForResource("output", r)
 	if path != "output/delete-job-sync.yaml" {
 		t.Errorf("expected 'output/delete-job-sync.yaml', got %q", path)
 	}

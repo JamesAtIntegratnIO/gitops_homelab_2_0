@@ -5,7 +5,7 @@ import (
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 func buildValuesObject(config *VClusterConfig) (map[string]interface{}, error) {
@@ -182,7 +182,7 @@ func buildValuesObject(config *VClusterConfig) (map[string]interface{}, error) {
 		RBAC: RBACConfig{
 			ClusterRole: ClusterRoleConfig{
 				Enabled: true,
-				ExtraRules: []u.PolicyRule{
+				ExtraRules: []ku.PolicyRule{
 					{
 						APIGroups:     []string{""},
 						Resources:     []string{"secrets"},
@@ -198,12 +198,12 @@ func buildValuesObject(config *VClusterConfig) (map[string]interface{}, error) {
 		values.ExportKubeConfig = config.ExportKubeConfig
 	}
 
-	valuesMap, err := u.ToMap(values)
+	valuesMap, err := ku.ToMap(values)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert values to map: %w", err)
 	}
 
-	return u.DeepMerge(valuesMap, config.HelmOverrides), nil
+	return ku.DeepMerge(valuesMap, config.HelmOverrides), nil
 }
 
 func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
@@ -236,29 +236,29 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 	}
 
 	// Apply replicas
-	if val, err := u.GetIntValue(resource, "spec.vcluster.replicas"); err == nil && val > 0 {
+	if val, err := ku.GetIntValue(resource, "spec.vcluster.replicas"); err == nil && val > 0 {
 		config.Replicas = val
 	} else {
 		config.Replicas = defaults.Replicas
 	}
 
 	// Apply resource requests/limits
-	config.CPURequest = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.cpu", defaults.CPURequest)
-	config.MemoryRequest = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.memory", defaults.MemoryRequest)
-	config.CPULimit = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.cpu", defaults.CPULimit)
-	config.MemoryLimit = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults.MemoryLimit)
+	config.CPURequest = ku.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.cpu", defaults.CPURequest)
+	config.MemoryRequest = ku.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.memory", defaults.MemoryRequest)
+	config.CPULimit = ku.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.cpu", defaults.CPULimit)
+	config.MemoryLimit = ku.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults.MemoryLimit)
 
 	// Apply persistence
-	if val, err := u.GetBoolValue(resource, "spec.vcluster.persistence.enabled"); err == nil {
+	if val, err := ku.GetBoolValue(resource, "spec.vcluster.persistence.enabled"); err == nil {
 		config.PersistenceEnabled = val
 	} else {
 		config.PersistenceEnabled = defaults.PersistenceEnabled
 	}
 
-	config.PersistenceSize = u.GetStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
+	config.PersistenceSize = ku.GetStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
 
 	// Apply coredns replicas
-	if val, err := u.GetIntValue(resource, "spec.vcluster.coredns.replicas"); err == nil && val > 0 {
+	if val, err := ku.GetIntValue(resource, "spec.vcluster.coredns.replicas"); err == nil && val > 0 {
 		config.CorednsReplicas = val
 	} else {
 		config.CorednsReplicas = defaults.CorednsReplicas

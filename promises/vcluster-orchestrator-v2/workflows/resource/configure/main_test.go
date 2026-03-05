@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // minimalConfig returns a VClusterConfig with all required fields for testing.
@@ -159,7 +159,7 @@ func TestEtcdEnabled_False(t *testing.T) {
 
 func TestApplyPresetDefaults_Dev(t *testing.T) {
 	config := &VClusterConfig{Preset: "dev"}
-	resource := &u.MockResource{Data: map[string]interface{}{"spec": map[string]interface{}{}}}
+	resource := &ku.MockResource{Data: map[string]interface{}{"spec": map[string]interface{}{}}}
 	applyPresetDefaults(config, resource)
 
 	if config.Replicas != 1 {
@@ -178,7 +178,7 @@ func TestApplyPresetDefaults_Dev(t *testing.T) {
 
 func TestApplyPresetDefaults_Prod(t *testing.T) {
 	config := &VClusterConfig{Preset: "prod"}
-	resource := &u.MockResource{Data: map[string]interface{}{"spec": map[string]interface{}{}}}
+	resource := &ku.MockResource{Data: map[string]interface{}{"spec": map[string]interface{}{}}}
 	applyPresetDefaults(config, resource)
 
 	if config.Replicas != 3 {
@@ -200,7 +200,7 @@ func TestApplyPresetDefaults_Prod(t *testing.T) {
 
 func TestApplyPresetDefaults_Override(t *testing.T) {
 	config := &VClusterConfig{Preset: "dev"}
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"vcluster": map[string]interface{}{
@@ -236,7 +236,7 @@ func TestApplyPresetDefaults_Override(t *testing.T) {
 
 func TestApplyPresetDefaults_UnknownPreset(t *testing.T) {
 	config := &VClusterConfig{Preset: "unknown"}
-	resource := &u.MockResource{Data: map[string]interface{}{"spec": map[string]interface{}{}}}
+	resource := &ku.MockResource{Data: map[string]interface{}{"spec": map[string]interface{}{}}}
 	applyPresetDefaults(config, resource)
 
 	// Falls back to dev defaults
@@ -250,7 +250,7 @@ func TestApplyPresetDefaults_UnknownPreset(t *testing.T) {
 // ============================================================================
 
 func TestExtractExtraEgress_Valid(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"networkPolicies": map[string]interface{}{
@@ -283,7 +283,7 @@ func TestExtractExtraEgress_Valid(t *testing.T) {
 }
 
 func TestExtractExtraEgress_DefaultProtocol(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"networkPolicies": map[string]interface{}{
@@ -309,7 +309,7 @@ func TestExtractExtraEgress_DefaultProtocol(t *testing.T) {
 }
 
 func TestExtractExtraEgress_IncompleteSkipped(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"networkPolicies": map[string]interface{}{
@@ -331,7 +331,7 @@ func TestExtractExtraEgress_IncompleteSkipped(t *testing.T) {
 }
 
 func TestExtractExtraEgress_NoField(t *testing.T) {
-	resource := &u.MockResource{
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{"spec": map[string]interface{}{}},
 	}
 	rules := extractExtraEgress(resource)
@@ -358,7 +358,7 @@ func TestBuildArgoCDProjectRequest(t *testing.T) {
 		t.Errorf("expected namespace %q, got %q", config.Namespace, res.Metadata.Namespace)
 	}
 
-	spec, ok := res.Spec.(u.ArgoCDProjectSpec)
+	spec, ok := res.Spec.(ku.ArgoCDProjectSpec)
 	if !ok {
 		t.Fatal("expected ArgoCDProjectSpec type")
 	}
@@ -384,7 +384,7 @@ func TestBuildArgoCDApplicationRequest(t *testing.T) {
 		t.Errorf("expected name %q, got %q", expectedName, res.Metadata.Name)
 	}
 
-	spec, ok := res.Spec.(u.ArgoCDApplicationSpec)
+	spec, ok := res.Spec.(ku.ArgoCDApplicationSpec)
 	if !ok {
 		t.Fatal("expected ArgoCDApplicationSpec type")
 	}
@@ -412,7 +412,7 @@ func TestBuildArgoCDClusterRegistrationRequest(t *testing.T) {
 		t.Errorf("expected name %q, got %q", expectedName, res.Metadata.Name)
 	}
 
-	spec, ok := res.Spec.(u.ArgoCDClusterRegistrationSpec)
+	spec, ok := res.Spec.(ku.ArgoCDClusterRegistrationSpec)
 	if !ok {
 		t.Fatal("expected ArgoCDClusterRegistrationSpec type")
 	}
@@ -725,7 +725,7 @@ func TestBuildValuesObject_WithHelmOverrides(t *testing.T) {
 // ============================================================================
 
 func TestHandleConfigure_Basic(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := minimalConfig()
 	vals, err := buildValuesObject(config)
 	if err != nil {
@@ -739,39 +739,39 @@ func TestHandleConfigure_Basic(t *testing.T) {
 	}
 
 	// Check ArgoCD requests
-	if !u.FileExists(dir, "resources/argocd-project-request.yaml") {
+	if !ku.FileExists(dir, "resources/argocd-project-request.yaml") {
 		t.Error("expected argocd-project-request.yaml")
 	}
-	if !u.FileExists(dir, "resources/argocd-application-request.yaml") {
+	if !ku.FileExists(dir, "resources/argocd-application-request.yaml") {
 		t.Error("expected argocd-application-request.yaml")
 	}
-	if !u.FileExists(dir, "resources/argocd-cluster-registration-request.yaml") {
+	if !ku.FileExists(dir, "resources/argocd-cluster-registration-request.yaml") {
 		t.Error("expected argocd-cluster-registration-request.yaml")
 	}
 
 	// Namespace
-	if !u.FileExists(dir, "resources/namespace.yaml") {
+	if !ku.FileExists(dir, "resources/namespace.yaml") {
 		t.Error("expected namespace.yaml")
 	}
 
 	// CoreDNS
-	if !u.FileExists(dir, "resources/coredns-configmap.yaml") {
+	if !ku.FileExists(dir, "resources/coredns-configmap.yaml") {
 		t.Error("expected coredns-configmap.yaml")
 	}
 
 	// No etcd certs (not enabled)
-	if u.FileExists(dir, "resources/etcd-certificates.yaml") {
+	if ku.FileExists(dir, "resources/etcd-certificates.yaml") {
 		t.Error("should not create etcd-certificates when not enabled")
 	}
 
 	// Network policies
-	if !u.FileExists(dir, "resources/network-policies.yaml") {
+	if !ku.FileExists(dir, "resources/network-policies.yaml") {
 		t.Error("expected network-policies.yaml")
 	}
 }
 
 func TestHandleConfigure_WithEtcd(t *testing.T) {
-	sdk, dir := u.NewTestSDK(t)
+	sdk, dir := ku.NewTestSDK(t)
 	config := minimalConfig()
 	config.BackingStore = map[string]interface{}{
 		"etcd": map[string]interface{}{
@@ -791,7 +791,7 @@ func TestHandleConfigure_WithEtcd(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !u.FileExists(dir, "resources/etcd-certificates.yaml") {
+	if !ku.FileExists(dir, "resources/etcd-certificates.yaml") {
 		t.Error("expected etcd-certificates.yaml")
 	}
 }
@@ -811,7 +811,7 @@ func TestDeleteOutputGeneration(t *testing.T) {
 	config := minimalConfig()
 
 	// Test that we can build all the delete resources without error
-	allResources := []u.Resource{
+	allResources := []ku.Resource{
 		buildArgoCDProjectRequest(config),
 		buildArgoCDApplicationRequest(config),
 		buildArgoCDClusterRegistrationRequest(config),
@@ -819,8 +819,8 @@ func TestDeleteOutputGeneration(t *testing.T) {
 	}
 
 	for _, obj := range allResources {
-		deleteObj := u.DeleteFromResource(obj)
-		path := u.DeleteOutputPathForResource("resources", obj)
+		deleteObj := ku.DeleteFromResource(obj)
+		path := ku.DeleteOutputPathForResource("resources", obj)
 		if deleteObj.Kind != obj.Kind {
 			t.Errorf("expected kind %q in delete, got %q", obj.Kind, deleteObj.Kind)
 		}
@@ -832,7 +832,7 @@ func TestDeleteOutputGeneration(t *testing.T) {
 	// Test network policy deletes
 	netPolicies := buildNetworkPolicies(config)
 	for _, obj := range netPolicies {
-		deleteObj := u.DeleteFromResource(obj)
+		deleteObj := ku.DeleteFromResource(obj)
 		if deleteObj.Kind != obj.Kind {
 			t.Errorf("expected kind %q in delete, got %q", obj.Kind, deleteObj.Kind)
 		}
@@ -849,7 +849,7 @@ func TestDeleteOutputGeneration_WithEtcd(t *testing.T) {
 
 	etcdCerts := buildEtcdCertificates(config)
 	for _, obj := range etcdCerts {
-		deleteObj := u.DeleteFromResource(obj)
+		deleteObj := ku.DeleteFromResource(obj)
 		if deleteObj.Kind != obj.Kind {
 			t.Errorf("expected kind %q in delete, got %q", obj.Kind, deleteObj.Kind)
 		}
@@ -861,8 +861,8 @@ func TestDeleteOutputGeneration_WithEtcd(t *testing.T) {
 // ============================================================================
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Name: "test-vc",
 		Ns:   "default",
 		Data: map[string]interface{}{
@@ -898,8 +898,8 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 }
 
 func TestBuildConfig_MissingName(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{},
 		},
@@ -915,8 +915,8 @@ func TestBuildConfig_MissingName(t *testing.T) {
 }
 
 func TestBuildConfig_WithSubnet(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Name: "test",
 		Ns:   "default",
 		Data: map[string]interface{}{
@@ -940,8 +940,8 @@ func TestBuildConfig_WithSubnet(t *testing.T) {
 }
 
 func TestBuildConfig_VIPNotInSubnet(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Name: "test",
 		Ns:   "default",
 		Data: map[string]interface{}{
@@ -966,8 +966,8 @@ func TestBuildConfig_VIPNotInSubnet(t *testing.T) {
 }
 
 func TestBuildConfig_WithProdPreset(t *testing.T) {
-	sdk, _ := u.NewTestSDK(t)
-	resource := &u.MockResource{
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
 		Name: "prod-vc",
 		Ns:   "default",
 		Data: map[string]interface{}{

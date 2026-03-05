@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 // buildNetworkPolicies generates the complete set of host-cluster network policies
@@ -14,8 +14,8 @@ import (
 //   - Custom extra egress rules (e.g., PostgreSQL)
 //
 // All policies are emitted to the Kratix state repo and synced to the host cluster.
-func buildNetworkPolicies(config *VClusterConfig) []u.Resource {
-	var policies []u.Resource
+func buildNetworkPolicies(config *VClusterConfig) []ku.Resource {
+	var policies []ku.Resource
 
 	// --- Generic baseline policies (every vcluster gets these) ---
 	policies = append(policies,
@@ -44,21 +44,21 @@ func buildNetworkPolicies(config *VClusterConfig) []u.Resource {
 }
 
 func netpolicyLabels(config *VClusterConfig, name string) map[string]string {
-	return u.MergeStringMap(map[string]string{
+	return ku.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name":       name,
 		"app.kubernetes.io/component":  "network-policy",
 		"platform.integratn.tech/type": "vcluster-policy",
-	}, u.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
+	}, ku.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
 }
 
 // --- Generic baseline policies ---
 
 // buildDefaultDenyPolicy creates the default-deny-all policy.
-func buildDefaultDenyPolicy(config *VClusterConfig) u.Resource {
-	return u.Resource{
+func buildDefaultDenyPolicy(config *VClusterConfig) ku.Resource {
+	return ku.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			"default-deny-all",
 			config.TargetNamespace,
 			netpolicyLabels(config, "default-deny-all"),
@@ -72,11 +72,11 @@ func buildDefaultDenyPolicy(config *VClusterConfig) u.Resource {
 }
 
 // buildDNSEgressPolicy allows egress to kube-system CoreDNS on port 53.
-func buildDNSEgressPolicy(config *VClusterConfig) u.Resource {
-	return u.Resource{
+func buildDNSEgressPolicy(config *VClusterConfig) ku.Resource {
+	return ku.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			"allow-dns",
 			config.TargetNamespace,
 			netpolicyLabels(config, "allow-dns"),
@@ -112,11 +112,11 @@ func buildDNSEgressPolicy(config *VClusterConfig) u.Resource {
 }
 
 // buildKubeAPIPolicy allows egress to the kube-apiserver entity (CiliumNetworkPolicy).
-func buildKubeAPIPolicy(config *VClusterConfig) u.Resource {
-	return u.Resource{
+func buildKubeAPIPolicy(config *VClusterConfig) ku.Resource {
+	return ku.Resource{
 		APIVersion: "cilium.io/v2",
 		Kind:       "CiliumNetworkPolicy",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			"allow-kube-api",
 			config.TargetNamespace,
 			netpolicyLabels(config, "allow-kube-api"),
@@ -135,11 +135,11 @@ func buildKubeAPIPolicy(config *VClusterConfig) u.Resource {
 
 // buildCorednsHostDNSPolicy allows egress to Talos node-local DNS (169.254.116.108).
 // This link-local address is classified as 'world' by Cilium, not 'host'.
-func buildCorednsHostDNSPolicy(config *VClusterConfig) u.Resource {
-	return u.Resource{
+func buildCorednsHostDNSPolicy(config *VClusterConfig) ku.Resource {
+	return ku.Resource{
 		APIVersion: "cilium.io/v2",
 		Kind:       "CiliumNetworkPolicy",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			"allow-coredns-to-host-dns",
 			config.TargetNamespace,
 			netpolicyLabels(config, "allow-coredns-to-host-dns"),
@@ -165,11 +165,11 @@ func buildCorednsHostDNSPolicy(config *VClusterConfig) u.Resource {
 }
 
 // buildIntraNamespacePolicy allows full intra-namespace communication.
-func buildIntraNamespacePolicy(config *VClusterConfig) u.Resource {
-	return u.Resource{
+func buildIntraNamespacePolicy(config *VClusterConfig) ku.Resource {
+	return ku.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			"allow-intra-namespace",
 			config.TargetNamespace,
 			netpolicyLabels(config, "allow-intra-namespace"),
@@ -199,11 +199,11 @@ func buildIntraNamespacePolicy(config *VClusterConfig) u.Resource {
 // buildVClusterExternalPolicy allows generic external ingress and egress
 // that every vcluster needs: ArgoCD, nginx-gateway, monitoring ingress;
 // 1Password Connect and public HTTPS egress.
-func buildVClusterExternalPolicy(config *VClusterConfig) u.Resource {
-	return u.Resource{
+func buildVClusterExternalPolicy(config *VClusterConfig) ku.Resource {
+	return ku.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			"allow-vcluster-external",
 			config.TargetNamespace,
 			netpolicyLabels(config, "allow-vcluster-external"),
@@ -334,11 +334,11 @@ func buildVClusterExternalPolicy(config *VClusterConfig) u.Resource {
 //   - host: traffic from the local node (cilium_host0 SNAT on same node)
 //   - remote-node: traffic from other nodes (cilium_host0 SNAT cross-node)
 //   - world: traffic with preserved external source IP (e.g., ETP:Local)
-func buildVClusterLBSNATPolicy(config *VClusterConfig) u.Resource {
-	return u.Resource{
+func buildVClusterLBSNATPolicy(config *VClusterConfig) ku.Resource {
+	return ku.Resource{
 		APIVersion: "cilium.io/v2",
 		Kind:       "CiliumNetworkPolicy",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			"allow-vcluster-lb-snat",
 			config.TargetNamespace,
 			netpolicyLabels(config, "allow-vcluster-lb-snat"),
@@ -367,11 +367,11 @@ func buildVClusterLBSNATPolicy(config *VClusterConfig) u.Resource {
 }
 
 // buildNFSEgressPolicy creates a NetworkPolicy allowing NFS egress.
-func buildNFSEgressPolicy(config *VClusterConfig) u.Resource {
-	return u.Resource{
+func buildNFSEgressPolicy(config *VClusterConfig) ku.Resource {
+	return ku.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			"allow-nfs-egress",
 			config.TargetNamespace,
 			netpolicyLabels(config, "allow-nfs-egress"),
@@ -395,13 +395,13 @@ func buildNFSEgressPolicy(config *VClusterConfig) u.Resource {
 }
 
 // buildExtraEgressPolicy creates a NetworkPolicy for a custom egress rule.
-func buildExtraEgressPolicy(config *VClusterConfig, rule ExtraEgressRule) u.Resource {
+func buildExtraEgressPolicy(config *VClusterConfig, rule ExtraEgressRule) ku.Resource {
 	policyName := fmt.Sprintf("allow-%s-egress", rule.Name)
 
-	return u.Resource{
+	return ku.Resource{
 		APIVersion: "networking.k8s.io/v1",
 		Kind:       "NetworkPolicy",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			policyName,
 			config.TargetNamespace,
 			netpolicyLabels(config, policyName),

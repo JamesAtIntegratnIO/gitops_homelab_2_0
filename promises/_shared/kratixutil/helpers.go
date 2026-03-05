@@ -1,8 +1,10 @@
 package kratixutil
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	kratix "github.com/syntasso/kratix-go"
 )
@@ -11,7 +13,6 @@ import (
 // Value Extraction Helpers
 // ============================================================================
 
-// GetStringValue extracts a string from a Kratix resource at the given path.
 func GetStringValue(resource kratix.Resource, path string) (string, error) {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -23,8 +24,7 @@ func GetStringValue(resource kratix.Resource, path string) (string, error) {
 	return "", fmt.Errorf("%s is not a string", path)
 }
 
-// GetStringValueWithDefault extracts a string or returns the default.
-// Also treats "null" (YAML null rendered as string) as empty.
+// GetStringValueWithDefault also treats "null" (YAML null rendered as string) as empty.
 func GetStringValueWithDefault(resource kratix.Resource, path, defaultValue string) string {
 	val, err := GetStringValue(resource, path)
 	if err != nil || val == "" || val == "null" {
@@ -33,8 +33,7 @@ func GetStringValueWithDefault(resource kratix.Resource, path, defaultValue stri
 	return val
 }
 
-// GetIntValue extracts an integer from a Kratix resource at the given path.
-// Handles int, int64, float64, and string (via strconv.Atoi) representations.
+// GetIntValue handles int, int64, float64, and string (via strconv.Atoi) representations.
 func GetIntValue(resource kratix.Resource, path string) (int, error) {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -53,8 +52,7 @@ func GetIntValue(resource kratix.Resource, path string) (int, error) {
 	return 0, fmt.Errorf("value at %s is not an integer", path)
 }
 
-// GetIntValueWithDefault extracts an integer or returns the default.
-// Returns defaultValue only when the path is missing or not parseable;
+// GetIntValueWithDefault returns defaultValue only when the path is missing or not parseable;
 // an explicit 0 is returned as-is.
 func GetIntValueWithDefault(resource kratix.Resource, path string, defaultValue int) int {
 	val, err := GetIntValue(resource, path)
@@ -64,7 +62,6 @@ func GetIntValueWithDefault(resource kratix.Resource, path string, defaultValue 
 	return val
 }
 
-// GetBoolValue extracts a boolean from a Kratix resource at the given path.
 func GetBoolValue(resource kratix.Resource, path string) (bool, error) {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -76,7 +73,6 @@ func GetBoolValue(resource kratix.Resource, path string) (bool, error) {
 	return false, fmt.Errorf("value at %s is not a bool", path)
 }
 
-// GetBoolValueWithDefault extracts a boolean or returns the default.
 func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue bool) bool {
 	val, err := GetBoolValue(resource, path)
 	if err != nil {
@@ -89,7 +85,6 @@ func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue
 // Collection Extractors
 // ============================================================================
 
-// ExtractStringMap extracts a map[string]string from the given path.
 func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -111,7 +106,6 @@ func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
 	return result
 }
 
-// ExtractStringSlice extracts a []string from the given path.
 func ExtractStringSlice(resource kratix.Resource, path string) []string {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -130,7 +124,6 @@ func ExtractStringSlice(resource kratix.Resource, path string) []string {
 	return result
 }
 
-// ExtractObjectSlice extracts a []map[string]interface{} from the given path.
 func ExtractObjectSlice(resource kratix.Resource, path string) []map[string]interface{} {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -149,7 +142,6 @@ func ExtractObjectSlice(resource kratix.Resource, path string) []map[string]inte
 	return result
 }
 
-// ExtractSecrets extracts a slice of SecretRef from the standard secrets path.
 func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -237,4 +229,47 @@ func MergeStringMap(dst, src map[string]string) map[string]string {
 		result[k] = v
 	}
 	return result
+}
+
+// ============================================================================
+// Type Conversion Utilities
+// ============================================================================
+
+// ToMap converts a struct to map[string]interface{} via JSON roundtrip.
+// Useful at the merge boundary where typed structs meet DeepMerge.
+func ToMap(v interface{}) (map[string]interface{}, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("toMap marshal: %w", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("toMap unmarshal: %w", err)
+	}
+	return m, nil
+}
+
+// DeleteFromResource strips a Resource down to its identity fields
+// (apiVersion, kind, name, namespace) for use as a Kratix delete output.
+func DeleteFromResource(r Resource) Resource {
+	return Resource{
+		APIVersion: r.APIVersion,
+		Kind:       r.Kind,
+		Metadata: ObjectMeta{
+			Name:      r.Metadata.Name,
+			Namespace: r.Metadata.Namespace,
+		},
+	}
+}
+
+// DeleteOutputPathForResource computes the output path using the standard
+// "resources/delete-{kind}-{name}.yaml" pattern.
+func DeleteOutputPathForResource(prefix string, r Resource) string {
+	if prefix == "" {
+		prefix = "resources/"
+	}
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
 }

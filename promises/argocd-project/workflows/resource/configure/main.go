@@ -6,34 +6,34 @@ import (
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 func main() {
-	u.RunPromise("ArgoCD Project Promise Pipeline", handleConfigure, handleDelete)
+	ku.RunPromise("ArgoCD Project Promise Pipeline", handleConfigure, handleDelete)
 }
 
 func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := u.GetStringValue(resource, "spec.name")
+	name, err := ku.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
-	description, _ := u.GetStringValue(resource, "spec.description")
+	namespace := ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+	description, _ := ku.GetStringValue(resource, "spec.description")
 
-	annotations := u.ExtractStringMap(resource, "spec.annotations")
-	labels := u.ExtractStringMap(resource, "spec.labels")
-	sourceRepos := u.ExtractStringSlice(resource, "spec.sourceRepos")
-	destinations := toProjectDestinations(u.ExtractObjectSlice(resource, "spec.destinations"))
-	clusterResourceWhitelist := toResourceFilters(u.ExtractObjectSlice(resource, "spec.clusterResourceWhitelist"))
-	namespaceResourceWhitelist := toResourceFilters(u.ExtractObjectSlice(resource, "spec.namespaceResourceWhitelist"))
+	annotations := ku.ExtractStringMap(resource, "spec.annotations")
+	labels := ku.ExtractStringMap(resource, "spec.labels")
+	sourceRepos := ku.ExtractStringSlice(resource, "spec.sourceRepos")
+	destinations := toProjectDestinations(ku.ExtractObjectSlice(resource, "spec.destinations"))
+	clusterResourceWhitelist := toResourceFilters(ku.ExtractObjectSlice(resource, "spec.clusterResourceWhitelist"))
+	namespaceResourceWhitelist := toResourceFilters(ku.ExtractObjectSlice(resource, "spec.namespaceResourceWhitelist"))
 
 	// Build the ArgoCD AppProject
-	project := u.Resource{
+	project := ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "AppProject",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:        name,
 			Namespace:   namespace,
 			Labels:      labels,
@@ -48,7 +48,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 		},
 	}
 
-	if err := u.WriteYAML(sdk, "resources/appproject.yaml", project); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/appproject.yaml", project); err != nil {
 		return fmt.Errorf("write appproject: %w", err)
 	}
 	log.Printf("✓ Rendered ArgoCD AppProject: %s", name)
@@ -67,23 +67,23 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 }
 
 func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := u.GetStringValue(resource, "spec.name")
+	name, err := ku.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+	namespace := ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
 
-	deleteObj := u.Resource{
+	deleteObj := ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "AppProject",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
 	}
 
-	if err := u.WriteYAML(sdk, "resources/delete-appproject.yaml", deleteObj); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/delete-appproject.yaml", deleteObj); err != nil {
 		return fmt.Errorf("write delete appproject: %w", err)
 	}
 	log.Printf("✓ Delete scheduled for AppProject: %s", name)
@@ -100,13 +100,13 @@ func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 }
 
 // toProjectDestinations converts untyped maps to typed ProjectDestination values.
-func toProjectDestinations(raw []map[string]interface{}) []u.ProjectDestination {
+func toProjectDestinations(raw []map[string]interface{}) []ku.ProjectDestination {
 	if raw == nil {
 		return nil
 	}
-	result := make([]u.ProjectDestination, 0, len(raw))
+	result := make([]ku.ProjectDestination, 0, len(raw))
 	for _, m := range raw {
-		d := u.ProjectDestination{}
+		d := ku.ProjectDestination{}
 		if v, ok := m["namespace"].(string); ok {
 			d.Namespace = v
 		}
@@ -119,13 +119,13 @@ func toProjectDestinations(raw []map[string]interface{}) []u.ProjectDestination 
 }
 
 // toResourceFilters converts untyped maps to typed ResourceFilter values.
-func toResourceFilters(raw []map[string]interface{}) []u.ResourceFilter {
+func toResourceFilters(raw []map[string]interface{}) []ku.ResourceFilter {
 	if raw == nil {
 		return nil
 	}
-	result := make([]u.ResourceFilter, 0, len(raw))
+	result := make([]ku.ResourceFilter, 0, len(raw))
 	for _, m := range raw {
-		f := u.ResourceFilter{}
+		f := ku.ResourceFilter{}
 		if v, ok := m["group"].(string); ok {
 			f.Group = v
 		}

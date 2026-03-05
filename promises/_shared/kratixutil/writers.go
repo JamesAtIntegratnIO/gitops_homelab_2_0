@@ -8,8 +8,6 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// WriteYAML marshals a single object to YAML and writes it to the Kratix
-// output directory at the specified path.
 func WriteYAML(sdk *kratix.KratixSDK, path string, obj interface{}) error {
 	data, err := yaml.Marshal(obj)
 	if err != nil {
