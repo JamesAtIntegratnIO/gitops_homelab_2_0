@@ -76,7 +76,11 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, err
 
 	// Extract sync policy
 	if raw, _ := resource.GetValue("spec.syncPolicy"); raw != nil {
-		config.SyncPolicy = ku.ParseSyncPolicy(raw)
+		parsed, parseErr := ku.ParseSyncPolicyE(raw)
+		if parseErr != nil {
+			return nil, fmt.Errorf("spec.syncPolicy: %w", parseErr)
+		}
+		config.SyncPolicy = parsed
 	}
 
 	return config, nil

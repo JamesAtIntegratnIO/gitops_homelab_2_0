@@ -214,8 +214,8 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []ku.Resource {
 			"egress": []map[string]interface{}{
 				{
 					"ports": []map[string]interface{}{
-						{"protocol": "UDP", "port": 53},
-						{"protocol": "TCP", "port": 53},
+						{"protocol": "UDP", "port": ku.DNSPort},
+						{"protocol": "TCP", "port": ku.DNSPort},
 					},
 				},
 			},

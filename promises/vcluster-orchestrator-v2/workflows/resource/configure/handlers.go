@@ -11,6 +11,7 @@ import (
 
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -169,8 +170,12 @@ func cleanupNamespace(config *VClusterConfig) error {
 	// Check if namespace exists before trying to delete
 	_, err = clientset.CoreV1().Namespaces().Get(ctx, config.TargetNamespace, metav1.GetOptions{})
 	if err != nil {
-		log.Printf("Namespace %s not found or already deleted, skipping", config.TargetNamespace)
-		return nil
+		// Only skip on not-found; propagate other errors
+		if apierrors.IsNotFound(err) {
+			log.Printf("Namespace %s not found or already deleted, skipping", config.TargetNamespace)
+			return nil
+		}
+		return fmt.Errorf("failed to get namespace %s: %w", config.TargetNamespace, err)
 	}
 
 	if err := clientset.CoreV1().Namespaces().Delete(ctx, config.TargetNamespace, metav1.DeleteOptions{}); err != nil {

@@ -33,7 +33,9 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		return nil, err
 	}
 	configureIntegrations(config, resource)
-	configureArgoCD(config, resource)
+	if err := configureArgoCD(config, resource); err != nil {
+		return nil, err
+	}
 
 	// Extract network policy configuration
 	if val, err := ku.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
@@ -159,10 +161,7 @@ func calculateVIP(config *VClusterConfig) error {
 // resolveHostname determines the hostname and baseDomain from the resource
 // annotations, falling back to sensible defaults.
 func resolveHostname(config *VClusterConfig, resource kratix.Resource) {
-	config.BaseDomain, _ = ku.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain")
-	if config.BaseDomain == "" || config.BaseDomain == "null" {
-		config.BaseDomain = ku.DefaultBaseDomain
-	}
+	config.BaseDomain = ku.GetStringValueWithDefault(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain", ku.DefaultBaseDomain)
 	if config.Hostname == "" {
 		config.Hostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
 	}
@@ -289,7 +288,7 @@ func configureClusterMetadata(config *VClusterConfig) {
 
 // configureArgoCD sets up ArgoCD application configuration including repo URL,
 // chart, target revision, destination server, and sync policy with defaults.
-func configureArgoCD(config *VClusterConfig, resource kratix.Resource) {
+func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 	config.ArgoCDRepoURL = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
 	config.ArgoCDChart = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
 	config.ArgoCDTargetRevision = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
@@ -297,7 +296,11 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) {
 
 	// Extract sync policy
 	if val, err := resource.GetValue("spec.argocdApplication.syncPolicy"); err == nil && val != nil {
-		config.ArgoCDSyncPolicy = ku.ParseSyncPolicy(val)
+		parsed, parseErr := ku.ParseSyncPolicyE(val)
+		if parseErr != nil {
+			return fmt.Errorf("spec.argocdApplication.syncPolicy: %w", parseErr)
+		}
+		config.ArgoCDSyncPolicy = parsed
 	}
 
 	defaultSyncPolicy := &ku.SyncPolicy{
@@ -318,6 +321,7 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) {
 			config.ArgoCDSyncPolicy.SyncOptions = defaultSyncPolicy.SyncOptions
 		}
 	}
+	return nil
 }
 
 func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {

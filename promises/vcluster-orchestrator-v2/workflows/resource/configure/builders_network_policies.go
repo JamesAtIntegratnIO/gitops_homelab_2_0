@@ -131,8 +131,8 @@ func buildDNSEgressPolicy(config *VClusterConfig) ku.Resource {
 						},
 					},
 					"ports": []map[string]interface{}{
-						{"protocol": "UDP", "port": 53},
-						{"protocol": "TCP", "port": 53},
+						{"protocol": "UDP", "port": ku.DNSPort},
+						{"protocol": "TCP", "port": ku.DNSPort},
 					},
 				},
 			},
@@ -263,8 +263,8 @@ func buildVClusterExternalPolicy(config *VClusterConfig) ku.Resource {
 								},
 							},
 						},
-						{"ipBlock": map[string]interface{}{"cidr": "10.0.0.0/8"}},
-						{"ipBlock": map[string]interface{}{"cidr": "192.168.0.0/16"}},
+						{"ipBlock": map[string]interface{}{"cidr": ku.RFC1918Class10}},
+						{"ipBlock": map[string]interface{}{"cidr": ku.RFC1918Class192}},
 					},
 					"ports": []map[string]interface{}{
 						{"protocol": "TCP", "port": 8443},
@@ -299,11 +299,11 @@ func buildVClusterExternalPolicy(config *VClusterConfig) ku.Resource {
 				// so we must allow 0.0.0.0/0 (not just private ranges).
 				{
 					"from": []map[string]interface{}{
-						{"ipBlock": map[string]interface{}{"cidr": "0.0.0.0/0"}},
+						{"ipBlock": map[string]interface{}{"cidr": ku.AllIPv4}},
 					},
 					"ports": []map[string]interface{}{
-						{"protocol": "TCP", "port": 80},
-						{"protocol": "TCP", "port": 443},
+						{"protocol": "TCP", "port": ku.HTTPPort},
+						{"protocol": "TCP", "port": ku.HTTPSPort},
 					},
 				},
 			},
@@ -314,7 +314,7 @@ func buildVClusterExternalPolicy(config *VClusterConfig) ku.Resource {
 						{"ipBlock": map[string]interface{}{"cidr": ku.OnePasswordConnectCIDR}},
 					},
 					"ports": []map[string]interface{}{
-						{"protocol": "TCP", "port": 443},
+						{"protocol": "TCP", "port": ku.HTTPSPort},
 					},
 				},
 				// External HTTPS (container registries, APIs)
@@ -325,20 +325,20 @@ func buildVClusterExternalPolicy(config *VClusterConfig) ku.Resource {
 					"to": []map[string]interface{}{
 						{
 							"ipBlock": map[string]interface{}{
-								"cidr": "0.0.0.0/0",
+								"cidr": ku.AllIPv4,
 								"except": []string{
-									"10.0.0.0/8",
-									"172.16.0.0/12",
-									"192.168.0.0/16",
+									ku.RFC1918Class10,
+									ku.RFC1918Class172,
+									ku.RFC1918Class192,
 								},
 							},
 						},
 					},
 					"ports": []map[string]interface{}{
-						{"protocol": "TCP", "port": 443},
-						{"protocol": "TCP", "port": 80},
-						{"protocol": "UDP", "port": 53},
-						{"protocol": "TCP", "port": 53},
+						{"protocol": "TCP", "port": ku.HTTPSPort},
+						{"protocol": "TCP", "port": ku.HTTPPort},
+						{"protocol": "UDP", "port": ku.DNSPort},
+						{"protocol": "TCP", "port": ku.DNSPort},
 					},
 				},
 			},
@@ -412,10 +412,10 @@ func buildNFSEgressPolicy(config *VClusterConfig) ku.Resource {
 			"egress": []map[string]interface{}{
 				{
 					"to": []map[string]interface{}{
-						{"ipBlock": map[string]interface{}{"cidr": "10.0.0.0/8"}},
+						{"ipBlock": map[string]interface{}{"cidr": ku.RFC1918Class10}},
 					},
 					"ports": []map[string]interface{}{
-						{"protocol": "TCP", "port": 2049},
+						{"protocol": "TCP", "port": ku.NFSPort},
 					},
 				},
 			},

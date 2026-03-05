@@ -67,4 +67,18 @@ const (
 	// Pinned to 1.31 for consistency across all promise pipeline jobs.
 	// Update when upgrading the host cluster Kubernetes version.
 	DefaultKubectlImage = "bitnami/kubectl:1.31"
+
+	// Common well-known ports used in network policies.
+	DNSPort   = 53
+	HTTPPort  = 80
+	HTTPSPort = 443
+	NFSPort   = 2049
+
+	// RFC 1918 private network CIDRs.
+	RFC1918Class10  = "10.0.0.0/8"
+	RFC1918Class172 = "172.16.0.0/12"
+	RFC1918Class192 = "192.168.0.0/16"
+
+	// AllIPv4 matches all IPv4 addresses.
+	AllIPv4 = "0.0.0.0/0"
 )

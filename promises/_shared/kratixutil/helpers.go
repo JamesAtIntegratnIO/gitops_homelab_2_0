@@ -84,120 +84,58 @@ func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue
 
 func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
 	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return nil
+	}
+	wrapper := map[string]interface{}{"_v": val}
+	result, err := ExtractStringMapE(wrapper, "_v")
 	if err != nil {
-		return nil
-	}
-	if val == nil {
-		return nil
-	}
-	m, ok := val.(map[string]interface{})
-	if !ok {
 		log.Printf("warning: field %s has unexpected type %T, expected map[string]interface{}", path, val)
 		return nil
-	}
-	result := make(map[string]string)
-	for k, v := range m {
-		if str, ok := v.(string); ok {
-			result[k] = str
-		}
 	}
 	return result
 }
 
 func ExtractStringSlice(resource kratix.Resource, path string) []string {
 	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return nil
+	}
+	wrapper := map[string]interface{}{"_v": val}
+	result, err := ExtractStringSliceE(wrapper, "_v")
 	if err != nil {
-		return nil
-	}
-	if val == nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
 		log.Printf("warning: field %s has unexpected type %T, expected []interface{}", path, val)
 		return nil
-	}
-	result := make([]string, 0, len(arr))
-	for _, v := range arr {
-		if str, ok := v.(string); ok {
-			result = append(result, str)
-		}
 	}
 	return result
 }
 
 func ExtractObjectSlice(resource kratix.Resource, path string) []map[string]interface{} {
 	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return nil
+	}
+	wrapper := map[string]interface{}{"_v": val}
+	result, err := ExtractObjectSliceE(wrapper, "_v")
 	if err != nil {
-		return nil
-	}
-	if val == nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
 		log.Printf("warning: field %s has unexpected type %T, expected []interface{}", path, val)
 		return nil
-	}
-	result := make([]map[string]interface{}, 0, len(arr))
-	for _, v := range arr {
-		if obj, ok := v.(map[string]interface{}); ok {
-			result = append(result, obj)
-		}
 	}
 	return result
 }
 
 func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
 	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return nil
+	}
+	wrapper := map[string]interface{}{"_v": val}
+	result, err := ExtractSecretsE(wrapper, "_v")
 	if err != nil {
-		return nil
-	}
-	if val == nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
 		log.Printf("warning: field %s has unexpected type %T, expected []interface{}", path, val)
 		return nil
 	}
-
-	var secrets []SecretRef
-	for _, item := range arr {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		s := SecretRef{}
-		if name, ok := m["name"].(string); ok {
-			s.Name = name
-		}
-		if opItem, ok := m["onePasswordItem"].(string); ok {
-			s.OnePasswordItem = opItem
-		}
-
-		if keys, ok := m["keys"].([]interface{}); ok {
-			for _, kItem := range keys {
-				km, ok := kItem.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				sk := SecretKey{}
-				if v, ok := km["secretKey"].(string); ok {
-					sk.SecretKey = v
-				}
-				if v, ok := km["property"].(string); ok {
-					sk.Property = v
-				}
-				s.Keys = append(s.Keys, sk)
-			}
-		}
-
-		secrets = append(secrets, s)
-	}
-
-	return secrets
+	return result
 }
 
 // ---------------------------------------------------------------------------
