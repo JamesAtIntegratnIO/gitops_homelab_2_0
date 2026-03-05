@@ -1,0 +1,865 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	kratix "github.com/syntasso/kratix-go"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+// ============================================================================
+// Mock Resource
+// ============================================================================
+
+type mockResource struct {
+	data map[string]interface{}
+	name string
+	ns   string
+}
+
+var _ kratix.Resource = (*mockResource)(nil)
+
+func (m *mockResource) GetValue(path string) (interface{}, error) {
+	keys := strings.Split(strings.TrimPrefix(path, "."), ".")
+	var current interface{} = m.data
+	for _, key := range keys {
+		if cm, ok := current.(map[string]interface{}); ok {
+			val, found := cm[key]
+			if !found {
+				return nil, fmt.Errorf("path %s not found", path)
+			}
+			current = val
+		} else {
+			return nil, fmt.Errorf("path %s not found", path)
+		}
+	}
+	return current, nil
+}
+
+func (m *mockResource) GetStatus() (kratix.Status, error)     { return nil, nil }
+func (m *mockResource) GetName() string                       { return m.name }
+func (m *mockResource) GetNamespace() string                  { return m.ns }
+func (m *mockResource) GetGroupVersionKind() schema.GroupVersionKind {
+	return schema.GroupVersionKind{}
+}
+func (m *mockResource) GetLabels() map[string]string      { return nil }
+func (m *mockResource) GetAnnotations() map[string]string { return nil }
+func (m *mockResource) ToUnstructured() unstructured.Unstructured {
+	return unstructured.Unstructured{}
+}
+
+func newTestSDK(t *testing.T) (*kratix.KratixSDK, string) {
+	t.Helper()
+	dir := t.TempDir()
+	sdk := kratix.New(kratix.WithOutputDir(dir), kratix.WithMetadataDir(dir))
+	return sdk, dir
+}
+
+func readOutput(t *testing.T, dir, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, path))
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", path, err)
+	}
+	return string(data)
+}
+
+func fileExists(dir, path string) bool {
+	_, err := os.Stat(filepath.Join(dir, path))
+	return err == nil
+}
+
+// ============================================================================
+// buildConfig
+// ============================================================================
+
+func TestBuildConfig_MinimalValid(t *testing.T) {
+	resource := &mockResource{
+		data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "my-app",
+				"image": map[string]interface{}{
+					"repository": "nginx",
+				},
+			},
+		},
+	}
+
+	config, err := buildConfig(resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if config.Name != "my-app" {
+		t.Errorf("expected name 'my-app', got %q", config.Name)
+	}
+	if config.Namespace != "my-app" {
+		t.Errorf("expected namespace defaulted to name 'my-app', got %q", config.Namespace)
+	}
+	if config.ImageRepository != "nginx" {
+		t.Errorf("expected image 'nginx', got %q", config.ImageRepository)
+	}
+	if config.ImageTag != "latest" {
+		t.Errorf("expected default tag 'latest', got %q", config.ImageTag)
+	}
+	if config.Replicas != 1 {
+		t.Errorf("expected default replicas 1, got %d", config.Replicas)
+	}
+	if config.Port != 8080 {
+		t.Errorf("expected default port 8080, got %d", config.Port)
+	}
+	if !config.IngressEnabled {
+		t.Error("expected ingress enabled by default")
+	}
+	if config.IngressHostname != "my-app.cluster.integratn.tech" {
+		t.Errorf("expected generated hostname, got %q", config.IngressHostname)
+	}
+	if config.Team != "platform" {
+		t.Errorf("expected default team 'platform', got %q", config.Team)
+	}
+	if config.BaseDomain != defaultBaseDomain {
+		t.Errorf("expected default base domain, got %q", config.BaseDomain)
+	}
+	if config.SecretStoreName != defaultSecretStore {
+		t.Errorf("expected default secret store, got %q", config.SecretStoreName)
+	}
+}
+
+func TestBuildConfig_WithAllFields(t *testing.T) {
+	resource := &mockResource{
+		data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name":      "api-server",
+				"namespace": "production",
+				"team":      "backend",
+				"image": map[string]interface{}{
+					"repository": "myrepo/api",
+					"tag":        "v1.2.3",
+					"pullPolicy": "Always",
+				},
+				"replicas": 3,
+				"port":     3000,
+				"resources": map[string]interface{}{
+					"requests": map[string]interface{}{
+						"cpu":    "250m",
+						"memory": "512Mi",
+					},
+					"limits": map[string]interface{}{
+						"cpu":    "1",
+						"memory": "1Gi",
+					},
+				},
+				"ingress": map[string]interface{}{
+					"enabled":  true,
+					"hostname": "api.example.com",
+					"path":     "/api",
+				},
+				"healthCheck": map[string]interface{}{
+					"path": "/healthz",
+					"port": 3001,
+				},
+				"monitoring": map[string]interface{}{
+					"enabled":  true,
+					"path":     "/prom",
+					"interval": "15s",
+				},
+				"persistence": map[string]interface{}{
+					"enabled":      true,
+					"size":         "10Gi",
+					"storageClass": "nfs",
+					"mountPath":    "/var/data",
+				},
+				"env": map[string]interface{}{
+					"PORT":     "3000",
+					"NODE_ENV": "production",
+				},
+				"envFromSecrets": []interface{}{"db-creds"},
+				"secrets": []interface{}{
+					map[string]interface{}{
+						"onePasswordItem": "api-secrets",
+						"keys": []interface{}{
+							map[string]interface{}{
+								"secretKey": "api-key",
+								"property":  "apiKey",
+							},
+						},
+					},
+				},
+				"securityContext": map[string]interface{}{
+					"runAsNonRoot":           true,
+					"readOnlyRootFilesystem": true,
+					"runAsUser":              1000,
+					"runAsGroup":             1000,
+				},
+			},
+		},
+	}
+
+	config, err := buildConfig(resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if config.Namespace != "production" {
+		t.Errorf("expected namespace 'production', got %q", config.Namespace)
+	}
+	if config.Team != "backend" {
+		t.Errorf("expected team 'backend', got %q", config.Team)
+	}
+	if config.ImageTag != "v1.2.3" {
+		t.Errorf("expected tag 'v1.2.3', got %q", config.ImageTag)
+	}
+	if config.Replicas != 3 {
+		t.Errorf("expected replicas 3, got %d", config.Replicas)
+	}
+	if config.Port != 3000 {
+		t.Errorf("expected port 3000, got %d", config.Port)
+	}
+	if config.CPURequest != "250m" {
+		t.Errorf("expected cpu request '250m', got %q", config.CPURequest)
+	}
+	if config.MemoryLimit != "1Gi" {
+		t.Errorf("expected memory limit '1Gi', got %q", config.MemoryLimit)
+	}
+	if config.IngressHostname != "api.example.com" {
+		t.Errorf("expected hostname 'api.example.com', got %q", config.IngressHostname)
+	}
+	if config.IngressPath != "/api" {
+		t.Errorf("expected path '/api', got %q", config.IngressPath)
+	}
+	if config.HealthCheckPath != "/healthz" {
+		t.Errorf("expected health path '/healthz', got %q", config.HealthCheckPath)
+	}
+	if !config.MonitoringEnabled {
+		t.Error("expected monitoring enabled")
+	}
+	if !config.PersistenceEnabled {
+		t.Error("expected persistence enabled")
+	}
+	if config.PersistenceSize != "10Gi" {
+		t.Errorf("expected size '10Gi', got %q", config.PersistenceSize)
+	}
+	if len(config.Env) != 2 {
+		t.Errorf("expected 2 env vars, got %d", len(config.Env))
+	}
+	if len(config.Secrets) != 1 {
+		t.Errorf("expected 1 secret, got %d", len(config.Secrets))
+	}
+	if config.RunAsNonRoot == nil || !*config.RunAsNonRoot {
+		t.Error("expected runAsNonRoot true")
+	}
+	if config.RunAsUser == nil || *config.RunAsUser != 1000 {
+		t.Error("expected runAsUser 1000")
+	}
+}
+
+func TestBuildConfig_MissingName(t *testing.T) {
+	resource := &mockResource{
+		data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"image": map[string]interface{}{"repository": "nginx"},
+			},
+		},
+	}
+	_, err := buildConfig(resource)
+	if err == nil {
+		t.Fatal("expected error for missing name")
+	}
+	if !strings.Contains(err.Error(), "spec.name is required") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestBuildConfig_MissingImageRepository(t *testing.T) {
+	resource := &mockResource{
+		data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "my-app",
+			},
+		},
+	}
+	_, err := buildConfig(resource)
+	if err == nil {
+		t.Fatal("expected error for missing image.repository")
+	}
+	if !strings.Contains(err.Error(), "spec.image.repository is required") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// ============================================================================
+// buildSecurityContext
+// ============================================================================
+
+func TestBuildSecurityContext_Defaults(t *testing.T) {
+	config := &HTTPServiceConfig{}
+	ctx := buildSecurityContext(config)
+
+	if ctx["runAsNonRoot"] != false {
+		t.Error("expected runAsNonRoot false by default")
+	}
+	if ctx["readOnlyRootFilesystem"] != false {
+		t.Error("expected readOnlyRootFilesystem false by default")
+	}
+	if _, ok := ctx["runAsUser"]; ok {
+		t.Error("runAsUser should not be set when nil")
+	}
+}
+
+func TestBuildSecurityContext_AllSet(t *testing.T) {
+	truev := true
+	uid := int64(1000)
+	gid := int64(2000)
+	config := &HTTPServiceConfig{
+		RunAsNonRoot:           &truev,
+		ReadOnlyRootFilesystem: &truev,
+		RunAsUser:              &uid,
+		RunAsGroup:             &gid,
+	}
+	ctx := buildSecurityContext(config)
+
+	if ctx["runAsNonRoot"] != true {
+		t.Error("expected runAsNonRoot true")
+	}
+	if ctx["readOnlyRootFilesystem"] != true {
+		t.Error("expected readOnlyRootFilesystem true")
+	}
+	if ctx["runAsUser"] != int64(1000) {
+		t.Errorf("expected runAsUser 1000, got %v", ctx["runAsUser"])
+	}
+	if ctx["runAsGroup"] != int64(2000) {
+		t.Errorf("expected runAsGroup 2000, got %v", ctx["runAsGroup"])
+	}
+}
+
+// ============================================================================
+// buildStakaterValues
+// ============================================================================
+
+func TestBuildStakaterValues_MinimalConfig(t *testing.T) {
+	config := &HTTPServiceConfig{
+		Name:            "web",
+		Team:            "platform",
+		ImageRepository: "nginx",
+		ImageTag:        "latest",
+		ImagePullPolicy: "IfNotPresent",
+		Replicas:        1,
+		Port:            8080,
+		CPURequest:      "100m",
+		MemoryRequest:   "128Mi",
+		CPULimit:        "500m",
+		MemoryLimit:     "256Mi",
+		HealthCheckPath: "/",
+		HealthCheckPort: 8080,
+	}
+
+	values := buildStakaterValues(config)
+
+	if values["applicationName"] != "web" {
+		t.Errorf("expected applicationName 'web', got %v", values["applicationName"])
+	}
+
+	deployment, ok := values["deployment"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected deployment map")
+	}
+	if deployment["replicas"] != 1 {
+		t.Errorf("expected replicas 1, got %v", deployment["replicas"])
+	}
+
+	// httpRoute disabled
+	httpRoute, ok := values["httpRoute"].(map[string]interface{})
+	if !ok || httpRoute["enabled"] != false {
+		t.Error("expected httpRoute disabled")
+	}
+
+	// Service enabled
+	svc, ok := values["service"].(map[string]interface{})
+	if !ok || svc["enabled"] != true {
+		t.Error("expected service enabled")
+	}
+
+	// Disabled features
+	for _, key := range []string{"ingress", "route", "forecastle", "cronJob", "job"} {
+		section, ok := values[key].(map[string]interface{})
+		if !ok || section["enabled"] != false {
+			t.Errorf("expected %s disabled", key)
+		}
+	}
+}
+
+func TestBuildStakaterValues_WithEnvAndSecrets(t *testing.T) {
+	config := &HTTPServiceConfig{
+		Name:            "web",
+		Team:            "platform",
+		ImageRepository: "nginx",
+		ImageTag:        "latest",
+		ImagePullPolicy: "IfNotPresent",
+		Replicas:        1,
+		Port:            8080,
+		CPURequest:      "100m",
+		MemoryRequest:   "128Mi",
+		CPULimit:        "500m",
+		MemoryLimit:     "256Mi",
+		HealthCheckPath: "/",
+		HealthCheckPort: 8080,
+		Env:             map[string]string{"PORT": "8080"},
+		EnvFromSecrets:  []string{"db-creds"},
+		Secrets: []u.SecretRef{
+			{OnePasswordItem: "api-key", Name: "api-secret"},
+		},
+	}
+
+	values := buildStakaterValues(config)
+
+	deployment := values["deployment"].(map[string]interface{})
+	env, ok := deployment["env"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected env map")
+	}
+	portEnv, ok := env["PORT"].(map[string]interface{})
+	if !ok || portEnv["value"] != "8080" {
+		t.Error("expected PORT env var")
+	}
+
+	envFrom, ok := deployment["envFrom"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected envFrom map")
+	}
+	if _, ok := envFrom["db-creds"]; !ok {
+		t.Error("expected db-creds in envFrom")
+	}
+	if _, ok := envFrom["api-secret"]; !ok {
+		t.Error("expected api-secret in envFrom")
+	}
+}
+
+func TestBuildStakaterValues_WithMonitoring(t *testing.T) {
+	config := &HTTPServiceConfig{
+		Name:               "web",
+		Team:               "platform",
+		ImageRepository:    "nginx",
+		ImageTag:           "latest",
+		ImagePullPolicy:    "IfNotPresent",
+		Replicas:           1,
+		Port:               8080,
+		CPURequest:         "100m",
+		MemoryRequest:      "128Mi",
+		CPULimit:           "500m",
+		MemoryLimit:        "256Mi",
+		HealthCheckPath:    "/",
+		HealthCheckPort:    8080,
+		MonitoringEnabled:  true,
+		MonitoringPath:     "/metrics",
+		MonitoringInterval: "30s",
+	}
+
+	values := buildStakaterValues(config)
+
+	sm, ok := values["serviceMonitor"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected serviceMonitor")
+	}
+	if sm["enabled"] != true {
+		t.Error("expected serviceMonitor enabled")
+	}
+}
+
+func TestBuildStakaterValues_WithPersistence(t *testing.T) {
+	config := &HTTPServiceConfig{
+		Name:                 "web",
+		Team:                 "platform",
+		ImageRepository:      "nginx",
+		ImageTag:             "latest",
+		ImagePullPolicy:      "IfNotPresent",
+		Replicas:             1,
+		Port:                 8080,
+		CPURequest:           "100m",
+		MemoryRequest:        "128Mi",
+		CPULimit:             "500m",
+		MemoryLimit:          "256Mi",
+		HealthCheckPath:      "/",
+		HealthCheckPort:      8080,
+		PersistenceEnabled:   true,
+		PersistenceSize:      "5Gi",
+		PersistenceClass:     "nfs",
+		PersistenceMountPath: "/data",
+	}
+
+	values := buildStakaterValues(config)
+
+	p, ok := values["persistence"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected persistence")
+	}
+	if p["enabled"] != true {
+		t.Error("expected persistence enabled")
+	}
+	if p["storageSize"] != "5Gi" {
+		t.Errorf("expected storageSize '5Gi', got %v", p["storageSize"])
+	}
+	if p["storageClass"] != "nfs" {
+		t.Errorf("expected storageClass 'nfs', got %v", p["storageClass"])
+	}
+}
+
+// ============================================================================
+// buildNetworkPolicies
+// ============================================================================
+
+func TestBuildNetworkPolicies_Minimal(t *testing.T) {
+	config := &HTTPServiceConfig{
+		Name:      "web",
+		Namespace: "production",
+		Port:      8080,
+		GatewayNS: "nginx-gateway",
+	}
+
+	policies := buildNetworkPolicies(config)
+	if len(policies) != 2 {
+		t.Fatalf("expected 2 policies (gateway + dns), got %d", len(policies))
+	}
+
+	gatewayPolicy := policies[0]
+	if gatewayPolicy.Metadata.Name != "web-allow-gateway" {
+		t.Errorf("expected gateway policy name, got %q", gatewayPolicy.Metadata.Name)
+	}
+	if gatewayPolicy.Metadata.Namespace != "production" {
+		t.Errorf("expected namespace 'production', got %q", gatewayPolicy.Metadata.Namespace)
+	}
+
+	dnsPolicy := policies[1]
+	if dnsPolicy.Metadata.Name != "web-allow-dns" {
+		t.Errorf("expected dns policy name, got %q", dnsPolicy.Metadata.Name)
+	}
+}
+
+func TestBuildNetworkPolicies_WithMonitoring(t *testing.T) {
+	config := &HTTPServiceConfig{
+		Name:              "web",
+		Namespace:         "production",
+		Port:              8080,
+		GatewayNS:         "nginx-gateway",
+		MonitoringEnabled: true,
+	}
+
+	policies := buildNetworkPolicies(config)
+	if len(policies) != 3 {
+		t.Fatalf("expected 3 policies (gateway + monitoring + dns), got %d", len(policies))
+	}
+
+	monitoringPolicy := policies[1]
+	if monitoringPolicy.Metadata.Name != "web-allow-monitoring" {
+		t.Errorf("expected monitoring policy name, got %q", monitoringPolicy.Metadata.Name)
+	}
+}
+
+// ============================================================================
+// buildExternalSecretRequest
+// ============================================================================
+
+func TestBuildExternalSecretRequest(t *testing.T) {
+	config := &HTTPServiceConfig{
+		Name:            "my-app",
+		Namespace:       "production",
+		SecretStoreName: "onepassword-store",
+		SecretStoreKind: "ClusterSecretStore",
+		Secrets: []u.SecretRef{
+			{
+				OnePasswordItem: "my-vault-item",
+				Name:            "app-secret",
+				Keys: []u.SecretKey{
+					{SecretKey: "password", Property: "password"},
+				},
+			},
+		},
+	}
+
+	esReq := buildExternalSecretRequest(config)
+	if esReq.Kind != "PlatformExternalSecret" {
+		t.Errorf("expected kind PlatformExternalSecret, got %q", esReq.Kind)
+	}
+	if esReq.Metadata.Name != "my-app-secrets" {
+		t.Errorf("expected name 'my-app-secrets', got %q", esReq.Metadata.Name)
+	}
+	if esReq.Metadata.Namespace != "platform-requests" {
+		t.Errorf("expected namespace 'platform-requests', got %q", esReq.Metadata.Namespace)
+	}
+
+	spec, ok := esReq.Spec.(map[string]interface{})
+	if !ok {
+		t.Fatal("expected spec to be map")
+	}
+	if spec["namespace"] != "production" {
+		t.Errorf("expected namespace 'production' in spec, got %v", spec["namespace"])
+	}
+	secrets, ok := spec["secrets"].([]map[string]interface{})
+	if !ok || len(secrets) != 1 {
+		t.Fatalf("expected 1 secret in spec, got %v", spec["secrets"])
+	}
+	if secrets[0]["onePasswordItem"] != "my-vault-item" {
+		t.Errorf("expected onePasswordItem 'my-vault-item', got %v", secrets[0]["onePasswordItem"])
+	}
+}
+
+// ============================================================================
+// buildGatewayRouteRequest
+// ============================================================================
+
+func TestBuildGatewayRouteRequest(t *testing.T) {
+	config := &HTTPServiceConfig{
+		Name:            "my-app",
+		Namespace:       "production",
+		IngressHostname: "my-app.example.com",
+		IngressPath:     "/",
+		Port:            8080,
+		GatewayName:     "nginx-gateway",
+		GatewayNS:       "nginx-gateway",
+	}
+
+	gwReq := buildGatewayRouteRequest(config)
+	if gwReq.Kind != "GatewayRoute" {
+		t.Errorf("expected kind GatewayRoute, got %q", gwReq.Kind)
+	}
+	if gwReq.Metadata.Name != "my-app-route" {
+		t.Errorf("expected name 'my-app-route', got %q", gwReq.Metadata.Name)
+	}
+
+	spec, ok := gwReq.Spec.(map[string]interface{})
+	if !ok {
+		t.Fatal("expected spec to be map")
+	}
+	if spec["hostname"] != "my-app.example.com" {
+		t.Errorf("expected hostname 'my-app.example.com', got %v", spec["hostname"])
+	}
+	backendRef, ok := spec["backendRef"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected backendRef map")
+	}
+	if backendRef["port"] != 8080 {
+		t.Errorf("expected port 8080, got %v", backendRef["port"])
+	}
+}
+
+// ============================================================================
+// handleConfigure
+// ============================================================================
+
+func TestHandleConfigure_MinimalConfig(t *testing.T) {
+	sdk, dir := newTestSDK(t)
+	config := &HTTPServiceConfig{
+		Name:            "web",
+		Namespace:       "web",
+		Team:            "platform",
+		ImageRepository: "nginx",
+		ImageTag:        "latest",
+		ImagePullPolicy: "IfNotPresent",
+		Replicas:        1,
+		Port:            8080,
+		CPURequest:      "100m",
+		MemoryRequest:   "128Mi",
+		CPULimit:        "500m",
+		MemoryLimit:     "256Mi",
+		HealthCheckPath: "/",
+		HealthCheckPort: 8080,
+		IngressEnabled:  true,
+		IngressHostname: "web.cluster.integratn.tech",
+		IngressPath:     "/",
+		GatewayName:     "nginx-gateway",
+		GatewayNS:       "nginx-gateway",
+		SecretStoreName: "onepassword-store",
+		SecretStoreKind: "ClusterSecretStore",
+		BaseDomain:      "cluster.integratn.tech",
+	}
+
+	err := handleConfigure(sdk, config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Namespace
+	ns := readOutput(t, dir, "resources/namespace.yaml")
+	if !strings.Contains(ns, "kind: Namespace") {
+		t.Error("expected Namespace kind")
+	}
+	if !strings.Contains(ns, "name: web") {
+		t.Error("expected namespace name 'web'")
+	}
+
+	// ArgoCD application request
+	app := readOutput(t, dir, "resources/argocd-application-request.yaml")
+	if !strings.Contains(app, "kind: ArgoCDApplication") {
+		t.Error("expected ArgoCDApplication kind")
+	}
+
+	// Network policies
+	if !fileExists(dir, "resources/network-policies.yaml") {
+		t.Error("expected network-policies.yaml")
+	}
+
+	// Gateway route request
+	if !fileExists(dir, "resources/gateway-route-request.yaml") {
+		t.Error("expected gateway-route-request.yaml")
+	}
+
+	// No external-secret request (no secrets)
+	if fileExists(dir, "resources/external-secret-request.yaml") {
+		t.Error("should not create external-secret request without secrets")
+	}
+}
+
+func TestHandleConfigure_WithSecrets(t *testing.T) {
+	sdk, dir := newTestSDK(t)
+	config := &HTTPServiceConfig{
+		Name:            "web",
+		Namespace:       "web",
+		Team:            "platform",
+		ImageRepository: "nginx",
+		ImageTag:        "latest",
+		ImagePullPolicy: "IfNotPresent",
+		Replicas:        1,
+		Port:            8080,
+		CPURequest:      "100m",
+		MemoryRequest:   "128Mi",
+		CPULimit:        "500m",
+		MemoryLimit:     "256Mi",
+		HealthCheckPath: "/",
+		HealthCheckPort: 8080,
+		IngressEnabled:  true,
+		IngressHostname: "web.cluster.integratn.tech",
+		IngressPath:     "/",
+		GatewayName:     "nginx-gateway",
+		GatewayNS:       "nginx-gateway",
+		SecretStoreName: "onepassword-store",
+		SecretStoreKind: "ClusterSecretStore",
+		BaseDomain:      "cluster.integratn.tech",
+		Secrets: []u.SecretRef{
+			{
+				OnePasswordItem: "my-item",
+				Keys: []u.SecretKey{
+					{SecretKey: "pass", Property: "password"},
+				},
+			},
+		},
+	}
+
+	err := handleConfigure(sdk, config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !fileExists(dir, "resources/external-secret-request.yaml") {
+		t.Error("expected external-secret-request.yaml")
+	}
+}
+
+func TestHandleConfigure_IngressDisabled(t *testing.T) {
+	sdk, dir := newTestSDK(t)
+	config := &HTTPServiceConfig{
+		Name:            "worker",
+		Namespace:       "worker",
+		Team:            "platform",
+		ImageRepository: "busybox",
+		ImageTag:        "latest",
+		ImagePullPolicy: "IfNotPresent",
+		Replicas:        1,
+		Port:            8080,
+		CPURequest:      "100m",
+		MemoryRequest:   "128Mi",
+		CPULimit:        "500m",
+		MemoryLimit:     "256Mi",
+		HealthCheckPath: "/",
+		HealthCheckPort: 8080,
+		IngressEnabled:  false,
+		GatewayName:     "nginx-gateway",
+		GatewayNS:       "nginx-gateway",
+		SecretStoreName: "onepassword-store",
+		SecretStoreKind: "ClusterSecretStore",
+		BaseDomain:      "cluster.integratn.tech",
+	}
+
+	err := handleConfigure(sdk, config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if fileExists(dir, "resources/gateway-route-request.yaml") {
+		t.Error("should not create gateway-route when ingress disabled")
+	}
+}
+
+// ============================================================================
+// handleDelete
+// ============================================================================
+
+func TestHandleDelete_MinimalConfig(t *testing.T) {
+	sdk, dir := newTestSDK(t)
+	config := &HTTPServiceConfig{
+		Name:           "web",
+		Namespace:      "web",
+		IngressEnabled: true,
+	}
+
+	err := handleDelete(sdk, config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// ArgoCD deletion
+	if !fileExists(dir, "resources/delete-argocdapplication-web.yaml") {
+		t.Error("expected ArgoCD delete file")
+	}
+
+	// Gateway route deletion
+	if !fileExists(dir, "resources/delete-gatewayroute-web.yaml") {
+		t.Error("expected gateway route delete file")
+	}
+
+	// No external-secret deletion (no secrets)
+	if fileExists(dir, "resources/delete-externalsecret-web.yaml") {
+		t.Error("should not create external-secret delete without secrets")
+	}
+}
+
+func TestHandleDelete_WithSecrets(t *testing.T) {
+	sdk, dir := newTestSDK(t)
+	config := &HTTPServiceConfig{
+		Name:           "web",
+		Namespace:      "web",
+		IngressEnabled: true,
+		Secrets: []u.SecretRef{
+			{OnePasswordItem: "item"},
+		},
+	}
+
+	err := handleDelete(sdk, config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !fileExists(dir, "resources/delete-externalsecret-web.yaml") {
+		t.Error("expected external-secret delete file")
+	}
+}
+
+func TestHandleDelete_IngressDisabled(t *testing.T) {
+	sdk, dir := newTestSDK(t)
+	config := &HTTPServiceConfig{
+		Name:           "worker",
+		Namespace:      "worker",
+		IngressEnabled: false,
+	}
+
+	err := handleDelete(sdk, config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if fileExists(dir, "resources/delete-gatewayroute-worker.yaml") {
+		t.Error("should not create gateway-route delete when ingress disabled")
+	}
+}
