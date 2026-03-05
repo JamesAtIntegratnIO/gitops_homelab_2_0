@@ -130,11 +130,58 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		},
 	}
 
-	// Extract basic fields
+	if err := extractBasicFields(config, resource); err != nil {
+		return nil, err
+	}
+	if err := configureExposure(config, resource); err != nil {
+		return nil, err
+	}
+	configureIntegrations(config, resource)
+	configureArgoCD(config, resource)
+
+	// Extract network policy configuration
+	if val, err := u.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
+		config.EnableNFS = val
+	}
+	config.ExtraEgress = extractExtraEgress(resource)
+
+	// Set derived values
+	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
+	
+	// Generate unique job name with reconcile token if present
+	reconcileAt, _ := u.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
+	if reconcileAt != "" {
+		// Extract just numbers from reconcile-at
+		token := ""
+		for _, c := range reconcileAt {
+			if c >= '0' && c <= '9' {
+				token += string(c)
+			}
+		}
+		if token != "" {
+			config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync-%s", config.Name, token)
+		}
+	}
+	if config.KubeconfigSyncJobName == "" {
+		config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync", config.Name)
+	}
+
+	valuesObj, err := buildValuesObject(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build values object: %w", err)
+	}
+	config.ValuesObject = valuesObj
+
+	return config, nil
+}
+
+// extractBasicFields extracts name, namespace, project, vcluster spec fields from the resource
+// and applies preset defaults.
+func extractBasicFields(config *VClusterConfig, resource kratix.Resource) error {
 	var err error
 	config.Name, err = u.GetStringValue(resource, "spec.name")
 	if err != nil {
-		return nil, fmt.Errorf("spec.name not found: %w", err)
+		return fmt.Errorf("spec.name not found: %w", err)
 	}
 
 	config.TargetNamespace, _ = u.GetStringValue(resource, "spec.targetNamespace")
@@ -176,7 +223,12 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		}
 	}
 
-	// Extract exposure configuration
+	return nil
+}
+
+// configureExposure extracts and calculates exposure settings: hostname, subnet,
+// VIP, apiPort, external server URL, exportKubeConfig merge, and proxy extraSANs.
+func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 	config.Hostname, _ = u.GetStringValue(resource, "spec.exposure.hostname")
 	config.Subnet, _ = u.GetStringValue(resource, "spec.exposure.subnet")
 	config.VIP, _ = u.GetStringValue(resource, "spec.exposure.vip")
@@ -186,7 +238,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	if config.Subnet != "" && config.VIP == "" {
 		vip, err := defaultVIPFromCIDR(config.Subnet, 200)
 		if err != nil {
-			return nil, fmt.Errorf("failed to calculate VIP: %w", err)
+			return fmt.Errorf("failed to calculate VIP: %w", err)
 		}
 		config.VIP = vip
 		log.Printf("Calculated default VIP: %s", vip)
@@ -195,7 +247,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	// Validate VIP is in subnet
 	if config.VIP != "" && config.Subnet != "" {
 		if !ipInCIDR(config.VIP, config.Subnet) {
-			return nil, fmt.Errorf("VIP %s is not within subnet %s", config.VIP, config.Subnet)
+			return fmt.Errorf("VIP %s is not within subnet %s", config.VIP, config.Subnet)
 		}
 	}
 
@@ -234,7 +286,12 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		config.ProxyExtraSANs = append(config.ProxyExtraSANs, config.VIP)
 	}
 
-	// Extract integration configuration
+	return nil
+}
+
+// configureIntegrations sets up cert-manager, external-secrets, and ArgoCD integration
+// configuration including cluster labels, annotations, and workload repo settings.
+func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
 	config.CertManagerIssuerLabels = u.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
 	if len(config.CertManagerIssuerLabels) == 0 {
 		config.CertManagerIssuerLabels = map[string]string{"integratn.tech/cluster-issuer": "letsencrypt-prod"}
@@ -312,8 +369,11 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 			config.ArgoCDClusterAnnotations[key] = value
 		}
 	}
+}
 
-	// Extract ArgoCD application configuration
+// configureArgoCD sets up ArgoCD application configuration including repo URL,
+// chart, target revision, destination server, and sync policy with defaults.
+func configureArgoCD(config *VClusterConfig, resource kratix.Resource) {
 	config.ArgoCDRepoURL = u.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
 	config.ArgoCDChart = u.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
 	config.ArgoCDTargetRevision = u.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
@@ -338,41 +398,6 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	} else {
 		config.ArgoCDSyncPolicy = u.DeepMerge(defaultSyncPolicy, config.ArgoCDSyncPolicy)
 	}
-
-	// Extract network policy configuration
-	if val, err := u.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
-		config.EnableNFS = val
-	}
-	config.ExtraEgress = extractExtraEgress(resource)
-
-	// Set derived values
-	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
-	
-	// Generate unique job name with reconcile token if present
-	reconcileAt, _ := u.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
-	if reconcileAt != "" {
-		// Extract just numbers from reconcile-at
-		token := ""
-		for _, c := range reconcileAt {
-			if c >= '0' && c <= '9' {
-				token += string(c)
-			}
-		}
-		if token != "" {
-			config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync-%s", config.Name, token)
-		}
-	}
-	if config.KubeconfigSyncJobName == "" {
-		config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync", config.Name)
-	}
-
-	valuesObj, err := buildValuesObject(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build values object: %w", err)
-	}
-	config.ValuesObject = valuesObj
-
-	return config, nil
 }
 
 func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {
