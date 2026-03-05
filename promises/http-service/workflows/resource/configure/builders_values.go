@@ -101,12 +101,12 @@ func buildServiceValues(config *HTTPServiceConfig) map[string]interface{} {
 	}
 }
 
-// addEnvValues mutates deployment in-place, adding "env" and "envFrom" keys
-// derived from config. This is intentional: deployment is built by
+// applyEnvToDeployment mutates deployment in-place, adding "env" and "envFrom"
+// keys derived from config. This is intentional: deployment is built by
 // buildDeploymentValues and then enriched here before being consumed by
 // buildStakaterValues. Callers must not rely on the original map being
 // unmodified after this call.
-func addEnvValues(config *HTTPServiceConfig, deployment map[string]interface{}) {
+func applyEnvToDeployment(config *HTTPServiceConfig, deployment map[string]interface{}) {
 	if len(config.Env) > 0 {
 		envMap := map[string]interface{}{}
 		for k, v := range config.Env {
@@ -145,7 +145,7 @@ func addEnvValues(config *HTTPServiceConfig, deployment map[string]interface{}) 
 // HTTPRoute is DISABLED here — the gateway-route sub-promise owns routing.
 func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 	deployment := buildDeploymentValues(config)
-	addEnvValues(config, deployment)
+	applyEnvToDeployment(config, deployment)
 
 	values := map[string]interface{}{
 		"applicationName": config.Name,
