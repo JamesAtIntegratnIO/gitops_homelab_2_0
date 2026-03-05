@@ -14,12 +14,16 @@ const (
 	defaultBaseDomain      = "cluster.integratn.tech"
 	defaultGatewayName     = "nginx-gateway"
 	defaultGatewayNS       = "nginx-gateway"
-	defaultSecretStore     = "onepassword-store"
-	defaultSecretStoreKind = "ClusterSecretStore"
 	stakaterChartRepo      = "https://stakater.github.io/stakater-charts"
 	stakaterChartName      = "application"
 	stakaterChartVersion   = "6.16.1"
 	argoCDProject          = "default"
+)
+
+// Secret store defaults sourced from kratixutil constants.
+var (
+	defaultSecretStore     = u.DefaultSecretStoreName
+	defaultSecretStoreKind = u.DefaultSecretStoreKind
 )
 
 // HTTPServiceConfig holds the fully resolved config from the CR.

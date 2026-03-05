@@ -10,32 +10,7 @@ import (
 )
 
 func main() {
-	sdk := kratix.New()
-
-	log.Printf("=== ArgoCD Project Promise Pipeline ===")
-	log.Printf("Action: %s", sdk.WorkflowAction())
-
-	resource, err := sdk.ReadResourceInput()
-	if err != nil {
-		log.Fatalf("ERROR: Failed to read resource input: %v", err)
-	}
-
-	log.Printf("Processing resource: %s/%s",
-		resource.GetNamespace(), resource.GetName())
-
-	if sdk.WorkflowAction() == "configure" {
-		if err := handleConfigure(sdk, resource); err != nil {
-			log.Fatalf("ERROR: Configure failed: %v", err)
-		}
-	} else if sdk.WorkflowAction() == "delete" {
-		if err := handleDelete(sdk, resource); err != nil {
-			log.Fatalf("ERROR: Delete failed: %v", err)
-		}
-	} else {
-		log.Fatalf("ERROR: Unknown workflow action: %s", sdk.WorkflowAction())
-	}
-
-	log.Println("=== Pipeline completed successfully ===")
+	u.RunPromise("ArgoCD Project Promise Pipeline", handleConfigure, handleDelete)
 }
 
 func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {

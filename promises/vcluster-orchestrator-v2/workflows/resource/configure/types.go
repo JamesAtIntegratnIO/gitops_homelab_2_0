@@ -2,7 +2,30 @@ package main
 
 import (
 	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
+
+// ============================================================================
+// Kubernetes Client Factory
+// ============================================================================
+
+// KubeClientFactory abstracts Kubernetes client creation for testability.
+type KubeClientFactory interface {
+	NewClient() (*kubernetes.Clientset, error)
+}
+
+// InClusterClientFactory creates clients using in-cluster config.
+type InClusterClientFactory struct{}
+
+func (f InClusterClientFactory) NewClient() (*kubernetes.Clientset, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	return kubernetes.NewForConfig(config)
+}
 
 // ============================================================================
 // cert-manager Types

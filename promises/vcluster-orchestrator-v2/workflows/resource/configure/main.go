@@ -72,6 +72,9 @@ type VClusterConfig struct {
 	KubeconfigSyncJobName string
 	BaseDomain          string
 	BaseDomainSanitized string
+
+	// Client factory for direct Kubernetes API calls (delete pipeline)
+	KubeClient KubeClientFactory
 	
 	WorkflowContext WorkflowContext
 }
@@ -121,7 +124,8 @@ func main() {
 
 func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConfig, error) {
 	config := &VClusterConfig{
-		Namespace: resource.GetNamespace(),
+		Namespace:  resource.GetNamespace(),
+		KubeClient: InClusterClientFactory{},
 		WorkflowContext: WorkflowContext{
 			WorkflowAction: sdk.WorkflowAction(),
 			WorkflowType:   sdk.WorkflowType(),

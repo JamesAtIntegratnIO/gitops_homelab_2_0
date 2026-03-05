@@ -12,8 +12,6 @@ import (
 	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
@@ -108,12 +106,7 @@ func cleanupHostPVs(config *VClusterConfig) error {
 
 	log.Printf("Cleaning up host PVs with label selector: %s", labelSelector)
 
-	restConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return fmt.Errorf("failed to get in-cluster config: %w", err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(restConfig)
+	clientset, err := config.KubeClient.NewClient()
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
@@ -160,12 +153,7 @@ func cleanupHostPVs(config *VClusterConfig) error {
 func cleanupNamespace(config *VClusterConfig) error {
 	log.Printf("Cleaning up namespace: %s", config.TargetNamespace)
 
-	restConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return fmt.Errorf("failed to get in-cluster config: %w", err)
-	}
-
-	clientset, err := kubernetes.NewForConfig(restConfig)
+	clientset, err := config.KubeClient.NewClient()
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}

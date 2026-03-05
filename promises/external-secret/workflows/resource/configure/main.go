@@ -9,9 +9,10 @@ import (
 	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-const (
-	defaultSecretStore     = "onepassword-store"
-	defaultSecretStoreKind = "ClusterSecretStore"
+// Use platform-wide constants from kratixutil.
+var (
+	defaultSecretStore     = u.DefaultSecretStoreName
+	defaultSecretStoreKind = u.DefaultSecretStoreKind
 )
 
 // ExternalSecretConfig holds the resolved configuration from the CR.
