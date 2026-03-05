@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
@@ -63,12 +64,15 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return hcerrors.NewUserError("matching deployments: %w", err)
 	}
 
+	var errs []string
+
 	for _, d := range matched {
 		if d.ArgoApp != "" {
 			fmt.Printf("    %s Re-enabling auto-sync for %s\n",
 				tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
 			if err := client.EnableArgoAutoSync(ctx, "argocd", d.ArgoApp); err != nil {
 				fmt.Printf("    %s Failed to enable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), d.ArgoApp, err)
+				errs = append(errs, fmt.Sprintf("enable auto-sync %s: %v", d.ArgoApp, err))
 			}
 		}
 
@@ -76,10 +80,14 @@ func runUp(cmd *cobra.Command, args []string) error {
 			tui.MutedStyle.Render(tui.IconArrow), d.Name, upReplicas)
 		if err := client.ScaleDeployment(ctx, namespace, d.Name, upReplicas); err != nil {
 			fmt.Printf("    %s Failed: %v\n", tui.WarningStyle.Render(tui.IconWarn), err)
+			errs = append(errs, fmt.Sprintf("scale %s: %v", d.Name, err))
 		}
 	}
 
 	fmt.Printf("\n  %s %s scaled up in %s\n", tui.SuccessStyle.Render(tui.IconCheck), workloadName, cluster)
+	if len(errs) > 0 {
+		return hcerrors.NewPlatformError("scale up completed with errors: %s", strings.Join(errs, "; "))
+	}
 	return nil
 }
 
@@ -135,12 +143,15 @@ func runDown(cmd *cobra.Command, args []string) error {
 		return hcerrors.NewUserError("matching deployments: %w", err)
 	}
 
+	var errs []string
+
 	for _, d := range matched {
 		if d.ArgoApp != "" {
 			fmt.Printf("    %s Disabling auto-sync for %s\n",
 				tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
 			if err := client.DisableArgoAutoSync(ctx, "argocd", d.ArgoApp); err != nil {
 				fmt.Printf("    %s Failed to disable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), d.ArgoApp, err)
+				errs = append(errs, fmt.Sprintf("disable auto-sync %s: %v", d.ArgoApp, err))
 			}
 		}
 
@@ -148,10 +159,14 @@ func runDown(cmd *cobra.Command, args []string) error {
 			tui.MutedStyle.Render(tui.IconArrow), d.Name)
 		if err := client.ScaleDeployment(ctx, namespace, d.Name, 0); err != nil {
 			fmt.Printf("    %s Failed: %v\n", tui.WarningStyle.Render(tui.IconWarn), err)
+			errs = append(errs, fmt.Sprintf("scale %s: %v", d.Name, err))
 		}
 	}
 
 	fmt.Printf("\n  %s %s scaled down in %s\n", tui.SuccessStyle.Render(tui.IconCheck), workloadName, cluster)
+	if len(errs) > 0 {
+		return hcerrors.NewPlatformError("scale down completed with errors: %s", strings.Join(errs, "; "))
+	}
 	return nil
 }
 

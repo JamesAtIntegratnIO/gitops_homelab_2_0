@@ -156,6 +156,6 @@ func watchProvisioning(cfg *config.Config, opts *CreateOptions, name, hostname s
 		return nil
 	}
 
-	fmt.Print(platform.FormatProvisionSummary(result, hostname))
+	fmt.Print(FormatProvisionSummary(result, hostname))
 	return nil
 }

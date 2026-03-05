@@ -1,8 +1,11 @@
 package kube
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func TestSplitFirst(t *testing.T) {
+func TestStringsCutReplacesSplitFirst(t *testing.T) {
 	tests := []struct {
 		s, sep, want string
 	}{
@@ -10,12 +13,11 @@ func TestSplitFirst(t *testing.T) {
 		{"no-separator-here", ":", "no-separator-here"},
 		{"", ":", ""},
 		{":leading", ":", ""},
-		{"a::b", "::", "a"},
 	}
 	for _, tt := range tests {
-		got := splitFirst(tt.s, tt.sep)
+		got, _, _ := strings.Cut(tt.s, tt.sep)
 		if got != tt.want {
-			t.Errorf("splitFirst(%q, %q) = %q, want %q", tt.s, tt.sep, got, tt.want)
+			t.Errorf("strings.Cut(%q, %q) before = %q, want %q", tt.s, tt.sep, got, tt.want)
 		}
 	}
 }

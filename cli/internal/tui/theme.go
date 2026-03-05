@@ -244,3 +244,25 @@ func StyledCount(n int, style lipgloss.Style) string {
 	}
 	return s
 }
+
+// PhaseBadge returns a styled phase label with a leading icon for TUI display.
+func PhaseBadge(phase string) string {
+	switch phase {
+	case "Ready":
+		return SuccessStyle.Render("Ready") + " " + SuccessStyle.Render(IconCheck)
+	case "Progressing":
+		return InfoStyle.Render("Progressing") + " " + WarningStyle.Render(IconSync)
+	case "Degraded":
+		return WarningStyle.Render("Degraded") + " " + WarningStyle.Render(IconWarn)
+	case "Failed":
+		return ErrorStyle.Render("Failed") + " " + ErrorStyle.Render(IconCross)
+	case "Suspended":
+		return DimStyle.Render("Suspended") + " " + DimStyle.Render(IconPause)
+	case "Scheduled":
+		return MutedStyle.Render("Scheduled") + " " + MutedStyle.Render(IconPending)
+	case "Deleting":
+		return WarningStyle.Render("Deleting") + " " + WarningStyle.Render(IconCross)
+	default:
+		return DimStyle.Render(phase) + " " + MutedStyle.Render("?")
+	}
+}

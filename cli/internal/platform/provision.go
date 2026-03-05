@@ -3,10 +3,8 @@ package platform
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/tui"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 )
 
@@ -224,68 +222,4 @@ func CollectProvisionResult(ctx context.Context, client KubeClient, namespace, n
 	}
 
 	return result, nil
-}
-
-// FormatProvisionSummary formats the provisioning result for developer-friendly terminal output.
-// Zero Kubernetes jargon — uses terms like "components", "endpoints", "access".
-func FormatProvisionSummary(result *ProvisionResult, hostname string) string {
-	var sb strings.Builder
-
-	// Status line
-	if result.Healthy {
-		sb.WriteString(fmt.Sprintf("\n  %s %s is ready!\n", tui.SuccessStyle.Render(tui.IconCheck), result.Name))
-	} else {
-		sb.WriteString(fmt.Sprintf("\n  %s %s is provisioning (may take a few more minutes)\n", tui.WarningStyle.Render(tui.IconWarn), result.Name))
-	}
-
-	// Endpoints
-	hasEndpoints := result.Endpoints.API != "" || result.Endpoints.ArgoCD != "" || hostname != ""
-	if hasEndpoints {
-		sb.WriteString(tui.SectionHeader("Access") + "\n")
-		if result.Endpoints.API != "" {
-			sb.WriteString(tui.KeyValue("API Server", tui.CodeStyle.Render(result.Endpoints.API)) + "\n")
-		} else if hostname != "" {
-			sb.WriteString(tui.KeyValue("API Server", tui.CodeStyle.Render("https://"+hostname)) + "\n")
-		}
-		if result.Endpoints.ArgoCD != "" {
-			sb.WriteString(tui.KeyValue("ArgoCD", tui.CodeStyle.Render(result.Endpoints.ArgoCD)) + "\n")
-		}
-	}
-
-	// Health
-	if result.Health.ComponentsTotal > 0 {
-		sb.WriteString(tui.SectionHeader("Health") + "\n")
-		compStr := fmt.Sprintf("%d/%d ready", result.Health.ComponentsReady, result.Health.ComponentsTotal)
-		if result.Health.ComponentsReady == result.Health.ComponentsTotal {
-			compStr = tui.SuccessStyle.Render(compStr)
-		} else {
-			compStr = tui.WarningStyle.Render(compStr)
-		}
-		sb.WriteString(tui.KeyValue("Components", compStr) + "\n")
-		if result.Health.SubAppsTotal > 0 {
-			appStr := fmt.Sprintf("%d/%d healthy", result.Health.SubAppsHealthy, result.Health.SubAppsTotal)
-			if result.Health.SubAppsHealthy == result.Health.SubAppsTotal {
-				appStr = tui.SuccessStyle.Render(appStr)
-			} else {
-				appStr = tui.WarningStyle.Render(appStr)
-			}
-			sb.WriteString(tui.KeyValue("Apps", appStr) + "\n")
-		}
-	}
-
-	// Unhealthy items
-	if len(result.Health.Unhealthy) > 0 {
-		sb.WriteString(fmt.Sprintf("\n  %s Still converging:\n", tui.WarningStyle.Render(tui.IconWarn)))
-		for _, u := range result.Health.Unhealthy {
-			sb.WriteString(fmt.Sprintf("    %s %s\n", tui.MutedStyle.Render(tui.IconBullet), u))
-		}
-	}
-
-	// Next steps
-	sb.WriteString(tui.SectionHeader("Next Steps") + "\n")
-	sb.WriteString(tui.KeyValue("Connect", tui.CodeStyle.Render(fmt.Sprintf("hctl vcluster connect %s", result.Name))) + "\n")
-	sb.WriteString(tui.KeyValue("Status", tui.CodeStyle.Render(fmt.Sprintf("hctl vcluster status %s", result.Name))) + "\n")
-	sb.WriteString(tui.KeyValue("Diagnose", tui.CodeStyle.Render(fmt.Sprintf("hctl vcluster status %s --diagnose", result.Name))) + "\n")
-
-	return sb.String()
 }

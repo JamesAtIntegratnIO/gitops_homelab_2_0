@@ -158,7 +158,7 @@ func loadWorkloadsSection(client *kube.Client, platformNS string) (string, error
 	var rows [][]string
 	for _, w := range ps.Workloads {
 		cluster := w.Labels["clusterName"]
-		phase := phaseStyled(w.Phase)
+		phase := tui.PhaseBadge(w.Phase)
 		rows = append(rows, []string{w.Name, cluster, w.Namespace, w.ArgoCD.SyncStatus, phase})
 	}
 	return tui.Table([]string{"NAME", "CLUSTER", "NAMESPACE", "SYNC", "STATUS"}, rows), nil
@@ -192,7 +192,7 @@ func loadAddonsSection(client *kube.Client, platformNS string) (string, error) {
 		sb.WriteString(fmt.Sprintf("\n  %s\n", tui.TitleStyle.Render(env)))
 		var rows [][]string
 		for _, a := range addons {
-			phase := phaseStyled(a.Phase)
+			phase := tui.PhaseBadge(a.Phase)
 			rows = append(rows, []string{a.Name, a.Namespace, a.ArgoCD.SyncStatus, phase})
 		}
 		sb.WriteString(tui.Table([]string{"NAME", "NAMESPACE", "SYNC", "STATUS"}, rows))

@@ -195,9 +195,9 @@ func TestHandleGitWorkflow_PromptMode_Confirmed(t *testing.T) {
 	if err == nil {
 		t.Log("Note: push succeeded (unexpected in test but not fatal)")
 	}
-	// Result should be GitCommitted even though push failed
-	if result != GitCommitted {
-		t.Errorf("expected GitCommitted, got %v", result)
+	// Result should be GitPushFailed because commit succeeded but push failed
+	if result != GitPushFailed {
+		t.Errorf("expected GitPushFailed, got %v", result)
 	}
 }
 
@@ -285,15 +285,15 @@ func TestHandleGitWorkflow_AutoMode_WithRepo(t *testing.T) {
 	if err == nil {
 		t.Log("Note: auto mode push succeeded unexpectedly")
 	}
-	if result != GitCommitted {
-		t.Errorf("expected GitCommitted, got %v", result)
+	if result != GitPushFailed {
+		t.Errorf("expected GitPushFailed, got %v", result)
 	}
 }
 
 func TestGitResultConstants(t *testing.T) {
 	t.Parallel()
 	// Verify the constants are distinct
-	results := []GitResult{GitCommitted, GitCommittedLocal, GitStaged, GitSkipped, GitNoRepo}
+	results := []GitResult{GitCommitted, GitCommittedLocal, GitPushFailed, GitStaged, GitSkipped, GitNoRepo}
 	seen := make(map[GitResult]bool)
 	for _, r := range results {
 		if seen[r] {

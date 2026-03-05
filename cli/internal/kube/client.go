@@ -45,13 +45,3 @@ func NewClient(kubeContext string) (*Client, error) {
 		Config:    cfg,
 	}, nil
 }
-
-// splitFirst splits a string on the first occurrence of sep and returns the first part.
-func splitFirst(s, sep string) string {
-	for i := 0; i < len(s); i++ {
-		if i+len(sep) <= len(s) && s[i:i+len(sep)] == sep {
-			return s[:i]
-		}
-	}
-	return s
-}

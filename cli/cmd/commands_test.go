@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"testing"
+
+	"github.com/jamesatintegratnio/hctl/internal/tui"
 )
 
-func TestPhaseStyled(t *testing.T) {
+func TestPhaseBadge(t *testing.T) {
 	tests := []struct {
 		phase   string
 		wantNon string // the phase string should at least contain the input
@@ -20,14 +22,14 @@ func TestPhaseStyled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.phase, func(t *testing.T) {
-			got := phaseStyled(tt.phase)
+			got := tui.PhaseBadge(tt.phase)
 			if got == "" && tt.phase != "" {
-				t.Errorf("phaseStyled(%q) returned empty string", tt.phase)
+				t.Errorf("PhaseBadge(%q) returned empty string", tt.phase)
 			}
 			// The styled output should contain the original text
 			// (lipgloss wraps it with ANSI codes but the text is still there)
 			if tt.phase != "" && len(got) < len(tt.phase) {
-				t.Errorf("phaseStyled(%q) returned shorter string than input: %q", tt.phase, got)
+				t.Errorf("PhaseBadge(%q) returned shorter string than input: %q", tt.phase, got)
 			}
 		})
 	}

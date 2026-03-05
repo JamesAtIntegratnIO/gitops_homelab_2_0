@@ -88,7 +88,7 @@ func newListCmd() *cobra.Command {
 						isLast := i == len(result.Steps)-1
 						sb.WriteString(tui.TreeNode(
 							fmt.Sprintf("%-15s", step.Name),
-							step.Status.String(),
+							tui.DiagIcon(int(step.Status)),
 							step.Message,
 							isLast,
 						) + "\n")

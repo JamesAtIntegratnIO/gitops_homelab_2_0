@@ -38,7 +38,7 @@ func newStatusCmd() *cobra.Command {
 				sc, err := platform.GetStatusContract(ctx, client, cfg.Platform.PlatformNamespace, name)
 				if err == nil && sc.Phase != "" {
 					fmt.Println()
-					fmt.Println(platform.FormatStatusContract(name, sc))
+					fmt.Println(FormatStatusContract(name, sc))
 					return nil
 				}
 				// Fall through to diagnostic chain if no status contract
@@ -55,7 +55,7 @@ func newStatusCmd() *cobra.Command {
 				isLast := i == len(result.Steps)-1
 				fmt.Println(tui.TreeNode(
 					fmt.Sprintf("%-15s", step.Name),
-					step.Status.String(),
+					tui.DiagIcon(int(step.Status)),
 					step.Message,
 					isLast,
 				))

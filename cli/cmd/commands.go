@@ -83,7 +83,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Structured output mode: collect all status as JSON/YAML
 	if tui.IsStructured() {
 		if watchFlag {
-			return runStatusWatch(cfg)
+			return runStatusWatch(cmd.Context(), cfg)
 		}
 		return runStatusOnce(cfg)
 	}
@@ -106,24 +106,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	})
 }
 
-// phaseStyled returns a styled phase string for TUI display.
-func phaseStyled(phase string) string {
-	switch phase {
-	case "Ready":
-		return tui.SuccessStyle.Render("Ready")
-	case "Progressing":
-		return tui.InfoStyle.Render("Progressing")
-	case "Degraded":
-		return tui.WarningStyle.Render("Degraded")
-	case "Failed":
-		return tui.ErrorStyle.Render("Failed")
-	case "Suspended":
-		return tui.DimStyle.Render("Suspended")
-	default:
-		return tui.DimStyle.Render(phase)
-	}
-}
-
 // runStatusOnce collects platform status and prints it once in structured format.
 func runStatusOnce(cfg *config.Config) error {
 	client, err := kube.Shared()
@@ -141,7 +123,8 @@ func runStatusOnce(cfg *config.Config) error {
 }
 
 // runStatusWatch continuously polls and prints platform status in structured format.
-func runStatusWatch(cfg *config.Config) error {
+// It respects context cancellation and terminates after 3 consecutive poll failures.
+func runStatusWatch(ctx context.Context, cfg *config.Config) error {
 	client, err := kube.Shared()
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
@@ -150,14 +133,22 @@ func runStatusWatch(cfg *config.Config) error {
 	ticker := time.NewTicker(watchInterval)
 	defer ticker.Stop()
 
+	const maxConsecutiveErrors = 3
+	consecutiveErrors := 0
+
 	// Print immediately, then on each tick
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		ps, err := platform.CollectPlatformStatus(ctx, client, cfg.Platform.PlatformNamespace)
+		pollCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		ps, err := platform.CollectPlatformStatus(pollCtx, client, cfg.Platform.PlatformNamespace)
 		cancel()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			consecutiveErrors++
+			fmt.Fprintf(os.Stderr, "error (%d/%d): %v\n", consecutiveErrors, maxConsecutiveErrors, err)
+			if consecutiveErrors >= maxConsecutiveErrors {
+				return hcerrors.NewPlatformError("status watch terminated after %d consecutive failures: %w", maxConsecutiveErrors, err)
+			}
 		} else {
+			consecutiveErrors = 0
 			if err := tui.RenderOutput(ps, ""); err != nil {
 				fmt.Fprintf(os.Stderr, "render error: %v\n", err)
 			}
@@ -165,7 +156,9 @@ func runStatusWatch(cfg *config.Config) error {
 
 		select {
 		case <-ticker.C:
-			continue
+			// continue polling
+		case <-ctx.Done():
+			return nil
 		}
 	}
 }
@@ -200,7 +193,10 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 			"steps":      result.Steps,
 		}
 		if bundlePath != "" {
-			data, _ := json.MarshalIndent(bundle, "", "  ")
+			data, err := json.MarshalIndent(bundle, "", "  ")
+			if err != nil {
+				return hcerrors.NewPlatformError("marshaling diagnostic bundle: %w", err)
+			}
 			if writeErr := os.WriteFile(bundlePath, data, 0o644); writeErr != nil {
 				return hcerrors.NewPlatformError("writing bundle: %w", writeErr)
 			}
@@ -218,7 +214,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 		isLast := i == len(result.Steps)-1
 		fmt.Println(tui.TreeNode(
 			fmt.Sprintf("%-15s", step.Name),
-			step.Status.String(),
+			tui.DiagIcon(int(step.Status)),
 			step.Message,
 			isLast,
 		))

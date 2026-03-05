@@ -78,6 +78,39 @@ func (r *Registry) Types() []string {
 	return types
 }
 
+// --- Shared helpers ---
+
+// buildExternalSecret constructs an ExternalSecret resource referencing 1Password via ClusterSecretStore.
+func buildExternalSecret(name, opItem string, keys []string) map[string]interface{} {
+	data := make([]interface{}, 0, len(keys))
+	for _, key := range keys {
+		data = append(data, map[string]interface{}{
+			"secretKey": key,
+			"remoteRef": map[string]interface{}{
+				"key":      opItem,
+				"property": key,
+			},
+		})
+	}
+	return map[string]interface{}{
+		"apiVersion": "external-secrets.io/v1beta1",
+		"kind":       "ExternalSecret",
+		"metadata": map[string]interface{}{
+			"name": name,
+		},
+		"spec": map[string]interface{}{
+			"secretStoreRef": map[string]interface{}{
+				"name": "onepassword-connect",
+				"kind": "ClusterSecretStore",
+			},
+			"target": map[string]interface{}{
+				"name": name,
+			},
+			"data": data,
+		},
+	}
+}
+
 // --- Postgres Provisioner ---
 
 // PostgresProvisioner generates ExternalSecret resources for PostgreSQL credentials.
@@ -89,60 +122,7 @@ func (p *PostgresProvisioner) Provision(name string, resource score.Resource, wo
 	secretName := fmt.Sprintf("%s-%s-credentials", workloadName, name)
 	opItem := fmt.Sprintf("%s-%s-db", workloadName, name)
 
-	// Generate ExternalSecret
-	externalSecret := map[string]interface{}{
-		"apiVersion": "external-secrets.io/v1beta1",
-		"kind":       "ExternalSecret",
-		"metadata": map[string]interface{}{
-			"name": secretName,
-		},
-		"spec": map[string]interface{}{
-			"secretStoreRef": map[string]interface{}{
-				"name": "onepassword-connect",
-				"kind": "ClusterSecretStore",
-			},
-			"target": map[string]interface{}{
-				"name": secretName,
-			},
-			"data": []interface{}{
-				map[string]interface{}{
-					"secretKey": "host",
-					"remoteRef": map[string]interface{}{
-						"key":      opItem,
-						"property": "host",
-					},
-				},
-				map[string]interface{}{
-					"secretKey": "port",
-					"remoteRef": map[string]interface{}{
-						"key":      opItem,
-						"property": "port",
-					},
-				},
-				map[string]interface{}{
-					"secretKey": "database",
-					"remoteRef": map[string]interface{}{
-						"key":      opItem,
-						"property": "database",
-					},
-				},
-				map[string]interface{}{
-					"secretKey": "username",
-					"remoteRef": map[string]interface{}{
-						"key":      opItem,
-						"property": "username",
-					},
-				},
-				map[string]interface{}{
-					"secretKey": "password",
-					"remoteRef": map[string]interface{}{
-						"key":      opItem,
-						"property": "password",
-					},
-				},
-			},
-		},
-	}
+	externalSecret := buildExternalSecret(secretName, opItem, []string{"host", "port", "database", "username", "password"})
 
 	return &ProvisionResult{
 		Outputs: map[string]string{
@@ -168,36 +148,7 @@ func (p *RedisProvisioner) Provision(name string, resource score.Resource, workl
 	secretName := fmt.Sprintf("%s-%s-credentials", workloadName, name)
 	opItem := fmt.Sprintf("%s-%s-redis", workloadName, name)
 
-	externalSecret := map[string]interface{}{
-		"apiVersion": "external-secrets.io/v1beta1",
-		"kind":       "ExternalSecret",
-		"metadata": map[string]interface{}{
-			"name": secretName,
-		},
-		"spec": map[string]interface{}{
-			"secretStoreRef": map[string]interface{}{
-				"name": "onepassword-connect",
-				"kind": "ClusterSecretStore",
-			},
-			"target": map[string]interface{}{
-				"name": secretName,
-			},
-			"data": []interface{}{
-				map[string]interface{}{
-					"secretKey": "host",
-					"remoteRef": map[string]interface{}{"key": opItem, "property": "host"},
-				},
-				map[string]interface{}{
-					"secretKey": "port",
-					"remoteRef": map[string]interface{}{"key": opItem, "property": "port"},
-				},
-				map[string]interface{}{
-					"secretKey": "password",
-					"remoteRef": map[string]interface{}{"key": opItem, "property": "password"},
-				},
-			},
-		},
-	}
+	externalSecret := buildExternalSecret(secretName, opItem, []string{"host", "port", "password"})
 
 	return &ProvisionResult{
 		Outputs: map[string]string{

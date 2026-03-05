@@ -3,6 +3,7 @@ package kube
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -28,8 +29,8 @@ func (c *Client) ListDeployments(ctx context.Context, namespace string) ([]Deplo
 			Replicas: *d.Spec.Replicas,
 		}
 		if tracking, ok := d.Annotations["argocd.argoproj.io/tracking-id"]; ok {
-			parts := splitFirst(tracking, ":")
-			info.ArgoApp = parts
+			before, _, _ := strings.Cut(tracking, ":")
+			info.ArgoApp = before
 		}
 		result = append(result, info)
 	}

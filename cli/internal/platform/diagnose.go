@@ -3,7 +3,6 @@ package platform
 import (
 	"context"
 
-	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -33,13 +32,13 @@ const (
 func (s StepStatus) String() string {
 	switch s {
 	case StatusOK:
-		return tui.SuccessStyle.Render(tui.IconCheck)
+		return "ok"
 	case StatusWarning:
-		return tui.WarningStyle.Render(tui.IconWarn)
+		return "warning"
 	case StatusError:
-		return tui.ErrorStyle.Render(tui.IconCross)
+		return "error"
 	default:
-		return tui.MutedStyle.Render("?")
+		return "unknown"
 	}
 }
 

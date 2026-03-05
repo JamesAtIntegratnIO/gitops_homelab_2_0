@@ -12,6 +12,8 @@ const (
 	GitCommitted GitResult = iota
 	// GitCommittedLocal means changes were committed locally only (generate mode).
 	GitCommittedLocal
+	// GitPushFailed means changes were committed but push failed.
+	GitPushFailed
 	// GitStaged means files were staged but user declined to commit.
 	GitStaged
 	// GitSkipped means git was skipped entirely (generate mode or no repo detected).
@@ -74,8 +76,14 @@ func HandleGitWorkflow(opts WorkflowOpts) (GitResult, error) {
 
 	switch opts.GitMode {
 	case "auto":
-		if err := repo.CommitAndPush(opts.Paths, msg); err != nil {
-			return GitCommitted, fmt.Errorf("git commit/push: %w", err)
+		if err := repo.Add(opts.Paths...); err != nil {
+			return GitSkipped, fmt.Errorf("staging files: %w", err)
+		}
+		if err := repo.Commit(msg); err != nil {
+			return GitStaged, fmt.Errorf("committing: %w", err)
+		}
+		if err := repo.Push(""); err != nil {
+			return GitPushFailed, fmt.Errorf("push failed (commit succeeded): %w", err)
 		}
 		if opts.UI != nil {
 			opts.UI.PrintSuccess("Committed and pushed")
@@ -113,8 +121,14 @@ func HandleGitWorkflow(opts WorkflowOpts) (GitResult, error) {
 			opts.UI.PrintDim("  Skipped git commit. Run manually: git add && git commit && git push")
 			return GitStaged, nil
 		}
-		if err := repo.CommitAndPush(opts.Paths, msg); err != nil {
-			return GitCommitted, fmt.Errorf("git commit/push: %w", err)
+		if err := repo.Add(opts.Paths...); err != nil {
+			return GitSkipped, fmt.Errorf("staging files: %w", err)
+		}
+		if err := repo.Commit(msg); err != nil {
+			return GitStaged, fmt.Errorf("committing: %w", err)
+		}
+		if err := repo.Push(""); err != nil {
+			return GitPushFailed, fmt.Errorf("push failed (commit succeeded): %w", err)
 		}
 		if opts.UI != nil {
 			opts.UI.PrintSuccess("Committed and pushed")
