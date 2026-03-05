@@ -170,11 +170,11 @@ func handleDelete(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 		buildKubeconfigSyncJob(config),
 	}
 	for _, r := range allResources {
-		outputs[deleteOutputPath("resources", r)] = u.DeleteResource(r.APIVersion, r.Kind, r.Metadata.Name, r.Metadata.Namespace)
+		outputs[u.DeleteOutputPathForResource("resources", r)] = u.DeleteResource(r.APIVersion, r.Kind, r.Metadata.Name, r.Metadata.Namespace)
 	}
 
 	for _, r := range buildKubeconfigSyncRBAC(config) {
-		outputs[deleteOutputPath("resources", r)] = u.DeleteResource(r.APIVersion, r.Kind, r.Metadata.Name, r.Metadata.Namespace)
+		outputs[u.DeleteOutputPathForResource("resources", r)] = u.DeleteResource(r.APIVersion, r.Kind, r.Metadata.Name, r.Metadata.Namespace)
 	}
 
 	for path, obj := range outputs {
@@ -186,13 +186,4 @@ func handleDelete(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 	return nil
 }
 
-// deleteOutputPath builds a YAML output path for a delete resource.
-func deleteOutputPath(prefix string, r u.Resource) string {
-	if prefix == "" {
-		prefix = "resources/"
-	}
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
-}
+

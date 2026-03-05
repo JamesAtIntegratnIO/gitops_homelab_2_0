@@ -498,7 +498,7 @@ func TestHandleDelete_CreatesDeleteResources(t *testing.T) {
 
 func TestDeleteOutputPath_DefaultPrefix(t *testing.T) {
 	r := u.Resource{Kind: "Service", Metadata: u.ObjectMeta{Name: "web"}}
-	path := deleteOutputPath("", r)
+	path := u.DeleteOutputPathForResource("", r)
 	if path != "resources/delete-service-web.yaml" {
 		t.Errorf("expected 'resources/delete-service-web.yaml', got %q", path)
 	}
@@ -506,7 +506,7 @@ func TestDeleteOutputPath_DefaultPrefix(t *testing.T) {
 
 func TestDeleteOutputPath_CustomPrefix(t *testing.T) {
 	r := u.Resource{Kind: "Job", Metadata: u.ObjectMeta{Name: "sync"}}
-	path := deleteOutputPath("output", r)
+	path := u.DeleteOutputPathForResource("output", r)
 	if path != "output/delete-job-sync.yaml" {
 		t.Errorf("expected 'output/delete-job-sync.yaml', got %q", path)
 	}

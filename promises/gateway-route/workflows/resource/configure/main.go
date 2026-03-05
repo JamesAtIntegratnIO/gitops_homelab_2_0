@@ -26,10 +26,10 @@ type GatewayRouteConfig struct {
 	BackendPort      int
 	GatewayName      string
 	GatewayNS        string
-	HTTPRedirect     bool
-	OwnerPromise     string
-	SectionName      string
-	HTTPSectionName  string
+	HTTPRedirect      bool
+	OwnerPromise      string
+	HTTPSSectionName  string
+	HTTPSectionName   string
 }
 
 func main() {
@@ -68,10 +68,10 @@ func main() {
 
 func buildConfig(resource kratix.Resource) (*GatewayRouteConfig, error) {
 	config := &GatewayRouteConfig{
-		GatewayName:     defaultGatewayName,
-		GatewayNS:       defaultGatewayNS,
-		SectionName:     defaultHTTPSSection,
-		HTTPSectionName: defaultHTTPSection,
+		GatewayName:      defaultGatewayName,
+		GatewayNS:        defaultGatewayNS,
+		HTTPSSectionName: defaultHTTPSSection,
+		HTTPSectionName:  defaultHTTPSection,
 	}
 
 	var err error
@@ -114,7 +114,7 @@ func buildConfig(resource kratix.Resource) (*GatewayRouteConfig, error) {
 	config.OwnerPromise = u.GetStringValueWithDefault(resource, "spec.ownerPromise", "gateway-route")
 
 	if v, err := u.GetStringValue(resource, "spec.sectionName"); err == nil && v != "" {
-		config.SectionName = v
+		config.HTTPSSectionName = v
 	}
 	if v, err := u.GetStringValue(resource, "spec.httpSectionName"); err == nil && v != "" {
 		config.HTTPSectionName = v
@@ -219,7 +219,7 @@ func buildHTTPSRoute(config *GatewayRouteConfig, labels map[string]string) u.Res
 				{
 					"name":        config.GatewayName,
 					"namespace":   config.GatewayNS,
-					"sectionName": config.SectionName,
+					"sectionName": config.HTTPSSectionName,
 				},
 			},
 			"rules": []map[string]interface{}{

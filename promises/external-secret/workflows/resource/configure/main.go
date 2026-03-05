@@ -169,11 +169,7 @@ func buildExternalSecrets(config *ExternalSecretConfig) []u.Resource {
 			Metadata: u.ObjectMeta{
 				Name:      secretName,
 				Namespace: config.Namespace,
-				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "kratix",
-					"kratix.io/promise-name":       config.OwnerPromise,
-					"app.kubernetes.io/part-of":    config.AppName,
-				},
+				Labels:    u.BaseLabels(config.OwnerPromise, config.AppName),
 			},
 			Spec: map[string]interface{}{
 				"secretStoreRef": map[string]interface{}{

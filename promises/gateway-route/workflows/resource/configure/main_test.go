@@ -123,8 +123,8 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 	if config.OwnerPromise != "gateway-route" {
 		t.Errorf("expected default ownerPromise, got %q", config.OwnerPromise)
 	}
-	if config.SectionName != defaultHTTPSSection {
-		t.Errorf("expected default sectionName, got %q", config.SectionName)
+	if config.HTTPSSectionName != defaultHTTPSSection {
+		t.Errorf("expected default sectionName, got %q", config.HTTPSSectionName)
 	}
 }
 
@@ -171,8 +171,8 @@ func TestBuildConfig_WithOverrides(t *testing.T) {
 	if config.OwnerPromise != "http-service" {
 		t.Errorf("expected 'http-service', got %q", config.OwnerPromise)
 	}
-	if config.SectionName != "custom-https" {
-		t.Errorf("expected 'custom-https', got %q", config.SectionName)
+	if config.HTTPSSectionName != "custom-https" {
+		t.Errorf("expected 'custom-https', got %q", config.HTTPSSectionName)
 	}
 	if config.HTTPSectionName != "custom-http" {
 		t.Errorf("expected 'custom-http', got %q", config.HTTPSectionName)
@@ -284,9 +284,9 @@ func TestBuildHTTPSRoute(t *testing.T) {
 		Path:        "/api",
 		BackendName: "web-svc",
 		BackendPort: 8080,
-		GatewayName: "nginx-gateway",
-		GatewayNS:   "nginx-gateway",
-		SectionName: "https",
+		GatewayName:      "nginx-gateway",
+		GatewayNS:        "nginx-gateway",
+		HTTPSSectionName: "https",
 	}
 	labels := map[string]string{"app": "test"}
 	route := buildHTTPSRoute(config, labels)
@@ -345,12 +345,12 @@ func TestHandleConfigure_WithRedirect(t *testing.T) {
 		Path:            "/",
 		BackendName:     "svc",
 		BackendPort:     80,
-		GatewayName:     "nginx-gateway",
-		GatewayNS:       "nginx-gateway",
-		HTTPRedirect:    true,
-		OwnerPromise:    "gateway-route",
-		SectionName:     "https",
-		HTTPSectionName: "http",
+		GatewayName:      "nginx-gateway",
+		GatewayNS:        "nginx-gateway",
+		HTTPRedirect:     true,
+		OwnerPromise:     "gateway-route",
+		HTTPSSectionName: "https",
+		HTTPSectionName:  "http",
 	}
 
 	err := handleConfigure(sdk, config)
@@ -385,11 +385,11 @@ func TestHandleConfigure_WithoutRedirect(t *testing.T) {
 		Path:         "/",
 		BackendName:  "svc",
 		BackendPort:  80,
-		GatewayName:  "nginx-gateway",
-		GatewayNS:    "nginx-gateway",
-		HTTPRedirect: false,
-		OwnerPromise: "gateway-route",
-		SectionName:  "https",
+		GatewayName:      "nginx-gateway",
+		GatewayNS:        "nginx-gateway",
+		HTTPRedirect:     false,
+		OwnerPromise:     "gateway-route",
+		HTTPSSectionName: "https",
 	}
 
 	err := handleConfigure(sdk, config)

@@ -702,7 +702,11 @@ func TestBuildExtraEgressPolicy(t *testing.T) {
 
 func TestBuildValuesObject_Minimal(t *testing.T) {
 	config := minimalConfig()
-	config.ValuesObject = buildValuesObject(config)
+	var err error
+	config.ValuesObject, err = buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if config.ValuesObject == nil {
 		t.Fatal("expected non-nil values object")
@@ -730,7 +734,10 @@ func TestBuildValuesObject_WithEtcdBackingStore(t *testing.T) {
 			},
 		},
 	}
-	values := buildValuesObject(config)
+	values, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	cp, ok := values["controlPlane"].(map[string]interface{})
 	if !ok {
@@ -745,7 +752,10 @@ func TestBuildValuesObject_WithVIPAndProxy(t *testing.T) {
 	config := minimalConfig()
 	config.VIP = "10.0.4.200"
 	config.ProxyExtraSANs = []string{"test-vc.integratn.tech", "10.0.4.200"}
-	values := buildValuesObject(config)
+	values, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	cp := values["controlPlane"].(map[string]interface{})
 	if cp["proxy"] == nil {
@@ -768,7 +778,10 @@ func TestBuildValuesObject_WithHelmOverrides(t *testing.T) {
 			"enabled": true,
 		},
 	}
-	values := buildValuesObject(config)
+	values, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject failed: %v", err)
+	}
 
 	telemetry, ok := values["telemetry"].(map[string]interface{})
 	if !ok {
@@ -787,9 +800,13 @@ func TestBuildValuesObject_WithHelmOverrides(t *testing.T) {
 func TestHandleConfigure_Basic(t *testing.T) {
 	h := newTestSDK(t)
 	config := minimalConfig()
-	config.ValuesObject = buildValuesObject(config)
+	vals, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject failed: %v", err)
+	}
+	config.ValuesObject = vals
 
-	err := handleConfigure(h.sdk, config)
+	err = handleConfigure(h.sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -836,9 +853,13 @@ func TestHandleConfigure_WithEtcd(t *testing.T) {
 			},
 		},
 	}
-	config.ValuesObject = buildValuesObject(config)
+	vals, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject failed: %v", err)
+	}
+	config.ValuesObject = vals
 
-	err := handleConfigure(h.sdk, config)
+	err = handleConfigure(h.sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

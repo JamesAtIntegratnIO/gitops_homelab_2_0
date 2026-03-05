@@ -373,12 +373,16 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync", config.Name)
 	}
 
-	config.ValuesObject = buildValuesObject(config)
+	valuesObj, err := buildValuesObject(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build values object: %w", err)
+	}
+	config.ValuesObject = valuesObj
 
 	return config, nil
 }
 
-func buildValuesObject(config *VClusterConfig) map[string]interface{} {
+func buildValuesObject(config *VClusterConfig) (map[string]interface{}, error) {
 	cp := ControlPlane{
 		Distro: DistroConfig{
 			K8s: K8sDistro{
@@ -568,13 +572,12 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 		values.ExportKubeConfig = config.ExportKubeConfig
 	}
 
-	// Convert typed struct to map for merging with HelmOverrides
 	valuesMap, err := u.ToMap(values)
 	if err != nil {
-		log.Fatalf("ERROR: Failed to convert values to map: %v", err)
+		return nil, fmt.Errorf("failed to convert values to map: %w", err)
 	}
 
-	return u.DeepMerge(valuesMap, config.HelmOverrides)
+	return u.DeepMerge(valuesMap, config.HelmOverrides), nil
 }
 
 func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
@@ -601,8 +604,8 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 		},
 	}
 
-	defaults := presetDefaults[config.Preset]
-	if defaults == (PresetDefaults{}) {
+	defaults, ok := presetDefaults[config.Preset]
+	if !ok {
 		defaults = presetDefaults["dev"]
 	}
 
