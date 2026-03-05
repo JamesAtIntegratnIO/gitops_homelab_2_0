@@ -14,7 +14,9 @@ func CollectPlatformStatus(ctx context.Context, client KubeClient, platformNS st
 
 	// vClusters from CRs
 	vclusters, err := CollectVClusterStatus(ctx, client, platformNS)
-	if err == nil {
+	if err != nil {
+		ps.Warnings = append(ps.Warnings, fmt.Sprintf("collecting vcluster status: %v", err))
+	} else {
 		ps.VClusters = vclusters
 	}
 

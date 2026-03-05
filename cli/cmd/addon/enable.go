@@ -5,9 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jamesatintegratnio/hctl/internal/config"
 	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
-	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -38,115 +36,63 @@ If it doesn't exist, a new entry is created with Stakater Application chart defa
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			addonName := args[0]
-			cfg := config.Get()
-			if cfg.RepoPath == "" {
-				return hcerrors.NewUserError("repo path not set \u2014 run 'hctl init'")
+			ns := namespace
+			if ns == "" {
+				ns = addonName
 			}
 
-			if env == "" {
-				env = "production"
-			}
-			if namespace == "" {
-				namespace = addonName
-			}
-			if layer == "" {
-				layer = "environment"
-			}
+			err := addonModify(addonName, addonModifyOpts{
+				Env:         env,
+				Layer:       layer,
+				ClusterRole: clusterRole,
+				Cluster:     cluster,
+				AllowCreate: true,
+			}, func(entries map[string]map[string]interface{}, addonsPath, valuesDir string) (*addonMutateResult, error) {
+				mr := &addonMutateResult{Action: "enable addon"}
 
-			// Determine addons.yaml path based on layer
-			addonsPath, valuesDir, err := resolveLayerPaths(cfg.RepoPath, layer, env, clusterRole, cluster, addonName)
+				if existing, ok := entries[addonName]; ok {
+					existing["enabled"] = true
+					entries[addonName] = existing
+					fmt.Printf("%s Enabled %s in %s\n", tui.SuccessStyle.Render(tui.IconCheck), addonName, addonsPath)
+				} else {
+					entry := map[string]interface{}{
+						"enabled":         true,
+						"namespace":       ns,
+						"chartRepository": chartRepo,
+						"chartName":       chartName,
+						"defaultVersion":  version,
+					}
+					if chartRepo == "" {
+						entry["chartRepository"] = "https://stakater.github.io/stakater-charts"
+					}
+					if chartName == "" {
+						entry["chartName"] = "application"
+					}
+					if version == "" {
+						entry["defaultVersion"] = "6.14.0"
+					}
+					entries[addonName] = entry
+					fmt.Printf("%s Added %s to %s\n", tui.SuccessStyle.Render(tui.IconCheck), addonName, filepath.Base(filepath.Dir(addonsPath)))
+				}
+
+				// Scaffold values directory
+				if err := os.MkdirAll(valuesDir, 0o755); err != nil {
+					return nil, hcerrors.NewPlatformError("creating values directory: %w", err)
+				}
+				valuesFile := filepath.Join(valuesDir, "values.yaml")
+				if _, err := os.Stat(valuesFile); os.IsNotExist(err) {
+					scaffold := fmt.Sprintf("# %s values\n# Layer: %s\n# See: https://github.com/stakater/application\n", addonName, layer)
+					if err := os.WriteFile(valuesFile, []byte(scaffold), 0o644); err != nil {
+						return nil, hcerrors.NewPlatformError("writing values scaffold: %w", err)
+					}
+					mr.ExtraPaths = append(mr.ExtraPaths, valuesFile)
+					fmt.Printf("%s Scaffolded %s\n", tui.SuccessStyle.Render(tui.IconCheck), valuesFile)
+				}
+
+				return mr, nil
+			})
 			if err != nil {
-				return hcerrors.NewUserError("resolving addon paths: %w", err)
-			}
-
-			// Read or create addons.yaml
-			entries, err := readAddonsYAML(addonsPath)
-			if err != nil && !os.IsNotExist(err) {
-				return hcerrors.NewPlatformError("reading addons config: %w", err)
-			}
-			if entries == nil {
-				entries = make(map[string]map[string]interface{})
-			}
-
-			var changedPaths []string
-
-			if existing, ok := entries[addonName]; ok {
-				// Addon exists — set enabled: true
-				existing["enabled"] = true
-				entries[addonName] = existing
-				fmt.Printf("%s Enabled %s in %s\n", tui.SuccessStyle.Render(tui.IconCheck), addonName, addonsPath)
-			} else {
-				// Create new addon entry
-				entry := map[string]interface{}{
-					"enabled":         true,
-					"namespace":       namespace,
-					"chartRepository": chartRepo,
-					"chartName":       chartName,
-					"defaultVersion":  version,
-				}
-
-				// Clean up empty defaults
-				if chartRepo == "" {
-					entry["chartRepository"] = "https://stakater.github.io/stakater-charts"
-				}
-				if chartName == "" {
-					entry["chartName"] = "application"
-				}
-				if version == "" {
-					entry["defaultVersion"] = "6.14.0"
-				}
-
-				entries[addonName] = entry
-				fmt.Printf("%s Added %s to %s\n", tui.SuccessStyle.Render(tui.IconCheck), addonName, filepath.Base(filepath.Dir(addonsPath)))
-			}
-
-			// Write addons.yaml
-			if err := writeAddonsYAML(addonsPath, entries); err != nil {
-				return hcerrors.NewPlatformError("writing addons config: %w", err)
-			}
-			changedPaths = append(changedPaths, addonsPath)
-
-			// Scaffold values directory
-			if err := os.MkdirAll(valuesDir, 0o755); err != nil {
-				return hcerrors.NewPlatformError("creating values directory: %w", err)
-			}
-
-			valuesFile := filepath.Join(valuesDir, "values.yaml")
-			if _, err := os.Stat(valuesFile); os.IsNotExist(err) {
-				scaffold := fmt.Sprintf("# %s values\n# Layer: %s\n# See: https://github.com/stakater/application\n", addonName, layer)
-				if err := os.WriteFile(valuesFile, []byte(scaffold), 0o644); err != nil {
-					return hcerrors.NewPlatformError("writing values scaffold: %w", err)
-				}
-				changedPaths = append(changedPaths, valuesFile)
-				fmt.Printf("%s Scaffolded %s\n", tui.SuccessStyle.Render(tui.IconCheck), valuesFile)
-			}
-
-			// Git operations
-			repo, err := git.DetectRepo(cfg.RepoPath)
-			if err != nil {
-				return nil
-			}
-
-			// Convert to relative paths
-			var relPaths []string
-			for _, p := range changedPaths {
-				rp, err := repo.RelPath(p)
-				if err == nil {
-					relPaths = append(relPaths, rp)
-				}
-			}
-
-			if _, err := git.HandleGitWorkflow(git.WorkflowOpts{
-				RepoPath:    cfg.RepoPath,
-				Paths:       relPaths,
-				Action:      "enable addon",
-				Resource:    addonName,
-				Details:     layer + "/" + env,
-				GitMode:     cfg.GitMode,
-				Interactive: cfg.Interactive,
-				UI:          tui.GitUIAdapter{},
-			}); err != nil {
-				return hcerrors.NewPlatformError("committing addon changes: %w", err)
+				return err
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will sync the addon on next reconciliation."))

@@ -108,13 +108,12 @@ func newSecretListCmd() *cobra.Command {
 					if err != nil {
 						return tui.ErrorStyle.Render("Error: " + err.Error())
 					}
-					var sb fmt.Stringer = &strings.Builder{}
-					w := sb.(*strings.Builder)
-					w.WriteString(tui.TitleStyle.Render(secretName) + "\n")
+					var sb strings.Builder
+					sb.WriteString(tui.TitleStyle.Render(secretName) + "\n")
 					for k, v := range data {
-						w.WriteString(fmt.Sprintf("  %s: %s\n", tui.HeaderStyle.Render(k), string(v)))
+						sb.WriteString(fmt.Sprintf("  %s: %s\n", tui.HeaderStyle.Render(k), string(v)))
 					}
-					return w.String()
+					return sb.String()
 				},
 			})
 			_ = action

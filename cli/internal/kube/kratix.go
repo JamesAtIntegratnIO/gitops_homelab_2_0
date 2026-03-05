@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -103,22 +104,20 @@ func (c *Client) SetManualReconciliationLabel(ctx context.Context, gvr schema.Gr
 // unstructured object by inspecting status.conditions for type "Available".
 // Returns "Available", "Unavailable", or "Unknown".
 func ParsePromiseStatus(obj map[string]interface{}) string {
-	conditions, ok := obj["status"].(map[string]interface{})
-	if !ok {
+	conditions := unstr.MustSlice(obj, "status", "conditions")
+	if conditions == nil {
 		return "Unknown"
 	}
-	condList, ok := conditions["conditions"].([]interface{})
-	if !ok {
-		return "Unknown"
-	}
-	for _, c := range condList {
-		if cm, ok := c.(map[string]interface{}); ok {
-			if cm["type"] == "Available" {
-				if cm["status"] == "True" {
-					return "Available"
-				}
-				return "Unavailable"
+	for _, c := range conditions {
+		cm, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if unstr.MustString(cm, "type") == "Available" {
+			if unstr.MustString(cm, "status") == "True" {
+				return "Available"
 			}
+			return "Unavailable"
 		}
 	}
 	return "Unknown"

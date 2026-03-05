@@ -8,7 +8,6 @@ import (
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
 	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
-	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
 )
@@ -31,103 +30,59 @@ Without --remove, the entry remains but is marked disabled.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			addonName := args[0]
-			cfg := config.Get()
-			if cfg.RepoPath == "" {
-				return hcerrors.NewUserError("repo path not set \u2014 run 'hctl init'")
-			}
 
-			if env == "" {
-				env = "production"
-			}
-			if layer == "" {
-				layer = "environment"
-			}
-
-			addonsPath, valuesDir, err := resolveLayerPaths(cfg.RepoPath, layer, env, clusterRole, cluster, addonName)
-			if err != nil {
-				return hcerrors.NewUserError("resolving addon paths: %w", err)
-			}
-
-			entries, err := readAddonsYAML(addonsPath)
-			if err != nil {
-				return hcerrors.NewPlatformError("reading addons.yaml: %w", err)
-			}
-
-			if _, ok := entries[addonName]; !ok {
-				return hcerrors.NewUserError("addon %q not found in %s", addonName, addonsPath)
-			}
-
-			if cfg.Interactive {
-				action := "disable"
-				if remove {
-					action = "remove"
+			err := addonModify(addonName, addonModifyOpts{
+				Env:         env,
+				Layer:       layer,
+				ClusterRole: clusterRole,
+				Cluster:     cluster,
+			}, func(entries map[string]map[string]interface{}, addonsPath, valuesDir string) (*addonMutateResult, error) {
+				if _, ok := entries[addonName]; !ok {
+					return nil, hcerrors.NewUserError("addon %q not found in %s", addonName, addonsPath)
 				}
-				label := strings.ToUpper(action[:1]) + action[1:]
-				ok, confirmErr := tui.Confirm(fmt.Sprintf("%s addon %q from %s?", label, addonName, filepath.Base(filepath.Dir(addonsPath))))
-				if confirmErr != nil {
-					return hcerrors.NewUserError("confirming operation: %w", confirmErr)
-				}
-				if !ok {
-					fmt.Println(tui.DimStyle.Render("Cancelled"))
-					return nil
-				}
-			}
 
-			var changedPaths []string
-
-			if remove {
-				delete(entries, addonName)
-				fmt.Printf("%s Removed %s from addons.yaml\n", tui.SuccessStyle.Render(tui.IconCheck), addonName)
-
-				// Remove values directory
-				if _, err := os.Stat(valuesDir); err == nil {
-					if err := os.RemoveAll(valuesDir); err != nil {
-						fmt.Printf("%s Could not remove values directory: %v\n", tui.WarningStyle.Render(tui.IconWarn), err)
-					} else {
-						fmt.Printf("%s Removed %s\n", tui.SuccessStyle.Render(tui.IconCheck), valuesDir)
-						changedPaths = append(changedPaths, valuesDir)
+				cfg := config.Get()
+				if cfg.Interactive {
+					action := "disable"
+					if remove {
+						action = "remove"
+					}
+					label := strings.ToUpper(action[:1]) + action[1:]
+					ok, confirmErr := tui.Confirm(fmt.Sprintf("%s addon %q from %s?", label, addonName, filepath.Base(filepath.Dir(addonsPath))))
+					if confirmErr != nil {
+						return nil, hcerrors.NewUserError("confirming operation: %w", confirmErr)
+					}
+					if !ok {
+						fmt.Println(tui.DimStyle.Render("Cancelled"))
+						return &addonMutateResult{Action: "disable addon"}, nil
 					}
 				}
-			} else {
-				entries[addonName]["enabled"] = false
-				fmt.Printf("%s Disabled %s\n", tui.SuccessStyle.Render(tui.IconCheck), addonName)
-			}
 
-			if err := writeAddonsYAML(addonsPath, entries); err != nil {
-				return hcerrors.NewPlatformError("writing addons config: %w", err)
-			}
-			changedPaths = append(changedPaths, addonsPath)
+				action := "disable addon"
+				mr := &addonMutateResult{Action: action}
 
-			// Git operations
-			repo, err := git.DetectRepo(cfg.RepoPath)
-			if err != nil {
-				return nil
-			}
+				if remove {
+					delete(entries, addonName)
+					fmt.Printf("%s Removed %s from addons.yaml\n", tui.SuccessStyle.Render(tui.IconCheck), addonName)
 
-			var relPaths []string
-			for _, p := range changedPaths {
-				rp, err := repo.RelPath(p)
-				if err == nil {
-					relPaths = append(relPaths, rp)
+					if _, err := os.Stat(valuesDir); err == nil {
+						if err := os.RemoveAll(valuesDir); err != nil {
+							fmt.Printf("%s Could not remove values directory: %v\n", tui.WarningStyle.Render(tui.IconWarn), err)
+						} else {
+							fmt.Printf("%s Removed %s\n", tui.SuccessStyle.Render(tui.IconCheck), valuesDir)
+							mr.ExtraPaths = append(mr.ExtraPaths, valuesDir)
+						}
+					}
+					mr.Action = "remove addon"
+				} else {
+					entries[addonName]["enabled"] = false
+					fmt.Printf("%s Disabled %s\n", tui.SuccessStyle.Render(tui.IconCheck), addonName)
 				}
-			}
 
-			action := "disable addon"
-			if remove {
-				action = "remove addon"
-			}
-
-			if _, err := git.HandleGitWorkflow(git.WorkflowOpts{
-				RepoPath:    cfg.RepoPath,
-				Paths:       relPaths,
-				Action:      action,
-				Resource:    addonName,
-				Details:     layer + "/" + env,
-				GitMode:     cfg.GitMode,
-				Interactive: cfg.Interactive,
-				UI:          tui.GitUIAdapter{},
-			}); err != nil {
-				return hcerrors.NewPlatformError("committing addon changes: %w", err)
+				return mr, nil
+			})
+			if err != nil {
+				return err
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will reflect the change on next sync."))

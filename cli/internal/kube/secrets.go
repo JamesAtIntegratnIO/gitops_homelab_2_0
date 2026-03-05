@@ -22,11 +22,11 @@ func (c *Client) GetSecretData(ctx context.Context, namespace, name string) (map
 func WriteKubeconfig(data []byte, name string) (string, error) {
 	dir := filepath.Join(os.Getenv("HOME"), ".kube", "hctl")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", err
+		return "", fmt.Errorf("creating kubeconfig directory: %w", err)
 	}
 	path := filepath.Join(dir, name+".yaml")
 	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return "", err
+		return "", fmt.Errorf("writing kubeconfig %s: %w", path, err)
 	}
 	return path, nil
 }
