@@ -39,7 +39,7 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 		Kind:       "PlatformExternalSecret",
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-secrets", config.Name),
-			Namespace: "platform-requests",
+			Namespace: ku.DefaultPlatformRequestsNamespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by": "kratix",
 				"kratix.io/promise-name":       "http-service",
@@ -82,7 +82,7 @@ func buildGatewayRouteRequest(config *HTTPServiceConfig) ku.Resource {
 		Kind:       "GatewayRoute",
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-route", config.Name),
-			Namespace: "platform-requests",
+			Namespace: ku.DefaultPlatformRequestsNamespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by": "kratix",
 				"kratix.io/promise-name":       "http-service",

@@ -85,17 +85,15 @@ func handleConfigure(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 		log.Printf("✓ Rendered HTTP→HTTPS redirect route: %s-http-redirect", config.Name)
 	}
 
-	// Write status
-	status := kratix.NewStatus()
-	status.Set("phase", "Configured")
-	status.Set("hostname", config.Hostname)
-	status.Set("url", fmt.Sprintf("https://%s%s", config.Hostname, config.Path))
-	if config.HTTPRedirect {
-		status.Set("httpRedirect", "enabled")
+	fields := map[string]interface{}{
+		"hostname": config.Hostname,
+		"url":      fmt.Sprintf("https://%s%s", config.Hostname, config.Path),
 	}
-	status.Set("message", fmt.Sprintf("Gateway route configured for %s", config.Hostname))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if config.HTTPRedirect {
+		fields["httpRedirect"] = "enabled"
+	}
+	if err := ku.WritePromiseStatus(sdk, "Configured",
+		fmt.Sprintf("Gateway route configured for %s", config.Hostname), fields); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 
@@ -127,11 +125,8 @@ func handleDelete(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 		}
 	}
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", fmt.Sprintf("Gateway routes for %s scheduled for deletion", config.Hostname))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Deleting",
+		fmt.Sprintf("Gateway routes for %s scheduled for deletion", config.Hostname), nil); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 

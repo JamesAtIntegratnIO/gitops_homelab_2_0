@@ -230,9 +230,9 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) ku.Resource {
 		labels = ku.MergeStringMap(labels, config.ClusterLabels)
 	}
 
-	metadataAnnotations := map[string]string{}
+	var metadataAnnotations map[string]string
 	if len(config.ClusterAnnotations) > 0 {
-		metadataAnnotations = ku.MergeStringMap(metadataAnnotations, config.ClusterAnnotations)
+		metadataAnnotations = ku.MergeStringMap(nil, config.ClusterAnnotations)
 	}
 
 	targetLabels := ku.MergeStringMap(map[string]string{
@@ -241,9 +241,9 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) ku.Resource {
 		"integratn.tech/environment":     config.Environment,
 	}, config.ClusterLabels)
 
-	targetAnnotations := map[string]string{}
+	var targetAnnotations map[string]string
 	if len(config.ClusterAnnotations) > 0 {
-		targetAnnotations = ku.MergeStringMap(targetAnnotations, config.ClusterAnnotations)
+		targetAnnotations = ku.MergeStringMap(nil, config.ClusterAnnotations)
 	}
 
 	tmplMeta := &ku.TemplateMetadata{
@@ -254,9 +254,6 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) ku.Resource {
 	}
 
 	esName := fmt.Sprintf("%s-argocd-cluster", config.Name)
-	if len(metadataAnnotations) == 0 {
-		metadataAnnotations = nil
-	}
 
 	return ku.Resource{
 		APIVersion: "external-secrets.io/v1beta1",

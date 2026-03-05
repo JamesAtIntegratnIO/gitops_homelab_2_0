@@ -149,7 +149,7 @@ func buildCorednsHostDNSPolicy(config *VClusterConfig) ku.Resource {
 			"endpointSelector": map[string]interface{}{},
 			"egress": []map[string]interface{}{
 				{
-					"toCIDR": []string{"169.254.116.108/32"},
+					"toCIDR": []string{ku.TalosNodeLocalDNSCIDR},
 					"toPorts": []map[string]interface{}{
 						{
 							"ports": []map[string]interface{}{
@@ -282,7 +282,7 @@ func buildVClusterExternalPolicy(config *VClusterConfig) ku.Resource {
 				// 1Password Connect server (kubeconfig-sync job)
 				{
 					"to": []map[string]interface{}{
-						{"ipBlock": map[string]interface{}{"cidr": "10.0.1.139/32"}},
+						{"ipBlock": map[string]interface{}{"cidr": ku.OnePasswordConnectCIDR}},
 					},
 					"ports": []map[string]interface{}{
 						{"protocol": "TCP", "port": 443},

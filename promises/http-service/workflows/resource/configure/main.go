@@ -161,7 +161,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		Kind:       "ArgoCDApplication",
 		Metadata: ku.ObjectMeta{
 			Name:      config.Name,
-			Namespace: "platform-requests",
+			Namespace: ku.DefaultPlatformRequestsNamespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by": "kratix",
 				"app.kubernetes.io/name":       "argocd-application",
@@ -172,7 +172,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		},
 		Spec: ku.ArgoCDApplicationSpec{
 			Name:      config.Name,
-			Namespace: "argocd",
+			Namespace: ku.DefaultArgoCDNamespace,
 			Annotations: map[string]string{
 				"argocd.argoproj.io/sync-wave": "10",
 			},
@@ -236,15 +236,12 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	}
 
 	// 7. Write status
-	status := kratix.NewStatus()
-	status.Set("phase", "Configured")
-	status.Set("message", fmt.Sprintf("HTTP Service %s configured", config.Name))
-	status.Set("namespace", config.Namespace)
+	statusFields := map[string]interface{}{"namespace": config.Namespace}
 	if config.IngressEnabled {
-		status.Set("url", fmt.Sprintf("https://%s%s", config.IngressHostname, config.IngressPath))
+		statusFields["url"] = fmt.Sprintf("https://%s%s", config.IngressHostname, config.IngressPath)
 	}
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Configured",
+		fmt.Sprintf("HTTP Service %s configured", config.Name), statusFields); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 
@@ -259,7 +256,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		Kind:       "ArgoCDApplication",
 		Metadata: ku.ObjectMeta{
 			Name:      config.Name,
-			Namespace: "platform-requests",
+			Namespace: ku.DefaultPlatformRequestsNamespace,
 		},
 	}
 	if err := ku.WriteYAML(sdk, "resources/delete-argocdapplication-"+config.Name+".yaml", appRequest); err != nil {
@@ -274,7 +271,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 			Kind:       "PlatformExternalSecret",
 			Metadata: ku.ObjectMeta{
 				Name:      fmt.Sprintf("%s-secrets", config.Name),
-				Namespace: "platform-requests",
+				Namespace: ku.DefaultPlatformRequestsNamespace,
 			},
 		}
 		if err := ku.WriteYAML(sdk, "resources/delete-externalsecret-"+config.Name+".yaml", esRequest); err != nil {
@@ -290,7 +287,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 			Kind:       "GatewayRoute",
 			Metadata: ku.ObjectMeta{
 				Name:      fmt.Sprintf("%s-route", config.Name),
-				Namespace: "platform-requests",
+				Namespace: ku.DefaultPlatformRequestsNamespace,
 			},
 		}
 		if err := ku.WriteYAML(sdk, "resources/delete-gatewayroute-"+config.Name+".yaml", gwRequest); err != nil {
@@ -299,11 +296,8 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		log.Printf("✓ Delete scheduled for GatewayRoute: %s", config.Name)
 	}
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", fmt.Sprintf("HTTP Service %s scheduled for deletion", config.Name))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Deleting",
+		fmt.Sprintf("HTTP Service %s scheduled for deletion", config.Name), nil); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 

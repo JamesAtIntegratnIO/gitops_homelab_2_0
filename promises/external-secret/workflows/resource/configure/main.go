@@ -52,14 +52,9 @@ func handleConfigure(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error 
 	}
 	log.Printf("✓ Rendered %d ExternalSecret(s)", len(externalSecrets))
 
-	// Write status
-	status := kratix.NewStatus()
-	status.Set("phase", "Configured")
-	status.Set("message", fmt.Sprintf("Rendered %d ExternalSecret(s) in namespace %s", len(config.Secrets), config.Namespace))
-	status.Set("namespace", config.Namespace)
-	status.Set("secretCount", len(config.Secrets))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Configured",
+		fmt.Sprintf("Rendered %d ExternalSecret(s) in namespace %s", len(config.Secrets), config.Namespace),
+		map[string]interface{}{"namespace": config.Namespace, "secretCount": len(config.Secrets)}); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 
@@ -87,11 +82,8 @@ func handleDelete(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 		}
 	}
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", fmt.Sprintf("ExternalSecrets in %s scheduled for deletion", config.Namespace))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Deleting",
+		fmt.Sprintf("ExternalSecrets in %s scheduled for deletion", config.Namespace), nil); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 

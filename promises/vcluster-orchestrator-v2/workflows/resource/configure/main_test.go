@@ -71,7 +71,7 @@ func minimalConfig() *VClusterConfig {
 // ============================================================================
 
 func TestDefaultVIPFromCIDR(t *testing.T) {
-	vip, err := defaultVIPFromCIDR("10.0.4.0/24", 200)
+	vip, err := defaultVIPFromCIDR("10.0.4.0/24", ku.DefaultMetalLBPoolOffset)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestDefaultVIPFromCIDR(t *testing.T) {
 }
 
 func TestDefaultVIPFromCIDR_InvalidCIDR(t *testing.T) {
-	_, err := defaultVIPFromCIDR("not-a-cidr", 200)
+	_, err := defaultVIPFromCIDR("not-a-cidr", ku.DefaultMetalLBPoolOffset)
 	if err == nil {
 		t.Fatal("expected error for invalid CIDR")
 	}

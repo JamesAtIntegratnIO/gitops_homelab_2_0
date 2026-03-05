@@ -99,14 +99,9 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	}
 	log.Printf("✓ Rendered ArgoCD Application: %s", name)
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Configured")
-	status.Set("message", fmt.Sprintf("Application %s configured", name))
-	status.Set("applicationName", name)
-	status.Set("namespace", namespace)
-	status.Set("project", project)
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Configured",
+		fmt.Sprintf("Application %s configured", name),
+		map[string]interface{}{"applicationName": name, "namespace": namespace, "project": project}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
@@ -161,11 +156,8 @@ func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	}
 	log.Printf("✓ Delete scheduled for Application: %s", name)
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", fmt.Sprintf("Application %s scheduled for deletion", name))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Deleting",
+		fmt.Sprintf("Application %s scheduled for deletion", name), nil); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 

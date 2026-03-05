@@ -65,27 +65,24 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		directResources++
 	}
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Scheduled")
-	status.Set("message", "VCluster resources scheduled for creation")
-	status.Set("resourceRequestsGenerated", len(resourceRequests))
-	status.Set("directResourcesGenerated", directResources)
-	status.Set("vclusterName", config.Name)
-	status.Set("targetNamespace", config.TargetNamespace)
-	status.Set("hostname", config.Hostname)
-	status.Set("environment", config.ArgoCDEnvironment)
-
-	// Platform Status Contract — endpoint and credential references
-	status.Set("endpoints", map[string]string{
-		"api":    config.ExternalServerURL,
-		"argocd": fmt.Sprintf("https://argocd.cluster.integratn.tech/applications/vcluster-%s", config.Name),
-	})
-	status.Set("credentials", map[string]string{
-		"kubeconfigSecret": fmt.Sprintf("vcluster-%s-kubeconfig", config.Name),
-		"onePasswordItem":  config.OnePasswordItem,
-	})
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Scheduled", "VCluster resources scheduled for creation",
+		map[string]interface{}{
+			"resourceRequestsGenerated": len(resourceRequests),
+			"directResourcesGenerated":  directResources,
+			"vclusterName":              config.Name,
+			"targetNamespace":           config.TargetNamespace,
+			"hostname":                  config.Hostname,
+			"environment":               config.ArgoCDEnvironment,
+			// Platform Status Contract — endpoint and credential references
+			"endpoints": map[string]string{
+				"api":    config.ExternalServerURL,
+				"argocd": fmt.Sprintf("https://argocd.cluster.integratn.tech/applications/vcluster-%s", config.Name),
+			},
+			"credentials": map[string]string{
+				"kubeconfigSecret": fmt.Sprintf("vcluster-%s-kubeconfig", config.Name),
+				"onePasswordItem":  config.OnePasswordItem,
+			},
+		}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
@@ -180,38 +177,47 @@ func cleanupNamespace(config *VClusterConfig) error {
 func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	log.Printf("--- Handling delete for vcluster: %s ---", config.Name)
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", "VCluster resources scheduled for deletion")
-	status.Set("vclusterName", config.Name)
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Deleting", "VCluster resources scheduled for deletion",
+		map[string]interface{}{"vclusterName": config.Name}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
-	// --- Direct API cleanup for resources NOT in the Kratix state store ---
-	// These resources are created by the vcluster syncer directly on the host
-	// cluster and must be cleaned up via direct API calls.
+	cleanupErrs := directCleanup(config)
 
+	if err := stateStoreCleanup(sdk, config); err != nil {
+		return err
+	}
+
+	if len(cleanupErrs) > 0 {
+		return fmt.Errorf("cleanup errors: %s", strings.Join(cleanupErrs, "; "))
+	}
+
+	return nil
+}
+
+// directCleanup performs direct Kubernetes API cleanup for resources NOT in the
+// Kratix state store (host PVs, namespace). Returns a list of error messages.
+func directCleanup(config *VClusterConfig) []string {
 	var cleanupErrs []string
 
-	// Clean up host-level PVs created by the vcluster syncer
 	if err := cleanupHostPVs(config); err != nil {
 		log.Printf("⚠ Warning: PV cleanup encountered errors: %v", err)
 		cleanupErrs = append(cleanupErrs, fmt.Sprintf("PV cleanup: %v", err))
 	}
 
-	// Clean up the vcluster namespace (cascade-deletes PVCs, pods, etc.)
 	if err := cleanupNamespace(config); err != nil {
 		log.Printf("⚠ Warning: Namespace cleanup encountered errors: %v", err)
 		cleanupErrs = append(cleanupErrs, fmt.Sprintf("namespace cleanup: %v", err))
 	}
 
-	// --- Kratix state store cleanup (removes manifests → ArgoCD deletes from cluster) ---
+	return cleanupErrs
+}
 
+// stateStoreCleanup emits Kratix delete-output manifests that cause ArgoCD
+// to remove the managed resources from the cluster.
+func stateStoreCleanup(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	outputs := map[string]ku.Resource{}
 
-	// Delete all created resources
 	allResources := []ku.Resource{
 		buildArgoCDProjectRequest(config),
 		buildArgoCDApplicationRequest(config),
@@ -225,7 +231,6 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		outputs[path] = deleteObj
 	}
 
-	// Delete per-vcluster network policies
 	for _, obj := range buildNetworkPolicies(config) {
 		deleteObj := ku.DeleteFromResource(obj)
 		path := ku.DeleteOutputPathForResource("resources", obj)
@@ -241,40 +246,24 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	}
 
 	outputs["resources/delete-vcluster-clusterrole.yaml"] = ku.DeleteResource(
-		"rbac.authorization.k8s.io/v1",
-		"ClusterRole",
-		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
-		"",
+		"rbac.authorization.k8s.io/v1", "ClusterRole",
+		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace), "",
 	)
 	outputs["resources/delete-vcluster-clusterrolebinding.yaml"] = ku.DeleteResource(
-		"rbac.authorization.k8s.io/v1",
-		"ClusterRoleBinding",
-		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
-		"",
+		"rbac.authorization.k8s.io/v1", "ClusterRoleBinding",
+		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace), "",
 	)
 
 	if etcdEnabled(config) {
-		outputs["resources/delete-etcd-ca-secret.yaml"] = ku.DeleteResource(
-			"v1",
-			"Secret",
-			fmt.Sprintf("%s-etcd-ca", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-server-secret.yaml"] = ku.DeleteResource(
-			"v1",
-			"Secret",
-			fmt.Sprintf("%s-etcd-server", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-peer-secret.yaml"] = ku.DeleteResource(
-			"v1",
-			"Secret",
-			fmt.Sprintf("%s-etcd-peer", config.Name),
-			config.TargetNamespace,
-		)
+		for _, suffix := range []string{"ca", "server", "peer"} {
+			outputs[fmt.Sprintf("resources/delete-etcd-%s-secret.yaml", suffix)] = ku.DeleteResource(
+				"v1", "Secret",
+				fmt.Sprintf("%s-etcd-%s", config.Name, suffix),
+				config.TargetNamespace,
+			)
+		}
 		outputs["resources/delete-etcd-merged-secret.yaml"] = ku.DeleteResource(
-			"v1",
-			"Secret",
+			"v1", "Secret",
 			fmt.Sprintf("%s-etcd-certs", config.Name),
 			config.TargetNamespace,
 		)
@@ -284,10 +273,6 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		if err := ku.WriteYAML(sdk, path, obj); err != nil {
 			return fmt.Errorf("write delete output %s: %w", path, err)
 		}
-	}
-
-	if len(cleanupErrs) > 0 {
-		return fmt.Errorf("cleanup errors: %s", strings.Join(cleanupErrs, "; "))
 	}
 
 	return nil

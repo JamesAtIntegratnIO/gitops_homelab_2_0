@@ -103,15 +103,14 @@ func handleConfigure(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 	}
 	log.Printf("✓ Rendered: argocd-cluster-external-secret.yaml")
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Configured")
-	status.Set("message", fmt.Sprintf("Cluster %s registration resources configured", config.Name))
-	status.Set("clusterName", config.Name)
-	status.Set("targetNamespace", config.TargetNamespace)
-	status.Set("externalServerURL", config.ExternalServerURL)
-	status.Set("environment", config.Environment)
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Configured",
+		fmt.Sprintf("Cluster %s registration resources configured", config.Name),
+		map[string]interface{}{
+			"clusterName":       config.Name,
+			"targetNamespace":   config.TargetNamespace,
+			"externalServerURL": config.ExternalServerURL,
+			"environment":       config.Environment,
+		}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
@@ -122,12 +121,9 @@ func handleConfigure(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 func handleDelete(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 	log.Printf("--- Handling delete for cluster registration: %s ---", config.Name)
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", fmt.Sprintf("Cluster %s registration resources scheduled for deletion", config.Name))
-	status.Set("clusterName", config.Name)
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, "Deleting",
+		fmt.Sprintf("Cluster %s registration resources scheduled for deletion", config.Name),
+		map[string]interface{}{"clusterName": config.Name}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 

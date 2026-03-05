@@ -128,11 +128,11 @@ func buildEtcdCertificates(config *VClusterConfig) []ku.Resource {
 				},
 				Spec: ku.PodSpec{
 					RestartPolicy:      "OnFailure",
-				ServiceAccountName: mergeSAName,
+					ServiceAccountName: mergeSAName,
 					Containers: []ku.Container{
 						{
 							Name:    "merge-certs",
-							Image:   "bitnami/kubectl:latest",
+							Image:   ku.DefaultKubectlImage,
 							Command: []string{"/bin/bash", "-c", buildEtcdMergeScript(config)},
 						},
 					},
@@ -220,7 +220,7 @@ func buildEtcdDNSNames(config *VClusterConfig) []string {
 		fmt.Sprintf("%s-etcd-headless.%s.svc", config.Name, config.TargetNamespace),
 		fmt.Sprintf("%s-etcd-headless.%s.svc.cluster.local", config.Name, config.TargetNamespace),
 	}
-	for i := 0; i < 3; i++ {
+	for i := 0; i < ku.DefaultEtcdReplicas; i++ {
 		base = append(base,
 			fmt.Sprintf("%s-etcd-%d", config.Name, i),
 			fmt.Sprintf("%s-etcd-%d.%s-etcd-headless.%s", config.Name, i, config.Name, config.TargetNamespace),

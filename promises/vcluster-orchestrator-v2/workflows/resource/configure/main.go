@@ -133,24 +133,36 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 	config.VIP, _ = ku.GetStringValue(resource, "spec.exposure.vip")
 	config.APIPort = ku.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
 
-	// Calculate VIP if needed (offset 200 aligns with MetalLB pool 10.0.4.200-253)
+	if err := calculateVIP(config); err != nil {
+		return err
+	}
+	resolveHostname(config, resource)
+	buildExposureDefaults(config)
+	return nil
+}
+
+// calculateVIP calculates a default VIP from the subnet CIDR if not explicitly
+// set, and validates the VIP is within the subnet.
+func calculateVIP(config *VClusterConfig) error {
 	if config.Subnet != "" && config.VIP == "" {
-		vip, err := defaultVIPFromCIDR(config.Subnet, 200)
+		vip, err := defaultVIPFromCIDR(config.Subnet, ku.DefaultMetalLBPoolOffset)
 		if err != nil {
 			return fmt.Errorf("failed to calculate VIP: %w", err)
 		}
 		config.VIP = vip
 		log.Printf("Calculated default VIP: %s", vip)
 	}
-
-	// Validate VIP is in subnet
 	if config.VIP != "" && config.Subnet != "" {
 		if !ipInCIDR(config.VIP, config.Subnet) {
 			return fmt.Errorf("VIP %s is not within subnet %s", config.VIP, config.Subnet)
 		}
 	}
+	return nil
+}
 
-	// Set hostname if not specified
+// resolveHostname determines the hostname and baseDomain from the resource
+// annotations, falling back to sensible defaults.
+func resolveHostname(config *VClusterConfig, resource kratix.Resource) {
 	config.BaseDomain, _ = ku.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain")
 	if config.BaseDomain == "" || config.BaseDomain == "null" {
 		config.BaseDomain = "integratn.tech"
@@ -159,8 +171,11 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 		config.Hostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
 	}
 	config.BaseDomainSanitized = strings.ReplaceAll(config.BaseDomain, ".", "-")
+}
 
-	// Calculate external server URL
+// buildExposureDefaults derives the ExternalServerURL, merges ExportKubeConfig
+// defaults, and populates ProxyExtraSANs from the resolved hostname and VIP.
+func buildExposureDefaults(config *VClusterConfig) {
 	if config.Hostname != "" {
 		config.ExternalServerURL = fmt.Sprintf("https://%s:%d", config.Hostname, config.APIPort)
 	} else if config.VIP != "" {
@@ -177,15 +192,12 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 		config.ExportKubeConfig = defaultExport
 	}
 
-	// Build proxy extraSANs
 	if config.Hostname != "" {
 		config.ProxyExtraSANs = append(config.ProxyExtraSANs, config.Hostname)
 	}
 	if config.VIP != "" {
 		config.ProxyExtraSANs = append(config.ProxyExtraSANs, config.VIP)
 	}
-
-	return nil
 }
 
 // configureIntegrations sets up cert-manager, external-secrets, and ArgoCD integration
@@ -234,7 +246,7 @@ func configureWorkloadRepo(config *VClusterConfig, resource kratix.Resource) {
 	config.ArgoCDClusterLabels = ku.ExtractStringMap(resource, "spec.integrations.argocd.clusterLabels")
 	config.ArgoCDClusterAnnotations = ku.ExtractStringMap(resource, "spec.integrations.argocd.clusterAnnotations")
 
-	config.WorkloadRepoURL = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", "https://github.com/jamesatintegratnio/gitops_homelab_2_0")
+	config.WorkloadRepoURL = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", ku.PlatformRepoURL)
 	config.WorkloadRepoBasePath, _ = ku.GetStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
 	config.WorkloadRepoPath = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
 	config.WorkloadRepoRevision = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
@@ -258,7 +270,7 @@ func configureClusterMetadata(config *VClusterConfig) {
 		"environment":                     config.ArgoCDEnvironment,
 	}
 	defaultClusterAnnotations := map[string]string{
-		"addons_repo_url":                            "https://github.com/jamesatintegratnio/gitops_homelab_2_0.git",
+		"addons_repo_url":                            ku.PlatformRepoGitURL,
 		"addons_repo_revision":                       "main",
 		"addons_repo_basepath":                       "addons/",
 		"addons_repo_path":                           "charts/application-sets",

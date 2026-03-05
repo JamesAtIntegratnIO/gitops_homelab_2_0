@@ -30,101 +30,83 @@ func buildSecurityContext(config *HTTPServiceConfig) map[string]interface{} {
 	return ctx
 }
 
-// buildStakaterValues constructs the Helm values for the Stakater application chart.
-// HTTPRoute is DISABLED here — the gateway-route sub-promise owns routing.
-func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
-	values := map[string]interface{}{
-		"applicationName": config.Name,
-
-		"additionalLabels": map[string]string{
-			"app.kubernetes.io/managed-by": "kratix",
-			"kratix.io/promise-name":       "http-service",
-			"app.kubernetes.io/part-of":    config.Name,
-			"app.kubernetes.io/team":       config.Team,
+// buildDeploymentValues constructs the deployment section of the Stakater Helm values.
+func buildDeploymentValues(config *HTTPServiceConfig) map[string]interface{} {
+	return map[string]interface{}{
+		"enabled":  true,
+		"replicas": config.Replicas,
+		"image": map[string]interface{}{
+			"repository": config.ImageRepository,
+			"tag":        config.ImageTag,
+			"pullPolicy": config.ImagePullPolicy,
 		},
-
-		// ── Deployment ──────────────────────────────────
-		"deployment": map[string]interface{}{
-			"enabled":  true,
-			"replicas": config.Replicas,
-			"image": map[string]interface{}{
-				"repository": config.ImageRepository,
-				"tag":        config.ImageTag,
-				"pullPolicy": config.ImagePullPolicy,
-			},
-			"command": config.Command,
-			"args":    config.Args,
-			"ports": []map[string]interface{}{
-				{
-					"containerPort": config.Port,
-					"name":          "http",
-					"protocol":      "TCP",
-				},
-			},
-			"resources": map[string]interface{}{
-				"requests": map[string]string{
-					"cpu":    config.CPURequest,
-					"memory": config.MemoryRequest,
-				},
-				"limits": map[string]string{
-					"cpu":    config.CPULimit,
-					"memory": config.MemoryLimit,
-				},
-			},
-			"readinessProbe": map[string]interface{}{
-				"enabled":          true,
-				"failureThreshold": 3,
-				"periodSeconds":    10,
-				"successThreshold": 1,
-				"timeoutSeconds":   3,
-				"httpGet": map[string]interface{}{
-					"path":   config.HealthCheckPath,
-					"port":   config.HealthCheckPort,
-					"scheme": "HTTP",
-				},
-			},
-			"livenessProbe": map[string]interface{}{
-				"enabled":          true,
-				"failureThreshold": 3,
-				"periodSeconds":    10,
-				"successThreshold": 1,
-				"timeoutSeconds":   3,
-				"httpGet": map[string]interface{}{
-					"path":   config.HealthCheckPath,
-					"port":   config.HealthCheckPort,
-					"scheme": "HTTP",
-				},
-			},
-			"containerSecurityContext": buildSecurityContext(config),
-			"revisionHistoryLimit":    3,
-			"reloadOnChange":          true,
-		},
-
-		// ── Service ─────────────────────────────────────
-		"service": map[string]interface{}{
-			"enabled": true,
-			"type":    "ClusterIP",
-			"ports": []map[string]interface{}{
-				{
-					"port":       config.Port,
-					"name":       "http",
-					"protocol":   "TCP",
-					"targetPort": config.Port,
-				},
+		"command": config.Command,
+		"args":    config.Args,
+		"ports": []map[string]interface{}{
+			{
+				"containerPort": config.Port,
+				"name":          "http",
+				"protocol":      "TCP",
 			},
 		},
+		"resources": map[string]interface{}{
+			"requests": map[string]string{
+				"cpu":    config.CPURequest,
+				"memory": config.MemoryRequest,
+			},
+			"limits": map[string]string{
+				"cpu":    config.CPULimit,
+				"memory": config.MemoryLimit,
+			},
+		},
+		"readinessProbe": map[string]interface{}{
+			"enabled":          true,
+			"failureThreshold": 3,
+			"periodSeconds":    10,
+			"successThreshold": 1,
+			"timeoutSeconds":   3,
+			"httpGet": map[string]interface{}{
+				"path":   config.HealthCheckPath,
+				"port":   config.HealthCheckPort,
+				"scheme": "HTTP",
+			},
+		},
+		"livenessProbe": map[string]interface{}{
+			"enabled":          true,
+			"failureThreshold": 3,
+			"periodSeconds":    10,
+			"successThreshold": 1,
+			"timeoutSeconds":   3,
+			"httpGet": map[string]interface{}{
+				"path":   config.HealthCheckPath,
+				"port":   config.HealthCheckPort,
+				"scheme": "HTTP",
+			},
+		},
+		"containerSecurityContext": buildSecurityContext(config),
+		"revisionHistoryLimit":    3,
+		"reloadOnChange":          true,
+	}
+}
 
-		// ── RBAC ────────────────────────────────────────
-		"rbac": map[string]interface{}{
-			"enabled": true,
-			"serviceAccount": map[string]interface{}{
-				"enabled": true,
-				"name":    config.Name,
+// buildServiceValues constructs the service section of the Stakater Helm values.
+func buildServiceValues(config *HTTPServiceConfig) map[string]interface{} {
+	return map[string]interface{}{
+		"enabled": true,
+		"type":    "ClusterIP",
+		"ports": []map[string]interface{}{
+			{
+				"port":       config.Port,
+				"name":       "http",
+				"protocol":   "TCP",
+				"targetPort": config.Port,
 			},
 		},
 	}
+}
 
-	// ── Env vars ────────────────────────────────────
+// addEnvValues mutates the deployment map to add env vars and envFrom entries.
+func addEnvValues(config *HTTPServiceConfig, deployment map[string]interface{}) {
 	if len(config.Env) > 0 {
 		envMap := map[string]interface{}{}
 		for k, v := range config.Env {
@@ -132,11 +114,9 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 				"value": v,
 			}
 		}
-		deployment := values["deployment"].(map[string]interface{})
 		deployment["env"] = envMap
 	}
 
-	// ── EnvFrom (mount secrets) ─────────────────────
 	if len(config.EnvFromSecrets) > 0 || len(config.Secrets) > 0 {
 		envFrom := map[string]interface{}{}
 		for _, s := range config.EnvFromSecrets {
@@ -156,9 +136,37 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 			}
 		}
 		if len(envFrom) > 0 {
-			deployment := values["deployment"].(map[string]interface{})
 			deployment["envFrom"] = envFrom
 		}
+	}
+}
+
+// buildStakaterValues constructs the Helm values for the Stakater application chart.
+// HTTPRoute is DISABLED here — the gateway-route sub-promise owns routing.
+func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
+	deployment := buildDeploymentValues(config)
+	addEnvValues(config, deployment)
+
+	values := map[string]interface{}{
+		"applicationName": config.Name,
+
+		"additionalLabels": map[string]string{
+			"app.kubernetes.io/managed-by": "kratix",
+			"kratix.io/promise-name":       "http-service",
+			"app.kubernetes.io/part-of":    config.Name,
+			"app.kubernetes.io/team":       config.Team,
+		},
+
+		"deployment": deployment,
+		"service":    buildServiceValues(config),
+
+		"rbac": map[string]interface{}{
+			"enabled": true,
+			"serviceAccount": map[string]interface{}{
+				"enabled": true,
+				"name":    config.Name,
+			},
+		},
 	}
 
 	// ── HTTPRoute DISABLED — owned by gateway-route sub-promise ──

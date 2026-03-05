@@ -290,3 +290,16 @@ func DeleteOutputPathForResource(prefix string, r Resource) string {
 	}
 	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
 }
+
+// WritePromiseStatus builds a Kratix status object, sets the given phase and
+// message, applies any extra fields, and writes it via the SDK. This reduces
+// repetitive status-setting boilerplate across promise handlers.
+func WritePromiseStatus(sdk *kratix.KratixSDK, phase, message string, fields map[string]interface{}) error {
+	status := kratix.NewStatus()
+	status.Set("phase", phase)
+	status.Set("message", message)
+	for k, v := range fields {
+		status.Set(k, v)
+	}
+	return sdk.WriteStatus(status)
+}
