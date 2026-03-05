@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/jamesatintegratnio/hctl/internal/config"
 )
 
 // --- Additional helper tests ---
@@ -250,4 +252,230 @@ func TestListCmd_Structure(t *testing.T) {
 		}
 	}
 	t.Fatal("list subcommand not found")
+}
+
+// --- Functional tests for disable.go ---
+
+func TestDisableCmd_RepoPathRequired(t *testing.T) {
+	// newAddonDisableCmd().RunE should fail when RepoPath is empty in config
+	cmd := newAddonDisableCmd()
+	cmd.SetArgs([]string{"test-addon"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("disable should error when repo path is not set")
+	}
+}
+
+func TestDisableCmd_AddonNotFound(t *testing.T) {
+	tmp := t.TempDir()
+	// Create addons.yaml with some addons but not "missing-addon"
+	addonsDir := filepath.Join(tmp, "addons", "environments", "production", "addons")
+	if err := os.MkdirAll(addonsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	entries := map[string]map[string]interface{}{
+		"existing-addon": {"enabled": true},
+	}
+	if err := writeAddonsYAML(filepath.Join(addonsDir, "addons.yaml"), entries); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set config with the temp repo path and non-interactive
+	cfg := &config.Config{
+		RepoPath:    tmp,
+		Interactive: false,
+	}
+	config.Set(cfg)
+	defer config.Set(config.Default())
+
+	cmd := newAddonDisableCmd()
+	cmd.SetArgs([]string{"missing-addon"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("disable should error when addon is not found in addons.yaml")
+	}
+}
+
+func TestDisableCmd_DisablesAddon(t *testing.T) {
+	tmp := t.TempDir()
+	addonsDir := filepath.Join(tmp, "addons", "environments", "production", "addons")
+	if err := os.MkdirAll(addonsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	entries := map[string]map[string]interface{}{
+		"my-addon": {"enabled": true, "namespace": "my-ns"},
+	}
+	if err := writeAddonsYAML(filepath.Join(addonsDir, "addons.yaml"), entries); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		RepoPath:    tmp,
+		Interactive: false,
+	}
+	config.Set(cfg)
+	defer config.Set(config.Default())
+
+	cmd := newAddonDisableCmd()
+	cmd.SetArgs([]string{"my-addon"})
+	// Ignore error from git operations (no git repo in temp dir)
+	_ = cmd.Execute()
+
+	// Verify the addon was disabled in addons.yaml
+	got, err := readAddonsYAML(filepath.Join(addonsDir, "addons.yaml"))
+	if err != nil {
+		t.Fatalf("reading addons.yaml: %v", err)
+	}
+	if got["my-addon"]["enabled"] != false {
+		t.Errorf("addon should be disabled, got enabled=%v", got["my-addon"]["enabled"])
+	}
+}
+
+// --- Functional tests for enable.go ---
+
+func TestEnableCmd_RepoPathRequired(t *testing.T) {
+	cfg := &config.Config{
+		RepoPath:    "",
+		Interactive: false,
+	}
+	config.Set(cfg)
+	defer config.Set(config.Default())
+
+	cmd := newAddonEnableCmd()
+	cmd.SetArgs([]string{"test-addon"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("enable should error when repo path is not set")
+	}
+}
+
+func TestEnableCmd_CreatesNewAddon(t *testing.T) {
+	tmp := t.TempDir()
+	addonsDir := filepath.Join(tmp, "addons", "environments", "production", "addons")
+	if err := os.MkdirAll(addonsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Start with empty addons.yaml
+	if err := writeAddonsYAML(filepath.Join(addonsDir, "addons.yaml"), map[string]map[string]interface{}{}); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		RepoPath:    tmp,
+		Interactive: false,
+	}
+	config.Set(cfg)
+	defer config.Set(config.Default())
+
+	cmd := newAddonEnableCmd()
+	cmd.SetArgs([]string{"new-addon"})
+	// Ignore git errors
+	_ = cmd.Execute()
+
+	got, err := readAddonsYAML(filepath.Join(addonsDir, "addons.yaml"))
+	if err != nil {
+		t.Fatalf("reading addons.yaml: %v", err)
+	}
+	addon, ok := got["new-addon"]
+	if !ok {
+		t.Fatal("new-addon should be created in addons.yaml")
+	}
+	if addon["enabled"] != true {
+		t.Errorf("new addon should be enabled, got enabled=%v", addon["enabled"])
+	}
+}
+
+func TestEnableCmd_ReEnablesExisting(t *testing.T) {
+	tmp := t.TempDir()
+	addonsDir := filepath.Join(tmp, "addons", "environments", "production", "addons")
+	if err := os.MkdirAll(addonsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	entries := map[string]map[string]interface{}{
+		"my-addon": {"enabled": false, "namespace": "my-ns"},
+	}
+	if err := writeAddonsYAML(filepath.Join(addonsDir, "addons.yaml"), entries); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		RepoPath:    tmp,
+		Interactive: false,
+	}
+	config.Set(cfg)
+	defer config.Set(config.Default())
+
+	cmd := newAddonEnableCmd()
+	cmd.SetArgs([]string{"my-addon"})
+	_ = cmd.Execute()
+
+	got, err := readAddonsYAML(filepath.Join(addonsDir, "addons.yaml"))
+	if err != nil {
+		t.Fatalf("reading addons.yaml: %v", err)
+	}
+	if got["my-addon"]["enabled"] != true {
+		t.Errorf("addon should be re-enabled, got enabled=%v", got["my-addon"]["enabled"])
+	}
+}
+
+// --- Functional tests for list.go ---
+
+func TestListCmd_RepoPathRequired(t *testing.T) {
+	cfg := &config.Config{
+		RepoPath:    "",
+		Interactive: false,
+	}
+	config.Set(cfg)
+	defer config.Set(config.Default())
+
+	cmd := newAddonListCmd()
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("list should error when repo path is not set")
+	}
+}
+
+func TestListCmd_EnvironmentFlagDefault(t *testing.T) {
+	cmd := newAddonListCmd()
+	envFlag := cmd.Flags().Lookup("environment")
+	if envFlag == nil {
+		t.Fatal("missing --environment flag")
+	}
+	// Default should be empty (code defaults to "production")
+	if envFlag.DefValue != "" {
+		t.Errorf("--environment default = %q, want empty string", envFlag.DefValue)
+	}
+}
+
+// --- Functional tests for status.go ---
+
+func TestStatusCmd_RequiresExactlyOneArg(t *testing.T) {
+	cmd := newAddonStatusCmd()
+
+	if err := cmd.Args(cmd, []string{}); err == nil {
+		t.Error("status should require exactly 1 arg")
+	}
+	if err := cmd.Args(cmd, []string{"addon-name"}); err != nil {
+		t.Errorf("status with 1 arg should pass: %v", err)
+	}
+	if err := cmd.Args(cmd, []string{"a", "b"}); err == nil {
+		t.Error("status should reject 2 args")
+	}
+}
+
+func TestStatusCmd_HasRunE(t *testing.T) {
+	cmd := newAddonStatusCmd()
+	if cmd.RunE == nil {
+		t.Error("status RunE should be set")
+	}
+}
+
+func TestStatusCmd_UseAndShort(t *testing.T) {
+	cmd := newAddonStatusCmd()
+	if cmd.Use != "status [addon]" {
+		t.Errorf("Use = %q, want 'status [addon]'", cmd.Use)
+	}
+	if cmd.Short == "" {
+		t.Error("Short should not be empty")
+	}
 }
