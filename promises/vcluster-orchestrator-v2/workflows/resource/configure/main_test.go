@@ -6,7 +6,21 @@ import (
 	"testing"
 
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	fakeclientset "k8s.io/client-go/kubernetes/fake"
 )
+
+// MockKubeClientFactory returns a pre-built fake clientset for testing.
+type MockKubeClientFactory struct {
+	Clientset *fakeclientset.Clientset
+}
+
+func (m MockKubeClientFactory) NewClient() (kubernetes.Interface, error) {
+	return m.Clientset, nil
+}
 
 // minimalConfig returns a VClusterConfig with all required fields for testing.
 func minimalConfig() *VClusterConfig {
@@ -797,15 +811,112 @@ func TestHandleConfigure_WithEtcd(t *testing.T) {
 }
 
 // ============================================================================
-// handleDelete (cannot fully test — uses in-cluster k8s client)
-// We test that it doesn't panic with properly configured SDK.
-// The cleanupHostPVs and cleanupNamespace will fail (no in-cluster config)
-// but the function should still write delete output files.
+// handleDelete — fully tested with mock KubeClientFactory
 // ============================================================================
 
-// Note: handleDelete calls rest.InClusterConfig() which will fail in test,
-// but the function is designed to log warnings and continue.
-// We test the delete output generation indirectly through the builder functions.
+func TestHandleDelete_Basic(t *testing.T) {
+	sdk, dir := ku.NewTestSDK(t)
+	config := minimalConfig()
+
+	// Create fake client with a PV that matches the vcluster label and
+	// a namespace matching config.TargetNamespace.
+	labelValue := fmt.Sprintf("%s-x-%s", config.Name, config.TargetNamespace)
+	fakeClient := fakeclientset.NewSimpleClientset(
+		&corev1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "pv-synced-1",
+				Labels: map[string]string{
+					"vcluster.loft.sh/managed-by": labelValue,
+				},
+			},
+		},
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: config.TargetNamespace},
+		},
+	)
+	config.KubeClient = MockKubeClientFactory{Clientset: fakeClient}
+
+	vals, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject: %v", err)
+	}
+	config.ValuesObject = vals
+
+	if err := handleDelete(sdk, config); err != nil {
+		t.Fatalf("handleDelete returned error: %v", err)
+	}
+
+	// Verify delete output files were written
+	expectedFiles := []string{
+		"resources/delete-vcluster-clusterrole.yaml",
+		"resources/delete-vcluster-clusterrolebinding.yaml",
+	}
+	for _, f := range expectedFiles {
+		if !ku.FileExists(dir, f) {
+			t.Errorf("expected file %s", f)
+		}
+	}
+}
+
+func TestHandleDelete_NoPVsNorNamespace(t *testing.T) {
+	sdk, _ := ku.NewTestSDK(t)
+	config := minimalConfig()
+
+	// Empty fake client — no PVs, no namespace
+	fakeClient := fakeclientset.NewSimpleClientset()
+	config.KubeClient = MockKubeClientFactory{Clientset: fakeClient}
+
+	vals, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject: %v", err)
+	}
+	config.ValuesObject = vals
+
+	// Should succeed gracefully (PV cleanup finds nothing, namespace doesn't exist)
+	if err := handleDelete(sdk, config); err != nil {
+		t.Fatalf("handleDelete returned error: %v", err)
+	}
+}
+
+func TestHandleDelete_WithEtcd(t *testing.T) {
+	sdk, dir := ku.NewTestSDK(t)
+	config := minimalConfig()
+	config.BackingStore = map[string]interface{}{
+		"etcd": map[string]interface{}{
+			"deploy": map[string]interface{}{"enabled": true},
+		},
+	}
+
+	fakeClient := fakeclientset.NewSimpleClientset(
+		&corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: config.TargetNamespace},
+		},
+	)
+	config.KubeClient = MockKubeClientFactory{Clientset: fakeClient}
+
+	vals, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject: %v", err)
+	}
+	config.ValuesObject = vals
+
+	if err := handleDelete(sdk, config); err != nil {
+		t.Fatalf("handleDelete returned error: %v", err)
+	}
+
+	// Verify etcd-specific delete outputs exist
+	etcdFiles := []string{
+		"resources/delete-etcd-ca-secret.yaml",
+		"resources/delete-etcd-server-secret.yaml",
+		"resources/delete-etcd-peer-secret.yaml",
+		"resources/delete-etcd-merged-secret.yaml",
+	}
+	for _, f := range etcdFiles {
+		if !ku.FileExists(dir, f) {
+			t.Errorf("expected etcd delete file %s", f)
+		}
+	}
+}
 
 func TestDeleteOutputGeneration(t *testing.T) {
 	config := minimalConfig()

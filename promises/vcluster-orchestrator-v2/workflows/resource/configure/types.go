@@ -13,18 +13,98 @@ import (
 
 // KubeClientFactory abstracts Kubernetes client creation for testability.
 type KubeClientFactory interface {
-	NewClient() (*kubernetes.Clientset, error)
+	NewClient() (kubernetes.Interface, error)
 }
 
 // InClusterClientFactory creates clients using in-cluster config.
 type InClusterClientFactory struct{}
 
-func (f InClusterClientFactory) NewClient() (*kubernetes.Clientset, error) {
+func (f InClusterClientFactory) NewClient() (kubernetes.Interface, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
 	return kubernetes.NewForConfig(config)
+}
+
+// ============================================================================
+// VCluster Configuration
+// ============================================================================
+
+// VClusterConfig holds all configuration for template rendering
+type VClusterConfig struct {
+	// Basic identity
+	Name            string
+	Namespace       string
+	ProjectName     string
+	TargetNamespace string
+
+	// Vcluster configuration
+	K8sVersion          string
+	Preset              string
+	Replicas            int
+	CPURequest          string
+	MemoryRequest       string
+	CPULimit            string
+	MemoryLimit         string
+	PersistenceEnabled  bool
+	PersistenceSize     string
+	PersistenceClass    string
+	CorednsReplicas     int
+	ClusterDomain       string
+	IsolationMode       string
+	BackingStore        map[string]interface{}
+	ExportKubeConfig    map[string]interface{}
+	HelmOverrides       map[string]interface{}
+	ValuesObject        map[string]interface{}
+	ProxyExtraSANs      []string
+
+	// Exposure configuration
+	Hostname         string
+	VIP              string
+	Subnet           string
+	APIPort          int
+	ExternalServerURL string
+
+	// Integration configuration
+	CertManagerIssuerLabels        map[string]string
+	ExternalSecretsStoreLabels     map[string]string
+	ArgoCDEnvironment              string
+	ArgoCDClusterLabels            map[string]string
+	ArgoCDClusterAnnotations       map[string]string
+	WorkloadRepoURL                string
+	WorkloadRepoBasePath           string
+	WorkloadRepoPath               string
+	WorkloadRepoRevision           string
+
+	// ArgoCD Application configuration
+	ArgoCDRepoURL        string
+	ArgoCDChart          string
+	ArgoCDTargetRevision string
+	ArgoCDDestServer     string
+	ArgoCDSyncPolicy     map[string]interface{}
+
+	// Network policy configuration
+	EnableNFS   bool
+	ExtraEgress []ExtraEgressRule
+
+	// Derived values
+	OnePasswordItem     string
+	KubeconfigSyncJobName string
+	BaseDomain          string
+	BaseDomainSanitized string
+
+	// Client factory for direct Kubernetes API calls (delete pipeline)
+	KubeClient KubeClientFactory
+
+	WorkflowContext WorkflowContext
+}
+
+type WorkflowContext struct {
+	WorkflowAction string
+	WorkflowType   string
+	PromiseName    string
+	PipelineName   string
 }
 
 // ============================================================================

@@ -10,82 +10,6 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// VClusterConfig holds all configuration for template rendering
-type VClusterConfig struct {
-	// Basic identity
-	Name            string
-	Namespace       string
-	ProjectName     string
-	TargetNamespace string
-
-	// Vcluster configuration
-	K8sVersion          string
-	Preset              string
-	Replicas            int
-	CPURequest          string
-	MemoryRequest       string
-	CPULimit            string
-	MemoryLimit         string
-	PersistenceEnabled  bool
-	PersistenceSize     string
-	PersistenceClass    string
-	CorednsReplicas     int
-	ClusterDomain       string
-	IsolationMode       string
-	BackingStore        map[string]interface{}
-	ExportKubeConfig    map[string]interface{}
-	HelmOverrides       map[string]interface{}
-	ValuesObject        map[string]interface{}
-	ProxyExtraSANs      []string
-
-	// Exposure configuration
-	Hostname         string
-	VIP              string
-	Subnet           string
-	APIPort          int
-	ExternalServerURL string
-
-	// Integration configuration
-	CertManagerIssuerLabels        map[string]string
-	ExternalSecretsStoreLabels     map[string]string
-	ArgoCDEnvironment              string
-	ArgoCDClusterLabels            map[string]string
-	ArgoCDClusterAnnotations       map[string]string
-	WorkloadRepoURL                string
-	WorkloadRepoBasePath           string
-	WorkloadRepoPath               string
-	WorkloadRepoRevision           string
-
-	// ArgoCD Application configuration
-	ArgoCDRepoURL        string
-	ArgoCDChart          string
-	ArgoCDTargetRevision string
-	ArgoCDDestServer     string
-	ArgoCDSyncPolicy     map[string]interface{}
-
-	// Network policy configuration
-	EnableNFS   bool
-	ExtraEgress []ExtraEgressRule
-
-	// Derived values
-	OnePasswordItem     string
-	KubeconfigSyncJobName string
-	BaseDomain          string
-	BaseDomainSanitized string
-
-	// Client factory for direct Kubernetes API calls (delete pipeline)
-	KubeClient KubeClientFactory
-	
-	WorkflowContext WorkflowContext
-}
-
-type WorkflowContext struct {
-	WorkflowAction string
-	WorkflowType   string
-	PromiseName    string
-	PipelineName   string
-}
-
 func main() {
 	ku.RunPromiseWithConfig("VCluster Orchestrator V2", buildConfig, handleConfigure, handleDelete)
 }
@@ -108,8 +32,12 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	if err := configureExposure(config, resource); err != nil {
 		return nil, err
 	}
-	configureIntegrations(config, resource)
-	configureArgoCD(config, resource)
+	if err := configureIntegrations(config, resource); err != nil {
+		return nil, err
+	}
+	if err := configureArgoCD(config, resource); err != nil {
+		return nil, err
+	}
 
 	// Extract network policy configuration
 	if val, err := ku.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
@@ -262,7 +190,7 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 
 // configureIntegrations sets up cert-manager, external-secrets, and ArgoCD integration
 // configuration including cluster labels, annotations, and workload repo settings.
-func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
+func configureIntegrations(config *VClusterConfig, resource kratix.Resource) error {
 	config.CertManagerIssuerLabels = ku.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
 	if len(config.CertManagerIssuerLabels) == 0 {
 		config.CertManagerIssuerLabels = map[string]string{"integratn.tech/cluster-issuer": "letsencrypt-prod"}
@@ -326,11 +254,13 @@ func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
 	config.ArgoCDClusterLabels = ku.MergeStringMap(defaultClusterLabels, config.ArgoCDClusterLabels)
 
 	config.ArgoCDClusterAnnotations = ku.MergeStringMap(defaultClusterAnnotations, config.ArgoCDClusterAnnotations)
+
+	return nil
 }
 
 // configureArgoCD sets up ArgoCD application configuration including repo URL,
 // chart, target revision, destination server, and sync policy with defaults.
-func configureArgoCD(config *VClusterConfig, resource kratix.Resource) {
+func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 	config.ArgoCDRepoURL = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
 	config.ArgoCDChart = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
 	config.ArgoCDTargetRevision = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
@@ -355,6 +285,8 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) {
 	} else {
 		config.ArgoCDSyncPolicy = ku.DeepMerge(defaultSyncPolicy, config.ArgoCDSyncPolicy)
 	}
+
+	return nil
 }
 
 func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {

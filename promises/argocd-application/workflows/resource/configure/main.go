@@ -67,7 +67,10 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	}
 
 	// Extract sync policy
-	syncPolicy, _ := resource.GetValue("spec.syncPolicy")
+	var syncPolicy *ku.SyncPolicy
+	if raw, _ := resource.GetValue("spec.syncPolicy"); raw != nil {
+		syncPolicy = parseSyncPolicy(raw)
+	}
 
 	// Build ArgoCD Application
 	app := ku.Resource{
@@ -108,6 +111,32 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	}
 
 	return nil
+}
+
+// parseSyncPolicy converts an untyped map (from resource.GetValue) into a typed SyncPolicy.
+func parseSyncPolicy(raw interface{}) *ku.SyncPolicy {
+	m, ok := raw.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	sp := &ku.SyncPolicy{}
+	if automated, ok := m["automated"].(map[string]interface{}); ok {
+		sp.Automated = &ku.AutomatedSync{}
+		if v, ok := automated["selfHeal"].(bool); ok {
+			sp.Automated.SelfHeal = v
+		}
+		if v, ok := automated["prune"].(bool); ok {
+			sp.Automated.Prune = v
+		}
+	}
+	if opts, ok := m["syncOptions"].([]interface{}); ok {
+		for _, o := range opts {
+			if s, ok := o.(string); ok {
+				sp.SyncOptions = append(sp.SyncOptions, s)
+			}
+		}
+	}
+	return sp
 }
 
 func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
