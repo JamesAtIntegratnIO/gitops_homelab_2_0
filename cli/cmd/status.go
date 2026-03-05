@@ -49,6 +49,11 @@ func runStatusOnce(cfg *config.Config) error {
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
+	return runStatusOnceWithClient(client, cfg)
+}
+
+// runStatusOnceWithClient is the testable core of runStatusOnce.
+func runStatusOnceWithClient(client platform.KubeClient, cfg *config.Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

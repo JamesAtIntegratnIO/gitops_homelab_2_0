@@ -19,12 +19,18 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	cfg := config.Get()
 
-	var result *platform.DiagnosticResult
-
 	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
+
+	return runDiagnoseWithClient(client, cfg, name)
+}
+
+// runDiagnoseWithClient is the testable core of runDiagnose.
+func runDiagnoseWithClient(client platform.KubeClient, cfg *config.Config, name string) error {
+	var result *platform.DiagnosticResult
+	var err error
 
 	_, err = tui.Spin("Diagnosing "+name, func() (string, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

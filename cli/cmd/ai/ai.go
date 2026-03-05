@@ -50,6 +50,9 @@ func newReindexCmd() *cobra.Command {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout+10*time.Second)
 			defer cancel()
 
+			// NOTE: Direct Clientset access is intentional here. These CronJob/Job
+			// operations are AI-specific and don't belong in the platform.KubeClient
+			// interface, which is scoped to vCluster lifecycle and ArgoCD operations.
 			// Get the CronJob to extract the job template
 			cronJob, err := client.Clientset.BatchV1().CronJobs(aiNamespace).Get(ctx, cronJobName, metav1.GetOptions{})
 			if err != nil {

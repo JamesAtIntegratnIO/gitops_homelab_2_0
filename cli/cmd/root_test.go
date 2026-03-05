@@ -74,4 +74,18 @@ func TestRootCommand_Subcommands(t *testing.T) {
 	}
 }
 
+func TestRootCommand_UnknownSubcommand(t *testing.T) {
+	setupOnce.Do(setupCommands)
+
+	// Create a fresh copy of rootCmd to avoid mutating global state.
+	// We test that executing an unknown subcommand produces an error.
+	cmd := *rootCmd
+	cmd.SetArgs([]string{"nonexistent-subcommand"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown subcommand, got nil")
+	}
+}
+
 

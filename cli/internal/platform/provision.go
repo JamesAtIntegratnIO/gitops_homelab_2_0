@@ -90,7 +90,7 @@ func WaitForPipeline(ctx context.Context, client KubeClient, namespace, name str
 				return fmt.Sprintf("job %s completed", latest.Name), nil
 			}
 			if cond.Type == "Failed" && cond.Status == "True" {
-				return "", fmt.Errorf("pipeline failed: %s", cond.Message)
+				return "", hcerrors.NewPlatformError("pipeline failed: %s", cond.Message)
 			}
 		}
 
@@ -127,7 +127,7 @@ func WaitForArgoSync(ctx context.Context, client KubeClient, name string, pollIn
 		}
 
 		if healthStatus == "Degraded" {
-			return "", fmt.Errorf("application is degraded — run 'hctl vcluster status %s --diagnose' for details", name)
+			return "", hcerrors.NewPlatformError("application is degraded — run 'hctl vcluster status %s --diagnose' for details", name)
 		}
 
 		time.Sleep(pollInterval)
