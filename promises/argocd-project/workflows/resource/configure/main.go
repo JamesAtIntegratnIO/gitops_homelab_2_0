@@ -5,6 +5,8 @@ import (
 	"log"
 
 	kratix "github.com/syntasso/kratix-go"
+
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 func main() {
@@ -37,26 +39,26 @@ func main() {
 }
 
 func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := getStringValue(resource, "spec.name")
+	name, err := u.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace, _ := getStringValueWithDefault(resource, "spec.namespace", "argocd")
-	description, _ := getStringValue(resource, "spec.description")
+	namespace, _ := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+	description, _ := u.GetStringValue(resource, "spec.description")
 
-	annotations := extractStringMap(resource, "spec.annotations")
-	labels := extractStringMap(resource, "spec.labels")
-	sourceRepos := extractStringSlice(resource, "spec.sourceRepos")
-	destinations := extractObjectSlice(resource, "spec.destinations")
-	clusterResourceWhitelist := extractObjectSlice(resource, "spec.clusterResourceWhitelist")
-	namespaceResourceWhitelist := extractObjectSlice(resource, "spec.namespaceResourceWhitelist")
+	annotations := u.ExtractStringMap(resource, "spec.annotations")
+	labels := u.ExtractStringMap(resource, "spec.labels")
+	sourceRepos := u.ExtractStringSlice(resource, "spec.sourceRepos")
+	destinations := u.ExtractObjectSlice(resource, "spec.destinations")
+	clusterResourceWhitelist := u.ExtractObjectSlice(resource, "spec.clusterResourceWhitelist")
+	namespaceResourceWhitelist := u.ExtractObjectSlice(resource, "spec.namespaceResourceWhitelist")
 
 	// Build the ArgoCD AppProject
-	project := Resource{
+	project := u.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "AppProject",
-		Metadata: ObjectMeta{
+		Metadata: u.ObjectMeta{
 			Name:        name,
 			Namespace:   namespace,
 			Labels:      labels,
@@ -71,7 +73,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 		},
 	}
 
-	if err := writeYAML(sdk, "resources/appproject.yaml", project); err != nil {
+	if err := u.WriteYAML(sdk, "resources/appproject.yaml", project); err != nil {
 		return fmt.Errorf("write appproject: %w", err)
 	}
 	log.Printf("✓ Rendered ArgoCD AppProject: %s", name)
@@ -90,23 +92,23 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 }
 
 func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := getStringValue(resource, "spec.name")
+	name, err := u.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace, _ := getStringValueWithDefault(resource, "spec.namespace", "argocd")
+	namespace, _ := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
 
-	deleteObj := Resource{
+	deleteObj := u.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "AppProject",
-		Metadata: ObjectMeta{
+		Metadata: u.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
 	}
 
-	if err := writeYAML(sdk, "resources/delete-appproject.yaml", deleteObj); err != nil {
+	if err := u.WriteYAML(sdk, "resources/delete-appproject.yaml", deleteObj); err != nil {
 		return fmt.Errorf("write delete appproject: %w", err)
 	}
 	log.Printf("✓ Delete scheduled for AppProject: %s", name)
@@ -120,82 +122,4 @@ func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	}
 
 	return nil
-}
-
-// Helper functions
-
-func getStringValue(resource kratix.Resource, path string) (string, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return "", err
-	}
-	if str, ok := val.(string); ok {
-		return str, nil
-	}
-	return "", fmt.Errorf("%s is not a string", path)
-}
-
-func getStringValueWithDefault(resource kratix.Resource, path, defaultValue string) (string, error) {
-	val, err := getStringValue(resource, path)
-	if err != nil || val == "" {
-		return defaultValue, nil
-	}
-	return val, nil
-}
-
-func extractStringMap(resource kratix.Resource, path string) map[string]string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	m, ok := val.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	result := make(map[string]string)
-	for k, v := range m {
-		if str, ok := v.(string); ok {
-			result[k] = str
-		}
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
-}
-
-func extractStringSlice(resource kratix.Resource, path string) []string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
-		return nil
-	}
-	result := make([]string, 0, len(arr))
-	for _, v := range arr {
-		if str, ok := v.(string); ok {
-			result = append(result, str)
-		}
-	}
-	return result
-}
-
-func extractObjectSlice(resource kratix.Resource, path string) []map[string]interface{} {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
-		return nil
-	}
-	result := make([]map[string]interface{}, 0, len(arr))
-	for _, v := range arr {
-		if obj, ok := v.(map[string]interface{}); ok {
-			result = append(result, obj)
-		}
-	}
-	return result
 }

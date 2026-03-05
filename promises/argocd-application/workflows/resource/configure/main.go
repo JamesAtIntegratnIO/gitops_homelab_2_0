@@ -5,6 +5,8 @@ import (
 	"log"
 
 	kratix "github.com/syntasso/kratix-go"
+
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 func main() {
@@ -37,28 +39,28 @@ func main() {
 }
 
 func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := getStringValue(resource, "spec.name")
+	name, err := u.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace, _ := getStringValueWithDefault(resource, "spec.namespace", "argocd")
-	project, err := getStringValue(resource, "spec.project")
+	namespace, _ := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+	project, err := u.GetStringValue(resource, "spec.project")
 	if err != nil {
 		return fmt.Errorf("spec.project is required: %w", err)
 	}
 
-	annotations := extractStringMap(resource, "spec.annotations")
-	labels := extractStringMap(resource, "spec.labels")
-	finalizers := extractStringSlice(resource, "spec.finalizers")
+	annotations := u.ExtractStringMap(resource, "spec.annotations")
+	labels := u.ExtractStringMap(resource, "spec.labels")
+	finalizers := u.ExtractStringSlice(resource, "spec.finalizers")
 
 	// Extract source
-	repoURL, err := getStringValue(resource, "spec.source.repoURL")
+	repoURL, err := u.GetStringValue(resource, "spec.source.repoURL")
 	if err != nil {
 		return fmt.Errorf("spec.source.repoURL is required: %w", err)
 	}
-	chart, _ := getStringValue(resource, "spec.source.chart")
-	targetRevision, err := getStringValue(resource, "spec.source.targetRevision")
+	chart, _ := u.GetStringValue(resource, "spec.source.chart")
+	targetRevision, err := u.GetStringValue(resource, "spec.source.targetRevision")
 	if err != nil {
 		return fmt.Errorf("spec.source.targetRevision is required: %w", err)
 	}
@@ -70,7 +72,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	}
 
 	// Extract helm config
-	releaseName, _ := getStringValue(resource, "spec.source.helm.releaseName")
+	releaseName, _ := u.GetStringValue(resource, "spec.source.helm.releaseName")
 	valuesObject, _ := resource.GetValue("spec.source.helm.valuesObject")
 	if releaseName != "" || valuesObject != nil {
 		source.Helm = &HelmSource{
@@ -80,11 +82,11 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	}
 
 	// Extract destination
-	destServer, err := getStringValue(resource, "spec.destination.server")
+	destServer, err := u.GetStringValue(resource, "spec.destination.server")
 	if err != nil {
 		return fmt.Errorf("spec.destination.server is required: %w", err)
 	}
-	destNamespace, err := getStringValue(resource, "spec.destination.namespace")
+	destNamespace, err := u.GetStringValue(resource, "spec.destination.namespace")
 	if err != nil {
 		return fmt.Errorf("spec.destination.namespace is required: %w", err)
 	}
@@ -93,10 +95,10 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	syncPolicy, _ := resource.GetValue("spec.syncPolicy")
 
 	// Build ArgoCD Application
-	app := Resource{
+	app := u.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "Application",
-		Metadata: ObjectMeta{
+		Metadata: u.ObjectMeta{
 			Name:        name,
 			Namespace:   namespace,
 			Labels:      labels,
@@ -114,7 +116,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 		},
 	}
 
-	if err := writeYAML(sdk, "resources/application.yaml", app); err != nil {
+	if err := u.WriteYAML(sdk, "resources/application.yaml", app); err != nil {
 		return fmt.Errorf("write application: %w", err)
 	}
 	log.Printf("✓ Rendered ArgoCD Application: %s", name)
@@ -134,23 +136,23 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 }
 
 func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := getStringValue(resource, "spec.name")
+	name, err := u.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace, _ := getStringValueWithDefault(resource, "spec.namespace", "argocd")
+	namespace, _ := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
 
-	deleteObj := Resource{
+	deleteObj := u.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "Application",
-		Metadata: ObjectMeta{
+		Metadata: u.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
 	}
 
-	if err := writeYAML(sdk, "resources/delete-application.yaml", deleteObj); err != nil {
+	if err := u.WriteYAML(sdk, "resources/delete-application.yaml", deleteObj); err != nil {
 		return fmt.Errorf("write delete application: %w", err)
 	}
 	log.Printf("✓ Delete scheduled for Application: %s", name)
@@ -164,64 +166,4 @@ func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	}
 
 	return nil
-}
-
-// Helper functions
-
-func getStringValue(resource kratix.Resource, path string) (string, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return "", err
-	}
-	if str, ok := val.(string); ok {
-		return str, nil
-	}
-	return "", fmt.Errorf("%s is not a string", path)
-}
-
-func getStringValueWithDefault(resource kratix.Resource, path, defaultValue string) (string, error) {
-	val, err := getStringValue(resource, path)
-	if err != nil || val == "" {
-		return defaultValue, nil
-	}
-	return val, nil
-}
-
-func extractStringMap(resource kratix.Resource, path string) map[string]string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	m, ok := val.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	result := make(map[string]string)
-	for k, v := range m {
-		if str, ok := v.(string); ok {
-			result[k] = str
-		}
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
-}
-
-func extractStringSlice(resource kratix.Resource, path string) []string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
-		return nil
-	}
-	result := make([]string, 0, len(arr))
-	for _, v := range arr {
-		if str, ok := v.(string); ok {
-			result = append(result, str)
-		}
-	}
-	return result
 }

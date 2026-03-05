@@ -1,33 +1,8 @@
 package main
 
 import (
-	"fmt"
-	"strings"
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
-
-// ============================================================================
-// Core Kubernetes Types
-// ============================================================================
-
-// Resource is a generic Kubernetes resource.
-type Resource struct {
-	APIVersion string      `json:"apiVersion"`
-	Kind       string      `json:"kind"`
-	Metadata   ObjectMeta  `json:"metadata"`
-	Spec       interface{} `json:"spec,omitempty"`
-	Data       interface{} `json:"data,omitempty"`
-	Rules      interface{} `json:"rules,omitempty"`
-	RoleRef    *RoleRef    `json:"roleRef,omitempty"`
-	Subjects   []Subject   `json:"subjects,omitempty"`
-}
-
-// ObjectMeta is a lightweight Kubernetes metadata block.
-type ObjectMeta struct {
-	Name        string            `json:"name"`
-	Namespace   string            `json:"namespace,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
 
 // ============================================================================
 // RBAC Types
@@ -38,18 +13,6 @@ type PolicyRule struct {
 	Resources     []string `json:"resources"`
 	Verbs         []string `json:"verbs"`
 	ResourceNames []string `json:"resourceNames,omitempty"`
-}
-
-type RoleRef struct {
-	APIGroup string `json:"apiGroup"`
-	Kind     string `json:"kind"`
-	Name     string `json:"name"`
-}
-
-type Subject struct {
-	Kind      string `json:"kind"`
-	Name      string `json:"name"`
-	Namespace string `json:"namespace,omitempty"`
 }
 
 // ============================================================================
@@ -63,8 +26,8 @@ type JobSpec struct {
 }
 
 type PodTemplateSpec struct {
-	Metadata *ObjectMeta `json:"metadata,omitempty"`
-	Spec     PodSpec     `json:"spec"`
+	Metadata *u.ObjectMeta `json:"metadata,omitempty"`
+	Spec     PodSpec       `json:"spec"`
 }
 
 type PodSpec struct {
@@ -188,56 +151,4 @@ type RegistrationConfig struct {
 	ClusterAnnotations     map[string]string
 	SyncJobName            string
 	PromiseName            string
-}
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-func deleteFromResource(r Resource) Resource {
-	return Resource{
-		APIVersion: r.APIVersion,
-		Kind:       r.Kind,
-		Metadata: ObjectMeta{
-			Name:      r.Metadata.Name,
-			Namespace: r.Metadata.Namespace,
-		},
-	}
-}
-
-func deleteOutputPath(prefix string, r Resource) string {
-	if prefix == "" {
-		prefix = "resources/"
-	}
-	if !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
-}
-
-func resourceMeta(name, namespace string, labels, annotations map[string]string) ObjectMeta {
-	return ObjectMeta{
-		Name:        name,
-		Namespace:   namespace,
-		Labels:      labels,
-		Annotations: annotations,
-	}
-}
-
-func mergeStringMap(dst, src map[string]string) map[string]string {
-	if dst == nil {
-		dst = map[string]string{}
-	}
-	for key, value := range src {
-		dst[key] = value
-	}
-	return dst
-}
-
-func baseLabels(config *RegistrationConfig) map[string]string {
-	return map[string]string{
-		"app.kubernetes.io/managed-by": "kratix",
-		"kratix.io/promise-name":       config.PromiseName,
-		"kratix.io/resource-name":      config.Name,
-	}
 }

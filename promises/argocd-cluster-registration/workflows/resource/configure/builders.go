@@ -1,17 +1,21 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
 
-func buildKubeconfigExternalSecret(config *RegistrationConfig) Resource {
-	labels := mergeStringMap(map[string]string{
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+)
+
+func buildKubeconfigExternalSecret(config *RegistrationConfig) u.Resource {
+	labels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name":      "external-secret",
 		"app.kubernetes.io/component": "kubeconfig",
-	}, baseLabels(config))
+	}, u.BaseLabels(config.PromiseName, config.Name))
 
-	return Resource{
+	return u.Resource{
 		APIVersion: "external-secrets.io/v1beta1",
 		Kind:       "ExternalSecret",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			fmt.Sprintf("%s-kubeconfig", config.Name),
 			config.TargetNamespace,
 			labels,
@@ -43,18 +47,18 @@ func buildKubeconfigExternalSecret(config *RegistrationConfig) Resource {
 	}
 }
 
-func buildKubeconfigSyncRBAC(config *RegistrationConfig) []Resource {
-	labels := mergeStringMap(map[string]string{
+func buildKubeconfigSyncRBAC(config *RegistrationConfig) []u.Resource {
+	labels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name":      "external-secret",
 		"app.kubernetes.io/component": "kubeconfig-sync",
-	}, baseLabels(config))
+	}, u.BaseLabels(config.PromiseName, config.Name))
 
 	onePasswordTokenName := fmt.Sprintf("%s-onepassword-token", config.Name)
 
-	externalSecret := Resource{
+	externalSecret := u.Resource{
 		APIVersion: "external-secrets.io/v1beta1",
 		Kind:       "ExternalSecret",
-		Metadata: resourceMeta(
+		Metadata: u.ResourceMeta(
 			onePasswordTokenName,
 			config.TargetNamespace,
 			labels,
@@ -87,22 +91,22 @@ func buildKubeconfigSyncRBAC(config *RegistrationConfig) []Resource {
 		},
 	}
 
-	baseRBACLabels := mergeStringMap(map[string]string{
+	baseRBACLabels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "kubeconfig-sync",
-	}, baseLabels(config))
+	}, u.BaseLabels(config.PromiseName, config.Name))
 
 	saName := fmt.Sprintf("%s-kubeconfig-sync", config.Name)
 
-	serviceAccount := Resource{
+	serviceAccount := u.Resource{
 		APIVersion: "v1",
 		Kind:       "ServiceAccount",
-		Metadata:   resourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
+		Metadata:   u.ResourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
 	}
 
-	role := Resource{
+	role := u.Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",
 		Kind:       "Role",
-		Metadata:   resourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
+		Metadata:   u.ResourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
 		Rules: []PolicyRule{
 			{
 				APIGroups:     []string{""},
@@ -113,16 +117,16 @@ func buildKubeconfigSyncRBAC(config *RegistrationConfig) []Resource {
 		},
 	}
 
-	roleBinding := Resource{
+	roleBinding := u.Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",
 		Kind:       "RoleBinding",
-		Metadata:   resourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
-		RoleRef: &RoleRef{
+		Metadata:   u.ResourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
+		RoleRef: &u.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
 			Name:     saName,
 		},
-		Subjects: []Subject{
+		Subjects: []u.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      saName,
@@ -131,13 +135,13 @@ func buildKubeconfigSyncRBAC(config *RegistrationConfig) []Resource {
 		},
 	}
 
-	return []Resource{externalSecret, serviceAccount, role, roleBinding}
+	return []u.Resource{externalSecret, serviceAccount, role, roleBinding}
 }
 
-func buildKubeconfigSyncJob(config *RegistrationConfig) Resource {
-	labels := mergeStringMap(map[string]string{
+func buildKubeconfigSyncJob(config *RegistrationConfig) u.Resource {
+	labels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "kubeconfig-sync",
-	}, baseLabels(config))
+	}, u.BaseLabels(config.PromiseName, config.Name))
 
 	saName := fmt.Sprintf("%s-kubeconfig-sync", config.Name)
 	onePasswordTokenName := fmt.Sprintf("%s-onepassword-token", config.Name)
@@ -293,14 +297,14 @@ fi
 
 echo "✓ Kubeconfig synced to 1Password successfully"`
 
-	return Resource{
+	return u.Resource{
 		APIVersion: "batch/v1",
 		Kind:       "Job",
-		Metadata:   resourceMeta(config.SyncJobName, config.TargetNamespace, labels, nil),
+		Metadata:   u.ResourceMeta(config.SyncJobName, config.TargetNamespace, labels, nil),
 		Spec: JobSpec{
 			BackoffLimit: 3,
 			Template: PodTemplateSpec{
-				Metadata: &ObjectMeta{
+				Metadata: &u.ObjectMeta{
 					Labels: map[string]string{
 						"app.kubernetes.io/name":     "kubeconfig-sync",
 						"app.kubernetes.io/instance": config.Name,
@@ -372,22 +376,22 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 	}
 }
 
-func buildArgoCDClusterExternalSecret(config *RegistrationConfig) Resource {
-	labels := mergeStringMap(map[string]string{
+func buildArgoCDClusterExternalSecret(config *RegistrationConfig) u.Resource {
+	labels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name":         "external-secret",
 		"app.kubernetes.io/component":    "argocd-cluster",
 		"argocd.argoproj.io/secret-type": "cluster",
-	}, baseLabels(config))
+	}, u.BaseLabels(config.PromiseName, config.Name))
 	if config.ClusterLabels != nil {
-		labels = mergeStringMap(labels, config.ClusterLabels)
+		labels = u.MergeStringMap(labels, config.ClusterLabels)
 	}
 
 	metadataAnnotations := map[string]string{}
 	if len(config.ClusterAnnotations) > 0 {
-		metadataAnnotations = mergeStringMap(metadataAnnotations, config.ClusterAnnotations)
+		metadataAnnotations = u.MergeStringMap(metadataAnnotations, config.ClusterAnnotations)
 	}
 
-	targetLabels := mergeStringMap(map[string]string{
+	targetLabels := u.MergeStringMap(map[string]string{
 		"argocd.argoproj.io/secret-type": "cluster",
 		"integratn.tech/cluster-name":    config.Name,
 		"integratn.tech/environment":     config.Environment,
@@ -395,7 +399,7 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) Resource {
 
 	targetAnnotations := map[string]string{}
 	if len(config.ClusterAnnotations) > 0 {
-		targetAnnotations = mergeStringMap(targetAnnotations, config.ClusterAnnotations)
+		targetAnnotations = u.MergeStringMap(targetAnnotations, config.ClusterAnnotations)
 	}
 
 	tmplMeta := &TemplateMetadata{
@@ -410,10 +414,10 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) Resource {
 		metadataAnnotations = nil
 	}
 
-	return Resource{
+	return u.Resource{
 		APIVersion: "external-secrets.io/v1beta1",
 		Kind:       "ExternalSecret",
-		Metadata:   resourceMeta(esName, "argocd", labels, metadataAnnotations),
+		Metadata:   u.ResourceMeta(esName, "argocd", labels, metadataAnnotations),
 		Spec: ExternalSecretSpec{
 			SecretStoreRef: SecretStoreRef{
 				Name: "onepassword-store",

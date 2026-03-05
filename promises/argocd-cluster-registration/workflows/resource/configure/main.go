@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	kratix "github.com/syntasso/kratix-go"
+
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 func main() {
@@ -43,44 +45,44 @@ func main() {
 }
 
 func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*RegistrationConfig, error) {
-	name, err := getStringValue(resource, "spec.name")
+	name, err := u.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return nil, fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	targetNamespace, err := getStringValue(resource, "spec.targetNamespace")
+	targetNamespace, err := u.GetStringValue(resource, "spec.targetNamespace")
 	if err != nil {
 		return nil, fmt.Errorf("spec.targetNamespace is required: %w", err)
 	}
 
-	kubeconfigSecret, err := getStringValue(resource, "spec.kubeconfigSecret")
+	kubeconfigSecret, err := u.GetStringValue(resource, "spec.kubeconfigSecret")
 	if err != nil {
 		return nil, fmt.Errorf("spec.kubeconfigSecret is required: %w", err)
 	}
 
-	externalServerURL, err := getStringValue(resource, "spec.externalServerURL")
+	externalServerURL, err := u.GetStringValue(resource, "spec.externalServerURL")
 	if err != nil {
 		return nil, fmt.Errorf("spec.externalServerURL is required: %w", err)
 	}
 
-	kubeconfigKey, _ := getStringValueWithDefault(resource, "spec.kubeconfigKey", "config")
-	onePasswordItem, _ := getStringValueWithDefault(resource, "spec.onePasswordItem", fmt.Sprintf("%s-kubeconfig", name))
-	onePasswordConnectHost, _ := getStringValueWithDefault(resource, "spec.onePasswordConnectHost", "https://connect.integratn.tech")
-	environment, _ := getStringValueWithDefault(resource, "spec.environment", "development")
-	baseDomain, _ := getStringValueWithDefault(resource, "spec.baseDomain", "integratn.tech")
+	kubeconfigKey, _ := u.GetStringValueWithDefault(resource, "spec.kubeconfigKey", "config")
+	onePasswordItem, _ := u.GetStringValueWithDefault(resource, "spec.onePasswordItem", fmt.Sprintf("%s-kubeconfig", name))
+	onePasswordConnectHost, _ := u.GetStringValueWithDefault(resource, "spec.onePasswordConnectHost", "https://connect.integratn.tech")
+	environment, _ := u.GetStringValueWithDefault(resource, "spec.environment", "development")
+	baseDomain, _ := u.GetStringValueWithDefault(resource, "spec.baseDomain", "integratn.tech")
 
-	baseDomainSanitized, _ := getStringValue(resource, "spec.baseDomainSanitized")
+	baseDomainSanitized, _ := u.GetStringValue(resource, "spec.baseDomainSanitized")
 	if baseDomainSanitized == "" {
 		baseDomainSanitized = strings.ReplaceAll(baseDomain, ".", "-")
 	}
 
-	syncJobName, _ := getStringValue(resource, "spec.syncJobName")
+	syncJobName, _ := u.GetStringValue(resource, "spec.syncJobName")
 	if syncJobName == "" {
 		syncJobName = fmt.Sprintf("%s-kubeconfig-sync", name)
 	}
 
-	clusterLabels := extractStringMap(resource, "spec.clusterLabels")
-	clusterAnnotations := extractStringMap(resource, "spec.clusterAnnotations")
+	clusterLabels := u.ExtractStringMap(resource, "spec.clusterLabels")
+	clusterAnnotations := u.ExtractStringMap(resource, "spec.clusterAnnotations")
 
 	return &RegistrationConfig{
 		Name:                   name,
@@ -105,28 +107,28 @@ func handleConfigure(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 
 	// 1. Kubeconfig sync RBAC (ExternalSecret for 1Password token, SA, Role, RoleBinding)
 	rbacResources := buildKubeconfigSyncRBAC(config)
-	if err := writeYAMLDocuments(sdk, "resources/kubeconfig-sync-rbac.yaml", rbacResources); err != nil {
+	if err := u.WriteYAMLDocuments(sdk, "resources/kubeconfig-sync-rbac.yaml", rbacResources); err != nil {
 		return fmt.Errorf("write kubeconfig sync rbac: %w", err)
 	}
 	log.Printf("✓ Rendered: kubeconfig-sync-rbac.yaml (%d resources)", len(rbacResources))
 
 	// 2. Kubeconfig sync Job
 	syncJob := buildKubeconfigSyncJob(config)
-	if err := writeYAML(sdk, "resources/kubeconfig-sync-job.yaml", syncJob); err != nil {
+	if err := u.WriteYAML(sdk, "resources/kubeconfig-sync-job.yaml", syncJob); err != nil {
 		return fmt.Errorf("write kubeconfig sync job: %w", err)
 	}
 	log.Printf("✓ Rendered: kubeconfig-sync-job.yaml")
 
 	// 3. Kubeconfig ExternalSecret (reads kubeconfig from 1Password)
 	kubeconfigES := buildKubeconfigExternalSecret(config)
-	if err := writeYAML(sdk, "resources/kubeconfig-external-secret.yaml", kubeconfigES); err != nil {
+	if err := u.WriteYAML(sdk, "resources/kubeconfig-external-secret.yaml", kubeconfigES); err != nil {
 		return fmt.Errorf("write kubeconfig external secret: %w", err)
 	}
 	log.Printf("✓ Rendered: kubeconfig-external-secret.yaml")
 
 	// 4. ArgoCD Cluster ExternalSecret (creates ArgoCD cluster secret from 1Password)
 	clusterES := buildArgoCDClusterExternalSecret(config)
-	if err := writeYAML(sdk, "resources/argocd-cluster-external-secret.yaml", clusterES); err != nil {
+	if err := u.WriteYAML(sdk, "resources/argocd-cluster-external-secret.yaml", clusterES); err != nil {
 		return fmt.Errorf("write argocd cluster external secret: %w", err)
 	}
 	log.Printf("✓ Rendered: argocd-cluster-external-secret.yaml")
@@ -159,24 +161,24 @@ func handleDelete(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
-	outputs := map[string]Resource{}
+	outputs := map[string]u.Resource{}
 
 	// Delete all created resources
-	allResources := []Resource{
+	allResources := []u.Resource{
 		buildKubeconfigExternalSecret(config),
 		buildArgoCDClusterExternalSecret(config),
 		buildKubeconfigSyncJob(config),
 	}
 	for _, r := range allResources {
-		outputs[deleteOutputPath("resources", r)] = deleteFromResource(r)
+		outputs[deleteOutputPath("resources", r)] = u.DeleteResource(r.APIVersion, r.Kind, r.Metadata.Name, r.Metadata.Namespace)
 	}
 
 	for _, r := range buildKubeconfigSyncRBAC(config) {
-		outputs[deleteOutputPath("resources", r)] = deleteFromResource(r)
+		outputs[deleteOutputPath("resources", r)] = u.DeleteResource(r.APIVersion, r.Kind, r.Metadata.Name, r.Metadata.Namespace)
 	}
 
 	for path, obj := range outputs {
-		if err := writeYAML(sdk, path, obj); err != nil {
+		if err := u.WriteYAML(sdk, path, obj); err != nil {
 			return fmt.Errorf("write delete output %s: %w", path, err)
 		}
 	}
@@ -184,46 +186,13 @@ func handleDelete(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 	return nil
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-func getStringValue(resource kratix.Resource, path string) (string, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return "", err
+// deleteOutputPath builds a YAML output path for a delete resource.
+func deleteOutputPath(prefix string, r u.Resource) string {
+	if prefix == "" {
+		prefix = "resources/"
 	}
-	if str, ok := val.(string); ok {
-		return str, nil
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
 	}
-	return "", fmt.Errorf("%s is not a string", path)
-}
-
-func getStringValueWithDefault(resource kratix.Resource, path, defaultValue string) (string, error) {
-	val, err := getStringValue(resource, path)
-	if err != nil || val == "" {
-		return defaultValue, nil
-	}
-	return val, nil
-}
-
-func extractStringMap(resource kratix.Resource, path string) map[string]string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	m, ok := val.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	result := make(map[string]string)
-	for k, v := range m {
-		if str, ok := v.(string); ok {
-			result[k] = str
-		}
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
+	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
 }

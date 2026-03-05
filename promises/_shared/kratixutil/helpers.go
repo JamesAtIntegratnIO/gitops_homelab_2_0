@@ -131,6 +131,25 @@ func ExtractStringSlice(resource kratix.Resource, path string) []string {
 	return result
 }
 
+// ExtractObjectSlice extracts a []map[string]interface{} from the given path.
+func ExtractObjectSlice(resource kratix.Resource, path string) []map[string]interface{} {
+	val, err := resource.GetValue(path)
+	if err != nil {
+		return nil
+	}
+	arr, ok := val.([]interface{})
+	if !ok {
+		return nil
+	}
+	result := make([]map[string]interface{}, 0, len(arr))
+	for _, v := range arr {
+		if obj, ok := v.(map[string]interface{}); ok {
+			result = append(result, obj)
+		}
+	}
+	return result
+}
+
 // ExtractSecrets extracts a slice of SecretRef from the standard secrets path.
 func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
 	val, err := resource.GetValue(path)
