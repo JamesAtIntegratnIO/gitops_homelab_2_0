@@ -45,7 +45,7 @@ func newAddonListCmd() *cobra.Command {
 
 			// Try to get ArgoCD app status
 			var appStatus map[string]string
-			client, err := kube.Shared()
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err == nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()

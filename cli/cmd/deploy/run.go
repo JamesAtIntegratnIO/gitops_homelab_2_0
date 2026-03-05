@@ -54,7 +54,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 					Run: func() (string, error) {
 						w, err := score.LoadWorkload(scoreFile)
 						if err != nil {
-							return "", fmt.Errorf("loading score workload: %w", err)
+							return "", hcerrors.NewUserError("loading score workload: %w", err)
 						}
 						workload = w
 						return workload.Metadata.Name, nil
@@ -65,7 +65,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 					Run: func() (string, error) {
 						r, err := deploylib.Translate(context.Background(), workload, cluster, cfg)
 						if err != nil {
-							return "", fmt.Errorf("translating workload: %w", err)
+							return "", hcerrors.NewPlatformError("translating workload: %w", err)
 						}
 						result = r
 						resources := []string{}
@@ -121,7 +121,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 					Run: func() (string, error) {
 						wp, err := deploylib.WriteResult(result, cfg.RepoPath)
 						if err != nil {
-							return "", fmt.Errorf("writing files: %w", err)
+							return "", hcerrors.NewPlatformError("writing files: %w", err)
 						}
 						writtenPaths = wp
 						return fmt.Sprintf("%d files", len(wp)), nil
@@ -168,7 +168,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 			// Watch ArgoCD sync progress
 			fmt.Printf("\n%s Watching ArgoCD sync...\n\n", tui.InfoStyle.Render(tui.IconSync))
 			targetCluster := result.TargetCluster
-			client, cErr := kube.Shared()
+			client, cErr := kube.SharedWithConfig(config.Get().KubeContext)
 			if cErr != nil {
 				return hcerrors.NewPlatformError("connecting to cluster for watch: %v", cErr)
 			}
@@ -256,7 +256,7 @@ func gitWorkflowStep(opts git.WorkflowOpts) tui.Step {
 				return msg + " (push manually)", nil
 			default:
 				if err := repo.Add(opts.Paths...); err != nil {
-					return "", fmt.Errorf("staging git changes: %w", err)
+					return "", hcerrors.NewPlatformError("staging git changes: %w", err)
 				}
 				return "staged — commit manually", nil
 			}

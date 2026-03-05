@@ -3,8 +3,6 @@ package kube
 import (
 	"context"
 	"sync"
-
-	"github.com/jamesatintegratnio/hctl/internal/config"
 )
 
 // --- Context helpers for passing a kube client through context.Context ---
@@ -38,12 +36,6 @@ func SharedWithConfig(kubeContext string) (*Client, error) {
 		sharedClient, sharedErr = NewClient(kubeContext)
 	})
 	return sharedClient, sharedErr
-}
-
-// Shared returns a lazily-initialized kube client using config.Get().KubeContext.
-// It is a convenience wrapper intended for the cmd/ layer (composition root).
-func Shared() (*Client, error) {
-	return SharedWithConfig(config.Get().KubeContext)
 }
 
 // ResetShared clears the cached client so the next Shared() call re-initializes.

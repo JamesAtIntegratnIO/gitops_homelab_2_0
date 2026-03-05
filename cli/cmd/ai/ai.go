@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jamesatintegratnio/hctl/internal/config"
 	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -41,7 +42,7 @@ func newReindexCmd() *cobra.Command {
 		Short: "Trigger the git-indexer job",
 		Long:  "Creates a one-off Job from the git-indexer CronJob to re-index the repository into the RAG vector store.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := kube.Shared()
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
 				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jamesatintegratnio/hctl/internal/config"
 	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -27,7 +28,7 @@ Highlights:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			client, err := kube.Shared()
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
 				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}

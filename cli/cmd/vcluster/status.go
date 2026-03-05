@@ -25,7 +25,7 @@ func newStatusCmd() *cobra.Command {
 			name := args[0]
 			cfg := config.Get()
 
-			client, err := kube.Shared()
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
 				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}

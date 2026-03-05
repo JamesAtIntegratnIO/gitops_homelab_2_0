@@ -22,7 +22,7 @@ func newListCmd() *cobra.Command {
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Get()
-			client, err := kube.Shared()
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
 				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}

@@ -94,7 +94,7 @@ func writeAndCommitVCluster(cfg *config.Config, opts *CreateOptions, name, prese
 
 // watchProvisioning runs the animated provisioning wait sequence.
 func watchProvisioning(cfg *config.Config, opts *CreateOptions, name, hostname string, spec platform.VClusterSpec) error {
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}

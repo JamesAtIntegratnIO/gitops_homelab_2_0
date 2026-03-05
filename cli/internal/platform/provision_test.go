@@ -31,69 +31,6 @@ func TestProvisionResultTypes(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// provisionFakeClient — reuse the same interface; we need it in this file
-// since fakeKubeClient is only in checkers_test.go's scope.
-// ---------------------------------------------------------------------------
-
-type provisionFakeClient struct {
-	vcOnCall   int // counter for GetVCluster calls
-	vcReturns  []*unstructured.Unstructured
-	vcErrs     []error
-	pods       []kube.PodInfo
-	podsErr    error
-	argoApp    *unstructured.Unstructured
-	argoAppErr error
-	subApps    []kube.ArgoAppInfo
-	subAppsErr error
-	jobs       []batchv1.Job
-	jobsErr    error
-}
-
-func (f *provisionFakeClient) GetVCluster(_ context.Context, _, _ string) (*unstructured.Unstructured, error) {
-	idx := f.vcOnCall
-	f.vcOnCall++
-	if idx < len(f.vcReturns) {
-		return f.vcReturns[idx], f.vcErrs[idx]
-	}
-	// Return last entry for subsequent calls
-	last := len(f.vcReturns) - 1
-	if last >= 0 {
-		return f.vcReturns[last], f.vcErrs[last]
-	}
-	return nil, fmt.Errorf("not found")
-}
-func (f *provisionFakeClient) ListVClusters(_ context.Context, _ string) ([]unstructured.Unstructured, error) {
-	return nil, nil
-}
-func (f *provisionFakeClient) ListArgoApps(_ context.Context, _ string) ([]unstructured.Unstructured, error) {
-	return nil, nil
-}
-func (f *provisionFakeClient) GetArgoApp(_ context.Context, _, _ string) (*unstructured.Unstructured, error) {
-	return f.argoApp, f.argoAppErr
-}
-func (f *provisionFakeClient) ListArgoAppsForCluster(_ context.Context, _, _ string) ([]kube.ArgoAppInfo, error) {
-	return f.subApps, f.subAppsErr
-}
-func (f *provisionFakeClient) ListArgoAppsWithSelector(_ context.Context, _, _ string) ([]unstructured.Unstructured, error) {
-	return nil, nil
-}
-func (f *provisionFakeClient) ListPods(_ context.Context, _, _ string) ([]kube.PodInfo, error) {
-	return f.pods, f.podsErr
-}
-func (f *provisionFakeClient) GetPodResourceInfo(_ context.Context, _, _ string) ([]kube.PodResourceInfo, error) {
-	return nil, nil
-}
-func (f *provisionFakeClient) ListJobs(_ context.Context, _, _ string) ([]batchv1.Job, error) {
-	return f.jobs, f.jobsErr
-}
-func (f *provisionFakeClient) ListWorks(_ context.Context, _ string) ([]unstructured.Unstructured, error) {
-	return nil, nil
-}
-func (f *provisionFakeClient) ListWorkPlacements(_ context.Context, _ string) ([]unstructured.Unstructured, error) {
-	return nil, nil
-}
-
-// ---------------------------------------------------------------------------
 // WaitForRequest tests
 // ---------------------------------------------------------------------------
 
@@ -107,7 +44,7 @@ func TestWaitForRequest_Success(t *testing.T) {
 			"creationTimestamp": time.Now().Add(-2 * time.Minute).Format(time.RFC3339),
 		},
 	}}
-	client := &provisionFakeClient{
+	client := &fakeKubeClient{
 		vcReturns: []*unstructured.Unstructured{vc},
 		vcErrs:    []error{nil},
 	}
@@ -126,7 +63,7 @@ func TestWaitForRequest_Success(t *testing.T) {
 
 func TestWaitForRequest_Timeout(t *testing.T) {
 	t.Parallel()
-	client := &provisionFakeClient{
+	client := &fakeKubeClient{
 		vcReturns: []*unstructured.Unstructured{nil},
 		vcErrs:    []error{fmt.Errorf("not found")},
 	}
@@ -151,7 +88,7 @@ func TestWaitForRequest_EventuallyFound(t *testing.T) {
 		},
 	}}
 	// First call: not found; second call: found
-	client := &provisionFakeClient{
+	client := &fakeKubeClient{
 		vcReturns: []*unstructured.Unstructured{nil, vc},
 		vcErrs:    []error{fmt.Errorf("not found"), nil},
 	}
@@ -198,7 +135,7 @@ func TestCollectProvisionResult_StatusContract(t *testing.T) {
 			},
 		},
 	}}
-	client := &provisionFakeClient{
+	client := &fakeKubeClient{
 		vcReturns: []*unstructured.Unstructured{vc},
 		vcErrs:    []error{nil},
 	}
@@ -229,7 +166,7 @@ func TestCollectProvisionResult_Fallback(t *testing.T) {
 		"kind":       "VClusterOrchestratorV2",
 		"metadata":   map[string]interface{}{"name": "test-vc"},
 	}}
-	client := &provisionFakeClient{
+	client := &fakeKubeClient{
 		// First call for GetStatusContract, second for fallback queries
 		vcReturns: []*unstructured.Unstructured{vc, vc},
 		vcErrs:    []error{nil, nil},
@@ -237,7 +174,7 @@ func TestCollectProvisionResult_Fallback(t *testing.T) {
 			{Name: "vc-0", Phase: "Running", ReadyContainers: 1, TotalContainers: 1},
 			{Name: "vc-1", Phase: "Running", ReadyContainers: 1, TotalContainers: 1},
 		},
-		subApps: []kube.ArgoAppInfo{
+		argoAppsCluster: []kube.ArgoAppInfo{
 			{Name: "app1", SyncStatus: "Synced", HealthStatus: "Healthy"},
 			{Name: "app2", SyncStatus: "OutOfSync", HealthStatus: "Degraded"},
 		},
@@ -269,7 +206,7 @@ func TestCollectProvisionResult_Fallback_NotAllPodsReady(t *testing.T) {
 		"kind":       "VClusterOrchestratorV2",
 		"metadata":   map[string]interface{}{"name": "test-vc"},
 	}}
-	client := &provisionFakeClient{
+	client := &fakeKubeClient{
 		vcReturns: []*unstructured.Unstructured{vc, vc},
 		vcErrs:    []error{nil, nil},
 		pods: []kube.PodInfo{

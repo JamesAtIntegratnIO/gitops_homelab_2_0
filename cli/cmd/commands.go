@@ -89,7 +89,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create a single shared kube client for all dashboard sections.
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
@@ -108,7 +108,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 // runStatusOnce collects platform status and prints it once in structured format.
 func runStatusOnce(cfg *config.Config) error {
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
@@ -125,7 +125,7 @@ func runStatusOnce(cfg *config.Config) error {
 // runStatusWatch continuously polls and prints platform status in structured format.
 // It respects context cancellation and terminates after 3 consecutive poll failures.
 func runStatusWatch(ctx context.Context, cfg *config.Config) error {
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
@@ -169,7 +169,7 @@ func runDiagnose(cmd *cobra.Command, args []string) error {
 
 	var result *platform.DiagnosticResult
 
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
@@ -235,7 +235,7 @@ func runReconcile(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	cfg := config.Get()
 
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}

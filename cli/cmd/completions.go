@@ -17,7 +17,7 @@ func completeVClusterNames(cmd *cobra.Command, args []string, toComplete string)
 	}
 
 	cfg := config.Get()
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}

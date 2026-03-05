@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jamesatintegratnio/hctl/internal/config"
 	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -40,7 +41,7 @@ func runAlerts(cmd *cobra.Command, args []string) error {
 	var alerts []kube.PrometheusAlert
 
 	_, err := tui.Spin("Querying Prometheus", func() (string, error) {
-		client, err := kube.Shared()
+		client, err := kube.SharedWithConfig(config.Get().KubeContext)
 		if err != nil {
 			return "", hcerrors.NewPlatformError("connecting to cluster: %w", err)
 		}
@@ -54,7 +55,7 @@ func runAlerts(cmd *cobra.Command, args []string) error {
 			9090,
 		)
 		if err != nil {
-			return "", fmt.Errorf("querying firing alerts: %w", err)
+			return "", hcerrors.NewPlatformError("querying firing alerts: %w", err)
 		}
 		return fmt.Sprintf("%d alerts", len(alerts)), nil
 	})

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 )
 
@@ -49,7 +50,7 @@ func WaitForRequest(ctx context.Context, client KubeClient, namespace, name stri
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timed out waiting for request to appear (ArgoCD may not have synced yet)")
+			return "", hcerrors.NewTimeoutError("timed out waiting for request to appear (ArgoCD may not have synced yet)")
 		default:
 		}
 
@@ -68,7 +69,7 @@ func WaitForPipeline(ctx context.Context, client KubeClient, namespace, name str
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timed out waiting for pipeline to complete")
+			return "", hcerrors.NewTimeoutError("timed out waiting for pipeline to complete")
 		default:
 		}
 
@@ -104,7 +105,7 @@ func WaitForArgoSync(ctx context.Context, client KubeClient, name string, pollIn
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timed out waiting for ArgoCD to sync")
+			return "", hcerrors.NewTimeoutError("timed out waiting for ArgoCD to sync")
 		default:
 		}
 
@@ -140,7 +141,7 @@ func WaitForClusterReady(ctx context.Context, client KubeClient, name string, po
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timed out waiting for cluster to become ready")
+			return "", hcerrors.NewTimeoutError("timed out waiting for cluster to become ready")
 		default:
 		}
 

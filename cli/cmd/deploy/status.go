@@ -48,7 +48,7 @@ If no workload name is given, reads from score.yaml in the current directory.`,
 				return hcerrors.NewUserError("no cluster specified — use --cluster or set defaultCluster")
 			}
 
-			client, err := kube.Shared()
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
 				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}

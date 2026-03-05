@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jamesatintegratnio/hctl/internal/config"
 	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -35,7 +36,7 @@ func newSecretGetCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ns, name := args[0], args[1]
 
-			client, err := kube.Shared()
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
 				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
@@ -67,7 +68,7 @@ func newSecretListCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ns := args[0]
 
-			client, err := kube.Shared()
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
 				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}

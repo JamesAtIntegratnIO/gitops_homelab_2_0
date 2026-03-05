@@ -59,7 +59,7 @@ func newDeployListCmd() *cobra.Command {
 					}
 					workloadName := row[0]
 
-					client, cErr := kube.Shared()
+					client, cErr := kube.SharedWithConfig(config.Get().KubeContext)
 					if cErr != nil {
 						return tui.ErrorStyle.Render("Cannot connect: " + cErr.Error())
 					}

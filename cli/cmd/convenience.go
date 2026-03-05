@@ -41,7 +41,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return hcerrors.NewUserError("resolving workload: %w", err)
 	}
 
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
@@ -120,7 +120,7 @@ func runDown(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
@@ -198,7 +198,7 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("  %s Opening %s\n", tui.InfoStyle.Render(tui.IconArrow), url)
-	return platform.OpenBrowser(url)
+	return openBrowser(url)
 }
 
 // --- hctl logs ---
@@ -233,7 +233,7 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		return hcerrors.NewUserError("resolving workload: %w", err)
 	}
 
-	client, err := kube.Shared()
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
