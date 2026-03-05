@@ -21,23 +21,23 @@ func buildKubeconfigExternalSecret(config *RegistrationConfig) u.Resource {
 			labels,
 			nil,
 		),
-		Spec: ExternalSecretSpec{
-			SecretStoreRef: SecretStoreRef{
+		Spec: u.ExternalSecretSpec{
+			SecretStoreRef: u.SecretStoreRef{
 				Name: "onepassword-store",
 				Kind: "ClusterSecretStore",
 			},
-			Target: ExternalSecretTarget{
+			Target: u.ExternalSecretTarget{
 				Name: fmt.Sprintf("%s-kubeconfig-external", config.Name),
-				Template: &ExternalSecretTemplate{
+				Template: &u.ExternalSecretTemplate{
 					EngineVersion: "v2",
 					Data: map[string]string{
 						config.KubeconfigKey: "{{ .kubeconfig }}\n",
 					},
 				},
 			},
-			DataFrom: []ExternalSecretDataFrom{
+			DataFrom: []u.ExternalSecretDataFrom{
 				{
-					Extract: &ExternalSecretExtract{
+					Extract: &u.ExternalSecretExtract{
 						Key: config.OnePasswordItem,
 					},
 				},
@@ -64,25 +64,25 @@ func buildKubeconfigSyncRBAC(config *RegistrationConfig) []u.Resource {
 			labels,
 			nil,
 		),
-		Spec: ExternalSecretSpec{
-			SecretStoreRef: SecretStoreRef{
+		Spec: u.ExternalSecretSpec{
+			SecretStoreRef: u.SecretStoreRef{
 				Name: "onepassword-store",
 				Kind: "ClusterSecretStore",
 			},
-			Target: ExternalSecretTarget{
+			Target: u.ExternalSecretTarget{
 				Name: onePasswordTokenName,
 			},
-			Data: []ExternalSecretData{
+			Data: []u.ExternalSecretData{
 				{
 					SecretKey: "token",
-					RemoteRef: RemoteRef{
+					RemoteRef: u.RemoteRef{
 						Key:      "onepassword-access-token",
 						Property: "credential",
 					},
 				},
 				{
 					SecretKey: "vault",
-					RemoteRef: RemoteRef{
+					RemoteRef: u.RemoteRef{
 						Key:      "onepassword-access-token",
 						Property: "vault",
 					},
@@ -107,7 +107,7 @@ func buildKubeconfigSyncRBAC(config *RegistrationConfig) []u.Resource {
 		APIVersion: "rbac.authorization.k8s.io/v1",
 		Kind:       "Role",
 		Metadata:   u.ResourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
-		Rules: []PolicyRule{
+		Rules: []u.PolicyRule{
 			{
 				APIGroups:     []string{""},
 				Resources:     []string{"secrets"},
@@ -301,38 +301,38 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 		APIVersion: "batch/v1",
 		Kind:       "Job",
 		Metadata:   u.ResourceMeta(config.SyncJobName, config.TargetNamespace, labels, nil),
-		Spec: JobSpec{
+		Spec: u.JobSpec{
 			BackoffLimit: 3,
-			Template: PodTemplateSpec{
+			Template: u.PodTemplateSpec{
 				Metadata: &u.ObjectMeta{
 					Labels: map[string]string{
 						"app.kubernetes.io/name":     "kubeconfig-sync",
 						"app.kubernetes.io/instance": config.Name,
 					},
 				},
-				Spec: PodSpec{
+				Spec: u.PodSpec{
 					ServiceAccountName: saName,
 					RestartPolicy:      "OnFailure",
-					InitContainers: []Container{
+					InitContainers: []u.Container{
 						{
 							Name:    "wait-for-kubeconfig",
 							Image:   "busybox:1.36",
 							Command: []string{"sh", "-c", initCommand},
-							VolumeMounts: []VolumeMount{
+							VolumeMounts: []u.VolumeMount{
 								{Name: "kubeconfig", MountPath: "/kubeconfig"},
 							},
 						},
 					},
-					Containers: []Container{
+					Containers: []u.Container{
 						{
 							Name:  "sync-to-onepassword",
 							Image: "alpine:3.20",
-							Env: []EnvVar{
+							Env: []u.EnvVar{
 								{Name: "OP_CONNECT_HOST", Value: config.OnePasswordConnectHost},
 								{
 									Name: "OP_CONNECT_TOKEN",
-									ValueFrom: &EnvVarSource{
-										SecretKeyRef: &SecretKeySelector{
+									ValueFrom: &u.EnvVarSource{
+										SecretKeyRef: &u.SecretKeySelector{
 											Name: onePasswordTokenName,
 											Key:  "token",
 										},
@@ -340,8 +340,8 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 								},
 								{
 									Name: "OP_VAULT",
-									ValueFrom: &EnvVarSource{
-										SecretKeyRef: &SecretKeySelector{
+									ValueFrom: &u.EnvVarSource{
+										SecretKeyRef: &u.SecretKeySelector{
 											Name: onePasswordTokenName,
 											Key:  "vault",
 										},
@@ -356,15 +356,15 @@ echo "✓ Kubeconfig synced to 1Password successfully"`
 								{Name: "ARGOCD_ENVIRONMENT", Value: config.Environment},
 							},
 							Command: []string{"sh", "-c", syncCommand},
-							VolumeMounts: []VolumeMount{
+							VolumeMounts: []u.VolumeMount{
 								{Name: "kubeconfig", MountPath: "/kubeconfig", ReadOnly: true},
 							},
 						},
 					},
-					Volumes: []Volume{
+					Volumes: []u.Volume{
 						{
 							Name: "kubeconfig",
-							Secret: &SecretVolume{
+							Secret: &u.SecretVolume{
 								SecretName: config.KubeconfigSecret,
 								Optional:   false,
 							},
@@ -402,7 +402,7 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) u.Resource {
 		targetAnnotations = u.MergeStringMap(targetAnnotations, config.ClusterAnnotations)
 	}
 
-	tmplMeta := &TemplateMetadata{
+	tmplMeta := &u.TemplateMetadata{
 		Labels: targetLabels,
 	}
 	if len(targetAnnotations) > 0 {
@@ -418,14 +418,14 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) u.Resource {
 		APIVersion: "external-secrets.io/v1beta1",
 		Kind:       "ExternalSecret",
 		Metadata:   u.ResourceMeta(esName, "argocd", labels, metadataAnnotations),
-		Spec: ExternalSecretSpec{
-			SecretStoreRef: SecretStoreRef{
+		Spec: u.ExternalSecretSpec{
+			SecretStoreRef: u.SecretStoreRef{
 				Name: "onepassword-store",
 				Kind: "ClusterSecretStore",
 			},
-			Target: ExternalSecretTarget{
+			Target: u.ExternalSecretTarget{
 				Name: fmt.Sprintf("cluster-%s", config.Name),
-				Template: &ExternalSecretTemplate{
+				Template: &u.ExternalSecretTemplate{
 					EngineVersion: "v2",
 					Type:          "Opaque",
 					Metadata:      tmplMeta,
@@ -436,9 +436,9 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) u.Resource {
 					},
 				},
 			},
-			DataFrom: []ExternalSecretDataFrom{
+			DataFrom: []u.ExternalSecretDataFrom{
 				{
-					Extract: &ExternalSecretExtract{
+					Extract: &u.ExternalSecretExtract{
 						Key:                config.OnePasswordItem,
 						ConversionStrategy: "Default",
 						DecodingStrategy:   "None",

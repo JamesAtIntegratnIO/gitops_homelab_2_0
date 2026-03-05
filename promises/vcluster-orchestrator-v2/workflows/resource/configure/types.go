@@ -1,86 +1,8 @@
 package main
 
-// ============================================================================
-// RBAC Types (PolicyRule kept for VCluster RBAC config)
-// ============================================================================
-
-type PolicyRule struct {
-	APIGroups     []string `json:"apiGroups"`
-	Resources     []string `json:"resources"`
-	Verbs         []string `json:"verbs"`
-	ResourceNames []string `json:"resourceNames,omitempty"`
-}
-
-// ============================================================================
-// Job Types
-// ============================================================================
-
-type JobSpec struct {
-	BackoffLimit            int             `json:"backoffLimit,omitempty"`
-	TTLSecondsAfterFinished int             `json:"ttlSecondsAfterFinished,omitempty"`
-	Template                PodTemplateSpec `json:"template"`
-}
-
-type PodTemplateSpec struct {
-	Metadata *ObjectMetaLocal `json:"metadata,omitempty"`
-	Spec     PodSpec          `json:"spec"`
-}
-
-// ObjectMetaLocal is used only for embedded pod template metadata in Job specs.
-// Kubernetes resources use u.ObjectMeta from the shared module.
-type ObjectMetaLocal struct {
-	Name        string            `json:"name,omitempty"`
-	Namespace   string            `json:"namespace,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-	Annotations map[string]string `json:"annotations,omitempty"`
-}
-
-type PodSpec struct {
-	RestartPolicy      string      `json:"restartPolicy,omitempty"`
-	ServiceAccountName string      `json:"serviceAccountName,omitempty"`
-	InitContainers     []Container `json:"initContainers,omitempty"`
-	Containers         []Container `json:"containers"`
-	Volumes            []Volume    `json:"volumes,omitempty"`
-}
-
-type Container struct {
-	Name         string        `json:"name"`
-	Image        string        `json:"image"`
-	Command      []string      `json:"command,omitempty"`
-	Env          []EnvVar      `json:"env,omitempty"`
-	VolumeMounts []VolumeMount `json:"volumeMounts,omitempty"`
-}
-
-type EnvVar struct {
-	Name      string        `json:"name"`
-	Value     string        `json:"value,omitempty"`
-	ValueFrom *EnvVarSource `json:"valueFrom,omitempty"`
-}
-
-type EnvVarSource struct {
-	SecretKeyRef *SecretKeySelector `json:"secretKeyRef,omitempty"`
-}
-
-type SecretKeySelector struct {
-	Name string `json:"name"`
-	Key  string `json:"key"`
-}
-
-type VolumeMount struct {
-	Name      string `json:"name"`
-	MountPath string `json:"mountPath"`
-	ReadOnly  bool   `json:"readOnly,omitempty"`
-}
-
-type Volume struct {
-	Name   string        `json:"name"`
-	Secret *SecretVolume `json:"secret,omitempty"`
-}
-
-type SecretVolume struct {
-	SecretName string `json:"secretName"`
-	Optional   bool   `json:"optional,omitempty"`
-}
+import (
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+)
 
 // ============================================================================
 // cert-manager Types
@@ -360,8 +282,8 @@ type RBACConfig struct {
 }
 
 type ClusterRoleConfig struct {
-	Enabled    bool         `json:"enabled"`
-	ExtraRules []PolicyRule `json:"extraRules"`
+	Enabled    bool           `json:"enabled"`
+	ExtraRules []u.PolicyRule `json:"extraRules"`
 }
 
 // ============================================================================

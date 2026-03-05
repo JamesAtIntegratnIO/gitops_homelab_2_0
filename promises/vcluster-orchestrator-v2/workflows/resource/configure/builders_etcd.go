@@ -99,7 +99,7 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 			labels("etcd-certs-merge-role"),
 			nil,
 		),
-		Rules: []PolicyRule{
+		Rules: []u.PolicyRule{
 			{
 				APIGroups: []string{""},
 				Resources: []string{"secrets"},
@@ -140,17 +140,17 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 			labels("etcd-certs-job"),
 			nil,
 		),
-		Spec: JobSpec{
-			Template: PodTemplateSpec{
-				Metadata: &ObjectMetaLocal{
+		Spec: u.JobSpec{
+			Template: u.PodTemplateSpec{
+				Metadata: &u.ObjectMeta{
 					Labels: map[string]string{
 						"app": "etcd-certs-merge",
 					},
 				},
-				Spec: PodSpec{
+				Spec: u.PodSpec{
 					RestartPolicy:      "OnFailure",
 				ServiceAccountName: mergeSAName,
-					Containers: []Container{
+					Containers: []u.Container{
 						{
 							Name:    "merge-certs",
 							Image:   "bitnami/kubectl:latest",

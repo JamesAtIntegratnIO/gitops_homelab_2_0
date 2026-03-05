@@ -556,7 +556,7 @@ func buildValuesObject(config *VClusterConfig) (map[string]interface{}, error) {
 		RBAC: RBACConfig{
 			ClusterRole: ClusterRoleConfig{
 				Enabled: true,
-				ExtraRules: []PolicyRule{
+				ExtraRules: []u.PolicyRule{
 					{
 						APIGroups:     []string{""},
 						Resources:     []string{"secrets"},

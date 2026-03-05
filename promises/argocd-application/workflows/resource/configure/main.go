@@ -65,7 +65,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 		return fmt.Errorf("spec.source.targetRevision is required: %w", err)
 	}
 
-	source := AppSource{
+	source := u.AppSource{
 		RepoURL:        repoURL,
 		Chart:          chart,
 		TargetRevision: targetRevision,
@@ -75,7 +75,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	releaseName, _ := u.GetStringValue(resource, "spec.source.helm.releaseName")
 	valuesObject, _ := resource.GetValue("spec.source.helm.valuesObject")
 	if releaseName != "" || valuesObject != nil {
-		source.Helm = &HelmSource{
+		source.Helm = &u.HelmSource{
 			ReleaseName:  releaseName,
 			ValuesObject: valuesObject,
 		}
@@ -108,7 +108,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 		Spec: ApplicationSpec{
 			Project: project,
 			Source:  source,
-			Destination: Destination{
+			Destination: u.Destination{
 				Server:    destServer,
 				Namespace: destNamespace,
 			},

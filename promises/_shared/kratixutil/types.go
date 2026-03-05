@@ -201,3 +201,146 @@ func DeleteOutputPathForResource(prefix string, r Resource) string {
 	}
 	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
 }
+
+// ============================================================================
+// K8s Workload Types (Job, RBAC)
+// ============================================================================
+
+// PolicyRule defines a Kubernetes RBAC policy rule.
+type PolicyRule struct {
+	APIGroups     []string `json:"apiGroups"`
+	Resources     []string `json:"resources"`
+	Verbs         []string `json:"verbs"`
+	ResourceNames []string `json:"resourceNames,omitempty"`
+}
+
+// JobSpec defines the spec for a Kubernetes batch/v1 Job.
+type JobSpec struct {
+	BackoffLimit            int             `json:"backoffLimit,omitempty"`
+	TTLSecondsAfterFinished int             `json:"ttlSecondsAfterFinished,omitempty"`
+	Template                PodTemplateSpec `json:"template"`
+}
+
+// PodTemplateSpec holds a pod template for a Job.
+type PodTemplateSpec struct {
+	Metadata *ObjectMeta `json:"metadata,omitempty"`
+	Spec     PodSpec     `json:"spec"`
+}
+
+// PodSpec defines the pod spec within a Job template.
+type PodSpec struct {
+	RestartPolicy      string      `json:"restartPolicy,omitempty"`
+	ServiceAccountName string      `json:"serviceAccountName,omitempty"`
+	InitContainers     []Container `json:"initContainers,omitempty"`
+	Containers         []Container `json:"containers"`
+	Volumes            []Volume    `json:"volumes,omitempty"`
+}
+
+// Container defines a container within a pod.
+type Container struct {
+	Name         string        `json:"name"`
+	Image        string        `json:"image"`
+	Command      []string      `json:"command,omitempty"`
+	Env          []EnvVar      `json:"env,omitempty"`
+	VolumeMounts []VolumeMount `json:"volumeMounts,omitempty"`
+}
+
+// EnvVar defines an environment variable for a container.
+type EnvVar struct {
+	Name      string        `json:"name"`
+	Value     string        `json:"value,omitempty"`
+	ValueFrom *EnvVarSource `json:"valueFrom,omitempty"`
+}
+
+// EnvVarSource defines the source for an environment variable value.
+type EnvVarSource struct {
+	SecretKeyRef *SecretKeySelector `json:"secretKeyRef,omitempty"`
+}
+
+// SecretKeySelector selects a key from a Kubernetes Secret.
+type SecretKeySelector struct {
+	Name string `json:"name"`
+	Key  string `json:"key"`
+}
+
+// VolumeMount describes a volume mount within a container.
+type VolumeMount struct {
+	Name      string `json:"name"`
+	MountPath string `json:"mountPath"`
+	ReadOnly  bool   `json:"readOnly,omitempty"`
+}
+
+// Volume defines a volume available to containers in a pod.
+type Volume struct {
+	Name   string        `json:"name"`
+	Secret *SecretVolume `json:"secret,omitempty"`
+}
+
+// SecretVolume projects a Kubernetes Secret into a volume.
+type SecretVolume struct {
+	SecretName string `json:"secretName"`
+	Optional   bool   `json:"optional,omitempty"`
+}
+
+// ============================================================================
+// ExternalSecret Types
+// ============================================================================
+
+// ExternalSecretSpec defines the spec for an external-secrets.io ExternalSecret.
+type ExternalSecretSpec struct {
+	SecretStoreRef  SecretStoreRef           `json:"secretStoreRef"`
+	Target          ExternalSecretTarget     `json:"target"`
+	Data            []ExternalSecretData     `json:"data,omitempty"`
+	DataFrom        []ExternalSecretDataFrom `json:"dataFrom,omitempty"`
+	RefreshInterval string                   `json:"refreshInterval,omitempty"`
+}
+
+// SecretStoreRef references a SecretStore or ClusterSecretStore.
+type SecretStoreRef struct {
+	Name string `json:"name"`
+	Kind string `json:"kind"`
+}
+
+// ExternalSecretTarget defines the target Secret for an ExternalSecret.
+type ExternalSecretTarget struct {
+	Name     string                  `json:"name,omitempty"`
+	Template *ExternalSecretTemplate `json:"template,omitempty"`
+}
+
+// ExternalSecretTemplate defines the template for the target Secret.
+type ExternalSecretTemplate struct {
+	EngineVersion string            `json:"engineVersion,omitempty"`
+	Type          string            `json:"type,omitempty"`
+	Metadata      *TemplateMetadata `json:"metadata,omitempty"`
+	Data          map[string]string `json:"data,omitempty"`
+}
+
+// TemplateMetadata holds metadata for an ExternalSecret template.
+type TemplateMetadata struct {
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// ExternalSecretData maps a remote secret key to a local Secret key.
+type ExternalSecretData struct {
+	SecretKey string    `json:"secretKey"`
+	RemoteRef RemoteRef `json:"remoteRef"`
+}
+
+// RemoteRef references a value in an external secret store.
+type RemoteRef struct {
+	Key      string `json:"key"`
+	Property string `json:"property,omitempty"`
+}
+
+// ExternalSecretDataFrom extracts multiple keys from an external secret.
+type ExternalSecretDataFrom struct {
+	Extract *ExternalSecretExtract `json:"extract"`
+}
+
+// ExternalSecretExtract configures extraction from an external secret store.
+type ExternalSecretExtract struct {
+	Key                string `json:"key"`
+	ConversionStrategy string `json:"conversionStrategy,omitempty"`
+	DecodingStrategy   string `json:"decodingStrategy,omitempty"`
+}

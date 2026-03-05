@@ -344,7 +344,7 @@ func TestBuildKubeconfigSyncJob(t *testing.T) {
 		t.Errorf("wrong name: %s", job.Metadata.Name)
 	}
 
-	spec, ok := job.Spec.(JobSpec)
+	spec, ok := job.Spec.(u.JobSpec)
 	if !ok {
 		t.Fatal("Spec is not JobSpec")
 	}
