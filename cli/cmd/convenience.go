@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
@@ -133,7 +133,7 @@ func runScale(p scaleParams) error {
 		return hcerrors.NewUserError("matching deployments: %w", err)
 	}
 
-	var errs []string
+	var errs []error
 
 	for _, d := range matched {
 		if d.ArgoApp != "" {
@@ -143,14 +143,14 @@ func runScale(p scaleParams) error {
 					tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
 				if err := client.EnableArgoAutoSync(ctx, "argocd", d.ArgoApp); err != nil {
 					fmt.Printf("    %s Failed to enable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), d.ArgoApp, err)
-					errs = append(errs, fmt.Sprintf("enable auto-sync %s: %v", d.ArgoApp, err))
+					errs = append(errs, fmt.Errorf("enable auto-sync %s: %w", d.ArgoApp, err))
 				}
 			case "disable":
 				fmt.Printf("    %s Disabling auto-sync for %s\n",
 					tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
 				if err := client.DisableArgoAutoSync(ctx, "argocd", d.ArgoApp); err != nil {
 					fmt.Printf("    %s Failed to disable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), d.ArgoApp, err)
-					errs = append(errs, fmt.Sprintf("disable auto-sync %s: %v", d.ArgoApp, err))
+					errs = append(errs, fmt.Errorf("disable auto-sync %s: %w", d.ArgoApp, err))
 				}
 			}
 		}
@@ -159,13 +159,13 @@ func runScale(p scaleParams) error {
 			tui.MutedStyle.Render(tui.IconArrow), d.Name, p.replicas)
 		if err := client.ScaleDeployment(ctx, namespace, d.Name, p.replicas); err != nil {
 			fmt.Printf("    %s Failed: %v\n", tui.WarningStyle.Render(tui.IconWarn), err)
-			errs = append(errs, fmt.Sprintf("scale %s: %v", d.Name, err))
+			errs = append(errs, fmt.Errorf("scale %s: %w", d.Name, err))
 		}
 	}
 
 	fmt.Printf("\n  %s %s scaled %s in %s\n", tui.SuccessStyle.Render(tui.IconCheck), p.workloadName, p.direction, p.cluster)
-	if len(errs) > 0 {
-		return hcerrors.NewPlatformError("scale %s completed with errors: %s", p.direction, strings.Join(errs, "; "))
+	if err := errors.Join(errs...); err != nil {
+		return hcerrors.NewPlatformError("scale %s completed with errors: %w", p.direction, err)
 	}
 	return nil
 }

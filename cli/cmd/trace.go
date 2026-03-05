@@ -49,12 +49,12 @@ func runTrace(cmd *cobra.Command, args []string) error {
 		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
 
-	return executeTrace(client, name, config.Get())
+	return runTraceWithClient(client, name, config.Get())
 }
 
-// executeTrace contains the core trace logic, accepting the KubeClient interface
+// runTraceWithClient contains the core trace logic, accepting the KubeClient interface
 // for testability. runTrace is the cobra glue that creates the concrete client.
-func executeTrace(client platform.KubeClient, name string, cfg *config.Config) error {
+func runTraceWithClient(client platform.KubeClient, name string, cfg *config.Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -208,9 +208,3 @@ func executeTrace(client platform.KubeClient, name string, cfg *config.Config) e
 	return nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

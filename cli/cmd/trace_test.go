@@ -38,9 +38,9 @@ func TestExecuteTrace_NothingFound(t *testing.T) {
 		PodsErr:     fmt.Errorf("not found"),
 	}
 
-	err := executeTrace(fake, "nonexistent", cfg)
+	err := runTraceWithClient(fake, "nonexistent", cfg)
 	if err != nil {
-		t.Fatalf("executeTrace should not error when resources are not found, got: %v", err)
+		t.Fatalf("runTraceWithClient should not error when resources are not found, got: %v", err)
 	}
 }
 
@@ -96,9 +96,9 @@ func TestExecuteTrace_VClusterFound(t *testing.T) {
 		},
 	}
 
-	err := executeTrace(fake, "test-vc", cfg)
+	err := runTraceWithClient(fake, "test-vc", cfg)
 	if err != nil {
-		t.Fatalf("executeTrace should succeed, got: %v", err)
+		t.Fatalf("runTraceWithClient should succeed, got: %v", err)
 	}
 }
 
@@ -128,9 +128,9 @@ func TestExecuteTrace_ArgoFoundWithSubApps(t *testing.T) {
 		PodsErr: fmt.Errorf("no pods"),
 	}
 
-	err := executeTrace(fake, "my-app", cfg)
+	err := runTraceWithClient(fake, "my-app", cfg)
 	if err != nil {
-		t.Fatalf("executeTrace should succeed, got: %v", err)
+		t.Fatalf("runTraceWithClient should succeed, got: %v", err)
 	}
 }
 
@@ -145,26 +145,10 @@ func TestExecuteTrace_TextOutput(t *testing.T) {
 		PodsErr:     fmt.Errorf("not found"),
 	}
 
-	err := executeTrace(fake, "test-resource", cfg)
+	err := runTraceWithClient(fake, "test-resource", cfg)
 	if err != nil {
-		t.Fatalf("executeTrace text output should not error, got: %v", err)
+		t.Fatalf("runTraceWithClient text output should not error, got: %v", err)
 	}
 }
 
-func TestMin(t *testing.T) {
-	tests := []struct {
-		a, b, want int
-	}{
-		{0, 0, 0},
-		{1, 2, 1},
-		{5, 3, 3},
-		{-1, 1, -1},
-		{7, 7, 7},
-	}
-	for _, tt := range tests {
-		got := min(tt.a, tt.b)
-		if got != tt.want {
-			t.Errorf("min(%d, %d) = %d, want %d", tt.a, tt.b, got, tt.want)
-		}
-	}
-}
+
