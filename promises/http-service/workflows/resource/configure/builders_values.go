@@ -101,7 +101,11 @@ func buildServiceValues(config *HTTPServiceConfig) map[string]interface{} {
 	}
 }
 
-// addEnvValues mutates the deployment map to add env vars and envFrom entries.
+// addEnvValues mutates deployment in-place, adding "env" and "envFrom" keys
+// derived from config. This is intentional: deployment is built by
+// buildDeploymentValues and then enriched here before being consumed by
+// buildStakaterValues. Callers must not rely on the original map being
+// unmodified after this call.
 func addEnvValues(config *HTTPServiceConfig, deployment map[string]interface{}) {
 	if len(config.Env) > 0 {
 		envMap := map[string]interface{}{}

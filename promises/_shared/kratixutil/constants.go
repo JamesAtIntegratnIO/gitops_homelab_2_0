@@ -16,8 +16,27 @@ const (
 	// Co-located with the nginx-gateway-fabric controller.
 	DefaultGatewayNamespace = "nginx-gateway"
 
-	DefaultArgoCDNamespace            = "argocd"
-	DefaultPlatformRequestsNamespace  = "platform-requests"
+	DefaultArgoCDNamespace           = "argocd"
+	DefaultPlatformRequestsNamespace = "platform-requests"
+
+	// DefaultBaseDomain is the platform top-level base domain.
+	// Used by vcluster and cluster-registration promises for hostnames and
+	// DNS annotations.
+	DefaultBaseDomain = "integratn.tech"
+
+	// DefaultClusterBaseDomain is the cluster-specific sub-domain used by
+	// workload-level promises (http-service, gateway-route) for ingress hostnames.
+	DefaultClusterBaseDomain = "cluster.integratn.tech"
+
+	// Default cert-manager issuer label selector applied when no explicit
+	// selector is provided in the resource request.
+	DefaultCertManagerIssuerLabel = "integratn.tech/cluster-issuer"
+	DefaultCertManagerIssuer      = "letsencrypt-prod"
+
+	// Default external-secrets store label selector applied when no explicit
+	// selector is provided in the resource request.
+	DefaultExternalSecretsStoreLabel = "integratn.tech/cluster-secret-store"
+	DefaultExternalSecretsStore      = "onepassword-store"
 
 	// Canonical HTTPS URL of the platform GitOps repository, used as the
 	// default ArgoCD source for workloads.

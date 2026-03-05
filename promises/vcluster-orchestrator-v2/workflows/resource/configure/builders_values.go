@@ -45,26 +45,9 @@ func buildValuesObject(config *VClusterConfig) (map[string]interface{}, error) {
 			},
 		},
 		CoreDNS: CoreDNSConfig{
-			Enabled: true,
-			Deployment: DeploymentConfig{Replicas: config.CorednsReplicas},
-			OverwriteConfig: fmt.Sprintf(`.:1053 {
-  errors
-  health
-  ready
-  kubernetes %s in-addr.arpa ip6.arpa {
-    pods insecure
-    fallthrough in-addr.arpa ip6.arpa
-    ttl 30
-  }
-  prometheus 0.0.0.0:9153
-  forward . /etc/resolv.conf
-  cache 30
-  loop
-  reload
-  loadbalance
-}`,
-				config.ClusterDomain,
-			),
+			Enabled:         true,
+			Deployment:      DeploymentConfig{Replicas: config.CorednsReplicas},
+			OverwriteConfig: helmCorefileOverwrite(config.ClusterDomain),
 		},
 		Ingress: EnabledFlag{Enabled: false},
 		Advanced: AdvancedConfig{

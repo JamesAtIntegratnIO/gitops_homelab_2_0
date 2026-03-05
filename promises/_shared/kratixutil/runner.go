@@ -29,6 +29,9 @@ func RunPromiseE(
 // This is suitable for promises that do not require a buildConfig step
 // and operate directly on the kratix.Resource. Promises that need custom
 // config construction should use their own main() function.
+//
+// log.Fatalf is intentional here: this is the top-level entry point called
+// from main(), so a fatal exit on error is the correct Go idiom.
 func RunPromise(
 	banner string,
 	configure func(sdk *kratix.KratixSDK, resource kratix.Resource) error,
@@ -86,6 +89,9 @@ func RunPromiseWithConfigE[T any](
 // RunPromiseWithConfig runs a promise pipeline with a typed config build step.
 // buildConfig extracts configuration from the Kratix resource.
 // configure and delete receive the SDK and the built config.
+//
+// log.Fatalf is intentional here: this is the top-level entry point called
+// from main(), so a fatal exit on error is the correct Go idiom.
 func RunPromiseWithConfig[T any](
 	name string,
 	buildConfig func(*kratix.KratixSDK, kratix.Resource) (T, error),

@@ -239,10 +239,12 @@ func TestBuildSecurityContext_AllSet(t *testing.T) {
 	uid := int64(1000)
 	gid := int64(2000)
 	config := &HTTPServiceConfig{
-		RunAsNonRoot:           &truev,
-		ReadOnlyRootFilesystem: &truev,
-		RunAsUser:              &uid,
-		RunAsGroup:             &gid,
+		HTTPSecurityConfig: HTTPSecurityConfig{
+			RunAsNonRoot:           &truev,
+			ReadOnlyRootFilesystem: &truev,
+			RunAsUser:              &uid,
+			RunAsGroup:             &gid,
+		},
 	}
 	ctx := buildSecurityContext(config)
 
@@ -262,17 +264,21 @@ func TestBuildSecurityContext_AllSet(t *testing.T) {
 
 func TestBuildStakaterValues_MinimalConfig(t *testing.T) {
 	config := &HTTPServiceConfig{
-		Name:            "web",
-		Team:            "platform",
-		ImageRepository: "nginx",
-		ImageTag:        "latest",
-		ImagePullPolicy: "IfNotPresent",
-		Replicas:        1,
-		Port:            8080,
-		CPURequest:      "100m",
-		MemoryRequest:   "128Mi",
-		CPULimit:        "500m",
-		MemoryLimit:     "256Mi",
+		Name: "web",
+		Team: "platform",
+		HTTPImageConfig: HTTPImageConfig{
+			ImageRepository: "nginx",
+			ImageTag:        "latest",
+			ImagePullPolicy: "IfNotPresent",
+		},
+		HTTPResourceConfig: HTTPResourceConfig{
+			Replicas:      1,
+			CPURequest:    "100m",
+			MemoryRequest: "128Mi",
+			CPULimit:      "500m",
+			MemoryLimit:   "256Mi",
+		},
+		HTTPNetworkConfig: HTTPNetworkConfig{Port: 8080},
 		HealthCheckPath: "/",
 		HealthCheckPort: 8080,
 	}
@@ -314,21 +320,25 @@ func TestBuildStakaterValues_MinimalConfig(t *testing.T) {
 
 func TestBuildStakaterValues_WithEnvAndSecrets(t *testing.T) {
 	config := &HTTPServiceConfig{
-		Name:            "web",
-		Team:            "platform",
-		ImageRepository: "nginx",
-		ImageTag:        "latest",
-		ImagePullPolicy: "IfNotPresent",
-		Replicas:        1,
-		Port:            8080,
-		CPURequest:      "100m",
-		MemoryRequest:   "128Mi",
-		CPULimit:        "500m",
-		MemoryLimit:     "256Mi",
+		Name: "web",
+		Team: "platform",
+		HTTPImageConfig: HTTPImageConfig{
+			ImageRepository: "nginx",
+			ImageTag:        "latest",
+			ImagePullPolicy: "IfNotPresent",
+		},
+		HTTPResourceConfig: HTTPResourceConfig{
+			Replicas:      1,
+			CPURequest:    "100m",
+			MemoryRequest: "128Mi",
+			CPULimit:      "500m",
+			MemoryLimit:   "256Mi",
+		},
+		HTTPNetworkConfig: HTTPNetworkConfig{Port: 8080},
 		HealthCheckPath: "/",
 		HealthCheckPort: 8080,
-		Env:             map[string]string{"PORT": "8080"},
-		EnvFromSecrets:  []string{"db-creds"},
+		Env:            map[string]string{"PORT": "8080"},
+		EnvFromSecrets: []string{"db-creds"},
 		Secrets: []ku.SecretRef{
 			{OnePasswordItem: "api-key", Name: "api-secret"},
 		},
@@ -360,22 +370,28 @@ func TestBuildStakaterValues_WithEnvAndSecrets(t *testing.T) {
 
 func TestBuildStakaterValues_WithMonitoring(t *testing.T) {
 	config := &HTTPServiceConfig{
-		Name:               "web",
-		Team:               "platform",
-		ImageRepository:    "nginx",
-		ImageTag:           "latest",
-		ImagePullPolicy:    "IfNotPresent",
-		Replicas:           1,
-		Port:               8080,
-		CPURequest:         "100m",
-		MemoryRequest:      "128Mi",
-		CPULimit:           "500m",
-		MemoryLimit:        "256Mi",
-		HealthCheckPath:    "/",
-		HealthCheckPort:    8080,
-		MonitoringEnabled:  true,
-		MonitoringPath:     "/metrics",
-		MonitoringInterval: "30s",
+		Name: "web",
+		Team: "platform",
+		HTTPImageConfig: HTTPImageConfig{
+			ImageRepository: "nginx",
+			ImageTag:        "latest",
+			ImagePullPolicy: "IfNotPresent",
+		},
+		HTTPResourceConfig: HTTPResourceConfig{
+			Replicas:      1,
+			CPURequest:    "100m",
+			MemoryRequest: "128Mi",
+			CPULimit:      "500m",
+			MemoryLimit:   "256Mi",
+		},
+		HTTPNetworkConfig:    HTTPNetworkConfig{Port: 8080},
+		HTTPMonitoringConfig: HTTPMonitoringConfig{
+			MonitoringEnabled:  true,
+			MonitoringPath:     "/metrics",
+			MonitoringInterval: "30s",
+		},
+		HealthCheckPath: "/",
+		HealthCheckPort: 8080,
 	}
 
 	values := buildStakaterValues(config)
@@ -391,23 +407,29 @@ func TestBuildStakaterValues_WithMonitoring(t *testing.T) {
 
 func TestBuildStakaterValues_WithPersistence(t *testing.T) {
 	config := &HTTPServiceConfig{
-		Name:                 "web",
-		Team:                 "platform",
-		ImageRepository:      "nginx",
-		ImageTag:             "latest",
-		ImagePullPolicy:      "IfNotPresent",
-		Replicas:             1,
-		Port:                 8080,
-		CPURequest:           "100m",
-		MemoryRequest:        "128Mi",
-		CPULimit:             "500m",
-		MemoryLimit:          "256Mi",
-		HealthCheckPath:      "/",
-		HealthCheckPort:      8080,
-		PersistenceEnabled:   true,
-		PersistenceSize:      "5Gi",
-		PersistenceClass:     "nfs",
-		PersistenceMountPath: "/data",
+		Name: "web",
+		Team: "platform",
+		HTTPImageConfig: HTTPImageConfig{
+			ImageRepository: "nginx",
+			ImageTag:        "latest",
+			ImagePullPolicy: "IfNotPresent",
+		},
+		HTTPResourceConfig: HTTPResourceConfig{
+			Replicas:      1,
+			CPURequest:    "100m",
+			MemoryRequest: "128Mi",
+			CPULimit:      "500m",
+			MemoryLimit:   "256Mi",
+		},
+		HTTPNetworkConfig: HTTPNetworkConfig{Port: 8080},
+		HTTPStorageConfig: HTTPStorageConfig{
+			PersistenceEnabled:   true,
+			PersistenceSize:      "5Gi",
+			PersistenceClass:     "nfs",
+			PersistenceMountPath: "/data",
+		},
+		HealthCheckPath: "/",
+		HealthCheckPort: 8080,
 	}
 
 	values := buildStakaterValues(config)
@@ -429,10 +451,10 @@ func TestBuildStakaterValues_WithPersistence(t *testing.T) {
 
 func TestBuildNetworkPolicies_Minimal(t *testing.T) {
 	config := &HTTPServiceConfig{
-		Name:      "web",
-		Namespace: "production",
-		Port:      8080,
-		GatewayNS: "nginx-gateway",
+		Name:              "web",
+		Namespace:         "production",
+		HTTPNetworkConfig: HTTPNetworkConfig{Port: 8080},
+		GatewayNS:         "nginx-gateway",
 	}
 
 	policies := buildNetworkPolicies(config)
@@ -456,11 +478,11 @@ func TestBuildNetworkPolicies_Minimal(t *testing.T) {
 
 func TestBuildNetworkPolicies_WithMonitoring(t *testing.T) {
 	config := &HTTPServiceConfig{
-		Name:              "web",
-		Namespace:         "production",
-		Port:              8080,
-		GatewayNS:         "nginx-gateway",
-		MonitoringEnabled: true,
+		Name:                 "web",
+		Namespace:            "production",
+		HTTPNetworkConfig:    HTTPNetworkConfig{Port: 8080},
+		HTTPMonitoringConfig: HTTPMonitoringConfig{MonitoringEnabled: true},
+		GatewayNS:            "nginx-gateway",
 	}
 
 	policies := buildNetworkPolicies(config)
@@ -520,13 +542,15 @@ func TestBuildExternalSecretRequest(t *testing.T) {
 
 func TestBuildGatewayRouteRequest(t *testing.T) {
 	config := &HTTPServiceConfig{
-		Name:            "my-app",
-		Namespace:       "production",
-		IngressHostname: "my-app.example.com",
-		IngressPath:     "/",
-		Port:            8080,
-		GatewayName:     "nginx-gateway",
-		GatewayNS:       "nginx-gateway",
+		Name:      "my-app",
+		Namespace: "production",
+		HTTPNetworkConfig: HTTPNetworkConfig{
+			IngressHostname: "my-app.example.com",
+			IngressPath:     "/",
+			Port:            8080,
+		},
+		GatewayName: "nginx-gateway",
+		GatewayNS:   "nginx-gateway",
 	}
 
 	gwReq := buildGatewayRouteRequest(config)
@@ -556,23 +580,29 @@ func TestBuildGatewayRouteRequest(t *testing.T) {
 func TestHandleConfigure_MinimalConfig(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
-		Name:            "web",
-		Namespace:       "web",
-		Team:            "platform",
-		ImageRepository: "nginx",
-		ImageTag:        "latest",
-		ImagePullPolicy: "IfNotPresent",
-		Replicas:        1,
-		Port:            8080,
-		CPURequest:      "100m",
-		MemoryRequest:   "128Mi",
-		CPULimit:        "500m",
-		MemoryLimit:     "256Mi",
+		Name:      "web",
+		Namespace: "web",
+		Team:      "platform",
+		HTTPImageConfig: HTTPImageConfig{
+			ImageRepository: "nginx",
+			ImageTag:        "latest",
+			ImagePullPolicy: "IfNotPresent",
+		},
+		HTTPResourceConfig: HTTPResourceConfig{
+			Replicas:      1,
+			CPURequest:    "100m",
+			MemoryRequest: "128Mi",
+			CPULimit:      "500m",
+			MemoryLimit:   "256Mi",
+		},
+		HTTPNetworkConfig: HTTPNetworkConfig{
+			Port:            8080,
+			IngressEnabled:  true,
+			IngressHostname: "web.cluster.integratn.tech",
+			IngressPath:     "/",
+		},
 		HealthCheckPath: "/",
 		HealthCheckPort: 8080,
-		IngressEnabled:  true,
-		IngressHostname: "web.cluster.integratn.tech",
-		IngressPath:     "/",
 		GatewayName:     "nginx-gateway",
 		GatewayNS:       "nginx-gateway",
 		SecretStoreName: "onepassword-store",
@@ -619,23 +649,29 @@ func TestHandleConfigure_MinimalConfig(t *testing.T) {
 func TestHandleConfigure_WithSecrets(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
-		Name:            "web",
-		Namespace:       "web",
-		Team:            "platform",
-		ImageRepository: "nginx",
-		ImageTag:        "latest",
-		ImagePullPolicy: "IfNotPresent",
-		Replicas:        1,
-		Port:            8080,
-		CPURequest:      "100m",
-		MemoryRequest:   "128Mi",
-		CPULimit:        "500m",
-		MemoryLimit:     "256Mi",
+		Name:      "web",
+		Namespace: "web",
+		Team:      "platform",
+		HTTPImageConfig: HTTPImageConfig{
+			ImageRepository: "nginx",
+			ImageTag:        "latest",
+			ImagePullPolicy: "IfNotPresent",
+		},
+		HTTPResourceConfig: HTTPResourceConfig{
+			Replicas:      1,
+			CPURequest:    "100m",
+			MemoryRequest: "128Mi",
+			CPULimit:      "500m",
+			MemoryLimit:   "256Mi",
+		},
+		HTTPNetworkConfig: HTTPNetworkConfig{
+			Port:            8080,
+			IngressEnabled:  true,
+			IngressHostname: "web.cluster.integratn.tech",
+			IngressPath:     "/",
+		},
 		HealthCheckPath: "/",
 		HealthCheckPort: 8080,
-		IngressEnabled:  true,
-		IngressHostname: "web.cluster.integratn.tech",
-		IngressPath:     "/",
 		GatewayName:     "nginx-gateway",
 		GatewayNS:       "nginx-gateway",
 		SecretStoreName: "onepassword-store",
@@ -664,21 +700,27 @@ func TestHandleConfigure_WithSecrets(t *testing.T) {
 func TestHandleConfigure_IngressDisabled(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
-		Name:            "worker",
-		Namespace:       "worker",
-		Team:            "platform",
-		ImageRepository: "busybox",
-		ImageTag:        "latest",
-		ImagePullPolicy: "IfNotPresent",
-		Replicas:        1,
-		Port:            8080,
-		CPURequest:      "100m",
-		MemoryRequest:   "128Mi",
-		CPULimit:        "500m",
-		MemoryLimit:     "256Mi",
+		Name:      "worker",
+		Namespace: "worker",
+		Team:      "platform",
+		HTTPImageConfig: HTTPImageConfig{
+			ImageRepository: "busybox",
+			ImageTag:        "latest",
+			ImagePullPolicy: "IfNotPresent",
+		},
+		HTTPResourceConfig: HTTPResourceConfig{
+			Replicas:      1,
+			CPURequest:    "100m",
+			MemoryRequest: "128Mi",
+			CPULimit:      "500m",
+			MemoryLimit:   "256Mi",
+		},
+		HTTPNetworkConfig: HTTPNetworkConfig{
+			Port:           8080,
+			IngressEnabled: false,
+		},
 		HealthCheckPath: "/",
 		HealthCheckPort: 8080,
-		IngressEnabled:  false,
 		GatewayName:     "nginx-gateway",
 		GatewayNS:       "nginx-gateway",
 		SecretStoreName: "onepassword-store",
@@ -699,9 +741,9 @@ func TestHandleConfigure_IngressDisabled(t *testing.T) {
 func TestHandleDelete_MinimalConfig(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
-		Name:           "web",
-		Namespace:      "web",
-		IngressEnabled: true,
+		Name:              "web",
+		Namespace:         "web",
+		HTTPNetworkConfig: HTTPNetworkConfig{IngressEnabled: true},
 	}
 
 	err := handleDelete(sdk, config)
@@ -728,9 +770,9 @@ func TestHandleDelete_MinimalConfig(t *testing.T) {
 func TestHandleDelete_WithSecrets(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
-		Name:           "web",
-		Namespace:      "web",
-		IngressEnabled: true,
+		Name:              "web",
+		Namespace:         "web",
+		HTTPNetworkConfig: HTTPNetworkConfig{IngressEnabled: true},
 		Secrets: []ku.SecretRef{
 			{OnePasswordItem: "item"},
 		},
@@ -749,9 +791,9 @@ func TestHandleDelete_WithSecrets(t *testing.T) {
 func TestHandleDelete_IngressDisabled(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := &HTTPServiceConfig{
-		Name:           "worker",
-		Namespace:      "worker",
-		IngressEnabled: false,
+		Name:              "worker",
+		Namespace:         "worker",
+		HTTPNetworkConfig: HTTPNetworkConfig{IngressEnabled: false},
 	}
 
 	err := handleDelete(sdk, config)

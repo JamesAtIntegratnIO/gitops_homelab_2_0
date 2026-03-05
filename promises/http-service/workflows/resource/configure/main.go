@@ -10,7 +10,7 @@ import (
 
 // Platform-wide defaults — baked into every HTTP service.
 const (
-	defaultBaseDomain      = "cluster.integratn.tech"
+	defaultBaseDomain      = ku.DefaultClusterBaseDomain
 	stakaterChartRepo      = "https://stakater.github.io/stakater-charts"
 	stakaterChartName      = "application"
 	stakaterChartVersion   = "6.16.1"

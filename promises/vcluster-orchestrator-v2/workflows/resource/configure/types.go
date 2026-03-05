@@ -32,64 +32,79 @@ type VClusterConfig struct {
 	TargetNamespace string
 
 	// Vcluster configuration
-	K8sVersion          string
-	Preset              string
-	Replicas            int
-	CPURequest          string
-	MemoryRequest       string
-	CPULimit            string
-	MemoryLimit         string
-	PersistenceEnabled  bool
-	PersistenceSize     string
-	PersistenceClass    string
-	CorednsReplicas     int
-	ClusterDomain       string
-	IsolationMode       string
-	BackingStore        map[string]interface{}
-	ExportKubeConfig    map[string]interface{}
-	HelmOverrides       map[string]interface{}
-	ValuesObject        map[string]interface{}
-	ProxyExtraSANs      []string
+	K8sVersion       string
+	Preset           string
+	ClusterDomain    string
+	IsolationMode    string
+	BackingStore     map[string]interface{}
+	ExportKubeConfig map[string]interface{}
+	HelmOverrides    map[string]interface{}
+	ValuesObject     map[string]interface{}
 
-	// Exposure configuration
-	Hostname         string
-	VIP              string
-	Subnet           string
-	APIPort          int
-	ExternalServerURL string
-
-	// Integration configuration
-	CertManagerIssuerLabels        map[string]string
-	ExternalSecretsStoreLabels     map[string]string
-	ArgoCDEnvironment              string
-	ArgoCDClusterLabels            map[string]string
-	ArgoCDClusterAnnotations       map[string]string
-	WorkloadRepoURL                string
-	WorkloadRepoBasePath           string
-	WorkloadRepoPath               string
-	WorkloadRepoRevision           string
-
-	// ArgoCD Application configuration
-	ArgoCDRepoURL        string
-	ArgoCDChart          string
-	ArgoCDTargetRevision string
-	ArgoCDDestServer     string
-	ArgoCDSyncPolicy     *ku.SyncPolicy
+	VClusterResourceConfig    // Replicas, CPU/Memory, Persistence, CorednsReplicas
+	ExposureConfig            // Hostname, VIP, Subnet, APIPort, ExternalServerURL, ProxyExtraSANs
+	VClusterIntegrationConfig // CertManager/ExternalSecrets labels, ArgoCD env/labels, WorkloadRepo
+	ArgoCDAppConfig           // RepoURL, Chart, TargetRevision, DestServer, SyncPolicy
 
 	// Network policy configuration
 	EnableNFS   bool
 	ExtraEgress []ExtraEgressRule
 
 	// Derived values
-	OnePasswordItem     string
+	OnePasswordItem       string
 	KubeconfigSyncJobName string
-	BaseDomain          string
-	BaseDomainSanitized string
+	BaseDomain            string
+	BaseDomainSanitized   string
 
 	// Client factory for direct Kubernetes API calls (delete pipeline)
 	KubeClient KubeClientFactory
 
 	WorkflowContext WorkflowContext
+}
+
+// VClusterResourceConfig groups compute and storage resource settings.
+type VClusterResourceConfig struct {
+	Replicas           int
+	CPURequest         string
+	MemoryRequest      string
+	CPULimit           string
+	MemoryLimit        string
+	PersistenceEnabled bool
+	PersistenceSize    string
+	PersistenceClass   string
+	CorednsReplicas    int
+}
+
+// ExposureConfig groups vcluster network exposure settings.
+type ExposureConfig struct {
+	Hostname          string
+	VIP               string
+	Subnet            string
+	APIPort           int
+	ExternalServerURL string
+	ProxyExtraSANs    []string
+}
+
+// VClusterIntegrationConfig groups platform integration settings.
+type VClusterIntegrationConfig struct {
+	CertManagerIssuerLabels    map[string]string
+	ExternalSecretsStoreLabels map[string]string
+	ArgoCDEnvironment          string
+	ArgoCDClusterLabels        map[string]string
+	ArgoCDClusterAnnotations   map[string]string
+	WorkloadRepoURL            string
+	WorkloadRepoBasePath       string
+	WorkloadRepoPath           string
+	WorkloadRepoRevision       string
+}
+
+// ArgoCDAppConfig groups ArgoCD application source settings.
+type ArgoCDAppConfig struct {
+	ArgoCDRepoURL        string
+	ArgoCDChart          string
+	ArgoCDTargetRevision string
+	ArgoCDDestServer     string
+	ArgoCDSyncPolicy     *ku.SyncPolicy
 }
 
 type WorkflowContext struct {

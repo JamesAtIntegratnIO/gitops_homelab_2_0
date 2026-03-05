@@ -163,7 +163,7 @@ func calculateVIP(config *VClusterConfig) error {
 func resolveHostname(config *VClusterConfig, resource kratix.Resource) {
 	config.BaseDomain, _ = ku.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain")
 	if config.BaseDomain == "" || config.BaseDomain == "null" {
-		config.BaseDomain = "integratn.tech"
+		config.BaseDomain = ku.DefaultBaseDomain
 	}
 	if config.Hostname == "" {
 		config.Hostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
@@ -212,7 +212,7 @@ func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
 func configureCertManager(config *VClusterConfig, resource kratix.Resource) {
 	config.CertManagerIssuerLabels = ku.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
 	if len(config.CertManagerIssuerLabels) == 0 {
-		config.CertManagerIssuerLabels = map[string]string{"integratn.tech/cluster-issuer": "letsencrypt-prod"}
+		config.CertManagerIssuerLabels = map[string]string{ku.DefaultCertManagerIssuerLabel: ku.DefaultCertManagerIssuer}
 	}
 }
 
@@ -220,7 +220,7 @@ func configureCertManager(config *VClusterConfig, resource kratix.Resource) {
 func configureExternalSecrets(config *VClusterConfig, resource kratix.Resource) {
 	config.ExternalSecretsStoreLabels = ku.ExtractStringMap(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
 	if len(config.ExternalSecretsStoreLabels) == 0 {
-		config.ExternalSecretsStoreLabels = map[string]string{"integratn.tech/cluster-secret-store": "onepassword-store"}
+		config.ExternalSecretsStoreLabels = map[string]string{ku.DefaultExternalSecretsStoreLabel: ku.DefaultExternalSecretsStore}
 	}
 }
 

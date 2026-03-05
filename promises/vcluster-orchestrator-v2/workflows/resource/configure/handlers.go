@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"time"
 
 	kratix "github.com/syntasso/kratix-go"
@@ -12,6 +13,7 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
@@ -23,8 +25,13 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		"resources/argocd-cluster-registration-request.yaml": buildArgoCDClusterRegistrationRequest(config),
 	}
 
-	for path, obj := range resourceRequests {
-		if err := ku.WriteYAML(sdk, path, obj); err != nil {
+	paths := make([]string, 0, len(resourceRequests))
+	for p := range resourceRequests {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		if err := ku.WriteYAML(sdk, path, resourceRequests[path]); err != nil {
 			return fmt.Errorf("write %s: %w", path, err)
 		}
 	}
@@ -83,6 +90,25 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	return nil
 }
 
+// newKubeClientWithTimeout creates a Kubernetes client from the config's
+// KubeClientFactory and a context with the given timeout. Callers must
+// defer cancel().
+func newKubeClientWithTimeout(config *VClusterConfig, timeout time.Duration) (kubernetes.Interface, context.Context, context.CancelFunc, error) {
+	clientset, err := config.KubeClient.NewClient()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	return clientset, ctx, cancel, nil
+}
+
+// vclusterRBACName returns the RBAC resource name that the vcluster Helm chart
+// creates for a given vcluster. The convention is "vc-<name>-v-<namespace>"
+// and is dictated by the upstream Helm chart.
+func vclusterRBACName(name, namespace string) string {
+	return fmt.Sprintf("vc-%s-v-%s", name, namespace)
+}
+
 // cleanupHostPVs deletes host-level PersistentVolumes that were created by the
 // vcluster syncer. These PVs are NOT in the Kratix state store, so they cannot
 // be cleaned up via the normal Kratix output mechanism. They must be deleted via
@@ -97,12 +123,10 @@ func cleanupHostPVs(config *VClusterConfig) error {
 
 	log.Printf("Cleaning up host PVs with label selector: %s", labelSelector)
 
-	clientset, err := config.KubeClient.NewClient()
+	clientset, ctx, cancel, err := newKubeClientWithTimeout(config, 2*time.Minute)
 	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
+		return err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	pvList, err := clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{
@@ -144,12 +168,10 @@ func cleanupHostPVs(config *VClusterConfig) error {
 func cleanupNamespace(config *VClusterConfig) error {
 	log.Printf("Cleaning up namespace: %s", config.TargetNamespace)
 
-	clientset, err := config.KubeClient.NewClient()
+	clientset, ctx, cancel, err := newKubeClientWithTimeout(config, 2*time.Minute)
 	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
+		return err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	// Check if namespace exists before trying to delete
@@ -238,7 +260,7 @@ func stateStoreCleanup(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		}
 	}
 
-	crName := fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace)
+	crName := vclusterRBACName(config.Name, config.TargetNamespace)
 	outputs["resources/delete-vcluster-clusterrole.yaml"] = ku.DeleteFromResource(ku.Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",
 		Kind:       "ClusterRole",
@@ -265,8 +287,13 @@ func stateStoreCleanup(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		})
 	}
 
-	for path, obj := range outputs {
-		if err := ku.WriteYAML(sdk, path, obj); err != nil {
+	outputPaths := make([]string, 0, len(outputs))
+	for p := range outputs {
+		outputPaths = append(outputPaths, p)
+	}
+	sort.Strings(outputPaths)
+	for _, path := range outputPaths {
+		if err := ku.WriteYAML(sdk, path, outputs[path]); err != nil {
 			return fmt.Errorf("write delete output %s: %w", path, err)
 		}
 	}
