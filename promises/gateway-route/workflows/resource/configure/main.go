@@ -31,40 +31,10 @@ type GatewayRouteConfig struct {
 }
 
 func main() {
-	sdk := kratix.New()
-
-	log.Printf("=== Gateway Route Promise Pipeline ===")
-	log.Printf("Action: %s", sdk.WorkflowAction())
-
-	resource, err := sdk.ReadResourceInput()
-	if err != nil {
-		log.Fatalf("ERROR: Failed to read resource input: %v", err)
-	}
-
-	log.Printf("Processing resource: %s/%s",
-		resource.GetNamespace(), resource.GetName())
-
-	config, err := buildConfig(resource)
-	if err != nil {
-		log.Fatalf("ERROR: Failed to build config: %v", err)
-	}
-
-	if sdk.WorkflowAction() == "configure" {
-		if err := handleConfigure(sdk, config); err != nil {
-			log.Fatalf("ERROR: Configure failed: %v", err)
-		}
-	} else if sdk.WorkflowAction() == "delete" {
-		if err := handleDelete(sdk, config); err != nil {
-			log.Fatalf("ERROR: Delete failed: %v", err)
-		}
-	} else {
-		log.Fatalf("ERROR: Unknown workflow action: %s", sdk.WorkflowAction())
-	}
-
-	log.Println("=== Pipeline completed successfully ===")
+	u.RunPromiseWithConfig("Gateway Route", buildConfig, handleConfigure, handleDelete)
 }
 
-func buildConfig(resource kratix.Resource) (*GatewayRouteConfig, error) {
+func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*GatewayRouteConfig, error) {
 	config := &GatewayRouteConfig{
 		GatewayName:      u.DefaultGatewayName,
 		GatewayNS:        u.DefaultGatewayNamespace,

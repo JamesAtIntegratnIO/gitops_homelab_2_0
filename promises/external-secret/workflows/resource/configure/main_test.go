@@ -34,7 +34,7 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 		},
 	}
 
-	config, err := buildConfig(resource)
+	config, err := buildConfig(nil, resource)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestBuildConfig_WithOverrides(t *testing.T) {
 		},
 	}
 
-	config, err := buildConfig(resource)
+	config, err := buildConfig(nil, resource)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestBuildConfig_MissingNamespace(t *testing.T) {
 			},
 		},
 	}
-	_, err := buildConfig(resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error for missing namespace")
 	}
@@ -129,7 +129,7 @@ func TestBuildConfig_NoSecrets(t *testing.T) {
 			},
 		},
 	}
-	_, err := buildConfig(resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error for missing secrets")
 	}

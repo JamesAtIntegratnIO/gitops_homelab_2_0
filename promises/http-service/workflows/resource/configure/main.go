@@ -84,41 +84,11 @@ type HTTPServiceConfig struct {
 }
 
 func main() {
-	sdk := kratix.New()
-
-	log.Printf("=== HTTP Service Promise Pipeline ===")
-	log.Printf("Action: %s", sdk.WorkflowAction())
-
-	resource, err := sdk.ReadResourceInput()
-	if err != nil {
-		log.Fatalf("ERROR: Failed to read resource input: %v", err)
-	}
-
-	log.Printf("Processing resource: %s/%s",
-		resource.GetNamespace(), resource.GetName())
-
-	config, err := buildConfig(resource)
-	if err != nil {
-		log.Fatalf("ERROR: Failed to build config: %v", err)
-	}
-
-	if sdk.WorkflowAction() == "configure" {
-		if err := handleConfigure(sdk, config); err != nil {
-			log.Fatalf("ERROR: Configure failed: %v", err)
-		}
-	} else if sdk.WorkflowAction() == "delete" {
-		if err := handleDelete(sdk, config); err != nil {
-			log.Fatalf("ERROR: Delete failed: %v", err)
-		}
-	} else {
-		log.Fatalf("ERROR: Unknown workflow action: %s", sdk.WorkflowAction())
-	}
-
-	log.Println("=== Pipeline completed successfully ===")
+	u.RunPromiseWithConfig("HTTP Service", buildConfig, handleConfigure, handleDelete)
 }
 
 // buildConfig extracts all fields from the CR with sensible defaults.
-func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
+func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceConfig, error) {
 	config := &HTTPServiceConfig{
 		BaseDomain:      defaultBaseDomain,
 		GatewayName:     u.DefaultGatewayName,

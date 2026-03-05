@@ -26,7 +26,7 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 		},
 	}
 
-	config, err := buildConfig(resource)
+	config, err := buildConfig(nil, resource)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestBuildConfig_WithOverrides(t *testing.T) {
 		},
 	}
 
-	config, err := buildConfig(resource)
+	config, err := buildConfig(nil, resource)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestBuildConfig_MissingName(t *testing.T) {
 			},
 		},
 	}
-	_, err := buildConfig(resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -141,7 +141,7 @@ func TestBuildConfig_MissingNamespace(t *testing.T) {
 			},
 		},
 	}
-	_, err := buildConfig(resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -159,7 +159,7 @@ func TestBuildConfig_MissingHostname(t *testing.T) {
 			},
 		},
 	}
-	_, err := buildConfig(resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -178,7 +178,7 @@ func TestBuildConfig_MissingBackendName(t *testing.T) {
 			},
 		},
 	}
-	_, err := buildConfig(resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -200,7 +200,7 @@ func TestBuildConfig_MissingBackendPort(t *testing.T) {
 			},
 		},
 	}
-	_, err := buildConfig(resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error")
 	}

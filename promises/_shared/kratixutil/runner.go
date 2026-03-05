@@ -46,3 +46,46 @@ func RunPromise(
 
 	log.Println("=== Pipeline completed successfully ===")
 }
+
+// RunPromiseWithConfig runs a promise pipeline with a typed config build step.
+// buildConfig extracts configuration from the Kratix resource.
+// configure and delete receive the SDK and the built config.
+func RunPromiseWithConfig[T any](
+	name string,
+	buildConfig func(*kratix.KratixSDK, kratix.Resource) (T, error),
+	configure func(*kratix.KratixSDK, T) error,
+	delete func(*kratix.KratixSDK, T) error,
+) {
+	sdk := kratix.New()
+
+	log.Printf("=== %s Pipeline ===", name)
+	log.Printf("Action: %s", sdk.WorkflowAction())
+
+	resource, err := sdk.ReadResourceInput()
+	if err != nil {
+		log.Fatalf("ERROR: Failed to read resource input: %v", err)
+	}
+
+	log.Printf("Processing resource: %s/%s",
+		resource.GetNamespace(), resource.GetName())
+
+	config, err := buildConfig(sdk, resource)
+	if err != nil {
+		log.Fatalf("ERROR: Failed to build config: %v", err)
+	}
+
+	switch sdk.WorkflowAction() {
+	case "configure":
+		if err := configure(sdk, config); err != nil {
+			log.Fatalf("ERROR: Configure failed: %v", err)
+		}
+	case "delete":
+		if err := delete(sdk, config); err != nil {
+			log.Fatalf("ERROR: Delete failed: %v", err)
+		}
+	default:
+		log.Fatalf("ERROR: Unknown workflow action: %s", sdk.WorkflowAction())
+	}
+
+	log.Println("=== Pipeline completed successfully ===")
+}

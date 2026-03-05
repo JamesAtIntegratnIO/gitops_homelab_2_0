@@ -23,7 +23,7 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 		},
 	}
 
-	config, err := buildConfig(resource)
+	config, err := buildConfig(nil, resource)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestBuildConfig_WithAllFields(t *testing.T) {
 		},
 	}
 
-	config, err := buildConfig(resource)
+	config, err := buildConfig(nil, resource)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestBuildConfig_MissingName(t *testing.T) {
 			},
 		},
 	}
-	_, err := buildConfig(resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error for missing name")
 	}
@@ -214,7 +214,7 @@ func TestBuildConfig_MissingImageRepository(t *testing.T) {
 			},
 		},
 	}
-	_, err := buildConfig(resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error for missing image.repository")
 	}
