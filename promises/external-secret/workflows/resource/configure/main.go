@@ -71,9 +71,9 @@ func buildConfig(resource kratix.Resource) (*ExternalSecretConfig, error) {
 	}
 
 	// appName defaults to the resource name
-	config.AppName, _ = u.GetStringValueWithDefault(resource, "spec.appName", resource.GetName())
+	config.AppName = u.GetStringValueWithDefault(resource, "spec.appName", resource.GetName())
 
-	config.OwnerPromise, _ = u.GetStringValueWithDefault(resource, "spec.ownerPromise", "external-secret")
+	config.OwnerPromise = u.GetStringValueWithDefault(resource, "spec.ownerPromise", "external-secret")
 
 	if v, err := u.GetStringValue(resource, "spec.secretStoreName"); err == nil && v != "" {
 		config.SecretStoreName = v

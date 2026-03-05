@@ -25,12 +25,12 @@ func GetStringValue(resource kratix.Resource, path string) (string, error) {
 
 // GetStringValueWithDefault extracts a string or returns the default.
 // Also treats "null" (YAML null rendered as string) as empty.
-func GetStringValueWithDefault(resource kratix.Resource, path, defaultValue string) (string, error) {
+func GetStringValueWithDefault(resource kratix.Resource, path, defaultValue string) string {
 	val, err := GetStringValue(resource, path)
 	if err != nil || val == "" || val == "null" {
-		return defaultValue, nil
+		return defaultValue
 	}
-	return val, nil
+	return val
 }
 
 // GetIntValue extracts an integer from a Kratix resource at the given path.
@@ -54,12 +54,14 @@ func GetIntValue(resource kratix.Resource, path string) (int, error) {
 }
 
 // GetIntValueWithDefault extracts an integer or returns the default.
-func GetIntValueWithDefault(resource kratix.Resource, path string, defaultValue int) (int, error) {
+// Returns defaultValue only when the path is missing or not parseable;
+// an explicit 0 is returned as-is.
+func GetIntValueWithDefault(resource kratix.Resource, path string, defaultValue int) int {
 	val, err := GetIntValue(resource, path)
-	if err != nil || val == 0 {
-		return defaultValue, nil
+	if err != nil {
+		return defaultValue
 	}
-	return val, nil
+	return val
 }
 
 // GetBoolValue extracts a boolean from a Kratix resource at the given path.
@@ -75,15 +77,15 @@ func GetBoolValue(resource kratix.Resource, path string) (bool, error) {
 }
 
 // GetBoolValueWithDefault extracts a boolean or returns the default.
-func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue bool) (bool, error) {
+func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue bool) bool {
 	val, err := resource.GetValue(path)
 	if err != nil {
-		return defaultValue, nil
+		return defaultValue
 	}
 	if b, ok := val.(bool); ok {
-		return b, nil
+		return b
 	}
-	return defaultValue, nil
+	return defaultValue
 }
 
 // ============================================================================
@@ -228,13 +230,14 @@ func DeepMerge(dst, src map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-// MergeStringMap merges src into dst. dst is created if nil. src values win.
+// MergeStringMap merges src into dst without mutating either input. src values win.
 func MergeStringMap(dst, src map[string]string) map[string]string {
-	if dst == nil {
-		dst = map[string]string{}
+	result := make(map[string]string, len(dst)+len(src))
+	for k, v := range dst {
+		result[k] = v
 	}
-	for key, value := range src {
-		dst[key] = value
+	for k, v := range src {
+		result[k] = v
 	}
-	return dst
+	return result
 }

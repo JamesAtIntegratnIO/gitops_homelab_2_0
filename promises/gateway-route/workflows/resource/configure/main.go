@@ -90,7 +90,7 @@ func buildConfig(resource kratix.Resource) (*GatewayRouteConfig, error) {
 		return nil, fmt.Errorf("spec.hostname is required: %w", err)
 	}
 
-	config.Path, _ = u.GetStringValueWithDefault(resource, "spec.path", "/")
+	config.Path = u.GetStringValueWithDefault(resource, "spec.path", "/")
 
 	config.BackendName, err = u.GetStringValue(resource, "spec.backendRef.name")
 	if err != nil {
@@ -109,9 +109,9 @@ func buildConfig(resource kratix.Resource) (*GatewayRouteConfig, error) {
 		config.GatewayNS = v
 	}
 
-	config.HTTPRedirect, _ = u.GetBoolValueWithDefault(resource, "spec.httpRedirect", true)
+	config.HTTPRedirect = u.GetBoolValueWithDefault(resource, "spec.httpRedirect", true)
 
-	config.OwnerPromise, _ = u.GetStringValueWithDefault(resource, "spec.ownerPromise", "gateway-route")
+	config.OwnerPromise = u.GetStringValueWithDefault(resource, "spec.ownerPromise", "gateway-route")
 
 	if v, err := u.GetStringValue(resource, "spec.sectionName"); err == nil && v != "" {
 		config.SectionName = v

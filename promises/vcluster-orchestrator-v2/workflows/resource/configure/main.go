@@ -155,10 +155,10 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Extract vcluster spec
-	config.K8sVersion, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
-	config.Preset, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
-	config.IsolationMode, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
-	config.ClusterDomain, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
+	config.K8sVersion = u.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
+	config.Preset = u.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
+	config.IsolationMode = u.GetStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
+	config.ClusterDomain = u.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
 	config.PersistenceClass, _ = u.GetStringValue(resource, "spec.vcluster.persistence.storageClass")
 
 	// Apply preset defaults
@@ -187,7 +187,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	config.Hostname, _ = u.GetStringValue(resource, "spec.exposure.hostname")
 	config.Subnet, _ = u.GetStringValue(resource, "spec.exposure.subnet")
 	config.VIP, _ = u.GetStringValue(resource, "spec.exposure.vip")
-	config.APIPort, _ = u.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
+	config.APIPort = u.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
 
 	// Calculate VIP if needed (offset 200 aligns with MetalLB pool 10.0.4.200-253)
 	if config.Subnet != "" && config.VIP == "" {
@@ -264,10 +264,10 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	config.ArgoCDClusterLabels = u.ExtractStringMap(resource, "spec.integrations.argocd.clusterLabels")
 	config.ArgoCDClusterAnnotations = u.ExtractStringMap(resource, "spec.integrations.argocd.clusterAnnotations")
 
-	config.WorkloadRepoURL, _ = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", "https://github.com/jamesatintegratnio/gitops_homelab_2_0")
+	config.WorkloadRepoURL = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", "https://github.com/jamesatintegratnio/gitops_homelab_2_0")
 	config.WorkloadRepoBasePath, _ = u.GetStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
-	config.WorkloadRepoPath, _ = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
-	config.WorkloadRepoRevision, _ = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
+	config.WorkloadRepoPath = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
+	config.WorkloadRepoRevision = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
 
 	defaultClusterLabels := map[string]string{
 		"argocd.argoproj.io/secret-type": "cluster",
@@ -321,10 +321,10 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Extract ArgoCD application configuration
-	config.ArgoCDRepoURL, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
-	config.ArgoCDChart, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
-	config.ArgoCDTargetRevision, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
-	config.ArgoCDDestServer, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
+	config.ArgoCDRepoURL = u.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
+	config.ArgoCDChart = u.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
+	config.ArgoCDTargetRevision = u.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
+	config.ArgoCDDestServer = u.GetStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
 
 	// Extract sync policy
 	if val, err := resource.GetValue("spec.argocdApplication.syncPolicy"); err == nil && val != nil {
@@ -614,10 +614,10 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 	}
 
 	// Apply resource requests/limits
-	config.CPURequest, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.cpu", defaults.CPURequest)
-	config.MemoryRequest, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.memory", defaults.MemoryRequest)
-	config.CPULimit, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.cpu", defaults.CPULimit)
-	config.MemoryLimit, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults.MemoryLimit)
+	config.CPURequest = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.cpu", defaults.CPURequest)
+	config.MemoryRequest = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.memory", defaults.MemoryRequest)
+	config.CPULimit = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.cpu", defaults.CPULimit)
+	config.MemoryLimit = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults.MemoryLimit)
 
 	// Apply persistence
 	if val, err := u.GetBoolValue(resource, "spec.vcluster.persistence.enabled"); err == nil {
@@ -626,7 +626,7 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 		config.PersistenceEnabled = defaults.PersistenceEnabled
 	}
 
-	config.PersistenceSize, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
+	config.PersistenceSize = u.GetStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
 
 	// Apply coredns replicas
 	if val, err := u.GetIntValue(resource, "spec.vcluster.coredns.replicas"); err == nil && val > 0 {

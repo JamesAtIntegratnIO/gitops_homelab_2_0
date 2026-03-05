@@ -44,7 +44,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace, _ := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+	namespace := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
 	description, _ := u.GetStringValue(resource, "spec.description")
 
 	annotations := u.ExtractStringMap(resource, "spec.annotations")
@@ -97,7 +97,7 @@ func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace, _ := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+	namespace := u.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
 
 	deleteObj := u.Resource{
 		APIVersion: "argoproj.io/v1alpha1",

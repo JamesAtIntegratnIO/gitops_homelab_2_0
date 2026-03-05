@@ -122,10 +122,7 @@ func TestGetStringValueWithDefault_ReturnsValue(t *testing.T) {
 			"name": "found",
 		},
 	})
-	val, err := GetStringValueWithDefault(r, "spec.name", "default")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	val := GetStringValueWithDefault(r, "spec.name", "default")
 	if val != "found" {
 		t.Errorf("expected %q, got %q", "found", val)
 	}
@@ -133,10 +130,7 @@ func TestGetStringValueWithDefault_ReturnsValue(t *testing.T) {
 
 func TestGetStringValueWithDefault_UsesDefaultOnMissing(t *testing.T) {
 	r := newMockResource(map[string]interface{}{})
-	val, err := GetStringValueWithDefault(r, "spec.missing", "fallback")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	val := GetStringValueWithDefault(r, "spec.missing", "fallback")
 	if val != "fallback" {
 		t.Errorf("expected %q, got %q", "fallback", val)
 	}
@@ -148,10 +142,7 @@ func TestGetStringValueWithDefault_UsesDefaultOnEmpty(t *testing.T) {
 			"name": "",
 		},
 	})
-	val, err := GetStringValueWithDefault(r, "spec.name", "fallback")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	val := GetStringValueWithDefault(r, "spec.name", "fallback")
 	if val != "fallback" {
 		t.Errorf("expected %q, got %q", "fallback", val)
 	}
@@ -163,10 +154,7 @@ func TestGetStringValueWithDefault_TreatsNullAsEmpty(t *testing.T) {
 			"name": "null",
 		},
 	})
-	val, err := GetStringValueWithDefault(r, "spec.name", "fallback")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	val := GetStringValueWithDefault(r, "spec.name", "fallback")
 	if val != "fallback" {
 		t.Errorf("expected %q, got %q", "fallback", val)
 	}
@@ -264,10 +252,7 @@ func TestGetIntValueWithDefault_ReturnsValue(t *testing.T) {
 	r := newMockResource(map[string]interface{}{
 		"spec": map[string]interface{}{"replicas": 3},
 	})
-	val, err := GetIntValueWithDefault(r, "spec.replicas", 1)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	val := GetIntValueWithDefault(r, "spec.replicas", 1)
 	if val != 3 {
 		t.Errorf("expected 3, got %d", val)
 	}
@@ -275,25 +260,19 @@ func TestGetIntValueWithDefault_ReturnsValue(t *testing.T) {
 
 func TestGetIntValueWithDefault_UsesDefaultOnMissing(t *testing.T) {
 	r := newMockResource(map[string]interface{}{})
-	val, err := GetIntValueWithDefault(r, "spec.missing", 10)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	val := GetIntValueWithDefault(r, "spec.missing", 10)
 	if val != 10 {
 		t.Errorf("expected 10, got %d", val)
 	}
 }
 
-func TestGetIntValueWithDefault_UsesDefaultOnZero(t *testing.T) {
+func TestGetIntValueWithDefault_ReturnsExplicitZero(t *testing.T) {
 	r := newMockResource(map[string]interface{}{
 		"spec": map[string]interface{}{"replicas": 0},
 	})
-	val, err := GetIntValueWithDefault(r, "spec.replicas", 5)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if val != 5 {
-		t.Errorf("expected 5 (default on zero), got %d", val)
+	val := GetIntValueWithDefault(r, "spec.replicas", 5)
+	if val != 0 {
+		t.Errorf("expected 0 (explicit zero preserved), got %d", val)
 	}
 }
 
@@ -353,10 +332,7 @@ func TestGetBoolValueWithDefault_ReturnsValue(t *testing.T) {
 	r := newMockResource(map[string]interface{}{
 		"spec": map[string]interface{}{"debug": true},
 	})
-	val, err := GetBoolValueWithDefault(r, "spec.debug", false)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	val := GetBoolValueWithDefault(r, "spec.debug", false)
 	if !val {
 		t.Error("expected true")
 	}
@@ -364,10 +340,7 @@ func TestGetBoolValueWithDefault_ReturnsValue(t *testing.T) {
 
 func TestGetBoolValueWithDefault_UsesDefaultOnMissing(t *testing.T) {
 	r := newMockResource(map[string]interface{}{})
-	val, err := GetBoolValueWithDefault(r, "spec.missing", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	val := GetBoolValueWithDefault(r, "spec.missing", true)
 	if !val {
 		t.Error("expected true (default)")
 	}
@@ -377,10 +350,7 @@ func TestGetBoolValueWithDefault_UsesDefaultOnNonBool(t *testing.T) {
 	r := newMockResource(map[string]interface{}{
 		"spec": map[string]interface{}{"flag": "yes"},
 	})
-	val, err := GetBoolValueWithDefault(r, "spec.flag", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	val := GetBoolValueWithDefault(r, "spec.flag", true)
 	if !val {
 		t.Error("expected true (default for non-bool)")
 	}

@@ -137,34 +137,34 @@ func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
 		return nil, fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	config.Namespace, _ = u.GetStringValueWithDefault(resource, "spec.namespace", config.Name)
-	config.Team, _ = u.GetStringValueWithDefault(resource, "spec.team", "platform")
+	config.Namespace = u.GetStringValueWithDefault(resource, "spec.namespace", config.Name)
+	config.Team = u.GetStringValueWithDefault(resource, "spec.team", "platform")
 
 	// Image
 	config.ImageRepository, err = u.GetStringValue(resource, "spec.image.repository")
 	if err != nil {
 		return nil, fmt.Errorf("spec.image.repository is required: %w", err)
 	}
-	config.ImageTag, _ = u.GetStringValueWithDefault(resource, "spec.image.tag", "latest")
-	config.ImagePullPolicy, _ = u.GetStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
+	config.ImageTag = u.GetStringValueWithDefault(resource, "spec.image.tag", "latest")
+	config.ImagePullPolicy = u.GetStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
 	config.Command = u.ExtractStringSlice(resource, "spec.command")
 	config.Args = u.ExtractStringSlice(resource, "spec.args")
 
 	// Scaling
-	config.Replicas, _ = u.GetIntValueWithDefault(resource, "spec.replicas", 1)
-	config.CPURequest, _ = u.GetStringValueWithDefault(resource, "spec.resources.requests.cpu", "100m")
-	config.MemoryRequest, _ = u.GetStringValueWithDefault(resource, "spec.resources.requests.memory", "128Mi")
-	config.CPULimit, _ = u.GetStringValueWithDefault(resource, "spec.resources.limits.cpu", "500m")
-	config.MemoryLimit, _ = u.GetStringValueWithDefault(resource, "spec.resources.limits.memory", "256Mi")
+	config.Replicas = u.GetIntValueWithDefault(resource, "spec.replicas", 1)
+	config.CPURequest = u.GetStringValueWithDefault(resource, "spec.resources.requests.cpu", "100m")
+	config.MemoryRequest = u.GetStringValueWithDefault(resource, "spec.resources.requests.memory", "128Mi")
+	config.CPULimit = u.GetStringValueWithDefault(resource, "spec.resources.limits.cpu", "500m")
+	config.MemoryLimit = u.GetStringValueWithDefault(resource, "spec.resources.limits.memory", "256Mi")
 
 	// Networking
-	config.Port, _ = u.GetIntValueWithDefault(resource, "spec.port", 8080)
-	config.IngressEnabled, _ = u.GetBoolValueWithDefault(resource, "spec.ingress.enabled", true)
+	config.Port = u.GetIntValueWithDefault(resource, "spec.port", 8080)
+	config.IngressEnabled = u.GetBoolValueWithDefault(resource, "spec.ingress.enabled", true)
 	config.IngressHostname, _ = u.GetStringValue(resource, "spec.ingress.hostname")
 	if config.IngressHostname == "" {
 		config.IngressHostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
 	}
-	config.IngressPath, _ = u.GetStringValueWithDefault(resource, "spec.ingress.path", "/")
+	config.IngressPath = u.GetStringValueWithDefault(resource, "spec.ingress.path", "/")
 
 	// Secrets
 	config.Secrets = u.ExtractSecrets(resource, "spec.secrets")
@@ -174,19 +174,19 @@ func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
 	config.EnvFromSecrets = u.ExtractStringSlice(resource, "spec.envFromSecrets")
 
 	// Health checks
-	config.HealthCheckPath, _ = u.GetStringValueWithDefault(resource, "spec.healthCheck.path", "/")
-	config.HealthCheckPort, _ = u.GetIntValueWithDefault(resource, "spec.healthCheck.port", config.Port)
+	config.HealthCheckPath = u.GetStringValueWithDefault(resource, "spec.healthCheck.path", "/")
+	config.HealthCheckPort = u.GetIntValueWithDefault(resource, "spec.healthCheck.port", config.Port)
 
 	// Monitoring
-	config.MonitoringEnabled, _ = u.GetBoolValueWithDefault(resource, "spec.monitoring.enabled", false)
-	config.MonitoringPath, _ = u.GetStringValueWithDefault(resource, "spec.monitoring.path", "/metrics")
-	config.MonitoringInterval, _ = u.GetStringValueWithDefault(resource, "spec.monitoring.interval", "30s")
+	config.MonitoringEnabled = u.GetBoolValueWithDefault(resource, "spec.monitoring.enabled", false)
+	config.MonitoringPath = u.GetStringValueWithDefault(resource, "spec.monitoring.path", "/metrics")
+	config.MonitoringInterval = u.GetStringValueWithDefault(resource, "spec.monitoring.interval", "30s")
 
 	// Storage
-	config.PersistenceEnabled, _ = u.GetBoolValueWithDefault(resource, "spec.persistence.enabled", false)
-	config.PersistenceSize, _ = u.GetStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
+	config.PersistenceEnabled = u.GetBoolValueWithDefault(resource, "spec.persistence.enabled", false)
+	config.PersistenceSize = u.GetStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
 	config.PersistenceClass, _ = u.GetStringValue(resource, "spec.persistence.storageClass")
-	config.PersistenceMountPath, _ = u.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
+	config.PersistenceMountPath = u.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
 
 	// Security context
 	if v, err := u.GetBoolValue(resource, "spec.securityContext.runAsNonRoot"); err == nil {

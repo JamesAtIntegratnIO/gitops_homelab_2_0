@@ -65,11 +65,11 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*Registration
 		return nil, fmt.Errorf("spec.externalServerURL is required: %w", err)
 	}
 
-	kubeconfigKey, _ := u.GetStringValueWithDefault(resource, "spec.kubeconfigKey", "config")
-	onePasswordItem, _ := u.GetStringValueWithDefault(resource, "spec.onePasswordItem", fmt.Sprintf("%s-kubeconfig", name))
-	onePasswordConnectHost, _ := u.GetStringValueWithDefault(resource, "spec.onePasswordConnectHost", "https://connect.integratn.tech")
-	environment, _ := u.GetStringValueWithDefault(resource, "spec.environment", "development")
-	baseDomain, _ := u.GetStringValueWithDefault(resource, "spec.baseDomain", "integratn.tech")
+	kubeconfigKey := u.GetStringValueWithDefault(resource, "spec.kubeconfigKey", "config")
+	onePasswordItem := u.GetStringValueWithDefault(resource, "spec.onePasswordItem", fmt.Sprintf("%s-kubeconfig", name))
+	onePasswordConnectHost := u.GetStringValueWithDefault(resource, "spec.onePasswordConnectHost", "https://connect.integratn.tech")
+	environment := u.GetStringValueWithDefault(resource, "spec.environment", "development")
+	baseDomain := u.GetStringValueWithDefault(resource, "spec.baseDomain", "integratn.tech")
 
 	baseDomainSanitized, _ := u.GetStringValue(resource, "spec.baseDomainSanitized")
 	if baseDomainSanitized == "" {
