@@ -9,10 +9,6 @@ import (
 	kratix "github.com/syntasso/kratix-go"
 )
 
-// ============================================================================
-// WriteYAML
-// ============================================================================
-
 func TestWriteYAML_WritesValidYAML(t *testing.T) {
 	dir := t.TempDir()
 	sdk := kratix.New(kratix.WithOutputDir(dir))
@@ -68,10 +64,6 @@ func TestWriteYAML_SubDirectory(t *testing.T) {
 		t.Errorf("expected 'kind: Pod' in output")
 	}
 }
-
-// ============================================================================
-// WriteYAMLDocuments
-// ============================================================================
 
 func TestWriteYAMLDocuments_MultiDoc(t *testing.T) {
 	dir := t.TempDir()

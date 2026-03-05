@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	kratix "github.com/syntasso/kratix-go"
 
@@ -63,18 +62,15 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*GatewayRouteCo
 }
 
 func handleConfigure(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
-	labels := map[string]string{
-		"app.kubernetes.io/managed-by": "kratix",
-		"kratix.io/promise-name":       config.OwnerPromise,
-		"app.kubernetes.io/part-of":    config.Name,
-	}
+	labels := ku.MergeStringMap(ku.BaseLabels(config.OwnerPromise, config.Name), map[string]string{
+		"app.kubernetes.io/part-of": config.Name,
+	})
 
 	// 1. HTTPS HTTPRoute (primary route)
 	httpsRoute := buildHTTPSRoute(config, labels)
 	if err := ku.WriteYAML(sdk, "resources/httproute.yaml", httpsRoute); err != nil {
 		return fmt.Errorf("write HTTPRoute: %w", err)
 	}
-	log.Printf("✓ Rendered HTTPS HTTPRoute: %s", config.Name)
 
 	// 2. HTTP→HTTPS redirect route
 	if config.HTTPRedirect {
@@ -82,7 +78,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 		if err := ku.WriteYAML(sdk, "resources/http-redirect.yaml", redirectRoute); err != nil {
 			return fmt.Errorf("write HTTP redirect: %w", err)
 		}
-		log.Printf("✓ Rendered HTTP→HTTPS redirect route: %s-http-redirect", config.Name)
 	}
 
 	fields := map[string]interface{}{
@@ -102,24 +97,22 @@ func handleConfigure(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 
 func handleDelete(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 	// HTTPS route
-	httpsDelete := ku.DeleteResource(
-		"gateway.networking.k8s.io/v1",
-		"HTTPRoute",
-		config.Name,
-		config.Namespace,
-	)
+	httpsDelete := ku.DeleteFromResource(ku.Resource{
+		APIVersion: "gateway.networking.k8s.io/v1",
+		Kind:       "HTTPRoute",
+		Metadata:   ku.ObjectMeta{Name: config.Name, Namespace: config.Namespace},
+	})
 	if err := ku.WriteYAML(sdk, "resources/delete-httproute-"+config.Name+".yaml", httpsDelete); err != nil {
 		return fmt.Errorf("write delete HTTPRoute: %w", err)
 	}
 
 	// HTTP redirect route
 	if config.HTTPRedirect {
-		redirectDelete := ku.DeleteResource(
-			"gateway.networking.k8s.io/v1",
-			"HTTPRoute",
-			fmt.Sprintf("%s-http-redirect", config.Name),
-			config.Namespace,
-		)
+		redirectDelete := ku.DeleteFromResource(ku.Resource{
+			APIVersion: "gateway.networking.k8s.io/v1",
+			Kind:       "HTTPRoute",
+			Metadata:   ku.ObjectMeta{Name: fmt.Sprintf("%s-http-redirect", config.Name), Namespace: config.Namespace},
+		})
 		if err := ku.WriteYAML(sdk, "resources/delete-httproute-"+config.Name+"-redirect.yaml", redirectDelete); err != nil {
 			return fmt.Errorf("write delete redirect HTTPRoute: %w", err)
 		}

@@ -7,10 +7,6 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// ============================================================================
-// Kubernetes Client Factory
-// ============================================================================
-
 // KubeClientFactory abstracts Kubernetes client creation for testability.
 type KubeClientFactory interface {
 	NewClient() (kubernetes.Interface, error)
@@ -26,10 +22,6 @@ func (f InClusterClientFactory) NewClient() (kubernetes.Interface, error) {
 	}
 	return kubernetes.NewForConfig(config)
 }
-
-// ============================================================================
-// VCluster Configuration
-// ============================================================================
 
 // VClusterConfig holds all configuration for template rendering
 type VClusterConfig struct {
@@ -82,7 +74,7 @@ type VClusterConfig struct {
 	ArgoCDChart          string
 	ArgoCDTargetRevision string
 	ArgoCDDestServer     string
-	ArgoCDSyncPolicy     map[string]interface{}
+	ArgoCDSyncPolicy     *ku.SyncPolicy
 
 	// Network policy configuration
 	EnableNFS   bool
@@ -106,10 +98,6 @@ type WorkflowContext struct {
 	PromiseName    string
 	PipelineName   string
 }
-
-// ============================================================================
-// cert-manager Types
-// ============================================================================
 
 type CertificateSpec struct {
 	IsCA        bool             `json:"isCA,omitempty"`
@@ -148,10 +136,6 @@ type SelfSignedIssuer struct{}
 type CAIssuer struct {
 	SecretName string `json:"secretName"`
 }
-
-// ============================================================================
-// VCluster Helm Values Types
-// ============================================================================
 
 type VClusterValues struct {
 	ControlPlane     ControlPlane    `json:"controlPlane"`
@@ -389,10 +373,6 @@ type ClusterRoleConfig struct {
 	ExtraRules []ku.PolicyRule `json:"extraRules"`
 }
 
-// ============================================================================
-// Network Policy Types
-// ============================================================================
-
 // ExtraEgressRule defines a custom egress rule for the vcluster namespace.
 type ExtraEgressRule struct {
 	Name     string `json:"name"`
@@ -400,10 +380,6 @@ type ExtraEgressRule struct {
 	Port     int    `json:"port"`
 	Protocol string `json:"protocol"`
 }
-
-// ============================================================================
-// Preset Types
-// ============================================================================
 
 type PresetDefaults struct {
 	Replicas           int

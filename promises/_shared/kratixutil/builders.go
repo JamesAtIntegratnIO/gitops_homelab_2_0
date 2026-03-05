@@ -1,9 +1,5 @@
 package kratixutil
 
-// ============================================================================
-// Resource Construction Helpers
-// ============================================================================
-
 func ResourceMeta(name, namespace string, labels, annotations map[string]string) ObjectMeta {
 	return ObjectMeta{
 		Name:        name,
@@ -21,6 +17,7 @@ func BaseLabels(promiseName, resourceName string) map[string]string {
 	}
 }
 
+// Deprecated: Use DeleteFromResource instead.
 // DeleteResource creates a minimal resource with only identity fields,
 // suitable for emitting as a Kratix delete output.
 func DeleteResource(apiVersion, kind, name, namespace string) Resource {
@@ -34,13 +31,6 @@ func DeleteResource(apiVersion, kind, name, namespace string) Resource {
 	}
 }
 
-// ============================================================================
-// RBAC Resource Builders
-// ============================================================================
-
-// BuildServiceAccount creates a namespace-scoped ServiceAccount for use in
-// pipeline jobs or operator workloads. The resulting resource can be written
-// directly to the Kratix state store.
 func BuildServiceAccount(name, namespace string, labels map[string]string) Resource {
 	return Resource{
 		APIVersion: "v1",
@@ -49,8 +39,6 @@ func BuildServiceAccount(name, namespace string, labels map[string]string) Resou
 	}
 }
 
-// BuildRole creates a namespace-scoped Role. Use BuildClusterRole for
-// cluster-wide permissions.
 func BuildRole(name, namespace string, labels map[string]string, rules []PolicyRule) Resource {
 	return Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",
@@ -60,8 +48,6 @@ func BuildRole(name, namespace string, labels map[string]string, rules []PolicyR
 	}
 }
 
-// BuildClusterRole creates a cluster-wide ClusterRole. Use BuildRole when
-// permissions should be scoped to a single namespace.
 func BuildClusterRole(name string, labels map[string]string, rules []PolicyRule) Resource {
 	return Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",
@@ -71,8 +57,6 @@ func BuildClusterRole(name string, labels map[string]string, rules []PolicyRule)
 	}
 }
 
-// BuildRoleBinding binds a Role to the given subjects within a namespace.
-// Use BuildClusterRoleBinding for cluster-wide bindings.
 func BuildRoleBinding(name, namespace string, labels map[string]string, roleRef RoleRef, subjects []Subject) Resource {
 	return Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",
@@ -83,8 +67,6 @@ func BuildRoleBinding(name, namespace string, labels map[string]string, roleRef 
 	}
 }
 
-// BuildClusterRoleBinding binds a ClusterRole to the given subjects across
-// all namespaces.
 func BuildClusterRoleBinding(name string, labels map[string]string, roleRef RoleRef, subjects []Subject) Resource {
 	return Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",

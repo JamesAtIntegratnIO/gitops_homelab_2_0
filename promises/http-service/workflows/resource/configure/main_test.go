@@ -7,10 +7,6 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// ============================================================================
-// buildConfig
-// ============================================================================
-
 func TestBuildConfig_MinimalValid(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
@@ -223,10 +219,6 @@ func TestBuildConfig_MissingImageRepository(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// buildSecurityContext
-// ============================================================================
-
 func TestBuildSecurityContext_Defaults(t *testing.T) {
 	config := &HTTPServiceConfig{}
 	ctx := buildSecurityContext(config)
@@ -267,10 +259,6 @@ func TestBuildSecurityContext_AllSet(t *testing.T) {
 		t.Errorf("expected runAsGroup 2000, got %v", ctx["runAsGroup"])
 	}
 }
-
-// ============================================================================
-// buildStakaterValues
-// ============================================================================
 
 func TestBuildStakaterValues_MinimalConfig(t *testing.T) {
 	config := &HTTPServiceConfig{
@@ -439,10 +427,6 @@ func TestBuildStakaterValues_WithPersistence(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// buildNetworkPolicies
-// ============================================================================
-
 func TestBuildNetworkPolicies_Minimal(t *testing.T) {
 	config := &HTTPServiceConfig{
 		Name:      "web",
@@ -490,10 +474,6 @@ func TestBuildNetworkPolicies_WithMonitoring(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// buildExternalSecretRequest
-// ============================================================================
-
 func TestBuildExternalSecretRequest(t *testing.T) {
 	config := &HTTPServiceConfig{
 		Name:            "my-app",
@@ -538,10 +518,6 @@ func TestBuildExternalSecretRequest(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// buildGatewayRouteRequest
-// ============================================================================
-
 func TestBuildGatewayRouteRequest(t *testing.T) {
 	config := &HTTPServiceConfig{
 		Name:            "my-app",
@@ -576,10 +552,6 @@ func TestBuildGatewayRouteRequest(t *testing.T) {
 		t.Errorf("expected port 8080, got %v", backendRef["port"])
 	}
 }
-
-// ============================================================================
-// handleConfigure
-// ============================================================================
 
 func TestHandleConfigure_MinimalConfig(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
@@ -723,10 +695,6 @@ func TestHandleConfigure_IngressDisabled(t *testing.T) {
 		t.Error("should not create gateway-route when ingress disabled")
 	}
 }
-
-// ============================================================================
-// handleDelete
-// ============================================================================
 
 func TestHandleDelete_MinimalConfig(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)

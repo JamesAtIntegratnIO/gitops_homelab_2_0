@@ -4,10 +4,6 @@
 // YAML output writers, and resource-construction utilities.
 package kratixutil
 
-// ============================================================================
-// Core Kubernetes Types
-// ============================================================================
-
 // Resource is a generic Kubernetes resource wrapper used to emit YAML to the
 // Kratix state store. The Spec and Data fields are interface{} to support
 // different resource kinds (Deployments, ExternalSecrets, ConfigMaps, etc.)
@@ -16,10 +12,10 @@ type Resource struct {
 	APIVersion string      `json:"apiVersion"`
 	Kind       string      `json:"kind"`
 	Metadata   ObjectMeta  `json:"metadata"`
-	Spec       interface{} `json:"spec,omitempty"`
-	Data       interface{} `json:"data,omitempty"`
-	Rules      interface{} `json:"rules,omitempty"`
-	RoleRef    *RoleRef    `json:"roleRef,omitempty"`
+	Spec       interface{}  `json:"spec,omitempty"`
+	Data       interface{}  `json:"data,omitempty"`
+	Rules      []PolicyRule `json:"rules,omitempty"`
+	RoleRef    *RoleRef     `json:"roleRef,omitempty"`
 	Subjects   []Subject   `json:"subjects,omitempty"`
 }
 

@@ -50,8 +50,8 @@ func minimalConfig() *VClusterConfig {
 		ArgoCDChart:                "vcluster",
 		ArgoCDTargetRevision:       "0.30.4",
 		ArgoCDDestServer:           "https://kubernetes.default.svc",
-		ArgoCDSyncPolicy: map[string]interface{}{
-			"automated": map[string]interface{}{"selfHeal": true, "prune": true},
+		ArgoCDSyncPolicy: &ku.SyncPolicy{
+			Automated: &ku.AutomatedSync{SelfHeal: true, Prune: true},
 		},
 		OnePasswordItem:       "vcluster-test-vc-kubeconfig",
 		KubeconfigSyncJobName: "vcluster-test-vc-kubeconfig-sync",
@@ -65,10 +65,6 @@ func minimalConfig() *VClusterConfig {
 		},
 	}
 }
-
-// ============================================================================
-// IP Utility Functions
-// ============================================================================
 
 func TestDefaultVIPFromCIDR(t *testing.T) {
 	vip, err := defaultVIPFromCIDR("10.0.4.0/24", ku.DefaultMetalLBPoolOffset)
@@ -87,21 +83,24 @@ func TestDefaultVIPFromCIDR_InvalidCIDR(t *testing.T) {
 	}
 }
 
-func TestIpInCIDR_True(t *testing.T) {
-	if !ipInCIDR("10.0.4.200", "10.0.4.0/24") {
-		t.Error("expected 10.0.4.200 in 10.0.4.0/24")
+func TestIpInCIDR(t *testing.T) {
+	tests := []struct {
+		name     string
+		ip       string
+		cidr     string
+		expected bool
+	}{
+		{"IP in CIDR", "10.0.4.200", "10.0.4.0/24", true},
+		{"IP not in CIDR", "10.0.5.200", "10.0.4.0/24", false},
+		{"invalid IP", "not-an-ip", "10.0.4.0/24", false},
 	}
-}
-
-func TestIpInCIDR_False(t *testing.T) {
-	if ipInCIDR("10.0.5.200", "10.0.4.0/24") {
-		t.Error("expected 10.0.5.200 not in 10.0.4.0/24")
-	}
-}
-
-func TestIpInCIDR_InvalidIP(t *testing.T) {
-	if ipInCIDR("not-an-ip", "10.0.4.0/24") {
-		t.Error("expected false for invalid IP")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ipInCIDR(tt.ip, tt.cidr)
+			if got != tt.expected {
+				t.Errorf("ipInCIDR(%q, %q) = %v, want %v", tt.ip, tt.cidr, got, tt.expected)
+			}
+		})
 	}
 }
 
@@ -117,59 +116,35 @@ func TestIpToIntAndBack(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// etcdEnabled
-// ============================================================================
-
-func TestEtcdEnabled_Nil(t *testing.T) {
-	config := &VClusterConfig{}
-	if etcdEnabled(config) {
-		t.Error("expected false when BackingStore is nil")
-	}
-}
-
-func TestEtcdEnabled_NoEtcd(t *testing.T) {
-	config := &VClusterConfig{
-		BackingStore: map[string]interface{}{"something": "else"},
-	}
-	if etcdEnabled(config) {
-		t.Error("expected false when no etcd key")
-	}
-}
-
-func TestEtcdEnabled_True(t *testing.T) {
-	config := &VClusterConfig{
-		BackingStore: map[string]interface{}{
+func TestEtcdEnabled(t *testing.T) {
+	tests := []struct {
+		name         string
+		backingStore map[string]interface{}
+		expected     bool
+	}{
+		{"nil backing store", nil, false},
+		{"no etcd key", map[string]interface{}{"something": "else"}, false},
+		{"etcd enabled true", map[string]interface{}{
 			"etcd": map[string]interface{}{
-				"deploy": map[string]interface{}{
-					"enabled": true,
-				},
+				"deploy": map[string]interface{}{"enabled": true},
 			},
-		},
-	}
-	if !etcdEnabled(config) {
-		t.Error("expected true when etcd.deploy.enabled is true")
-	}
-}
-
-func TestEtcdEnabled_False(t *testing.T) {
-	config := &VClusterConfig{
-		BackingStore: map[string]interface{}{
+		}, true},
+		{"etcd enabled false", map[string]interface{}{
 			"etcd": map[string]interface{}{
-				"deploy": map[string]interface{}{
-					"enabled": false,
-				},
+				"deploy": map[string]interface{}{"enabled": false},
 			},
-		},
+		}, false},
 	}
-	if etcdEnabled(config) {
-		t.Error("expected false when etcd.deploy.enabled is false")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &VClusterConfig{BackingStore: tt.backingStore}
+			got := etcdEnabled(config)
+			if got != tt.expected {
+				t.Errorf("etcdEnabled() = %v, want %v", got, tt.expected)
+			}
+		})
 	}
 }
-
-// ============================================================================
-// applyPresetDefaults
-// ============================================================================
 
 func TestApplyPresetDefaults_Dev(t *testing.T) {
 	config := &VClusterConfig{Preset: "dev"}
@@ -258,10 +233,6 @@ func TestApplyPresetDefaults_UnknownPreset(t *testing.T) {
 		t.Errorf("expected fallback to dev replicas 1, got %d", config.Replicas)
 	}
 }
-
-// ============================================================================
-// extractExtraEgress
-// ============================================================================
 
 func TestExtractExtraEgress_Valid(t *testing.T) {
 	resource := &ku.MockResource{
@@ -354,10 +325,6 @@ func TestExtractExtraEgress_NoField(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// Builder: ArgoCD Project Request
-// ============================================================================
-
 func TestBuildArgoCDProjectRequest(t *testing.T) {
 	config := minimalConfig()
 	res := buildArgoCDProjectRequest(config)
@@ -380,10 +347,6 @@ func TestBuildArgoCDProjectRequest(t *testing.T) {
 		t.Errorf("expected project name %q, got %q", config.ProjectName, spec.Name)
 	}
 }
-
-// ============================================================================
-// Builder: ArgoCD Application Request
-// ============================================================================
 
 func TestBuildArgoCDApplicationRequest(t *testing.T) {
 	config := minimalConfig()
@@ -410,10 +373,6 @@ func TestBuildArgoCDApplicationRequest(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// Builder: ArgoCD Cluster Registration Request
-// ============================================================================
-
 func TestBuildArgoCDClusterRegistrationRequest(t *testing.T) {
 	config := minimalConfig()
 	res := buildArgoCDClusterRegistrationRequest(config)
@@ -438,10 +397,6 @@ func TestBuildArgoCDClusterRegistrationRequest(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// Builder: Namespace
-// ============================================================================
-
 func TestBuildNamespace(t *testing.T) {
 	config := minimalConfig()
 	ns := buildNamespace(config)
@@ -456,10 +411,6 @@ func TestBuildNamespace(t *testing.T) {
 		t.Error("expected vcluster namespace label")
 	}
 }
-
-// ============================================================================
-// Builder: CoreDNS ConfigMap
-// ============================================================================
 
 func TestBuildCorednsConfigMap(t *testing.T) {
 	config := minimalConfig()
@@ -484,10 +435,6 @@ func TestBuildCorednsConfigMap(t *testing.T) {
 		t.Error("expected cluster domain in Corefile")
 	}
 }
-
-// ============================================================================
-// Builder: etcd Certificates
-// ============================================================================
 
 func TestBuildEtcdCertificates_NotEnabled(t *testing.T) {
 	config := minimalConfig()
@@ -563,10 +510,6 @@ func TestBuildEtcdDNSNames(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// Builder: Network Policies
-// ============================================================================
-
 func TestBuildNetworkPolicies_Baseline(t *testing.T) {
 	config := minimalConfig()
 	policies := buildNetworkPolicies(config)
@@ -636,10 +579,6 @@ func TestBuildExtraEgressPolicy(t *testing.T) {
 		t.Errorf("expected kind NetworkPolicy, got %q", policy.Kind)
 	}
 }
-
-// ============================================================================
-// buildValuesObject
-// ============================================================================
 
 func TestBuildValuesObject_Minimal(t *testing.T) {
 	config := minimalConfig()
@@ -734,10 +673,6 @@ func TestBuildValuesObject_WithHelmOverrides(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// handleConfigure
-// ============================================================================
-
 func TestHandleConfigure_Basic(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := minimalConfig()
@@ -809,10 +744,6 @@ func TestHandleConfigure_WithEtcd(t *testing.T) {
 		t.Error("expected etcd-certificates.yaml")
 	}
 }
-
-// ============================================================================
-// handleDelete — fully tested with mock KubeClientFactory
-// ============================================================================
 
 func TestHandleDelete_Basic(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
@@ -966,10 +897,6 @@ func TestDeleteOutputGeneration_WithEtcd(t *testing.T) {
 		}
 	}
 }
-
-// ============================================================================
-// buildConfig (integration via mock resource)
-// ============================================================================
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
 	sdk, _ := ku.NewTestSDK(t)

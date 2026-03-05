@@ -1,9 +1,5 @@
 package kratixutil
 
-// ============================================================================
-// ArgoCD Kratix ResourceRequest Types
-// ============================================================================
-
 // ArgoCDApplicationSpec is the spec for a platform.integratn.tech/v1alpha1
 // ArgoCDApplication sub-ResourceRequest. The argocd-application promise
 // pipeline reads these fields to construct the actual argoproj.io/v1alpha1
@@ -17,7 +13,7 @@ type ArgoCDApplicationSpec struct {
 	Project     string            `json:"project"`
 	Source      AppSource         `json:"source"`
 	Destination Destination       `json:"destination"`
-	SyncPolicy  interface{}       `json:"syncPolicy,omitempty"`
+	SyncPolicy  *SyncPolicy       `json:"syncPolicy,omitempty"`
 }
 
 // AppSource defines the source repository for an ArgoCD Application.

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	kratix "github.com/syntasso/kratix-go"
@@ -28,25 +27,21 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		if err := ku.WriteYAML(sdk, path, obj); err != nil {
 			return fmt.Errorf("write %s: %w", path, err)
 		}
-		log.Printf("✓ Rendered: %s", path)
 	}
 
 	if err := ku.WriteYAML(sdk, "resources/namespace.yaml", buildNamespace(config)); err != nil {
 		return fmt.Errorf("write namespace: %w", err)
 	}
-	log.Printf("✓ Rendered: %s", "resources/namespace.yaml")
 
 	if docs := buildEtcdCertificates(config); len(docs) > 0 {
 		if err := ku.WriteYAMLDocuments(sdk, "resources/etcd-certificates.yaml", docs); err != nil {
 			return fmt.Errorf("write etcd certificates: %w", err)
 		}
-		log.Printf("✓ Rendered: %s", "resources/etcd-certificates.yaml")
 	}
 
 	if err := ku.WriteYAML(sdk, "resources/coredns-configmap.yaml", buildCorednsConfigMap(config)); err != nil {
 		return fmt.Errorf("write coredns configmap: %w", err)
 	}
-	log.Printf("✓ Rendered: %s", "resources/coredns-configmap.yaml")
 
 	// Per-vcluster network policies (NFS, extra egress)
 	netPolicies := buildNetworkPolicies(config)
@@ -54,7 +49,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		if err := ku.WriteYAMLDocuments(sdk, "resources/network-policies.yaml", netPolicies); err != nil {
 			return fmt.Errorf("write network policies: %w", err)
 		}
-		log.Printf("✓ Rendered: resources/network-policies.yaml (%d policies)", len(netPolicies))
 	}
 
 	directResources := 2 // namespace + coredns configmap
@@ -86,7 +80,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
-	log.Println("✓ Status updated")
 	return nil
 }
 
@@ -182,35 +175,35 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
-	cleanupErrs := directCleanup(config)
+	cleanupErr := directCleanup(config)
 
 	if err := stateStoreCleanup(sdk, config); err != nil {
 		return err
 	}
 
-	if len(cleanupErrs) > 0 {
-		return fmt.Errorf("cleanup errors: %s", strings.Join(cleanupErrs, "; "))
+	if cleanupErr != nil {
+		return fmt.Errorf("cleanup errors: %w", cleanupErr)
 	}
 
 	return nil
 }
 
 // directCleanup performs direct Kubernetes API cleanup for resources NOT in the
-// Kratix state store (host PVs, namespace). Returns a list of error messages.
-func directCleanup(config *VClusterConfig) []string {
-	var cleanupErrs []string
+// Kratix state store (host PVs, namespace). Returns a combined error or nil.
+func directCleanup(config *VClusterConfig) error {
+	var errs []error
 
 	if err := cleanupHostPVs(config); err != nil {
 		log.Printf("⚠ Warning: PV cleanup encountered errors: %v", err)
-		cleanupErrs = append(cleanupErrs, fmt.Sprintf("PV cleanup: %v", err))
+		errs = append(errs, fmt.Errorf("PV cleanup: %w", err))
 	}
 
 	if err := cleanupNamespace(config); err != nil {
 		log.Printf("⚠ Warning: Namespace cleanup encountered errors: %v", err)
-		cleanupErrs = append(cleanupErrs, fmt.Sprintf("namespace cleanup: %v", err))
+		errs = append(errs, fmt.Errorf("namespace cleanup: %w", err))
 	}
 
-	return cleanupErrs
+	return errors.Join(errs...)
 }
 
 // stateStoreCleanup emits Kratix delete-output manifests that cause ArgoCD
@@ -245,28 +238,31 @@ func stateStoreCleanup(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		}
 	}
 
-	outputs["resources/delete-vcluster-clusterrole.yaml"] = ku.DeleteResource(
-		"rbac.authorization.k8s.io/v1", "ClusterRole",
-		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace), "",
-	)
-	outputs["resources/delete-vcluster-clusterrolebinding.yaml"] = ku.DeleteResource(
-		"rbac.authorization.k8s.io/v1", "ClusterRoleBinding",
-		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace), "",
-	)
+	crName := fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace)
+	outputs["resources/delete-vcluster-clusterrole.yaml"] = ku.DeleteFromResource(ku.Resource{
+		APIVersion: "rbac.authorization.k8s.io/v1",
+		Kind:       "ClusterRole",
+		Metadata:   ku.ObjectMeta{Name: crName},
+	})
+	outputs["resources/delete-vcluster-clusterrolebinding.yaml"] = ku.DeleteFromResource(ku.Resource{
+		APIVersion: "rbac.authorization.k8s.io/v1",
+		Kind:       "ClusterRoleBinding",
+		Metadata:   ku.ObjectMeta{Name: crName},
+	})
 
 	if etcdEnabled(config) {
 		for _, suffix := range []string{"ca", "server", "peer"} {
-			outputs[fmt.Sprintf("resources/delete-etcd-%s-secret.yaml", suffix)] = ku.DeleteResource(
-				"v1", "Secret",
-				fmt.Sprintf("%s-etcd-%s", config.Name, suffix),
-				config.TargetNamespace,
-			)
+			outputs[fmt.Sprintf("resources/delete-etcd-%s-secret.yaml", suffix)] = ku.DeleteFromResource(ku.Resource{
+				APIVersion: "v1",
+				Kind:       "Secret",
+				Metadata:   ku.ObjectMeta{Name: fmt.Sprintf("%s-etcd-%s", config.Name, suffix), Namespace: config.TargetNamespace},
+			})
 		}
-		outputs["resources/delete-etcd-merged-secret.yaml"] = ku.DeleteResource(
-			"v1", "Secret",
-			fmt.Sprintf("%s-etcd-certs", config.Name),
-			config.TargetNamespace,
-		)
+		outputs["resources/delete-etcd-merged-secret.yaml"] = ku.DeleteFromResource(ku.Resource{
+			APIVersion: "v1",
+			Kind:       "Secret",
+			Metadata:   ku.ObjectMeta{Name: fmt.Sprintf("%s-etcd-certs", config.Name), Namespace: config.TargetNamespace},
+		})
 	}
 
 	for path, obj := range outputs {

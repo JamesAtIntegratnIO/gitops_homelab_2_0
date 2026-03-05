@@ -6,10 +6,6 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// ============================================================================
-// Sub-ResourceRequest Builders
-// ============================================================================
-
 // buildExternalSecretRequest creates a PlatformExternalSecret sub-ResourceRequest
 // that delegates to the external-secret promise.
 func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
@@ -92,10 +88,6 @@ func buildGatewayRouteRequest(config *HTTPServiceConfig) ku.Resource {
 		Spec: spec,
 	}
 }
-
-// ============================================================================
-// Network Policies (remain inline — too variable for a sub-promise)
-// ============================================================================
 
 // buildNetworkPolicies creates allow-ingress-from-gateway + allow-dns policies.
 // NOTE: We do NOT generate a default-deny policy here because the platform's

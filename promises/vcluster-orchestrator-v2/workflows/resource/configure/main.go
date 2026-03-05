@@ -32,9 +32,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	if err := configureExposure(config, resource); err != nil {
 		return nil, err
 	}
-	if err := configureIntegrations(config, resource); err != nil {
-		return nil, err
-	}
+	configureIntegrations(config, resource)
 	if err := configureArgoCD(config, resource); err != nil {
 		return nil, err
 	}
@@ -137,7 +135,7 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 		return err
 	}
 	resolveHostname(config, resource)
-	buildExposureDefaults(config)
+	resolveExposureDefaults(config)
 	return nil
 }
 
@@ -173,9 +171,9 @@ func resolveHostname(config *VClusterConfig, resource kratix.Resource) {
 	config.BaseDomainSanitized = strings.ReplaceAll(config.BaseDomain, ".", "-")
 }
 
-// buildExposureDefaults derives the ExternalServerURL, merges ExportKubeConfig
+// resolveExposureDefaults derives the ExternalServerURL, merges ExportKubeConfig
 // defaults, and populates ProxyExtraSANs from the resolved hostname and VIP.
-func buildExposureDefaults(config *VClusterConfig) {
+func resolveExposureDefaults(config *VClusterConfig) {
 	if config.Hostname != "" {
 		config.ExternalServerURL = fmt.Sprintf("https://%s:%d", config.Hostname, config.APIPort)
 	} else if config.VIP != "" {
@@ -202,13 +200,12 @@ func buildExposureDefaults(config *VClusterConfig) {
 
 // configureIntegrations sets up cert-manager, external-secrets, and ArgoCD integration
 // configuration including cluster labels, annotations, and workload repo settings.
-func configureIntegrations(config *VClusterConfig, resource kratix.Resource) error {
+func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
 	configureCertManager(config, resource)
 	configureExternalSecrets(config, resource)
 	configureArgoCDEnvironment(config, resource)
 	configureWorkloadRepo(config, resource)
 	configureClusterMetadata(config)
-	return nil
 }
 
 // configureCertManager extracts cert-manager issuer selector labels with a default.
@@ -303,24 +300,52 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 	// Extract sync policy
 	if val, err := resource.GetValue("spec.argocdApplication.syncPolicy"); err == nil && val != nil {
 		if m, ok := val.(map[string]interface{}); ok {
-			config.ArgoCDSyncPolicy = m
+			config.ArgoCDSyncPolicy = parseSyncPolicyMap(m)
 		}
 	}
 
-	defaultSyncPolicy := map[string]interface{}{
-		"automated": map[string]interface{}{
-			"selfHeal": true,
-			"prune":    true,
+	defaultSyncPolicy := &ku.SyncPolicy{
+		Automated: &ku.AutomatedSync{
+			SelfHeal: true,
+			Prune:    true,
 		},
-		"syncOptions": []string{"CreateNamespace=true"},
+		SyncOptions: []string{"CreateNamespace=true"},
 	}
 	if config.ArgoCDSyncPolicy == nil {
 		config.ArgoCDSyncPolicy = defaultSyncPolicy
 	} else {
-		config.ArgoCDSyncPolicy = ku.DeepMerge(defaultSyncPolicy, config.ArgoCDSyncPolicy)
+		// Merge: user-provided values win over defaults
+		if config.ArgoCDSyncPolicy.Automated == nil {
+			config.ArgoCDSyncPolicy.Automated = defaultSyncPolicy.Automated
+		}
+		if len(config.ArgoCDSyncPolicy.SyncOptions) == 0 {
+			config.ArgoCDSyncPolicy.SyncOptions = defaultSyncPolicy.SyncOptions
+		}
 	}
 
 	return nil
+}
+
+// parseSyncPolicyMap converts an untyped map into a typed SyncPolicy.
+func parseSyncPolicyMap(m map[string]interface{}) *ku.SyncPolicy {
+	sp := &ku.SyncPolicy{}
+	if automated, ok := m["automated"].(map[string]interface{}); ok {
+		sp.Automated = &ku.AutomatedSync{}
+		if v, ok := automated["selfHeal"].(bool); ok {
+			sp.Automated.SelfHeal = v
+		}
+		if v, ok := automated["prune"].(bool); ok {
+			sp.Automated.Prune = v
+		}
+	}
+	if opts, ok := m["syncOptions"].([]interface{}); ok {
+		for _, o := range opts {
+			if s, ok := o.(string); ok {
+				sp.SyncOptions = append(sp.SyncOptions, s)
+			}
+		}
+	}
+	return sp
 }
 
 func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {

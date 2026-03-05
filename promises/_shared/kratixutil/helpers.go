@@ -10,10 +10,6 @@ import (
 	kratix "github.com/syntasso/kratix-go"
 )
 
-// ============================================================================
-// Value Extraction Helpers
-// ============================================================================
-
 func GetStringValue(resource kratix.Resource, path string) (string, error) {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -25,7 +21,11 @@ func GetStringValue(resource kratix.Resource, path string) (string, error) {
 	return "", fmt.Errorf("%s is not a string", path)
 }
 
-// GetStringValueWithDefault also treats "null" (YAML null rendered as string) as empty.
+// GetStringValueWithDefault returns defaultValue when the path is missing, empty,
+// or the literal string "null". The "null" check is required because Kratix
+// resources may serialize a Go nil pointer as the YAML scalar "null", which
+// round-trips through JSON unmarshalling as the string "null" rather than a
+// Go nil/empty-string.
 func GetStringValueWithDefault(resource kratix.Resource, path, defaultValue string) string {
 	val, err := GetStringValue(resource, path)
 	if err != nil || val == "" || val == "null" {
@@ -82,10 +82,6 @@ func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue
 	return val
 }
 
-// ============================================================================
-// Collection Extractors
-// ============================================================================
-
 func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -104,9 +100,6 @@ func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
 		if str, ok := v.(string); ok {
 			result[k] = str
 		}
-	}
-	if len(result) == 0 {
-		return nil
 	}
 	return result
 }
@@ -207,10 +200,6 @@ func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
 	return secrets
 }
 
-// ============================================================================
-// Map Utilities
-// ============================================================================
-
 // DeepMerge merges src into dst recursively. src values win on conflicts.
 // For map values, merging recurses. For non-map or mismatched types, src wins.
 func DeepMerge(dst, src map[string]interface{}) map[string]interface{} {
@@ -247,10 +236,6 @@ func MergeStringMap(dst, src map[string]string) map[string]string {
 	}
 	return result
 }
-
-// ============================================================================
-// Type Conversion Utilities
-// ============================================================================
 
 // ToMap converts a struct to map[string]interface{} via JSON roundtrip.
 // Useful at the merge boundary where typed structs meet DeepMerge.

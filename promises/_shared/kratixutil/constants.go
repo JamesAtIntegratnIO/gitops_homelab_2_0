@@ -2,54 +2,46 @@ package kratixutil
 
 // Platform-wide default constants shared across all promise pipelines.
 const (
-	// DefaultSecretStoreName is the name of the platform's default
-	// ClusterSecretStore (backed by 1Password Connect).
+	// Used by all ExternalSecret resources to reference the 1Password ClusterSecretStore.
 	DefaultSecretStoreName = "onepassword-store"
 
-	// DefaultSecretStoreKind is the ExternalSecrets store kind used by the
-	// platform. All promises should reference a ClusterSecretStore unless
-	// there is a namespace-scoped override.
+	// All promises reference a ClusterSecretStore unless there is a
+	// namespace-scoped override.
 	DefaultSecretStoreKind = "ClusterSecretStore"
 
-	// DefaultGatewayName is the name of the platform's default
-	// nginx-gateway-fabric Gateway resource.
+	// Must match the deployed nginx-gateway-fabric Gateway resource name.
+	// GatewayRoute and HTTP service promises reference this for parent routing.
 	DefaultGatewayName = "nginx-gateway"
 
-	// DefaultGatewayNamespace is the namespace where the default Gateway
-	// resource is deployed.
+	// Co-located with the nginx-gateway-fabric controller.
 	DefaultGatewayNamespace = "nginx-gateway"
 
-	// DefaultArgoCDNamespace is the namespace where ArgoCD is deployed.
-	DefaultArgoCDNamespace = "argocd"
+	DefaultArgoCDNamespace            = "argocd"
+	DefaultPlatformRequestsNamespace  = "platform-requests"
 
-	// DefaultPlatformRequestsNamespace is the namespace used for Kratix
-	// sub-ResourceRequests between promises.
-	DefaultPlatformRequestsNamespace = "platform-requests"
-
-	// PlatformRepoURL is the canonical HTTPS URL of the platform GitOps
-	// repository, used as the default ArgoCD source for workloads.
+	// Canonical HTTPS URL of the platform GitOps repository, used as the
+	// default ArgoCD source for workloads.
 	PlatformRepoURL = "https://github.com/jamesatintegratnio/gitops_homelab_2_0"
 
-	// PlatformRepoGitURL is the .git variant used for ArgoCD annotations.
+	// .git variant required by ArgoCD annotations.
 	PlatformRepoGitURL = PlatformRepoURL + ".git"
 
-	// OnePasswordConnectCIDR is the IP of the 1Password Connect server
-	// used in network policy egress rules.
+	// Static IP of the 1Password Connect server. Referenced in network
+	// policy egress rules so vcluster namespaces can reach it.
 	OnePasswordConnectCIDR = "10.0.1.139/32"
 
-	// TalosNodeLocalDNSCIDR is the Talos node-local DNS link-local address.
-	// Cilium classifies this as 'world', not 'host'.
+	// Talos node-local DNS link-local address. Cilium classifies this as
+	// 'world', not 'host', so it needs an explicit CiliumNetworkPolicy.
 	TalosNodeLocalDNSCIDR = "169.254.116.108/32"
 
-	// DefaultMetalLBPoolOffset is the IP offset within a subnet for calculating
-	// default MetalLB VIP addresses (e.g., 10.0.4.0/24 + 200 = 10.0.4.200).
+	// Offset within a subnet CIDR to derive the first MetalLB VIP address.
+	// Example: 10.0.4.0/24 + 200 → 10.0.4.200.
 	DefaultMetalLBPoolOffset = 200
 
-	// DefaultEtcdReplicas is the number of etcd replicas used for DNS name
-	// generation in external-etcd backed vclusters.
+	// Controls etcd DNS name generation for external-etcd backed vclusters.
 	DefaultEtcdReplicas = 3
 
-	// DefaultKubectlImage is the pinned bitnami/kubectl image used for
-	// pipeline Jobs that need kubectl access.
+	// Pinned to 1.31 for consistency across all promise pipeline jobs.
+	// Update when upgrading the host cluster Kubernetes version.
 	DefaultKubectlImage = "bitnami/kubectl:1.31"
 )

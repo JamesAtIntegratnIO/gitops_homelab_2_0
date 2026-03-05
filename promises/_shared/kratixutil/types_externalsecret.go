@@ -1,9 +1,5 @@
 package kratixutil
 
-// ============================================================================
-// ExternalSecret Types
-// ============================================================================
-
 // ExternalSecretSpec configures an ExternalSecret resource that syncs secrets
 // from an external store (1Password) into a Kubernetes Secret.
 type ExternalSecretSpec struct {

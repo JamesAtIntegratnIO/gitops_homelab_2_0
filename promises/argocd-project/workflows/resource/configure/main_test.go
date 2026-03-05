@@ -7,10 +7,6 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// ============================================================================
-// handleConfigure
-// ============================================================================
-
 func TestHandleConfigure_MinimalValid(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	resource := &ku.MockResource{
@@ -22,7 +18,12 @@ func TestHandleConfigure_MinimalValid(t *testing.T) {
 		},
 	}
 
-	err := handleConfigure(sdk, resource)
+	config, err := buildConfig(nil, resource)
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+
+	err = handleConfigure(sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -74,7 +75,12 @@ func TestHandleConfigure_WithAllFields(t *testing.T) {
 		},
 	}
 
-	err := handleConfigure(sdk, resource)
+	config, err := buildConfig(nil, resource)
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+
+	err = handleConfigure(sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,15 +106,14 @@ func TestHandleConfigure_WithAllFields(t *testing.T) {
 	}
 }
 
-func TestHandleConfigure_MissingName(t *testing.T) {
-	sdk, _ := ku.NewTestSDK(t)
+func TestBuildConfig_MissingName(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{},
 		},
 	}
 
-	err := handleConfigure(sdk, resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error for missing name")
 	}
@@ -117,22 +122,14 @@ func TestHandleConfigure_MissingName(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// handleDelete
-// ============================================================================
-
 func TestHandleDelete_Success(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
-	resource := &ku.MockResource{
-		Data: map[string]interface{}{
-			"spec": map[string]interface{}{
-				"name":      "my-project",
-				"namespace": "custom",
-			},
-		},
+	config := &ProjectConfig{
+		Name:      "my-project",
+		Namespace: "custom",
 	}
 
-	err := handleDelete(sdk, resource)
+	err := handleDelete(sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -151,15 +148,12 @@ func TestHandleDelete_Success(t *testing.T) {
 
 func TestHandleDelete_DefaultNamespace(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
-	resource := &ku.MockResource{
-		Data: map[string]interface{}{
-			"spec": map[string]interface{}{
-				"name": "my-project",
-			},
-		},
+	config := &ProjectConfig{
+		Name:      "my-project",
+		Namespace: "argocd",
 	}
 
-	err := handleDelete(sdk, resource)
+	err := handleDelete(sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -172,14 +166,30 @@ func TestHandleDelete_DefaultNamespace(t *testing.T) {
 
 func TestHandleDelete_MissingName(t *testing.T) {
 	sdk, _ := ku.NewTestSDK(t)
+	// With typed config, an empty name still produces output
+	// Validation now happens in buildConfig
+	config := &ProjectConfig{}
+
+	err := handleDelete(sdk, config)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestBuildConfig_DefaultNamespace(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
-			"spec": map[string]interface{}{},
+			"spec": map[string]interface{}{
+				"name": "my-project",
+			},
 		},
 	}
 
-	err := handleDelete(sdk, resource)
-	if err == nil {
-		t.Fatal("expected error for missing name")
+	config, err := buildConfig(nil, resource)
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+	if config.Namespace != "argocd" {
+		t.Errorf("expected default namespace 'argocd', got %q", config.Namespace)
 	}
 }

@@ -10,11 +10,8 @@ import (
 	kratix "github.com/syntasso/kratix-go"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/yaml"
 )
-
-// ============================================================================
-// Mock Resource for Testing
-// ============================================================================
 
 // MockResource implements kratix.Resource for testing. Exported fields allow
 // construction from external test packages.
@@ -51,10 +48,6 @@ func (m *MockResource) GetLabels() map[string]string                   { return 
 func (m *MockResource) GetAnnotations() map[string]string              { return nil }
 func (m *MockResource) ToUnstructured() unstructured.Unstructured      { return unstructured.Unstructured{} }
 
-// ============================================================================
-// Test SDK Helper
-// ============================================================================
-
 // NewTestSDK creates a configured kratix.KratixSDK for testing with a temp
 // output directory. Returns the SDK and the output directory path.
 func NewTestSDK(t *testing.T) (*kratix.KratixSDK, string) {
@@ -63,10 +56,6 @@ func NewTestSDK(t *testing.T) (*kratix.KratixSDK, string) {
 	sdk := kratix.New(kratix.WithOutputDir(dir), kratix.WithMetadataDir(dir))
 	return sdk, dir
 }
-
-// ============================================================================
-// Output Helpers
-// ============================================================================
 
 // ReadOutput reads a file relative to the output directory and returns its
 // content as a string. Fails the test on error.
@@ -83,4 +72,39 @@ func ReadOutput(t *testing.T, dir, path string) string {
 func FileExists(dir, path string) bool {
 	_, err := os.Stat(filepath.Join(dir, path))
 	return err == nil
+}
+
+// ReadOutputAsResources parses multi-document YAML output files into a slice of Resource objects.
+// This enables structured field assertions instead of fragile string matching.
+func ReadOutputAsResources(t *testing.T, dir, filename string) []Resource {
+	t.Helper()
+	content := ReadOutput(t, dir, filename)
+	if content == "" {
+		t.Fatalf("empty output file: %s/%s", dir, filename)
+	}
+
+	var resources []Resource
+	docs := strings.Split(content, "---")
+	for _, doc := range docs {
+		trimmed := strings.TrimSpace(doc)
+		if trimmed == "" {
+			continue
+		}
+		var r Resource
+		if err := yaml.Unmarshal([]byte(trimmed), &r); err != nil {
+			t.Fatalf("failed to unmarshal YAML document in %s: %v", filename, err)
+		}
+		resources = append(resources, r)
+	}
+	return resources
+}
+
+// FindResource finds the first resource matching the given kind and name.
+func FindResource(resources []Resource, kind, name string) *Resource {
+	for _, r := range resources {
+		if r.Kind == kind && r.Metadata.Name == name {
+			return &r
+		}
+	}
+	return nil
 }

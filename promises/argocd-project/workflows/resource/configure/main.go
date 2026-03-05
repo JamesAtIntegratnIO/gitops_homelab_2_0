@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	kratix "github.com/syntasso/kratix-go"
 
@@ -10,82 +9,79 @@ import (
 )
 
 func main() {
-	ku.RunPromise("ArgoCD Project Promise Pipeline", handleConfigure, handleDelete)
+	ku.RunPromiseWithConfig("ArgoCD Project", buildConfig, handleConfigure, handleDelete)
 }
 
-func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := ku.GetStringValue(resource, "spec.name")
+func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig, error) {
+	config := &ProjectConfig{}
+
+	var err error
+	config.Name, err = ku.GetStringValue(resource, "spec.name")
 	if err != nil {
-		return fmt.Errorf("spec.name is required: %w", err)
+		return nil, fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace := ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
-	description, _ := ku.GetStringValue(resource, "spec.description")
+	config.Namespace = ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+	config.Description, _ = ku.GetStringValue(resource, "spec.description")
+	config.Annotations = ku.ExtractStringMap(resource, "spec.annotations")
+	config.Labels = ku.ExtractStringMap(resource, "spec.labels")
+	config.SourceRepos = ku.ExtractStringSlice(resource, "spec.sourceRepos")
+	config.Destinations = toProjectDestinations(ku.ExtractObjectSlice(resource, "spec.destinations"))
+	config.ClusterResourceWhitelist = toResourceFilters(ku.ExtractObjectSlice(resource, "spec.clusterResourceWhitelist"))
+	config.NamespaceResourceWhitelist = toResourceFilters(ku.ExtractObjectSlice(resource, "spec.namespaceResourceWhitelist"))
 
-	annotations := ku.ExtractStringMap(resource, "spec.annotations")
-	labels := ku.ExtractStringMap(resource, "spec.labels")
-	sourceRepos := ku.ExtractStringSlice(resource, "spec.sourceRepos")
-	destinations := toProjectDestinations(ku.ExtractObjectSlice(resource, "spec.destinations"))
-	clusterResourceWhitelist := toResourceFilters(ku.ExtractObjectSlice(resource, "spec.clusterResourceWhitelist"))
-	namespaceResourceWhitelist := toResourceFilters(ku.ExtractObjectSlice(resource, "spec.namespaceResourceWhitelist"))
+	return config, nil
+}
 
+func handleConfigure(sdk *kratix.KratixSDK, config *ProjectConfig) error {
 	// Build the ArgoCD AppProject
 	project := ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "AppProject",
 		Metadata: ku.ObjectMeta{
-			Name:        name,
-			Namespace:   namespace,
-			Labels:      labels,
-			Annotations: annotations,
+			Name:        config.Name,
+			Namespace:   config.Namespace,
+			Labels:      config.Labels,
+			Annotations: config.Annotations,
 		},
 		Spec: AppProjectSpec{
-			Description:                description,
-			SourceRepos:                sourceRepos,
-			Destinations:               destinations,
-			ClusterResourceWhitelist:   clusterResourceWhitelist,
-			NamespaceResourceWhitelist: namespaceResourceWhitelist,
+			Description:                config.Description,
+			SourceRepos:                config.SourceRepos,
+			Destinations:               config.Destinations,
+			ClusterResourceWhitelist:   config.ClusterResourceWhitelist,
+			NamespaceResourceWhitelist: config.NamespaceResourceWhitelist,
 		},
 	}
 
 	if err := ku.WriteYAML(sdk, "resources/appproject.yaml", project); err != nil {
 		return fmt.Errorf("write appproject: %w", err)
 	}
-	log.Printf("✓ Rendered ArgoCD AppProject: %s", name)
 
 	if err := ku.WritePromiseStatus(sdk, "Configured",
-		fmt.Sprintf("AppProject %s configured", name),
-		map[string]interface{}{"projectName": name, "namespace": namespace}); err != nil {
+		fmt.Sprintf("AppProject %s configured", config.Name),
+		map[string]interface{}{"projectName": config.Name, "namespace": config.Namespace}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
 	return nil
 }
 
-func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := ku.GetStringValue(resource, "spec.name")
-	if err != nil {
-		return fmt.Errorf("spec.name is required: %w", err)
-	}
-
-	namespace := ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
-
-	deleteObj := ku.Resource{
+func handleDelete(sdk *kratix.KratixSDK, config *ProjectConfig) error {
+	deleteObj := ku.DeleteFromResource(ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "AppProject",
 		Metadata: ku.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      config.Name,
+			Namespace: config.Namespace,
 		},
-	}
+	})
 
 	if err := ku.WriteYAML(sdk, "resources/delete-appproject.yaml", deleteObj); err != nil {
 		return fmt.Errorf("write delete appproject: %w", err)
 	}
-	log.Printf("✓ Delete scheduled for AppProject: %s", name)
 
 	if err := ku.WritePromiseStatus(sdk, "Deleting",
-		fmt.Sprintf("AppProject %s scheduled for deletion", name), nil); err != nil {
+		fmt.Sprintf("AppProject %s scheduled for deletion", config.Name), nil); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 

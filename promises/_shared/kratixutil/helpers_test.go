@@ -9,295 +9,311 @@ func newMockResource(data map[string]interface{}) *MockResource {
 	return &MockResource{Data: data}
 }
 
-// ============================================================================
-// GetStringValue
-// ============================================================================
-
-func TestGetStringValue_Success(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{
-			"name": "my-app",
+func TestGetStringValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		path      string
+		expected  string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:     "success",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"name": "my-app"}},
+			path:     "spec.name",
+			expected: "my-app",
 		},
-	})
-	val, err := GetStringValue(r, "spec.name")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if val != "my-app" {
-		t.Errorf("expected %q, got %q", "my-app", val)
-	}
-}
-
-func TestGetStringValue_NotFound(t *testing.T) {
-	r := newMockResource(map[string]interface{}{})
-	_, err := GetStringValue(r, "spec.missing")
-	if err == nil {
-		t.Fatal("expected error for missing path")
-	}
-}
-
-func TestGetStringValue_NotAString(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{
-			"count": 42,
+		{
+			name:    "not found",
+			data:    map[string]interface{}{},
+			path:    "spec.missing",
+			wantErr: true,
 		},
-	})
-	_, err := GetStringValue(r, "spec.count")
-	if err == nil {
-		t.Fatal("expected error for non-string value")
-	}
-	if err.Error() != "spec.count is not a string" {
-		t.Errorf("unexpected error message: %v", err)
-	}
-}
-
-// ============================================================================
-// GetStringValueWithDefault
-// ============================================================================
-
-func TestGetStringValueWithDefault_ReturnsValue(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{
-			"name": "found",
+		{
+			name:      "not a string",
+			data:      map[string]interface{}{"spec": map[string]interface{}{"count": 42}},
+			path:      "spec.count",
+			wantErr:   true,
+			errSubstr: "spec.count is not a string",
 		},
-	})
-	val := GetStringValueWithDefault(r, "spec.name", "default")
-	if val != "found" {
-		t.Errorf("expected %q, got %q", "found", val)
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			val, err := GetStringValue(r, tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				if tt.errSubstr != "" && err.Error() != tt.errSubstr {
+					t.Errorf("unexpected error message: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if val != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, val)
+			}
+		})
 	}
 }
 
-func TestGetStringValueWithDefault_UsesDefaultOnMissing(t *testing.T) {
-	r := newMockResource(map[string]interface{}{})
-	val := GetStringValueWithDefault(r, "spec.missing", "fallback")
-	if val != "fallback" {
-		t.Errorf("expected %q, got %q", "fallback", val)
-	}
-}
-
-func TestGetStringValueWithDefault_UsesDefaultOnEmpty(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{
-			"name": "",
+func TestGetStringValueWithDefault(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     map[string]interface{}
+		path     string
+		defVal   string
+		expected string
+	}{
+		{
+			name:     "returns value",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"name": "found"}},
+			path:     "spec.name",
+			defVal:   "default",
+			expected: "found",
 		},
-	})
-	val := GetStringValueWithDefault(r, "spec.name", "fallback")
-	if val != "fallback" {
-		t.Errorf("expected %q, got %q", "fallback", val)
-	}
-}
-
-func TestGetStringValueWithDefault_TreatsNullAsEmpty(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{
-			"name": "null",
+		{
+			name:     "uses default on missing",
+			data:     map[string]interface{}{},
+			path:     "spec.missing",
+			defVal:   "fallback",
+			expected: "fallback",
 		},
-	})
-	val := GetStringValueWithDefault(r, "spec.name", "fallback")
-	if val != "fallback" {
-		t.Errorf("expected %q, got %q", "fallback", val)
+		{
+			name:     "uses default on empty",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"name": ""}},
+			path:     "spec.name",
+			defVal:   "fallback",
+			expected: "fallback",
+		},
+		{
+			name:     "treats null as empty",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"name": "null"}},
+			path:     "spec.name",
+			defVal:   "fallback",
+			expected: "fallback",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			val := GetStringValueWithDefault(r, tt.path, tt.defVal)
+			if val != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, val)
+			}
+		})
 	}
 }
 
-// ============================================================================
-// GetIntValue
-// ============================================================================
-
-func TestGetIntValue_Int(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"count": 5},
-	})
-	val, err := GetIntValue(r, "spec.count")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestGetIntValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     map[string]interface{}
+		path     string
+		expected int
+		wantErr  bool
+	}{
+		{
+			name:     "int",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"count": 5}},
+			path:     "spec.count",
+			expected: 5,
+		},
+		{
+			name:     "float64",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"count": float64(42)}},
+			path:     "spec.count",
+			expected: 42,
+		},
+		{
+			name:     "int64",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"count": int64(99)}},
+			path:     "spec.count",
+			expected: 99,
+		},
+		{
+			name:     "string",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"count": "77"}},
+			path:     "spec.count",
+			expected: 77,
+		},
+		{
+			name:    "invalid string",
+			data:    map[string]interface{}{"spec": map[string]interface{}{"count": "not-a-number"}},
+			path:    "spec.count",
+			wantErr: true,
+		},
+		{
+			name:    "unsupported type",
+			data:    map[string]interface{}{"spec": map[string]interface{}{"count": true}},
+			path:    "spec.count",
+			wantErr: true,
+		},
+		{
+			name:    "not found",
+			data:    map[string]interface{}{},
+			path:    "spec.missing",
+			wantErr: true,
+		},
 	}
-	if val != 5 {
-		t.Errorf("expected 5, got %d", val)
-	}
-}
-
-func TestGetIntValue_Float64(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"count": float64(42)},
-	})
-	val, err := GetIntValue(r, "spec.count")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if val != 42 {
-		t.Errorf("expected 42, got %d", val)
-	}
-}
-
-func TestGetIntValue_Int64(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"count": int64(99)},
-	})
-	val, err := GetIntValue(r, "spec.count")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if val != 99 {
-		t.Errorf("expected 99, got %d", val)
-	}
-}
-
-func TestGetIntValue_String(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"count": "77"},
-	})
-	val, err := GetIntValue(r, "spec.count")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if val != 77 {
-		t.Errorf("expected 77, got %d", val)
-	}
-}
-
-func TestGetIntValue_InvalidString(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"count": "not-a-number"},
-	})
-	_, err := GetIntValue(r, "spec.count")
-	if err == nil {
-		t.Fatal("expected error for non-numeric string")
-	}
-}
-
-func TestGetIntValue_UnsupportedType(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"count": true},
-	})
-	_, err := GetIntValue(r, "spec.count")
-	if err == nil {
-		t.Fatal("expected error for unsupported type")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			val, err := GetIntValue(r, tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if val != tt.expected {
+				t.Errorf("expected %d, got %d", tt.expected, val)
+			}
+		})
 	}
 }
 
-func TestGetIntValue_NotFound(t *testing.T) {
-	r := newMockResource(map[string]interface{}{})
-	_, err := GetIntValue(r, "spec.missing")
-	if err == nil {
-		t.Fatal("expected error for missing path")
+func TestGetIntValueWithDefault(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     map[string]interface{}
+		path     string
+		defVal   int
+		expected int
+	}{
+		{
+			name:     "returns value",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"replicas": 3}},
+			path:     "spec.replicas",
+			defVal:   1,
+			expected: 3,
+		},
+		{
+			name:     "uses default on missing",
+			data:     map[string]interface{}{},
+			path:     "spec.missing",
+			defVal:   10,
+			expected: 10,
+		},
+		{
+			name:     "returns explicit zero",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"replicas": 0}},
+			path:     "spec.replicas",
+			defVal:   5,
+			expected: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			val := GetIntValueWithDefault(r, tt.path, tt.defVal)
+			if val != tt.expected {
+				t.Errorf("expected %d, got %d", tt.expected, val)
+			}
+		})
 	}
 }
 
-// ============================================================================
-// GetIntValueWithDefault
-// ============================================================================
-
-func TestGetIntValueWithDefault_ReturnsValue(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"replicas": 3},
-	})
-	val := GetIntValueWithDefault(r, "spec.replicas", 1)
-	if val != 3 {
-		t.Errorf("expected 3, got %d", val)
+func TestGetBoolValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     map[string]interface{}
+		path     string
+		expected bool
+		wantErr  bool
+	}{
+		{
+			name:     "true",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"enabled": true}},
+			path:     "spec.enabled",
+			expected: true,
+		},
+		{
+			name:     "false",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"enabled": false}},
+			path:     "spec.enabled",
+			expected: false,
+		},
+		{
+			name:    "not a bool",
+			data:    map[string]interface{}{"spec": map[string]interface{}{"enabled": "yes"}},
+			path:    "spec.enabled",
+			wantErr: true,
+		},
+		{
+			name:    "not found",
+			data:    map[string]interface{}{},
+			path:    "spec.missing",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			val, err := GetBoolValue(r, tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if val != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, val)
+			}
+		})
 	}
 }
 
-func TestGetIntValueWithDefault_UsesDefaultOnMissing(t *testing.T) {
-	r := newMockResource(map[string]interface{}{})
-	val := GetIntValueWithDefault(r, "spec.missing", 10)
-	if val != 10 {
-		t.Errorf("expected 10, got %d", val)
+func TestGetBoolValueWithDefault(t *testing.T) {
+	tests := []struct {
+		name     string
+		data     map[string]interface{}
+		path     string
+		defVal   bool
+		expected bool
+	}{
+		{
+			name:     "returns value",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"debug": true}},
+			path:     "spec.debug",
+			defVal:   false,
+			expected: true,
+		},
+		{
+			name:     "uses default on missing",
+			data:     map[string]interface{}{},
+			path:     "spec.missing",
+			defVal:   true,
+			expected: true,
+		},
+		{
+			name:     "uses default on non-bool",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"flag": "yes"}},
+			path:     "spec.flag",
+			defVal:   true,
+			expected: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			val := GetBoolValueWithDefault(r, tt.path, tt.defVal)
+			if val != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, val)
+			}
+		})
 	}
 }
-
-func TestGetIntValueWithDefault_ReturnsExplicitZero(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"replicas": 0},
-	})
-	val := GetIntValueWithDefault(r, "spec.replicas", 5)
-	if val != 0 {
-		t.Errorf("expected 0 (explicit zero preserved), got %d", val)
-	}
-}
-
-// ============================================================================
-// GetBoolValue
-// ============================================================================
-
-func TestGetBoolValue_True(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"enabled": true},
-	})
-	val, err := GetBoolValue(r, "spec.enabled")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !val {
-		t.Error("expected true")
-	}
-}
-
-func TestGetBoolValue_False(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"enabled": false},
-	})
-	val, err := GetBoolValue(r, "spec.enabled")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if val {
-		t.Error("expected false")
-	}
-}
-
-func TestGetBoolValue_NotBool(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"enabled": "yes"},
-	})
-	_, err := GetBoolValue(r, "spec.enabled")
-	if err == nil {
-		t.Fatal("expected error for non-bool")
-	}
-}
-
-func TestGetBoolValue_NotFound(t *testing.T) {
-	r := newMockResource(map[string]interface{}{})
-	_, err := GetBoolValue(r, "spec.missing")
-	if err == nil {
-		t.Fatal("expected error for missing path")
-	}
-}
-
-// ============================================================================
-// GetBoolValueWithDefault
-// ============================================================================
-
-func TestGetBoolValueWithDefault_ReturnsValue(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"debug": true},
-	})
-	val := GetBoolValueWithDefault(r, "spec.debug", false)
-	if !val {
-		t.Error("expected true")
-	}
-}
-
-func TestGetBoolValueWithDefault_UsesDefaultOnMissing(t *testing.T) {
-	r := newMockResource(map[string]interface{}{})
-	val := GetBoolValueWithDefault(r, "spec.missing", true)
-	if !val {
-		t.Error("expected true (default)")
-	}
-}
-
-func TestGetBoolValueWithDefault_UsesDefaultOnNonBool(t *testing.T) {
-	r := newMockResource(map[string]interface{}{
-		"spec": map[string]interface{}{"flag": "yes"},
-	})
-	val := GetBoolValueWithDefault(r, "spec.flag", true)
-	if !val {
-		t.Error("expected true (default for non-bool)")
-	}
-}
-
-// ============================================================================
-// ExtractStringMap
-// ============================================================================
 
 func TestExtractStringMap_Success(t *testing.T) {
 	r := newMockResource(map[string]interface{}{
@@ -342,8 +358,11 @@ func TestExtractStringMap_EmptyMap(t *testing.T) {
 		},
 	})
 	m := ExtractStringMap(r, "spec.labels")
-	if m != nil {
-		t.Errorf("expected nil for empty map, got %v", m)
+	if m == nil {
+		t.Fatal("expected non-nil empty map, got nil")
+	}
+	if len(m) != 0 {
+		t.Errorf("expected empty map, got %v", m)
 	}
 }
 
@@ -361,10 +380,6 @@ func TestExtractStringMap_SkipsNonStringValues(t *testing.T) {
 		t.Errorf("expected only 'good' key, got %v", m)
 	}
 }
-
-// ============================================================================
-// ExtractStringSlice
-// ============================================================================
 
 func TestExtractStringSlice_Success(t *testing.T) {
 	r := newMockResource(map[string]interface{}{
@@ -407,10 +422,6 @@ func TestExtractStringSlice_FiltersNonStrings(t *testing.T) {
 		t.Errorf("expected [a b], got %v", s)
 	}
 }
-
-// ============================================================================
-// ExtractObjectSlice
-// ============================================================================
 
 func TestExtractObjectSlice_Success(t *testing.T) {
 	r := newMockResource(map[string]interface{}{
@@ -463,10 +474,6 @@ func TestExtractObjectSlice_FiltersNonMaps(t *testing.T) {
 		t.Errorf("expected 1 map, got %d", len(s))
 	}
 }
-
-// ============================================================================
-// ExtractSecrets
-// ============================================================================
 
 func TestExtractSecrets_FullParse(t *testing.T) {
 	r := newMockResource(map[string]interface{}{
@@ -567,10 +574,6 @@ func TestExtractSecrets_SkipsNonMapItems(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// DeepMerge
-// ============================================================================
-
 func TestDeepMerge_SimpleOverride(t *testing.T) {
 	dst := map[string]interface{}{"a": "1", "b": "2"}
 	src := map[string]interface{}{"b": "3", "c": "4"}
@@ -648,10 +651,6 @@ func TestDeepMerge_DoesNotMutateDst(t *testing.T) {
 		t.Error("DeepMerge should not mutate dst")
 	}
 }
-
-// ============================================================================
-// MergeStringMap
-// ============================================================================
 
 func TestMergeStringMap_MergesInto(t *testing.T) {
 	dst := map[string]string{"a": "1"}

@@ -10,10 +10,6 @@ import (
 	kratix "github.com/syntasso/kratix-go"
 )
 
-// ============================================================================
-// buildConfig
-// ============================================================================
-
 func TestBuildConfig_MinimalValid(t *testing.T) {
 	sdk := kratix.New()
 	resource := &ku.MockResource{
@@ -179,10 +175,6 @@ func TestBuildConfig_MissingExternalServerURL(t *testing.T) {
 		t.Fatal("expected error for missing externalServerURL")
 	}
 }
-
-// ============================================================================
-// Builder functions
-// ============================================================================
 
 func newTestConfig() *RegistrationConfig {
 	return &RegistrationConfig{
@@ -358,10 +350,6 @@ func TestBuildArgoCDClusterExternalSecret_WithClusterAnnotations(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// handleConfigure
-// ============================================================================
-
 func TestHandleConfigure_Success(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := newTestConfig()
@@ -397,10 +385,6 @@ func TestHandleConfigure_Success(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// handleDelete
-// ============================================================================
-
 func TestHandleDelete_CreatesDeleteResources(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := newTestConfig()
@@ -430,10 +414,6 @@ func TestHandleDelete_CreatesDeleteResources(t *testing.T) {
 		}
 	}
 }
-
-// ============================================================================
-// deleteOutputPath
-// ============================================================================
 
 func TestDeleteOutputPath_DefaultPrefix(t *testing.T) {
 	r := ku.Resource{Kind: "Service", Metadata: ku.ObjectMeta{Name: "web"}}

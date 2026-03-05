@@ -7,10 +7,6 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// ============================================================================
-// handleConfigure
-// ============================================================================
-
 func TestHandleConfigure_MinimalValid(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	resource := &ku.MockResource{
@@ -32,24 +28,29 @@ func TestHandleConfigure_MinimalValid(t *testing.T) {
 		},
 	}
 
-	err := handleConfigure(sdk, resource)
+	config, err := buildConfig(nil, resource)
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+
+	err = handleConfigure(sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	resources := ku.ReadOutputAsResources(t, dir, "resources/application.yaml")
+	app := ku.FindResource(resources, "Application", "my-app")
+	if app == nil {
+		t.Fatal("expected Application resource named 'my-app'")
+	}
+	if app.APIVersion != "argoproj.io/v1alpha1" {
+		t.Errorf("expected apiVersion argoproj.io/v1alpha1, got %q", app.APIVersion)
+	}
+	if app.Metadata.Namespace != "argocd" {
+		t.Errorf("expected namespace argocd, got %q", app.Metadata.Namespace)
+	}
+	// Verify spec fields via raw string check for nested fields not in Resource struct
 	output := ku.ReadOutput(t, dir, "resources/application.yaml")
-	if !strings.Contains(output, "apiVersion: argoproj.io/v1alpha1") {
-		t.Error("expected argoproj.io/v1alpha1 apiVersion")
-	}
-	if !strings.Contains(output, "kind: Application") {
-		t.Error("expected kind: Application")
-	}
-	if !strings.Contains(output, "name: my-app") {
-		t.Error("expected name: my-app")
-	}
-	if !strings.Contains(output, "namespace: argocd") {
-		t.Error("expected default namespace: argocd")
-	}
 	if !strings.Contains(output, "project: default") {
 		t.Error("expected project: default")
 	}
@@ -101,34 +102,44 @@ func TestHandleConfigure_WithAllFields(t *testing.T) {
 		},
 	}
 
-	err := handleConfigure(sdk, resource)
+	config, err := buildConfig(nil, resource)
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+
+	err = handleConfigure(sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := ku.ReadOutput(t, dir, "resources/application.yaml")
-	if !strings.Contains(output, "namespace: custom-ns") {
-		t.Error("expected custom namespace")
+	resources := ku.ReadOutputAsResources(t, dir, "resources/application.yaml")
+	app := ku.FindResource(resources, "Application", "full-app")
+	if app == nil {
+		t.Fatal("expected Application resource named 'full-app'")
 	}
+	if app.Metadata.Namespace != "custom-ns" {
+		t.Errorf("expected namespace custom-ns, got %q", app.Metadata.Namespace)
+	}
+	if app.Metadata.Annotations["note"] != "test" {
+		t.Error("expected annotation note=test")
+	}
+	if app.Metadata.Labels["team"] != "platform" {
+		t.Error("expected label team=platform")
+	}
+	// Verify nested spec fields via string check (spec is interface{})
+	output := ku.ReadOutput(t, dir, "resources/application.yaml")
 	if !strings.Contains(output, "chart: nginx") {
 		t.Error("expected chart: nginx")
 	}
 	if !strings.Contains(output, "releaseName: my-release") {
 		t.Error("expected releaseName")
 	}
-	if !strings.Contains(output, "note: test") {
-		t.Error("expected annotation")
-	}
-	if !strings.Contains(output, "team: platform") {
-		t.Error("expected label")
-	}
 	if !strings.Contains(output, "resources-finalizer.argocd.argoproj.io") {
 		t.Error("expected finalizer")
 	}
 }
 
-func TestHandleConfigure_MissingName(t *testing.T) {
-	sdk, _ := ku.NewTestSDK(t)
+func TestBuildConfig_MissingName(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
@@ -137,7 +148,7 @@ func TestHandleConfigure_MissingName(t *testing.T) {
 		},
 	}
 
-	err := handleConfigure(sdk, resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error for missing name")
 	}
@@ -146,8 +157,7 @@ func TestHandleConfigure_MissingName(t *testing.T) {
 	}
 }
 
-func TestHandleConfigure_MissingProject(t *testing.T) {
-	sdk, _ := ku.NewTestSDK(t)
+func TestBuildConfig_MissingProject(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
@@ -156,7 +166,7 @@ func TestHandleConfigure_MissingProject(t *testing.T) {
 		},
 	}
 
-	err := handleConfigure(sdk, resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error for missing project")
 	}
@@ -165,8 +175,7 @@ func TestHandleConfigure_MissingProject(t *testing.T) {
 	}
 }
 
-func TestHandleConfigure_MissingSource(t *testing.T) {
-	sdk, _ := ku.NewTestSDK(t)
+func TestBuildConfig_MissingSource(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
@@ -176,7 +185,7 @@ func TestHandleConfigure_MissingSource(t *testing.T) {
 		},
 	}
 
-	err := handleConfigure(sdk, resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error for missing source")
 	}
@@ -185,8 +194,7 @@ func TestHandleConfigure_MissingSource(t *testing.T) {
 	}
 }
 
-func TestHandleConfigure_MissingDestination(t *testing.T) {
-	sdk, _ := ku.NewTestSDK(t)
+func TestBuildConfig_MissingDestination(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
@@ -200,7 +208,7 @@ func TestHandleConfigure_MissingDestination(t *testing.T) {
 		},
 	}
 
-	err := handleConfigure(sdk, resource)
+	_, err := buildConfig(nil, resource)
 	if err == nil {
 		t.Fatal("expected error for missing destination")
 	}
@@ -209,49 +217,36 @@ func TestHandleConfigure_MissingDestination(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// handleDelete
-// ============================================================================
-
 func TestHandleDelete_Success(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
-	resource := &ku.MockResource{
-		Data: map[string]interface{}{
-			"spec": map[string]interface{}{
-				"name":      "my-app",
-				"namespace": "custom",
-			},
-		},
+	config := &AppConfig{
+		Name:      "my-app",
+		Namespace: "custom",
 	}
 
-	err := handleDelete(sdk, resource)
+	err := handleDelete(sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := ku.ReadOutput(t, dir, "resources/delete-application.yaml")
-	if !strings.Contains(output, "kind: Application") {
-		t.Error("expected kind: Application")
+	resources := ku.ReadOutputAsResources(t, dir, "resources/delete-application.yaml")
+	app := ku.FindResource(resources, "Application", "my-app")
+	if app == nil {
+		t.Fatal("expected Application delete resource named 'my-app'")
 	}
-	if !strings.Contains(output, "name: my-app") {
-		t.Error("expected name: my-app")
-	}
-	if !strings.Contains(output, "namespace: custom") {
-		t.Error("expected namespace: custom")
+	if app.Metadata.Namespace != "custom" {
+		t.Errorf("expected namespace custom, got %q", app.Metadata.Namespace)
 	}
 }
 
 func TestHandleDelete_DefaultNamespace(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
-	resource := &ku.MockResource{
-		Data: map[string]interface{}{
-			"spec": map[string]interface{}{
-				"name": "my-app",
-			},
-		},
+	config := &AppConfig{
+		Name:      "my-app",
+		Namespace: "argocd",
 	}
 
-	err := handleDelete(sdk, resource)
+	err := handleDelete(sdk, config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -264,14 +259,40 @@ func TestHandleDelete_DefaultNamespace(t *testing.T) {
 
 func TestHandleDelete_MissingName(t *testing.T) {
 	sdk, _ := ku.NewTestSDK(t)
+	// With typed config, an empty name will still produce output (no validation in handleDelete)
+	// The validation now happens in buildConfig
+	config := &AppConfig{}
+
+	err := handleDelete(sdk, config)
+	// handleDelete with an empty config should still work (writes empty name)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestBuildConfig_DefaultNamespace(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
-			"spec": map[string]interface{}{},
+			"spec": map[string]interface{}{
+				"name":    "my-app",
+				"project": "default",
+				"source": map[string]interface{}{
+					"repoURL":        "https://example.com",
+					"targetRevision": "1.0.0",
+				},
+				"destination": map[string]interface{}{
+					"server":    "https://kubernetes.default.svc",
+					"namespace": "production",
+				},
+			},
 		},
 	}
 
-	err := handleDelete(sdk, resource)
-	if err == nil {
-		t.Fatal("expected error for missing name")
+	config, err := buildConfig(nil, resource)
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+	if config.Namespace != "argocd" {
+		t.Errorf("expected default namespace 'argocd', got %q", config.Namespace)
 	}
 }

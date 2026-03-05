@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	kratix "github.com/syntasso/kratix-go"
 
@@ -50,7 +49,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error 
 	if err := ku.WriteYAMLDocuments(sdk, "resources/external-secrets.yaml", externalSecrets); err != nil {
 		return fmt.Errorf("write ExternalSecrets: %w", err)
 	}
-	log.Printf("✓ Rendered %d ExternalSecret(s)", len(externalSecrets))
 
 	if err := ku.WritePromiseStatus(sdk, "Configured",
 		fmt.Sprintf("Rendered %d ExternalSecret(s) in namespace %s", len(config.Secrets), config.Namespace),
@@ -69,12 +67,11 @@ func handleDelete(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 			secretName = fmt.Sprintf("%s-%s", config.AppName, s.OnePasswordItem)
 		}
 
-		deleteObj := ku.DeleteResource(
-			"external-secrets.io/v1beta1",
-			"ExternalSecret",
-			secretName,
-			config.Namespace,
-		)
+		deleteObj := ku.DeleteFromResource(ku.Resource{
+			APIVersion: "external-secrets.io/v1beta1",
+			Kind:       "ExternalSecret",
+			Metadata:   ku.ObjectMeta{Name: secretName, Namespace: config.Namespace},
+		})
 
 		path := fmt.Sprintf("resources/delete-externalsecret-%s.yaml", secretName)
 		if err := ku.WriteYAML(sdk, path, deleteObj); err != nil {

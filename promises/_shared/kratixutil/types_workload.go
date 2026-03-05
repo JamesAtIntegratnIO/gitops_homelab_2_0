@@ -1,9 +1,5 @@
 package kratixutil
 
-// ============================================================================
-// Secret Types (1Password / ExternalSecrets)
-// ============================================================================
-
 // SecretRef defines a secret to provision via ExternalSecrets. Each ref maps
 // a 1Password item to one or more Kubernetes Secret keys.
 type SecretRef struct {
@@ -18,10 +14,6 @@ type SecretKey struct {
 	SecretKey string `json:"secretKey"`
 	Property  string `json:"property"`
 }
-
-// ============================================================================
-// K8s Workload Types (Job, RBAC)
-// ============================================================================
 
 // PolicyRule defines a single RBAC permission (API groups × resources × verbs).
 type PolicyRule struct {

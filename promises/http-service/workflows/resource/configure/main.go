@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	kratix "github.com/syntasso/kratix-go"
 
@@ -138,7 +137,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	if err := ku.WriteYAML(sdk, "resources/namespace.yaml", ns); err != nil {
 		return fmt.Errorf("write Namespace: %w", err)
 	}
-	log.Printf("✓ Rendered Namespace: %s", config.Namespace)
 
 	// 1. Build Stakater application chart values
 	values := buildStakaterValues(config)
@@ -192,12 +190,12 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 				Server:    "https://kubernetes.default.svc",
 				Namespace: config.Namespace,
 			},
-			SyncPolicy: map[string]interface{}{
-				"automated": map[string]interface{}{
-					"selfHeal": true,
-					"prune":    true,
+			SyncPolicy: &ku.SyncPolicy{
+				Automated: &ku.AutomatedSync{
+					SelfHeal: true,
+					Prune:    true,
 				},
-				"syncOptions": []string{
+				SyncOptions: []string{
 					"CreateNamespace=true",
 					"ServerSideApply=true",
 				},
@@ -208,7 +206,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	if err := ku.WriteYAML(sdk, "resources/argocd-application-request.yaml", appRequest); err != nil {
 		return fmt.Errorf("write ArgoCDApplication request: %w", err)
 	}
-	log.Printf("✓ Rendered ArgoCDApplication sub-ResourceRequest: %s", config.Name)
 
 	// 4. Emit PlatformExternalSecret sub-ResourceRequest (delegates to external-secret promise)
 	if len(config.Secrets) > 0 {
@@ -216,7 +213,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		if err := ku.WriteYAML(sdk, "resources/external-secret-request.yaml", esRequest); err != nil {
 			return fmt.Errorf("write PlatformExternalSecret request: %w", err)
 		}
-		log.Printf("✓ Rendered PlatformExternalSecret sub-ResourceRequest (%d secret(s))", len(config.Secrets))
 	}
 
 	// 5. Build NetworkPolicies (remain inline — too variable for a sub-promise)
@@ -224,7 +220,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	if err := ku.WriteYAMLDocuments(sdk, "resources/network-policies.yaml", netpols); err != nil {
 		return fmt.Errorf("write NetworkPolicies: %w", err)
 	}
-	log.Printf("✓ Rendered NetworkPolicies")
 
 	// 6. Emit GatewayRoute sub-ResourceRequest (delegates to gateway-route promise)
 	if config.IngressEnabled {
@@ -232,7 +227,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		if err := ku.WriteYAML(sdk, "resources/gateway-route-request.yaml", gwRequest); err != nil {
 			return fmt.Errorf("write GatewayRoute request: %w", err)
 		}
-		log.Printf("✓ Rendered GatewayRoute sub-ResourceRequest")
 	}
 
 	// 7. Write status
@@ -262,7 +256,6 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	if err := ku.WriteYAML(sdk, "resources/delete-argocdapplication-"+config.Name+".yaml", appRequest); err != nil {
 		return fmt.Errorf("write delete ArgoCDApplication request: %w", err)
 	}
-	log.Printf("✓ Delete scheduled for ArgoCDApplication: %s", config.Name)
 
 	// Delete PlatformExternalSecret sub-ResourceRequest
 	if len(config.Secrets) > 0 {
@@ -277,7 +270,6 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		if err := ku.WriteYAML(sdk, "resources/delete-externalsecret-"+config.Name+".yaml", esRequest); err != nil {
 			return fmt.Errorf("write delete PlatformExternalSecret request: %w", err)
 		}
-		log.Printf("✓ Delete scheduled for PlatformExternalSecret: %s", config.Name)
 	}
 
 	// Delete GatewayRoute sub-ResourceRequest
@@ -293,7 +285,6 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 		if err := ku.WriteYAML(sdk, "resources/delete-gatewayroute-"+config.Name+".yaml", gwRequest); err != nil {
 			return fmt.Errorf("write delete GatewayRoute request: %w", err)
 		}
-		log.Printf("✓ Delete scheduled for GatewayRoute: %s", config.Name)
 	}
 
 	if err := ku.WritePromiseStatus(sdk, "Deleting",

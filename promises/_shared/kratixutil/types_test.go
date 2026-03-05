@@ -4,10 +4,6 @@ import (
 	"testing"
 )
 
-// ============================================================================
-// ToMap
-// ============================================================================
-
 func TestToMap_Struct(t *testing.T) {
 	r := Resource{
 		APIVersion: "v1",
@@ -71,10 +67,6 @@ func TestToMap_WithData(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// DeleteFromResource
-// ============================================================================
-
 func TestDeleteFromResource_StripsExtras(t *testing.T) {
 	full := Resource{
 		APIVersion: "apps/v1",
@@ -115,10 +107,6 @@ func TestDeleteFromResource_StripsExtras(t *testing.T) {
 		t.Error("expected spec to be nil in delete resource")
 	}
 }
-
-// ============================================================================
-// DeleteOutputPathForResource
-// ============================================================================
 
 func TestDeleteOutputPathForResource_DefaultPrefix(t *testing.T) {
 	r := Resource{
@@ -168,10 +156,6 @@ func TestDeleteOutputPathForResource_LowercasesKind(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// ResourceMeta (builders.go)
-// ============================================================================
-
 func TestResourceMeta_AllFields(t *testing.T) {
 	labels := map[string]string{"app": "test"}
 	annotations := map[string]string{"note": "val"}
@@ -200,10 +184,6 @@ func TestResourceMeta_NilMaps(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// BaseLabels (builders.go)
-// ============================================================================
-
 func TestBaseLabels(t *testing.T) {
 	labels := BaseLabels("my-promise", "my-resource")
 	expected := map[string]string{
@@ -220,10 +200,6 @@ func TestBaseLabels(t *testing.T) {
 		t.Errorf("expected exactly 3 labels, got %d", len(labels))
 	}
 }
-
-// ============================================================================
-// DeleteResource (builders.go)
-// ============================================================================
 
 func TestDeleteResource(t *testing.T) {
 	r := DeleteResource("v1", "Service", "my-svc", "my-ns")
@@ -243,10 +219,6 @@ func TestDeleteResource(t *testing.T) {
 		t.Error("expected nil spec and data in delete resource")
 	}
 }
-
-// ============================================================================
-// ObjectMeta JSON serialization
-// ============================================================================
 
 func TestObjectMeta_OmitsEmptyOptionals(t *testing.T) {
 	meta := ObjectMeta{Name: "test"}
@@ -276,10 +248,6 @@ func TestObjectMeta_OmitsEmptyOptionals(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// RoleRef / Subject JSON roundtrip
-// ============================================================================
-
 func TestRoleRef_InResource(t *testing.T) {
 	r := Resource{
 		APIVersion: "rbac.authorization.k8s.io/v1",
@@ -306,10 +274,6 @@ func TestRoleRef_InResource(t *testing.T) {
 		t.Error("expected 1 subject")
 	}
 }
-
-// ============================================================================
-// SecretRef / SecretKey serialization
-// ============================================================================
 
 func TestSecretRef_Serialization(t *testing.T) {
 	ref := SecretRef{

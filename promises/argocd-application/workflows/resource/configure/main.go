@@ -10,37 +10,41 @@ import (
 )
 
 func main() {
-	ku.RunPromise("ArgoCD Application Promise Pipeline", handleConfigure, handleDelete)
+	ku.RunPromiseWithConfig("ArgoCD Application", buildConfig, handleConfigure, handleDelete)
 }
 
-func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := ku.GetStringValue(resource, "spec.name")
+func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, error) {
+	config := &AppConfig{}
+
+	var err error
+	config.Name, err = ku.GetStringValue(resource, "spec.name")
 	if err != nil {
-		return fmt.Errorf("spec.name is required: %w", err)
+		return nil, fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace := ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
-	project, err := ku.GetStringValue(resource, "spec.project")
+	config.Namespace = ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+
+	config.Project, err = ku.GetStringValue(resource, "spec.project")
 	if err != nil {
-		return fmt.Errorf("spec.project is required: %w", err)
+		return nil, fmt.Errorf("spec.project is required: %w", err)
 	}
 
-	annotations := ku.ExtractStringMap(resource, "spec.annotations")
-	labels := ku.ExtractStringMap(resource, "spec.labels")
-	finalizers := ku.ExtractStringSlice(resource, "spec.finalizers")
+	config.Annotations = ku.ExtractStringMap(resource, "spec.annotations")
+	config.Labels = ku.ExtractStringMap(resource, "spec.labels")
+	config.Finalizers = ku.ExtractStringSlice(resource, "spec.finalizers")
 
 	// Extract source
 	repoURL, err := ku.GetStringValue(resource, "spec.source.repoURL")
 	if err != nil {
-		return fmt.Errorf("spec.source.repoURL is required: %w", err)
+		return nil, fmt.Errorf("spec.source.repoURL is required: %w", err)
 	}
 	chart, _ := ku.GetStringValue(resource, "spec.source.chart")
 	targetRevision, err := ku.GetStringValue(resource, "spec.source.targetRevision")
 	if err != nil {
-		return fmt.Errorf("spec.source.targetRevision is required: %w", err)
+		return nil, fmt.Errorf("spec.source.targetRevision is required: %w", err)
 	}
 
-	source := ku.AppSource{
+	config.Source = ku.AppSource{
 		RepoURL:        repoURL,
 		Chart:          chart,
 		TargetRevision: targetRevision,
@@ -50,7 +54,7 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	releaseName, _ := ku.GetStringValue(resource, "spec.source.helm.releaseName")
 	valuesObject, _ := resource.GetValue("spec.source.helm.valuesObject")
 	if releaseName != "" || valuesObject != nil {
-		source.Helm = &ku.HelmSource{
+		config.Source.Helm = &ku.HelmSource{
 			ReleaseName:  releaseName,
 			ValuesObject: valuesObject,
 		}
@@ -59,49 +63,53 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 	// Extract destination
 	destServer, err := ku.GetStringValue(resource, "spec.destination.server")
 	if err != nil {
-		return fmt.Errorf("spec.destination.server is required: %w", err)
+		return nil, fmt.Errorf("spec.destination.server is required: %w", err)
 	}
 	destNamespace, err := ku.GetStringValue(resource, "spec.destination.namespace")
 	if err != nil {
-		return fmt.Errorf("spec.destination.namespace is required: %w", err)
+		return nil, fmt.Errorf("spec.destination.namespace is required: %w", err)
+	}
+
+	config.Destination = ku.Destination{
+		Server:    destServer,
+		Namespace: destNamespace,
 	}
 
 	// Extract sync policy
-	var syncPolicy *ku.SyncPolicy
 	if raw, _ := resource.GetValue("spec.syncPolicy"); raw != nil {
-		syncPolicy = parseSyncPolicy(raw)
+		config.SyncPolicy = parseSyncPolicy(raw)
 	}
 
+	return config, nil
+}
+
+func handleConfigure(sdk *kratix.KratixSDK, config *AppConfig) error {
 	// Build ArgoCD Application
 	app := ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "Application",
 		Metadata: ku.ObjectMeta{
-			Name:        name,
-			Namespace:   namespace,
-			Labels:      labels,
-			Annotations: annotations,
-			Finalizers:  finalizers,
+			Name:        config.Name,
+			Namespace:   config.Namespace,
+			Labels:      config.Labels,
+			Annotations: config.Annotations,
+			Finalizers:  config.Finalizers,
 		},
 		Spec: ApplicationSpec{
-			Project: project,
-			Source:  source,
-			Destination: ku.Destination{
-				Server:    destServer,
-				Namespace: destNamespace,
-			},
-			SyncPolicy: syncPolicy,
+			Project:     config.Project,
+			Source:      config.Source,
+			Destination: config.Destination,
+			SyncPolicy:  config.SyncPolicy,
 		},
 	}
 
 	if err := ku.WriteYAML(sdk, "resources/application.yaml", app); err != nil {
 		return fmt.Errorf("write application: %w", err)
 	}
-	log.Printf("✓ Rendered ArgoCD Application: %s", name)
 
 	if err := ku.WritePromiseStatus(sdk, "Configured",
-		fmt.Sprintf("Application %s configured", name),
-		map[string]interface{}{"applicationName": name, "namespace": namespace, "project": project}); err != nil {
+		fmt.Sprintf("Application %s configured", config.Name),
+		map[string]interface{}{"applicationName": config.Name, "namespace": config.Namespace, "project": config.Project}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
@@ -109,9 +117,11 @@ func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
 }
 
 // parseSyncPolicy converts an untyped map (from resource.GetValue) into a typed SyncPolicy.
+// Returns nil if the value is not the expected map type (e.g. wrong YAML structure).
 func parseSyncPolicy(raw interface{}) *ku.SyncPolicy {
 	m, ok := raw.(map[string]interface{})
 	if !ok {
+		log.Printf("warning: syncPolicy has unexpected type %T, expected map[string]interface{}", raw)
 		return nil
 	}
 	sp := &ku.SyncPolicy{}
@@ -134,30 +144,22 @@ func parseSyncPolicy(raw interface{}) *ku.SyncPolicy {
 	return sp
 }
 
-func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := ku.GetStringValue(resource, "spec.name")
-	if err != nil {
-		return fmt.Errorf("spec.name is required: %w", err)
-	}
-
-	namespace := ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
-
-	deleteObj := ku.Resource{
+func handleDelete(sdk *kratix.KratixSDK, config *AppConfig) error {
+	deleteObj := ku.DeleteFromResource(ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "Application",
 		Metadata: ku.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name:      config.Name,
+			Namespace: config.Namespace,
 		},
-	}
+	})
 
 	if err := ku.WriteYAML(sdk, "resources/delete-application.yaml", deleteObj); err != nil {
 		return fmt.Errorf("write delete application: %w", err)
 	}
-	log.Printf("✓ Delete scheduled for Application: %s", name)
 
 	if err := ku.WritePromiseStatus(sdk, "Deleting",
-		fmt.Sprintf("Application %s scheduled for deletion", name), nil); err != nil {
+		fmt.Sprintf("Application %s scheduled for deletion", config.Name), nil); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 

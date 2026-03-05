@@ -8,10 +8,6 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// ============================================================================
-// buildConfig
-// ============================================================================
-
 func TestBuildConfig_MinimalValid(t *testing.T) {
 	resource := &ku.MockResource{
 		Name: "my-secret",
@@ -138,10 +134,6 @@ func TestBuildConfig_NoSecrets(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// buildExternalSecrets
-// ============================================================================
-
 func TestBuildExternalSecrets_SingleSecret(t *testing.T) {
 	config := &ExternalSecretConfig{
 		AppName:         "my-app",
@@ -228,10 +220,6 @@ func TestBuildExternalSecrets_MultipleSecrets(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// handleConfigure
-// ============================================================================
-
 func TestHandleConfigure_WritesExternalSecrets(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := &ExternalSecretConfig{
@@ -262,10 +250,6 @@ func TestHandleConfigure_WritesExternalSecrets(t *testing.T) {
 		t.Error("expected secret name in output")
 	}
 }
-
-// ============================================================================
-// handleDelete
-// ============================================================================
 
 func TestHandleDelete_CreatesDeleteFiles(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)

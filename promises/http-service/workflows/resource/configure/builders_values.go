@@ -2,10 +2,6 @@ package main
 
 import "fmt"
 
-// ============================================================================
-// Stakater Values Builder
-// ============================================================================
-
 // buildSecurityContext creates the container security context from config.
 func buildSecurityContext(config *HTTPServiceConfig) map[string]interface{} {
 	ctx := map[string]interface{}{}

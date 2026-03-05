@@ -7,10 +7,6 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// ============================================================================
-// buildConfig
-// ============================================================================
-
 func TestBuildConfig_MinimalValid(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
@@ -209,10 +205,6 @@ func TestBuildConfig_MissingBackendPort(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// buildHTTPSRoute
-// ============================================================================
-
 func TestBuildHTTPSRoute(t *testing.T) {
 	config := &GatewayRouteConfig{
 		Name:        "my-route",
@@ -245,10 +237,6 @@ func TestBuildHTTPSRoute(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// buildHTTPRedirect
-// ============================================================================
-
 func TestBuildHTTPRedirect(t *testing.T) {
 	config := &GatewayRouteConfig{
 		Name:            "my-route",
@@ -268,10 +256,6 @@ func TestBuildHTTPRedirect(t *testing.T) {
 		t.Errorf("wrong kind: %s", route.Kind)
 	}
 }
-
-// ============================================================================
-// handleConfigure
-// ============================================================================
 
 func TestHandleConfigure_WithRedirect(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
@@ -302,14 +286,19 @@ func TestHandleConfigure_WithRedirect(t *testing.T) {
 		t.Error("expected http-redirect.yaml")
 	}
 
-	route := ku.ReadOutput(t, dir, "resources/httproute.yaml")
-	if !strings.Contains(route, "kind: HTTPRoute") {
-		t.Error("expected HTTPRoute kind")
+	routes := ku.ReadOutputAsResources(t, dir, "resources/httproute.yaml")
+	route := ku.FindResource(routes, "HTTPRoute", "test-route")
+	if route == nil {
+		t.Fatal("expected HTTPRoute resource named 'test-route'")
+	}
+	if route.Metadata.Namespace != "ns" {
+		t.Errorf("expected namespace ns, got %q", route.Metadata.Namespace)
 	}
 
-	redirect := ku.ReadOutput(t, dir, "resources/http-redirect.yaml")
-	if !strings.Contains(redirect, "http-redirect") {
-		t.Error("expected redirect route name")
+	redirects := ku.ReadOutputAsResources(t, dir, "resources/http-redirect.yaml")
+	redirect := ku.FindResource(redirects, "HTTPRoute", "test-route-http-redirect")
+	if redirect == nil {
+		t.Fatal("expected HTTPRoute redirect resource")
 	}
 }
 
@@ -342,10 +331,6 @@ func TestHandleConfigure_WithoutRedirect(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// handleDelete
-// ============================================================================
-
 func TestHandleDelete_WithRedirect(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := &GatewayRouteConfig{
@@ -360,17 +345,19 @@ func TestHandleDelete_WithRedirect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	httpsDelete := ku.ReadOutput(t, dir, "resources/delete-httproute-my-route.yaml")
-	if !strings.Contains(httpsDelete, "kind: HTTPRoute") {
-		t.Error("expected HTTPRoute in delete")
+	httpsResources := ku.ReadOutputAsResources(t, dir, "resources/delete-httproute-my-route.yaml")
+	httpsDelete := ku.FindResource(httpsResources, "HTTPRoute", "my-route")
+	if httpsDelete == nil {
+		t.Fatal("expected HTTPRoute delete resource named 'my-route'")
 	}
-	if !strings.Contains(httpsDelete, "name: my-route") {
-		t.Error("expected route name in delete")
+	if httpsDelete.Metadata.Namespace != "ns" {
+		t.Errorf("expected namespace ns, got %q", httpsDelete.Metadata.Namespace)
 	}
 
-	redirectDelete := ku.ReadOutput(t, dir, "resources/delete-httproute-my-route-redirect.yaml")
-	if !strings.Contains(redirectDelete, "my-route-http-redirect") {
-		t.Error("expected redirect route name in delete")
+	redirectResources := ku.ReadOutputAsResources(t, dir, "resources/delete-httproute-my-route-redirect.yaml")
+	redirectDelete := ku.FindResource(redirectResources, "HTTPRoute", "my-route-http-redirect")
+	if redirectDelete == nil {
+		t.Fatal("expected HTTPRoute redirect delete resource")
 	}
 }
 

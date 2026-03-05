@@ -80,28 +80,24 @@ func handleConfigure(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 	if err := ku.WriteYAMLDocuments(sdk, "resources/kubeconfig-sync-rbac.yaml", rbacResources); err != nil {
 		return fmt.Errorf("write kubeconfig sync rbac: %w", err)
 	}
-	log.Printf("✓ Rendered: kubeconfig-sync-rbac.yaml (%d resources)", len(rbacResources))
 
 	// 2. Kubeconfig sync Job
 	syncJob := buildKubeconfigSyncJob(config)
 	if err := ku.WriteYAML(sdk, "resources/kubeconfig-sync-job.yaml", syncJob); err != nil {
 		return fmt.Errorf("write kubeconfig sync job: %w", err)
 	}
-	log.Printf("✓ Rendered: kubeconfig-sync-job.yaml")
 
 	// 3. Kubeconfig ExternalSecret (reads kubeconfig from 1Password)
 	kubeconfigES := buildKubeconfigExternalSecret(config)
 	if err := ku.WriteYAML(sdk, "resources/kubeconfig-external-secret.yaml", kubeconfigES); err != nil {
 		return fmt.Errorf("write kubeconfig external secret: %w", err)
 	}
-	log.Printf("✓ Rendered: kubeconfig-external-secret.yaml")
 
 	// 4. ArgoCD Cluster ExternalSecret (creates ArgoCD cluster secret from 1Password)
 	clusterES := buildArgoCDClusterExternalSecret(config)
 	if err := ku.WriteYAML(sdk, "resources/argocd-cluster-external-secret.yaml", clusterES); err != nil {
 		return fmt.Errorf("write argocd cluster external secret: %w", err)
 	}
-	log.Printf("✓ Rendered: argocd-cluster-external-secret.yaml")
 
 	if err := ku.WritePromiseStatus(sdk, "Configured",
 		fmt.Sprintf("Cluster %s registration resources configured", config.Name),
@@ -114,7 +110,6 @@ func handleConfigure(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
-	log.Println("✓ Status updated")
 	return nil
 }
 
@@ -136,11 +131,11 @@ func handleDelete(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 		buildKubeconfigSyncJob(config),
 	}
 	for _, r := range allResources {
-		outputs[ku.DeleteOutputPathForResource("resources", r)] = ku.DeleteResource(r.APIVersion, r.Kind, r.Metadata.Name, r.Metadata.Namespace)
+		outputs[ku.DeleteOutputPathForResource("resources", r)] = ku.DeleteFromResource(r)
 	}
 
 	for _, r := range buildKubeconfigSyncRBAC(config) {
-		outputs[ku.DeleteOutputPathForResource("resources", r)] = ku.DeleteResource(r.APIVersion, r.Kind, r.Metadata.Name, r.Metadata.Namespace)
+		outputs[ku.DeleteOutputPathForResource("resources", r)] = ku.DeleteFromResource(r)
 	}
 
 	for path, obj := range outputs {
@@ -151,5 +146,4 @@ func handleDelete(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 
 	return nil
 }
-
 
