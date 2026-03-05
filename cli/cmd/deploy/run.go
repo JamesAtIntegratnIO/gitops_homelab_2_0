@@ -63,7 +63,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 				{
 					Title: "Translating to platform resources",
 					Run: func() (string, error) {
-						r, err := deploylib.Translate(workload, cluster, cfg)
+						r, err := deploylib.Translate(context.Background(), workload, cluster, cfg)
 						if err != nil {
 							return "", fmt.Errorf("translating workload: %w", err)
 						}

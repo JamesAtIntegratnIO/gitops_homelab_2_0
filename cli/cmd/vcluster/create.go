@@ -9,39 +9,52 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// CreateOptions holds all flag values for the vcluster create command.
-type CreateOptions struct {
-	// Core
+// CoreOpts holds core vCluster identity and lifecycle flags.
+type CoreOpts struct {
 	Preset      string
 	Replicas    int
 	Hostname    string
 	Environment string
 	AutoCommit  bool
-
-	// vCluster settings
 	K8sVersion    string
 	IsolationMode string
+	Wait    bool
+	Timeout int // seconds
+}
 
-	// Exposure
+// ExposureOpts holds network exposure flags.
+type ExposureOpts struct {
 	Subnet  string
 	VIP     string
 	APIPort int
+}
 
-	// Persistence
-	Persistence     bool
-	PersistenceSize string
-	StorageClass    string
+// PersistenceOpts holds persistence-related flags.
+type PersistenceOpts struct {
+	Enabled      bool
+	Size         string
+	StorageClass string
+}
+
+// WorkloadRepoOpts holds workload repository flags.
+type WorkloadRepoOpts struct {
+	URL      string
+	BasePath string
+	Path     string
+	Revision string
+}
+
+// CreateOptions holds all flag values for the vcluster create command.
+type CreateOptions struct {
+	Core        CoreOpts
+	Exposure    ExposureOpts
+	Persistence PersistenceOpts
+	WorkloadRepo WorkloadRepoOpts
 
 	// Networking
 	EnableNFS       bool
 	ExtraEgress     []string // "name:cidr:port[:protocol]"
 	CoreDNSReplicas int
-
-	// Workload repo
-	WorkloadRepoURL      string
-	WorkloadRepoBasePath string
-	WorkloadRepoPath     string
-	WorkloadRepoRevision string
 
 	// ArgoCD cluster
 	ClusterLabels      []string // "key=value"
@@ -49,10 +62,6 @@ type CreateOptions struct {
 
 	// ArgoCD app overrides
 	ChartVersion string
-
-	// Provisioning wait
-	Wait    bool
-	Timeout int // seconds
 }
 
 func newCreateCmd() *cobra.Command {
@@ -93,25 +102,25 @@ Examples:
 	}
 
 	// Core flags
-	cmd.Flags().StringVar(&opts.Preset, "preset", "", "vCluster preset (dev, prod)")
-	cmd.Flags().IntVar(&opts.Replicas, "replicas", 0, "number of replicas (overrides preset default)")
-	cmd.Flags().StringVar(&opts.Hostname, "hostname", "", "external hostname for the vCluster API")
-	cmd.Flags().StringVar(&opts.Environment, "environment", "production", "ArgoCD environment label")
-	cmd.Flags().BoolVar(&opts.AutoCommit, "auto-commit", false, "automatically commit and push (overrides gitMode)")
+	cmd.Flags().StringVar(&opts.Core.Preset, "preset", "", "vCluster preset (dev, prod)")
+	cmd.Flags().IntVar(&opts.Core.Replicas, "replicas", 0, "number of replicas (overrides preset default)")
+	cmd.Flags().StringVar(&opts.Core.Hostname, "hostname", "", "external hostname for the vCluster API")
+	cmd.Flags().StringVar(&opts.Core.Environment, "environment", "production", "ArgoCD environment label")
+	cmd.Flags().BoolVar(&opts.Core.AutoCommit, "auto-commit", false, "automatically commit and push (overrides gitMode)")
 
 	// vCluster settings
-	cmd.Flags().StringVar(&opts.K8sVersion, "k8s-version", "", "Kubernetes version (v1.34.3, 1.34, 1.33, 1.32)")
-	cmd.Flags().StringVar(&opts.IsolationMode, "isolation", "", "workload isolation mode (standard, strict)")
+	cmd.Flags().StringVar(&opts.Core.K8sVersion, "k8s-version", "", "Kubernetes version (v1.34.3, 1.34, 1.33, 1.32)")
+	cmd.Flags().StringVar(&opts.Core.IsolationMode, "isolation", "", "workload isolation mode (standard, strict)")
 
 	// Exposure
-	cmd.Flags().StringVar(&opts.Subnet, "subnet", "", "CIDR subnet for VIP allocation (e.g. 10.0.4.0/24)")
-	cmd.Flags().StringVar(&opts.VIP, "vip", "", "static VIP for the vCluster API (e.g. 10.0.4.210)")
-	cmd.Flags().IntVar(&opts.APIPort, "api-port", 443, "API port exposed by the vCluster service")
+	cmd.Flags().StringVar(&opts.Exposure.Subnet, "subnet", "", "CIDR subnet for VIP allocation (e.g. 10.0.4.0/24)")
+	cmd.Flags().StringVar(&opts.Exposure.VIP, "vip", "", "static VIP for the vCluster API (e.g. 10.0.4.210)")
+	cmd.Flags().IntVar(&opts.Exposure.APIPort, "api-port", 443, "API port exposed by the vCluster service")
 
 	// Persistence
-	cmd.Flags().BoolVar(&opts.Persistence, "persistence", false, "enable control plane persistence (prod preset enables by default)")
-	cmd.Flags().StringVar(&opts.PersistenceSize, "persistence-size", "", "persistence volume size (e.g. 10Gi)")
-	cmd.Flags().StringVar(&opts.StorageClass, "storage-class", "", "storage class for persistence volume")
+	cmd.Flags().BoolVar(&opts.Persistence.Enabled, "persistence", false, "enable control plane persistence (prod preset enables by default)")
+	cmd.Flags().StringVar(&opts.Persistence.Size, "persistence-size", "", "persistence volume size (e.g. 10Gi)")
+	cmd.Flags().StringVar(&opts.Persistence.StorageClass, "storage-class", "", "storage class for persistence volume")
 
 	// Networking
 	cmd.Flags().BoolVar(&opts.EnableNFS, "enable-nfs", false, "enable NFS egress network policy")
@@ -119,10 +128,10 @@ Examples:
 	cmd.Flags().IntVar(&opts.CoreDNSReplicas, "coredns-replicas", 0, "CoreDNS replica count (overrides preset default)")
 
 	// Workload repo
-	cmd.Flags().StringVar(&opts.WorkloadRepoURL, "workload-repo-url", "", "Git URL for workload definitions (default: same repo)")
-	cmd.Flags().StringVar(&opts.WorkloadRepoBasePath, "workload-repo-base-path", "", "base path prefix in workload repo")
-	cmd.Flags().StringVar(&opts.WorkloadRepoPath, "workload-repo-path", "", "path within repo to workload manifests (default: workloads)")
-	cmd.Flags().StringVar(&opts.WorkloadRepoRevision, "workload-repo-revision", "", "Git branch/tag for workload repo (default: main)")
+	cmd.Flags().StringVar(&opts.WorkloadRepo.URL, "workload-repo-url", "", "Git URL for workload definitions (default: same repo)")
+	cmd.Flags().StringVar(&opts.WorkloadRepo.BasePath, "workload-repo-base-path", "", "base path prefix in workload repo")
+	cmd.Flags().StringVar(&opts.WorkloadRepo.Path, "workload-repo-path", "", "path within repo to workload manifests (default: workloads)")
+	cmd.Flags().StringVar(&opts.WorkloadRepo.Revision, "workload-repo-revision", "", "Git branch/tag for workload repo (default: main)")
 
 	// ArgoCD cluster metadata
 	cmd.Flags().StringSliceVar(&opts.ClusterLabels, "cluster-label", nil, "additional ArgoCD cluster label as key=value (repeatable)")
@@ -132,8 +141,8 @@ Examples:
 	cmd.Flags().StringVar(&opts.ChartVersion, "chart-version", "", "vCluster Helm chart version (default: platform default)")
 
 	// Provisioning wait
-	cmd.Flags().BoolVar(&opts.Wait, "wait", true, "wait for provisioning to complete after commit")
-	cmd.Flags().IntVar(&opts.Timeout, "timeout", 300, "timeout in seconds when using --wait (default: 300)")
+	cmd.Flags().BoolVar(&opts.Core.Wait, "wait", true, "wait for provisioning to complete after commit")
+	cmd.Flags().IntVar(&opts.Core.Timeout, "timeout", 300, "timeout in seconds when using --wait (default: 300)")
 
 	return cmd
 }
@@ -162,7 +171,7 @@ func runCreate(cmd *cobra.Command, args []string, opts *CreateOptions) error {
 
 	// Phase 4: Optionally watch provisioning
 	hostname := spec.Exposure.Hostname
-	if opts.Wait && committed {
+	if opts.Core.Wait && committed {
 		if err := watchProvisioning(cfg, opts, name, hostname, spec); err != nil {
 			// Non-fatal — the resource was already committed
 			fmt.Printf("\n%s %s\n", tui.WarningStyle.Render(tui.IconWarn), err.Error())

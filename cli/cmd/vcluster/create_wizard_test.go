@@ -10,7 +10,7 @@ import (
 
 func TestCollectNameAndPreset_NameFromArgs(t *testing.T) {
 	cmd := newCreateCmd()
-	opts := &CreateOptions{Preset: "dev"}
+	opts := &CreateOptions{Core: CoreOpts{Preset: "dev"}}
 
 	name, preset, err := collectNameAndPreset(cmd, []string{"my-cluster"}, opts, false)
 	if err != nil {
@@ -52,7 +52,7 @@ func TestCollectNameAndPreset_EmptyName_NonInteractive(t *testing.T) {
 
 func TestCollectNameAndPreset_ProdPreset(t *testing.T) {
 	cmd := newCreateCmd()
-	opts := &CreateOptions{Preset: "prod"}
+	opts := &CreateOptions{Core: CoreOpts{Preset: "prod"}}
 
 	_, preset, err := collectNameAndPreset(cmd, []string{"production"}, opts, false)
 	if err != nil {
@@ -176,10 +176,12 @@ func TestApplyClusterMetadata_EmptyLabels(t *testing.T) {
 func TestCollectWorkloadRepo_WithFlags(t *testing.T) {
 	cmd := newCreateCmd()
 	opts := &CreateOptions{
-		WorkloadRepoURL:      "https://github.com/example/repo",
-		WorkloadRepoBasePath: "clusters/dev",
-		WorkloadRepoPath:     "workloads",
-		WorkloadRepoRevision: "main",
+		WorkloadRepo: WorkloadRepoOpts{
+			URL:      "https://github.com/example/repo",
+			BasePath: "clusters/dev",
+			Path:     "workloads",
+			Revision: "main",
+		},
 	}
 	spec := &platform.VClusterSpec{
 		Integrations: platform.DefaultIntegrations(),
@@ -228,7 +230,9 @@ func TestCollectWorkloadRepo_NoFlags(t *testing.T) {
 func TestCollectWorkloadRepo_PartialFlags(t *testing.T) {
 	cmd := newCreateCmd()
 	opts := &CreateOptions{
-		WorkloadRepoURL: "https://github.com/example/partial",
+		WorkloadRepo: WorkloadRepoOpts{
+			URL: "https://github.com/example/partial",
+		},
 	}
 	spec := &platform.VClusterSpec{
 		Integrations: platform.DefaultIntegrations(),
@@ -254,7 +258,9 @@ func TestCollectWorkloadRepo_PartialFlags(t *testing.T) {
 func TestCollectWorkloadRepo_NilArgoCD(t *testing.T) {
 	cmd := newCreateCmd()
 	opts := &CreateOptions{
-		WorkloadRepoURL: "https://github.com/example/repo",
+		WorkloadRepo: WorkloadRepoOpts{
+			URL: "https://github.com/example/repo",
+		},
 	}
 	spec := &platform.VClusterSpec{
 		Integrations: platform.IntegrationsCfg{

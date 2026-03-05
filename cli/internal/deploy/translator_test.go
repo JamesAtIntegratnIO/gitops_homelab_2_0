@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -973,7 +974,7 @@ func TestTranslate_BasicWorkload(t *testing.T) {
 		},
 	}
 
-	result, err := Translate(w, "test-cluster", cfg)
+	result, err := Translate(context.Background(), w, "test-cluster", cfg)
 	if err != nil {
 		t.Fatalf("Translate: %v", err)
 	}
@@ -1011,7 +1012,7 @@ func TestTranslate_ClusterFromAnnotation(t *testing.T) {
 		},
 	}
 
-	result, err := Translate(w, "", cfg)
+	result, err := Translate(context.Background(), w, "", cfg)
 	if err != nil {
 		t.Fatalf("Translate: %v", err)
 	}
@@ -1035,7 +1036,7 @@ func TestTranslate_NamespaceOverride(t *testing.T) {
 		},
 	}
 
-	result, err := Translate(w, "my-cluster", cfg)
+	result, err := Translate(context.Background(), w, "my-cluster", cfg)
 	if err != nil {
 		t.Fatalf("Translate: %v", err)
 	}
@@ -1056,7 +1057,7 @@ func TestTranslate_NoCluster_ReturnsError(t *testing.T) {
 		},
 	}
 
-	_, err := Translate(w, "", cfg)
+	_, err := Translate(context.Background(), w, "", cfg)
 	if err == nil {
 		t.Fatal("expected error when no cluster specified")
 	}
@@ -1077,7 +1078,7 @@ func TestTranslate_UnknownResourceType_ReturnsError(t *testing.T) {
 		},
 	}
 
-	_, err := Translate(w, "test", cfg)
+	_, err := Translate(context.Background(), w, "test", cfg)
 	if err == nil {
 		t.Fatal("expected error for unknown resource type")
 	}

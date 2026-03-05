@@ -28,7 +28,7 @@ func buildVClusterSpec(cmd *cobra.Command, cfg *config.Config, opts *CreateOptio
 	applyFlagOverrides(cmd, opts, &spec)
 
 	// Hostname
-	hostname := opts.Hostname
+	hostname := opts.Core.Hostname
 	if interactive && hostname == "" {
 		defaultHost := fmt.Sprintf("%s.%s", name, cfg.Platform.Domain)
 		val, err := tui.Input("External hostname", "e.g. "+defaultHost, defaultHost)
@@ -42,28 +42,28 @@ func buildVClusterSpec(cmd *cobra.Command, cfg *config.Config, opts *CreateOptio
 	}
 	spec.Exposure = platform.ExposureConfig{
 		Hostname: hostname,
-		APIPort:  opts.APIPort,
+		APIPort:  opts.Exposure.APIPort,
 	}
-	if opts.Subnet != "" {
-		spec.Exposure.Subnet = opts.Subnet
+	if opts.Exposure.Subnet != "" {
+		spec.Exposure.Subnet = opts.Exposure.Subnet
 	}
-	if opts.VIP != "" {
-		spec.Exposure.VIP = opts.VIP
+	if opts.Exposure.VIP != "" {
+		spec.Exposure.VIP = opts.Exposure.VIP
 	}
 
 	// Persistence overrides
-	if cmd.Flags().Changed("persistence") || opts.PersistenceSize != "" || opts.StorageClass != "" {
+	if cmd.Flags().Changed("persistence") || opts.Persistence.Size != "" || opts.Persistence.StorageClass != "" {
 		if spec.VCluster.Persistence == nil {
 			spec.VCluster.Persistence = &platform.PersistenceConfig{}
 		}
 		if cmd.Flags().Changed("persistence") {
-			spec.VCluster.Persistence.Enabled = opts.Persistence
+			spec.VCluster.Persistence.Enabled = opts.Persistence.Enabled
 		}
-		if opts.PersistenceSize != "" {
-			spec.VCluster.Persistence.Size = opts.PersistenceSize
+		if opts.Persistence.Size != "" {
+			spec.VCluster.Persistence.Size = opts.Persistence.Size
 		}
-		if opts.StorageClass != "" {
-			spec.VCluster.Persistence.StorageClass = opts.StorageClass
+		if opts.Persistence.StorageClass != "" {
+			spec.VCluster.Persistence.StorageClass = opts.Persistence.StorageClass
 		}
 	}
 
@@ -95,7 +95,7 @@ func buildVClusterSpec(cmd *cobra.Command, cfg *config.Config, opts *CreateOptio
 
 	// ArgoCD environment
 	if spec.Integrations.ArgoCD != nil {
-		spec.Integrations.ArgoCD.Environment = opts.Environment
+		spec.Integrations.ArgoCD.Environment = opts.Core.Environment
 	}
 
 	// Interactive advanced settings
@@ -130,14 +130,14 @@ func buildVClusterSpec(cmd *cobra.Command, cfg *config.Config, opts *CreateOptio
 
 // applyFlagOverrides applies simple flag-based overrides to the spec.
 func applyFlagOverrides(cmd *cobra.Command, opts *CreateOptions, spec *platform.VClusterSpec) {
-	if opts.K8sVersion != "" {
-		spec.VCluster.K8sVersion = opts.K8sVersion
+	if opts.Core.K8sVersion != "" {
+		spec.VCluster.K8sVersion = opts.Core.K8sVersion
 	}
-	if opts.Replicas > 0 {
-		spec.VCluster.Replicas = opts.Replicas
+	if opts.Core.Replicas > 0 {
+		spec.VCluster.Replicas = opts.Core.Replicas
 	}
-	if opts.IsolationMode != "" {
-		spec.VCluster.IsolationMode = opts.IsolationMode
+	if opts.Core.IsolationMode != "" {
+		spec.VCluster.IsolationMode = opts.Core.IsolationMode
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 
 func TestApplyFlagOverrides_K8sVersion(t *testing.T) {
 	spec := &platform.VClusterSpec{}
-	opts := &CreateOptions{K8sVersion: "1.30.0"}
+	opts := &CreateOptions{Core: CoreOpts{K8sVersion: "1.30.0"}}
 	cmd := newCreateCmd()
 
 	applyFlagOverrides(cmd, opts, spec)
@@ -19,7 +19,7 @@ func TestApplyFlagOverrides_K8sVersion(t *testing.T) {
 
 func TestApplyFlagOverrides_Replicas(t *testing.T) {
 	spec := &platform.VClusterSpec{}
-	opts := &CreateOptions{Replicas: 3}
+	opts := &CreateOptions{Core: CoreOpts{Replicas: 3}}
 	cmd := newCreateCmd()
 
 	applyFlagOverrides(cmd, opts, spec)
@@ -30,7 +30,7 @@ func TestApplyFlagOverrides_Replicas(t *testing.T) {
 
 func TestApplyFlagOverrides_IsolationMode(t *testing.T) {
 	spec := &platform.VClusterSpec{}
-	opts := &CreateOptions{IsolationMode: "strict"}
+	opts := &CreateOptions{Core: CoreOpts{IsolationMode: "strict"}}
 	cmd := newCreateCmd()
 
 	applyFlagOverrides(cmd, opts, spec)

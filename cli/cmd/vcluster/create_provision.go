@@ -68,7 +68,7 @@ func writeAndCommitVCluster(cfg *config.Config, opts *CreateOptions, name, prese
 
 	// Git handling
 	gitMode := cfg.GitMode
-	if opts.AutoCommit {
+	if opts.Core.AutoCommit {
 		gitMode = "auto"
 	}
 
@@ -100,7 +100,7 @@ func watchProvisioning(cfg *config.Config, opts *CreateOptions, name, hostname s
 	}
 
 	ns := cfg.Platform.PlatformNamespace
-	timeout := time.Duration(opts.Timeout) * time.Second
+	timeout := time.Duration(opts.Core.Timeout) * time.Second
 	poll := 3 * time.Second
 
 	steps := []tui.Step{

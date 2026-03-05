@@ -32,7 +32,7 @@ func collectNameAndPreset(cmd *cobra.Command, args []string, opts *CreateOptions
 	}
 
 	// ── Preset ────────────────────────────────────────────────────────
-	preset := opts.Preset
+	preset := opts.Core.Preset
 	if interactive && preset == "" {
 		idx, err := tui.Select("Select preset", []string{
 			"dev  — 1 replica, 768Mi, SQLite, no persistence",
@@ -207,8 +207,8 @@ func applyClusterMetadata(cmd *cobra.Command, opts *CreateOptions, spec *platfor
 
 // collectWorkloadRepo handles workload repo configuration from flags or interactive prompts.
 func collectWorkloadRepo(cmd *cobra.Command, opts *CreateOptions, spec *platform.VClusterSpec, interactive bool) error {
-	hasWorkloadFlags := opts.WorkloadRepoURL != "" || opts.WorkloadRepoBasePath != "" ||
-		opts.WorkloadRepoPath != "" || opts.WorkloadRepoRevision != ""
+	hasWorkloadFlags := opts.WorkloadRepo.URL != "" || opts.WorkloadRepo.BasePath != "" ||
+		opts.WorkloadRepo.Path != "" || opts.WorkloadRepo.Revision != ""
 
 	if interactive && !hasWorkloadFlags {
 		confirmed, confirmErr := tui.Confirm("Use a custom workload repository? (default: workloads/ in this repo)")
@@ -221,7 +221,7 @@ func collectWorkloadRepo(cmd *cobra.Command, opts *CreateOptions, spec *platform
 				return fmt.Errorf("collecting workload repo URL: %w", err)
 			}
 			if url != "" {
-				opts.WorkloadRepoURL = url
+				opts.WorkloadRepo.URL = url
 			}
 
 			basePath, err := tui.Input("Base path in repo (optional)", "e.g. clusters/dev-team-1", "")
@@ -229,7 +229,7 @@ func collectWorkloadRepo(cmd *cobra.Command, opts *CreateOptions, spec *platform
 				return fmt.Errorf("collecting workload repo base path: %w", err)
 			}
 			if basePath != "" {
-				opts.WorkloadRepoBasePath = basePath
+				opts.WorkloadRepo.BasePath = basePath
 			}
 
 			path, err := tui.Input("Workload path", "directory containing manifests", "workloads")
@@ -237,7 +237,7 @@ func collectWorkloadRepo(cmd *cobra.Command, opts *CreateOptions, spec *platform
 				return fmt.Errorf("collecting workload path: %w", err)
 			}
 			if path != "" {
-				opts.WorkloadRepoPath = path
+				opts.WorkloadRepo.Path = path
 			}
 
 			rev, err := tui.Input("Git revision (branch/tag)", "", "main")
@@ -245,27 +245,27 @@ func collectWorkloadRepo(cmd *cobra.Command, opts *CreateOptions, spec *platform
 				return fmt.Errorf("collecting git revision: %w", err)
 			}
 			if rev != "" {
-				opts.WorkloadRepoRevision = rev
+				opts.WorkloadRepo.Revision = rev
 			}
 
-			hasWorkloadFlags = opts.WorkloadRepoURL != "" || opts.WorkloadRepoBasePath != "" ||
-				opts.WorkloadRepoPath != "" || opts.WorkloadRepoRevision != ""
+			hasWorkloadFlags = opts.WorkloadRepo.URL != "" || opts.WorkloadRepo.BasePath != "" ||
+				opts.WorkloadRepo.Path != "" || opts.WorkloadRepo.Revision != ""
 		}
 	}
 
 	if hasWorkloadFlags && spec.Integrations.ArgoCD != nil {
 		spec.Integrations.ArgoCD.WorkloadRepo = &platform.WorkloadRepoConfig{}
-		if opts.WorkloadRepoURL != "" {
-			spec.Integrations.ArgoCD.WorkloadRepo.URL = opts.WorkloadRepoURL
+		if opts.WorkloadRepo.URL != "" {
+			spec.Integrations.ArgoCD.WorkloadRepo.URL = opts.WorkloadRepo.URL
 		}
-		if opts.WorkloadRepoBasePath != "" {
-			spec.Integrations.ArgoCD.WorkloadRepo.BasePath = opts.WorkloadRepoBasePath
+		if opts.WorkloadRepo.BasePath != "" {
+			spec.Integrations.ArgoCD.WorkloadRepo.BasePath = opts.WorkloadRepo.BasePath
 		}
-		if opts.WorkloadRepoPath != "" {
-			spec.Integrations.ArgoCD.WorkloadRepo.Path = opts.WorkloadRepoPath
+		if opts.WorkloadRepo.Path != "" {
+			spec.Integrations.ArgoCD.WorkloadRepo.Path = opts.WorkloadRepo.Path
 		}
-		if opts.WorkloadRepoRevision != "" {
-			spec.Integrations.ArgoCD.WorkloadRepo.Revision = opts.WorkloadRepoRevision
+		if opts.WorkloadRepo.Revision != "" {
+			spec.Integrations.ArgoCD.WorkloadRepo.Revision = opts.WorkloadRepo.Revision
 		}
 	}
 

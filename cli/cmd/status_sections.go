@@ -21,12 +21,17 @@ func loadNodesSection(client *kube.Client) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return formatNodesTable(nodes), nil
+}
+
+// formatNodesTable renders a table of node info. Extracted for testability.
+func formatNodesTable(nodes []kube.NodeInfo) string {
 	var rows [][]string
 	for _, n := range nodes {
 		status := tui.StatusIcon(n.Ready)
 		rows = append(rows, []string{n.Name, status, n.IP, strings.Join(n.Roles, ","), n.CPU, n.Memory})
 	}
-	return tui.Table([]string{"NAME", "READY", "IP", "ROLES", "CPU", "MEMORY"}, rows), nil
+	return tui.Table([]string{"NAME", "READY", "IP", "ROLES", "CPU", "MEMORY"}, rows)
 }
 
 // loadArgoCDSection fetches ArgoCD applications and renders a summary with unhealthy apps.

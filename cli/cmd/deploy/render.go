@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ Supports --output json/yaml for machine-readable output.`,
 				return hcerrors.NewUserError("loading score workload: %w", err)
 			}
 
-			result, err := deploylib.Translate(workload, cluster, config.Get())
+			result, err := deploylib.Translate(context.Background(), workload, cluster, config.Get())
 			if err != nil {
 				return hcerrors.NewPlatformError("translating workload: %w", err)
 			}
@@ -99,7 +100,7 @@ Exit codes: 0 = no changes, 1 = error, 2 = changes detected.`,
 				return hcerrors.NewUserError("loading score workload: %w", err)
 			}
 
-			result, err := deploylib.Translate(workload, cluster, cfg)
+			result, err := deploylib.Translate(context.Background(), workload, cluster, cfg)
 			if err != nil {
 				return hcerrors.NewPlatformError("translating workload: %w", err)
 			}

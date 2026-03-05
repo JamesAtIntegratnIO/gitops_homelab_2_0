@@ -3,6 +3,7 @@
 package deploy
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -38,11 +39,16 @@ var secretRefRegex = regexp.MustCompile(`^\$\(([^:]+):([^)]+)\)$`)
 var scoreVarRegex = regexp.MustCompile(`\$\{resources\.([^.]+)\.([^}]+)\}`)
 
 // Translate converts a Score workload into platform resources.
-// cfg is the active configuration; passing it explicitly avoids a hidden
-// dependency on the config.Get() global singleton.
-func Translate(workload *score.Workload, cluster string, cfg *config.Config) (*TranslateResult, error) {
+// ctx carries optional config via config.NewContext; cfg is the active
+// configuration. When cfg is nil the function tries config.FromContext(ctx)
+// before falling back to the config.Get() global singleton.
+func Translate(ctx context.Context, workload *score.Workload, cluster string, cfg *config.Config) (*TranslateResult, error) {
 	if cfg == nil {
-		cfg = config.Get()
+		if c, ok := config.FromContext(ctx); ok {
+			cfg = c
+		} else {
+			cfg = config.Get()
+		}
 	}
 
 	if cluster == "" {
