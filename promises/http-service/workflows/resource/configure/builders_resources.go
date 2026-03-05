@@ -141,86 +141,36 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []ku.Resource {
 		},
 	})
 
-	// Allow monitoring scrape if enabled
-	if config.MonitoringEnabled {
-		policies = append(policies, ku.Resource{
-			APIVersion: "networking.k8s.io/v1",
-			Kind:       "NetworkPolicy",
-			Metadata: ku.ObjectMeta{
-				Name:      fmt.Sprintf("%s-allow-monitoring", config.Name),
-				Namespace: config.Namespace,
-				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "kratix",
-					"kratix.io/promise-name":       "http-service",
-					"app.kubernetes.io/part-of":    config.Name,
-				},
-				Annotations: map[string]string{
-					"argocd.argoproj.io/sync-wave": "5",
-				},
-			},
-			Spec: map[string]interface{}{
-				"podSelector": map[string]interface{}{
-					"matchLabels": map[string]string{
-						"app.kubernetes.io/name": config.Name,
-					},
-				},
-				"policyTypes": []string{"Ingress"},
-				"ingress": []map[string]interface{}{
-					{
-						"from": []map[string]interface{}{
-							{
-								"namespaceSelector": map[string]interface{}{
-									"matchLabels": map[string]string{
-										"kubernetes.io/metadata.name": ku.MonitoringNamespace,
-									},
-								},
-							},
-						},
-						"ports": []map[string]interface{}{
-							{
-								"protocol": "TCP",
-								"port":     config.Port,
-							},
-						},
-					},
-				},
-			},
-		})
+	// Common labels and annotations for network policies
+	netpolLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "kratix",
+		"kratix.io/promise-name":       "http-service",
+		"app.kubernetes.io/part-of":    config.Name,
+	}
+	syncWaveAnnotations := map[string]string{
+		"argocd.argoproj.io/sync-wave": "5",
 	}
 
-	// Allow DNS egress (all pods need this)
-	policies = append(policies, ku.Resource{
-		APIVersion: "networking.k8s.io/v1",
-		Kind:       "NetworkPolicy",
-		Metadata: ku.ObjectMeta{
-			Name:      fmt.Sprintf("%s-allow-dns", config.Name),
-			Namespace: config.Namespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "kratix",
-				"kratix.io/promise-name":       "http-service",
-				"app.kubernetes.io/part-of":    config.Name,
-			},
-			Annotations: map[string]string{
-				"argocd.argoproj.io/sync-wave": "5",
-			},
-		},
-		Spec: map[string]interface{}{
-			"podSelector": map[string]interface{}{
-				"matchLabels": map[string]string{
-					"app.kubernetes.io/name": config.Name,
-				},
-			},
-			"policyTypes": []string{"Egress"},
-			"egress": []map[string]interface{}{
-				{
-					"ports": []map[string]interface{}{
-						{"protocol": "UDP", "port": ku.DNSPort},
-						{"protocol": "TCP", "port": ku.DNSPort},
-					},
-				},
-			},
-		},
-	})
+	// Allow monitoring scrape if enabled
+	if config.MonitoringEnabled {
+		mon := ku.BuildMonitoringIngressPolicy(
+			fmt.Sprintf("%s-allow-monitoring", config.Name),
+			config.Namespace,
+			netpolLabels,
+			config.Port,
+		)
+		mon.Metadata.Annotations = syncWaveAnnotations
+		policies = append(policies, mon)
+	}
+
+	// Allow DNS egress to kube-system CoreDNS (all pods need this)
+	dns := ku.BuildDNSEgressPolicy(
+		fmt.Sprintf("%s-allow-dns", config.Name),
+		config.Namespace,
+		netpolLabels,
+	)
+	dns.Metadata.Annotations = syncWaveAnnotations
+	policies = append(policies, dns)
 
 	return policies
 }

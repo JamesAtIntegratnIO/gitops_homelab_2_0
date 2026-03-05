@@ -84,60 +84,20 @@ func netpolicyLabels(config *VClusterConfig, name string) map[string]string {
 
 // buildDefaultDenyPolicy creates the default-deny-all policy.
 func buildDefaultDenyPolicy(config *VClusterConfig) ku.Resource {
-	return ku.Resource{
-		APIVersion: "networking.k8s.io/v1",
-		Kind:       "NetworkPolicy",
-		Metadata: ku.ResourceMeta(
-			"default-deny-all",
-			config.TargetNamespace,
-			netpolicyLabels(config, "default-deny-all"),
-			nil,
-		),
-		Spec: map[string]interface{}{
-			"podSelector": map[string]interface{}{},
-			"policyTypes": []string{"Ingress", "Egress"},
-		},
-	}
+	return ku.BuildDefaultDenyPolicy(
+		"default-deny-all",
+		config.TargetNamespace,
+		netpolicyLabels(config, "default-deny-all"),
+	)
 }
 
 // buildDNSEgressPolicy allows egress to kube-system CoreDNS on port 53.
 func buildDNSEgressPolicy(config *VClusterConfig) ku.Resource {
-	return ku.Resource{
-		APIVersion: "networking.k8s.io/v1",
-		Kind:       "NetworkPolicy",
-		Metadata: ku.ResourceMeta(
-			"allow-dns",
-			config.TargetNamespace,
-			netpolicyLabels(config, "allow-dns"),
-			nil,
-		),
-		Spec: map[string]interface{}{
-			"podSelector": map[string]interface{}{},
-			"policyTypes": []string{"Egress"},
-			"egress": []map[string]interface{}{
-				{
-					"to": []map[string]interface{}{
-						{
-							"namespaceSelector": map[string]interface{}{
-								"matchLabels": map[string]string{
-									"kubernetes.io/metadata.name": ku.KubeSystemNamespace,
-								},
-							},
-							"podSelector": map[string]interface{}{
-								"matchLabels": map[string]string{
-									"k8s-app": "kube-dns",
-								},
-							},
-						},
-					},
-					"ports": []map[string]interface{}{
-						{"protocol": "UDP", "port": ku.DNSPort},
-						{"protocol": "TCP", "port": ku.DNSPort},
-					},
-				},
-			},
-		},
-	}
+	return ku.BuildDNSEgressPolicy(
+		"allow-dns",
+		config.TargetNamespace,
+		netpolicyLabels(config, "allow-dns"),
+	)
 }
 
 // buildKubeAPIPolicy allows egress to the kube-apiserver entity (CiliumNetworkPolicy).

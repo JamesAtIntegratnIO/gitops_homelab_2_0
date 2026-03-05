@@ -8,6 +8,15 @@ package kratixutil
 // Kratix state store. The Spec and Data fields are interface{} to support
 // different resource kinds (Deployments, ExternalSecrets, ConfigMaps, etc.)
 // without requiring a separate struct per kind.
+//
+// Spec typing convention:
+//   - Use typed spec structs (e.g., ArgoCDApplicationSpec, CertificateSpec) for
+//     resources whose fields are computed or branched on by pipeline logic.
+//   - Use map[string]interface{} for resources that mirror upstream Kubernetes
+//     specs (e.g., NetworkPolicy, ConfigMap data) where the pipeline constructs
+//     the spec wholesale without inspecting individual fields.
+//   - RBAC resources use the dedicated Rules/RoleRef/Subjects fields rather than
+//     Spec, matching the Kubernetes role API shape directly.
 type Resource struct {
 	APIVersion string      `json:"apiVersion"`
 	Kind       string      `json:"kind"`
