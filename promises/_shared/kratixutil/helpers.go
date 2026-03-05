@@ -272,6 +272,112 @@ func ExtractMapE(data map[string]interface{}, key string) (map[string]interface{
 	return m, nil
 }
 
+// ExtractStringMapE returns a map[string]string for key, or an error if the
+// value exists but is not a map[string]interface{}.
+func ExtractStringMapE(data map[string]interface{}, key string) (map[string]string, error) {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return nil, nil
+	}
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("key %q: expected map[string]interface{}, got %T", key, v)
+	}
+	result := make(map[string]string, len(m))
+	for k, val := range m {
+		if str, ok := val.(string); ok {
+			result[k] = str
+		}
+	}
+	return result, nil
+}
+
+// ExtractStringSliceE returns a []string for key, or an error if the value
+// exists but is not a []interface{}.
+func ExtractStringSliceE(data map[string]interface{}, key string) ([]string, error) {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return nil, nil
+	}
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("key %q: expected []interface{}, got %T", key, v)
+	}
+	result := make([]string, 0, len(arr))
+	for _, item := range arr {
+		if str, ok := item.(string); ok {
+			result = append(result, str)
+		}
+	}
+	return result, nil
+}
+
+// ExtractObjectSliceE returns a []map[string]interface{} for key, or an error
+// if the value exists but is not a []interface{}.
+func ExtractObjectSliceE(data map[string]interface{}, key string) ([]map[string]interface{}, error) {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return nil, nil
+	}
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("key %q: expected []interface{}, got %T", key, v)
+	}
+	result := make([]map[string]interface{}, 0, len(arr))
+	for _, item := range arr {
+		if obj, ok := item.(map[string]interface{}); ok {
+			result = append(result, obj)
+		}
+	}
+	return result, nil
+}
+
+// ExtractSecretsE returns a []SecretRef for key, or an error if the value
+// exists but is not a []interface{}.
+func ExtractSecretsE(data map[string]interface{}, key string) ([]SecretRef, error) {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return nil, nil
+	}
+	arr, ok := v.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("key %q: expected []interface{}, got %T", key, v)
+	}
+
+	var secrets []SecretRef
+	for _, item := range arr {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		s := SecretRef{}
+		if name, ok := m["name"].(string); ok {
+			s.Name = name
+		}
+		if opItem, ok := m["onePasswordItem"].(string); ok {
+			s.OnePasswordItem = opItem
+		}
+		if keys, ok := m["keys"].([]interface{}); ok {
+			for _, kItem := range keys {
+				km, ok := kItem.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				sk := SecretKey{}
+				if sv, ok := km["secretKey"].(string); ok {
+					sk.SecretKey = sv
+				}
+				if sv, ok := km["property"].(string); ok {
+					sk.Property = sv
+				}
+				s.Keys = append(s.Keys, sk)
+			}
+		}
+		secrets = append(secrets, s)
+	}
+	return secrets, nil
+}
+
 // DeepMerge merges src into dst recursively. src values win on conflicts.
 // For map values, merging recurses. For non-map or mismatched types, src wins.
 func DeepMerge(dst, src map[string]interface{}) map[string]interface{} {
@@ -348,13 +454,12 @@ func DeleteOutputPathForResource(prefix string, r Resource) string {
 	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
 }
 
-// ParseSyncPolicy converts an untyped map (from resource.GetValue) into a typed
-// SyncPolicy. Returns nil if the value is not the expected map type.
-func ParseSyncPolicy(raw interface{}) *SyncPolicy {
+// ParseSyncPolicyE converts an untyped map (from resource.GetValue) into a typed
+// SyncPolicy. Returns an error if the value is not the expected map type.
+func ParseSyncPolicyE(raw interface{}) (*SyncPolicy, error) {
 	m, ok := raw.(map[string]interface{})
 	if !ok {
-		log.Printf("warning: syncPolicy has unexpected type %T, expected map[string]interface{}", raw)
-		return nil
+		return nil, fmt.Errorf("syncPolicy: expected map[string]interface{}, got %T", raw)
 	}
 	sp := &SyncPolicy{}
 	if automated, ok := m["automated"].(map[string]interface{}); ok {
@@ -372,6 +477,18 @@ func ParseSyncPolicy(raw interface{}) *SyncPolicy {
 				sp.SyncOptions = append(sp.SyncOptions, s)
 			}
 		}
+	}
+	return sp, nil
+}
+
+// ParseSyncPolicy converts an untyped map (from resource.GetValue) into a typed
+// SyncPolicy. Returns nil if the value is not the expected map type.
+// Deprecated: prefer ParseSyncPolicyE for proper error handling.
+func ParseSyncPolicy(raw interface{}) *SyncPolicy {
+	sp, err := ParseSyncPolicyE(raw)
+	if err != nil {
+		log.Printf("warning: %v", err)
+		return nil
 	}
 	return sp
 }

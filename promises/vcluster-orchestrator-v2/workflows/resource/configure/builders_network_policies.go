@@ -6,6 +6,35 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
+// ---------------------------------------------------------------------------
+// Network Policy Builders – Kubernetes vs Cilium
+// ---------------------------------------------------------------------------
+//
+// This file produces two kinds of network policy resources:
+//
+// Standard Kubernetes NetworkPolicy (networking.k8s.io/v1):
+//   - buildDefaultDenyPolicy      – namespace-level default-deny-all baseline
+//   - buildDNSEgressPolicy         – allow DNS egress to kube-system CoreDNS
+//   - buildIntraNamespacePolicy    – allow full intra-namespace communication
+//   - buildVClusterExternalPolicy  – allow external ingress/egress (ArgoCD, gateway, registries)
+//   - buildNFSEgressPolicy         – optional NFS egress (opt-in)
+//   - buildExtraEgressPolicy       – custom egress rules (e.g., PostgreSQL)
+//
+// Cilium CiliumNetworkPolicy (cilium.io/v2):
+//   - buildKubeAPIPolicy           – allow egress to kube-apiserver entity
+//   - buildCorednsHostDNSPolicy    – allow egress to Talos node-local DNS (169.254.116.108)
+//   - buildVClusterLBSNATPolicy    – allow SNAT'd LB traffic via Cilium security identities
+//
+// Why both are used:
+//   Cilium CiliumNetworkPolicy is required for workload-level policies that
+//   reference Cilium-specific constructs (entities like "kube-apiserver",
+//   "host", "remote-node", "world"; toCIDR for link-local addresses; and
+//   security-identity-based fromEntities). Standard Kubernetes NetworkPolicy
+//   is used for namespace-level baseline rules (default-deny, DNS, intra-NS,
+//   IP-block based ingress/egress) that don't need Cilium extensions and
+//   remain portable across CNI implementations.
+// ---------------------------------------------------------------------------
+
 // buildNetworkPolicies generates the complete set of host-cluster network policies
 // for a vcluster namespace. This includes:
 //   - Generic baseline policies (default-deny, DNS, kube-api, intra-namespace, external)

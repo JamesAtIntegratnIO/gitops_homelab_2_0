@@ -24,17 +24,13 @@ func TestBuildEtcdCertificates_CACert(t *testing.T) {
 	config := etcdConfig()
 	certs := buildEtcdCertificates(config)
 
-	// CA cert is at index 3 (SA, Role, RoleBinding, CACert, ...)
-	caCert := certs[3]
-	if caCert.Kind != "Certificate" {
-		t.Fatalf("expected kind Certificate, got %q", caCert.Kind)
+	wantName := fmt.Sprintf("%s-etcd-ca", config.Name)
+	caCert := ku.FindResource(certs, "Certificate", wantName)
+	if caCert == nil {
+		t.Fatalf("Certificate %q not found in resources", wantName)
 	}
 	if caCert.APIVersion != "cert-manager.io/v1" {
 		t.Errorf("expected apiVersion 'cert-manager.io/v1', got %q", caCert.APIVersion)
-	}
-	wantName := fmt.Sprintf("%s-etcd-ca", config.Name)
-	if caCert.Metadata.Name != wantName {
-		t.Errorf("expected name %q, got %q", wantName, caCert.Metadata.Name)
 	}
 	if caCert.Metadata.Namespace != config.TargetNamespace {
 		t.Errorf("expected namespace %q, got %q", config.TargetNamespace, caCert.Metadata.Namespace)
@@ -65,14 +61,10 @@ func TestBuildEtcdCertificates_Issuers(t *testing.T) {
 	config := etcdConfig()
 	certs := buildEtcdCertificates(config)
 
-	// SelfSigned issuer is at index 4
-	selfSigned := certs[4]
-	if selfSigned.Kind != "Issuer" {
-		t.Fatalf("expected kind Issuer, got %q", selfSigned.Kind)
-	}
 	wantSSName := fmt.Sprintf("%s-etcd-selfsigned", config.Name)
-	if selfSigned.Metadata.Name != wantSSName {
-		t.Errorf("expected name %q, got %q", wantSSName, selfSigned.Metadata.Name)
+	selfSigned := ku.FindResource(certs, "Issuer", wantSSName)
+	if selfSigned == nil {
+		t.Fatalf("Issuer %q not found in resources", wantSSName)
 	}
 	ssSpec, ok := selfSigned.Spec.(IssuerSpec)
 	if !ok {
@@ -82,14 +74,10 @@ func TestBuildEtcdCertificates_Issuers(t *testing.T) {
 		t.Error("expected selfSigned issuer spec")
 	}
 
-	// CA issuer is at index 5
-	caIssuer := certs[5]
-	if caIssuer.Kind != "Issuer" {
-		t.Fatalf("expected kind Issuer, got %q", caIssuer.Kind)
-	}
 	wantCAName := fmt.Sprintf("%s-etcd-ca", config.Name)
-	if caIssuer.Metadata.Name != wantCAName {
-		t.Errorf("expected name %q, got %q", wantCAName, caIssuer.Metadata.Name)
+	caIssuer := ku.FindResource(certs, "Issuer", wantCAName)
+	if caIssuer == nil {
+		t.Fatalf("Issuer %q not found in resources", wantCAName)
 	}
 	caSpec, ok := caIssuer.Spec.(IssuerSpec)
 	if !ok {
@@ -107,14 +95,10 @@ func TestBuildEtcdCertificates_ServerCert(t *testing.T) {
 	config := etcdConfig()
 	certs := buildEtcdCertificates(config)
 
-	// Server cert is at index 7
-	serverCert := certs[7]
-	if serverCert.Kind != "Certificate" {
-		t.Fatalf("expected kind Certificate, got %q", serverCert.Kind)
-	}
 	wantName := fmt.Sprintf("%s-etcd-server", config.Name)
-	if serverCert.Metadata.Name != wantName {
-		t.Errorf("expected name %q, got %q", wantName, serverCert.Metadata.Name)
+	serverCert := ku.FindResource(certs, "Certificate", wantName)
+	if serverCert == nil {
+		t.Fatalf("Certificate %q not found in resources", wantName)
 	}
 
 	spec, ok := serverCert.Spec.(CertificateSpec)
@@ -157,14 +141,10 @@ func TestBuildEtcdCertificates_PeerCert(t *testing.T) {
 	config := etcdConfig()
 	certs := buildEtcdCertificates(config)
 
-	// Peer cert is at index 8
-	peerCert := certs[8]
-	if peerCert.Kind != "Certificate" {
-		t.Fatalf("expected kind Certificate, got %q", peerCert.Kind)
-	}
 	wantName := fmt.Sprintf("%s-etcd-peer", config.Name)
-	if peerCert.Metadata.Name != wantName {
-		t.Errorf("expected name %q, got %q", wantName, peerCert.Metadata.Name)
+	peerCert := ku.FindResource(certs, "Certificate", wantName)
+	if peerCert == nil {
+		t.Fatalf("Certificate %q not found in resources", wantName)
 	}
 
 	spec, ok := peerCert.Spec.(CertificateSpec)
@@ -190,26 +170,18 @@ func TestBuildEtcdCertificates_RBAC(t *testing.T) {
 	config := etcdConfig()
 	certs := buildEtcdCertificates(config)
 
-	// SA is at index 0
-	sa := certs[0]
-	if sa.Kind != "ServiceAccount" {
-		t.Fatalf("expected ServiceAccount, got %q", sa.Kind)
-	}
 	wantSAName := fmt.Sprintf("%s-etcd-certs-merge", config.Name)
-	if sa.Metadata.Name != wantSAName {
-		t.Errorf("expected SA name %q, got %q", wantSAName, sa.Metadata.Name)
+	sa := ku.FindResource(certs, "ServiceAccount", wantSAName)
+	if sa == nil {
+		t.Fatalf("ServiceAccount %q not found in resources", wantSAName)
 	}
 	if sa.Metadata.Namespace != config.TargetNamespace {
 		t.Errorf("expected SA namespace %q, got %q", config.TargetNamespace, sa.Metadata.Namespace)
 	}
 
-	// Role is at index 1
-	role := certs[1]
-	if role.Kind != "Role" {
-		t.Fatalf("expected Role, got %q", role.Kind)
-	}
-	if role.Metadata.Name != wantSAName {
-		t.Errorf("expected Role name %q, got %q", wantSAName, role.Metadata.Name)
+	role := ku.FindResource(certs, "Role", wantSAName)
+	if role == nil {
+		t.Fatalf("Role %q not found in resources", wantSAName)
 	}
 	if len(role.Rules) != 1 {
 		t.Fatalf("expected 1 rule, got %d", len(role.Rules))
@@ -218,10 +190,9 @@ func TestBuildEtcdCertificates_RBAC(t *testing.T) {
 		t.Errorf("expected 4 resourceNames in role rule, got %d", len(role.Rules[0].ResourceNames))
 	}
 
-	// RoleBinding is at index 2
-	rb := certs[2]
-	if rb.Kind != "RoleBinding" {
-		t.Fatalf("expected RoleBinding, got %q", rb.Kind)
+	rb := ku.FindResource(certs, "RoleBinding", wantSAName)
+	if rb == nil {
+		t.Fatalf("RoleBinding %q not found in resources", wantSAName)
 	}
 	if rb.RoleRef == nil {
 		t.Fatal("expected roleRef")
@@ -241,17 +212,13 @@ func TestBuildEtcdCertificates_MergeJob(t *testing.T) {
 	config := etcdConfig()
 	certs := buildEtcdCertificates(config)
 
-	// Job is at index 6
-	job := certs[6]
-	if job.Kind != "Job" {
-		t.Fatalf("expected kind Job, got %q", job.Kind)
+	wantName := fmt.Sprintf("%s-etcd-certs-merge", config.Name)
+	job := ku.FindResource(certs, "Job", wantName)
+	if job == nil {
+		t.Fatalf("Job %q not found in resources", wantName)
 	}
 	if job.APIVersion != "batch/v1" {
 		t.Errorf("expected apiVersion 'batch/v1', got %q", job.APIVersion)
-	}
-	wantName := fmt.Sprintf("%s-etcd-certs-merge", config.Name)
-	if job.Metadata.Name != wantName {
-		t.Errorf("expected name %q, got %q", wantName, job.Metadata.Name)
 	}
 
 	spec, ok := job.Spec.(ku.JobSpec)

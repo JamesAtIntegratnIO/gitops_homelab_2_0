@@ -171,7 +171,7 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []ku.Resource {
 							{
 								"namespaceSelector": map[string]interface{}{
 									"matchLabels": map[string]string{
-										"kubernetes.io/metadata.name": "monitoring",
+										"kubernetes.io/metadata.name": ku.MonitoringNamespace,
 									},
 								},
 							},

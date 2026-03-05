@@ -854,3 +854,389 @@ func TestExtractMapE(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// ExtractStringMapE tests
+// ---------------------------------------------------------------------------
+
+func TestExtractStringMapE(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		key       string
+		wantNil   bool
+		wantLen   int
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:    "present map",
+			data:    map[string]interface{}{"k": map[string]interface{}{"a": "1", "b": "2"}},
+			key:     "k",
+			wantLen: 2,
+		},
+		{name: "missing key", data: map[string]interface{}{}, key: "k", wantNil: true},
+		{name: "nil value", data: map[string]interface{}{"k": nil}, key: "k", wantNil: true},
+		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected map[string]interface{}"},
+		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected map[string]interface{}"},
+		{
+			name:    "skips non-string values",
+			data:    map[string]interface{}{"k": map[string]interface{}{"good": "val", "bad": 42}},
+			key:     "k",
+			wantLen: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractStringMapE(tt.data, tt.key)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error %q should contain %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("expected nil, got %v", got)
+				}
+				return
+			}
+			if len(got) != tt.wantLen {
+				t.Errorf("expected len %d, got %d (%v)", tt.wantLen, len(got), got)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ExtractStringSliceE tests
+// ---------------------------------------------------------------------------
+
+func TestExtractStringSliceE(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		key       string
+		wantNil   bool
+		wantLen   int
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:    "present slice",
+			data:    map[string]interface{}{"k": []interface{}{"a", "b"}},
+			key:     "k",
+			wantLen: 2,
+		},
+		{name: "missing key", data: map[string]interface{}{}, key: "k", wantNil: true},
+		{name: "nil value", data: map[string]interface{}{"k": nil}, key: "k", wantNil: true},
+		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
+		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
+		{
+			name:    "filters non-strings",
+			data:    map[string]interface{}{"k": []interface{}{"a", 42, "b"}},
+			key:     "k",
+			wantLen: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractStringSliceE(tt.data, tt.key)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error %q should contain %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("expected nil, got %v", got)
+				}
+				return
+			}
+			if len(got) != tt.wantLen {
+				t.Errorf("expected len %d, got %d (%v)", tt.wantLen, len(got), got)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ExtractObjectSliceE tests
+// ---------------------------------------------------------------------------
+
+func TestExtractObjectSliceE(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		key       string
+		wantNil   bool
+		wantLen   int
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name: "present slice",
+			data: map[string]interface{}{"k": []interface{}{
+				map[string]interface{}{"a": "1"},
+				map[string]interface{}{"b": "2"},
+			}},
+			key:     "k",
+			wantLen: 2,
+		},
+		{name: "missing key", data: map[string]interface{}{}, key: "k", wantNil: true},
+		{name: "nil value", data: map[string]interface{}{"k": nil}, key: "k", wantNil: true},
+		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
+		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
+		{
+			name: "filters non-maps",
+			data: map[string]interface{}{"k": []interface{}{
+				map[string]interface{}{"a": "1"},
+				"not-a-map",
+				42,
+			}},
+			key:     "k",
+			wantLen: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractObjectSliceE(tt.data, tt.key)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error %q should contain %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("expected nil, got %v", got)
+				}
+				return
+			}
+			if len(got) != tt.wantLen {
+				t.Errorf("expected len %d, got %d (%v)", tt.wantLen, len(got), got)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ExtractSecretsE tests
+// ---------------------------------------------------------------------------
+
+func TestExtractSecretsE(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		key       string
+		wantNil   bool
+		wantLen   int
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name: "full parse",
+			data: map[string]interface{}{"k": []interface{}{
+				map[string]interface{}{
+					"name":            "db-creds",
+					"onePasswordItem": "vault-item",
+					"keys": []interface{}{
+						map[string]interface{}{"secretKey": "password", "property": "password"},
+					},
+				},
+			}},
+			key:     "k",
+			wantLen: 1,
+		},
+		{name: "missing key", data: map[string]interface{}{}, key: "k", wantNil: true},
+		{name: "nil value", data: map[string]interface{}{"k": nil}, key: "k", wantNil: true},
+		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
+		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
+		{
+			name: "skips non-map items",
+			data: map[string]interface{}{"k": []interface{}{
+				"not-a-map",
+				map[string]interface{}{"name": "good"},
+			}},
+			key:     "k",
+			wantLen: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractSecretsE(tt.data, tt.key)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error %q should contain %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("expected nil, got %v", got)
+				}
+				return
+			}
+			if len(got) != tt.wantLen {
+				t.Errorf("expected len %d, got %d", tt.wantLen, len(got))
+			}
+		})
+	}
+}
+
+func TestExtractSecretsE_FullParse(t *testing.T) {
+	data := map[string]interface{}{
+		"secrets": []interface{}{
+			map[string]interface{}{
+				"name":            "db-creds",
+				"onePasswordItem": "vault-item-1",
+				"keys": []interface{}{
+					map[string]interface{}{"secretKey": "password", "property": "password"},
+					map[string]interface{}{"secretKey": "username", "property": "username"},
+				},
+			},
+		},
+	}
+	secrets, err := ExtractSecretsE(data, "secrets")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(secrets) != 1 {
+		t.Fatalf("expected 1 secret, got %d", len(secrets))
+	}
+	s := secrets[0]
+	if s.Name != "db-creds" {
+		t.Errorf("expected name 'db-creds', got %q", s.Name)
+	}
+	if s.OnePasswordItem != "vault-item-1" {
+		t.Errorf("expected onePasswordItem 'vault-item-1', got %q", s.OnePasswordItem)
+	}
+	if len(s.Keys) != 2 {
+		t.Fatalf("expected 2 keys, got %d", len(s.Keys))
+	}
+	if s.Keys[0].SecretKey != "password" || s.Keys[0].Property != "password" {
+		t.Errorf("unexpected key[0]: %+v", s.Keys[0])
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ParseSyncPolicyE tests
+// ---------------------------------------------------------------------------
+
+func TestParseSyncPolicyE(t *testing.T) {
+	tests := []struct {
+		name      string
+		raw       interface{}
+		wantNil   bool
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name: "valid full policy",
+			raw: map[string]interface{}{
+				"automated": map[string]interface{}{
+					"selfHeal": true,
+					"prune":    true,
+				},
+				"syncOptions": []interface{}{"CreateNamespace=true"},
+			},
+		},
+		{
+			name:    "empty map",
+			raw:     map[string]interface{}{},
+			wantNil: false,
+		},
+		{
+			name:      "wrong type string",
+			raw:       "not-a-map",
+			wantErr:   true,
+			errSubstr: "expected map[string]interface{}",
+		},
+		{
+			name:      "wrong type int",
+			raw:       42,
+			wantErr:   true,
+			errSubstr: "expected map[string]interface{}",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseSyncPolicyE(tt.raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error %q should contain %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("expected nil, got %+v", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("expected non-nil SyncPolicy")
+			}
+		})
+	}
+}
+
+func TestParseSyncPolicyE_Values(t *testing.T) {
+	raw := map[string]interface{}{
+		"automated": map[string]interface{}{
+			"selfHeal": true,
+			"prune":    false,
+		},
+		"syncOptions": []interface{}{"CreateNamespace=true", "PruneLast=true"},
+	}
+	sp, err := ParseSyncPolicyE(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sp.Automated == nil {
+		t.Fatal("expected Automated to be set")
+	}
+	if !sp.Automated.SelfHeal {
+		t.Error("expected SelfHeal=true")
+	}
+	if sp.Automated.Prune {
+		t.Error("expected Prune=false")
+	}
+	if len(sp.SyncOptions) != 2 {
+		t.Fatalf("expected 2 sync options, got %d", len(sp.SyncOptions))
+	}
+	if sp.SyncOptions[0] != "CreateNamespace=true" {
+		t.Errorf("unexpected syncOption[0]: %q", sp.SyncOptions[0])
+	}
+}

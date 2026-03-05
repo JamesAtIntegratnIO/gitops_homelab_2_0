@@ -327,7 +327,7 @@ func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {
 	}
 
 	var rules []ExtraEgressRule
-	for _, m := range raw {
+	for i, m := range raw {
 		rule := ExtraEgressRule{
 			Protocol: "TCP", // default
 		}
@@ -345,6 +345,8 @@ func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {
 		}
 		if rule.Name != "" && rule.CIDR != "" && rule.Port > 0 {
 			rules = append(rules, rule)
+		} else {
+			log.Printf("warning: skipping incomplete egress rule at index %d: name=%q cidr=%q port=%d", i, rule.Name, rule.CIDR, rule.Port)
 		}
 	}
 	return rules
