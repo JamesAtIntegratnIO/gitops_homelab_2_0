@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	kratix "github.com/syntasso/kratix-go"
@@ -138,8 +139,13 @@ func handleDelete(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 		outputs[ku.DeleteOutputPathForResource("resources", r)] = ku.DeleteFromResource(r)
 	}
 
-	for path, obj := range outputs {
-		if err := ku.WriteYAML(sdk, path, obj); err != nil {
+	paths := make([]string, 0, len(outputs))
+	for p := range outputs {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		if err := ku.WriteYAML(sdk, path, outputs[path]); err != nil {
 			return fmt.Errorf("write delete output %s: %w", path, err)
 		}
 	}

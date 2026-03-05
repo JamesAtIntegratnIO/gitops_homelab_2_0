@@ -201,25 +201,6 @@ func TestBaseLabels(t *testing.T) {
 	}
 }
 
-func TestDeleteResource(t *testing.T) {
-	r := DeleteResource("v1", "Service", "my-svc", "my-ns")
-	if r.APIVersion != "v1" {
-		t.Errorf("expected 'v1', got %q", r.APIVersion)
-	}
-	if r.Kind != "Service" {
-		t.Errorf("expected 'Service', got %q", r.Kind)
-	}
-	if r.Metadata.Name != "my-svc" {
-		t.Errorf("expected 'my-svc', got %q", r.Metadata.Name)
-	}
-	if r.Metadata.Namespace != "my-ns" {
-		t.Errorf("expected 'my-ns', got %q", r.Metadata.Namespace)
-	}
-	if r.Spec != nil || r.Data != nil {
-		t.Error("expected nil spec and data in delete resource")
-	}
-}
-
 func TestObjectMeta_OmitsEmptyOptionals(t *testing.T) {
 	meta := ObjectMeta{Name: "test"}
 	m, err := ToMap(Resource{

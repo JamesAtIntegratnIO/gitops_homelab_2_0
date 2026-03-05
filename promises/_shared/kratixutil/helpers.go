@@ -276,6 +276,34 @@ func DeleteOutputPathForResource(prefix string, r Resource) string {
 	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
 }
 
+// ParseSyncPolicy converts an untyped map (from resource.GetValue) into a typed
+// SyncPolicy. Returns nil if the value is not the expected map type.
+func ParseSyncPolicy(raw interface{}) *SyncPolicy {
+	m, ok := raw.(map[string]interface{})
+	if !ok {
+		log.Printf("warning: syncPolicy has unexpected type %T, expected map[string]interface{}", raw)
+		return nil
+	}
+	sp := &SyncPolicy{}
+	if automated, ok := m["automated"].(map[string]interface{}); ok {
+		sp.Automated = &AutomatedSync{}
+		if v, ok := automated["selfHeal"].(bool); ok {
+			sp.Automated.SelfHeal = v
+		}
+		if v, ok := automated["prune"].(bool); ok {
+			sp.Automated.Prune = v
+		}
+	}
+	if opts, ok := m["syncOptions"].([]interface{}); ok {
+		for _, o := range opts {
+			if s, ok := o.(string); ok {
+				sp.SyncOptions = append(sp.SyncOptions, s)
+			}
+		}
+	}
+	return sp
+}
+
 // WritePromiseStatus builds a Kratix status object, sets the given phase and
 // message, applies any extra fields, and writes it via the SDK. This reduces
 // repetitive status-setting boilerplate across promise handlers.

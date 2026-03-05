@@ -17,20 +17,6 @@ func BaseLabels(promiseName, resourceName string) map[string]string {
 	}
 }
 
-// Deprecated: Use DeleteFromResource instead.
-// DeleteResource creates a minimal resource with only identity fields,
-// suitable for emitting as a Kratix delete output.
-func DeleteResource(apiVersion, kind, name, namespace string) Resource {
-	return Resource{
-		APIVersion: apiVersion,
-		Kind:       kind,
-		Metadata: ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-	}
-}
-
 func BuildServiceAccount(name, namespace string, labels map[string]string) Resource {
 	return Resource{
 		APIVersion: "v1",

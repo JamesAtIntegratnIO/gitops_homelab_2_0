@@ -299,9 +299,7 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 
 	// Extract sync policy
 	if val, err := resource.GetValue("spec.argocdApplication.syncPolicy"); err == nil && val != nil {
-		if m, ok := val.(map[string]interface{}); ok {
-			config.ArgoCDSyncPolicy = parseSyncPolicyMap(m)
-		}
+		config.ArgoCDSyncPolicy = ku.ParseSyncPolicy(val)
 	}
 
 	defaultSyncPolicy := &ku.SyncPolicy{
@@ -324,28 +322,6 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 	}
 
 	return nil
-}
-
-// parseSyncPolicyMap converts an untyped map into a typed SyncPolicy.
-func parseSyncPolicyMap(m map[string]interface{}) *ku.SyncPolicy {
-	sp := &ku.SyncPolicy{}
-	if automated, ok := m["automated"].(map[string]interface{}); ok {
-		sp.Automated = &ku.AutomatedSync{}
-		if v, ok := automated["selfHeal"].(bool); ok {
-			sp.Automated.SelfHeal = v
-		}
-		if v, ok := automated["prune"].(bool); ok {
-			sp.Automated.Prune = v
-		}
-	}
-	if opts, ok := m["syncOptions"].([]interface{}); ok {
-		for _, o := range opts {
-			if s, ok := o.(string); ok {
-				sp.SyncOptions = append(sp.SyncOptions, s)
-			}
-		}
-	}
-	return sp
 }
 
 func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {

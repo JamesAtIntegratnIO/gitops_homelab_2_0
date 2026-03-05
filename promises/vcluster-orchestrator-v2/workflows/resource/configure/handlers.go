@@ -148,9 +148,9 @@ func cleanupHostPVs(config *VClusterConfig) error {
 		log.Printf("  Deleting PV: %s (status: %s)", pv.Name, pv.Status.Phase)
 		if err := clientset.CoreV1().PersistentVolumes().Delete(ctx, pv.Name, metav1.DeleteOptions{}); err != nil {
 			errs = append(errs, fmt.Errorf("failed to delete PV %s: %w", pv.Name, err))
-			log.Printf("  ✗ Failed to delete PV %s: %v", pv.Name, err)
+			log.Printf("  failed to delete PV %s: %v", pv.Name, err)
 		} else {
-			log.Printf("  ✓ Deleted PV: %s", pv.Name)
+			log.Printf("  deleted PV: %s", pv.Name)
 		}
 	}
 
@@ -158,7 +158,7 @@ func cleanupHostPVs(config *VClusterConfig) error {
 		return errors.Join(errs...)
 	}
 
-	log.Printf("✓ Successfully cleaned up %d host PV(s)", len(pvList.Items))
+	log.Printf("successfully cleaned up %d host PV(s)", len(pvList.Items))
 	return nil
 }
 
@@ -185,7 +185,7 @@ func cleanupNamespace(config *VClusterConfig) error {
 		return fmt.Errorf("failed to delete namespace %s: %w", config.TargetNamespace, err)
 	}
 
-	log.Printf("✓ Namespace %s scheduled for deletion", config.TargetNamespace)
+	log.Printf("namespace %s scheduled for deletion", config.TargetNamespace)
 	return nil
 }
 
@@ -216,12 +216,12 @@ func directCleanup(config *VClusterConfig) error {
 	var errs []error
 
 	if err := cleanupHostPVs(config); err != nil {
-		log.Printf("⚠ Warning: PV cleanup encountered errors: %v", err)
+		log.Printf("warning: PV cleanup encountered errors: %v", err)
 		errs = append(errs, fmt.Errorf("PV cleanup: %w", err))
 	}
 
 	if err := cleanupNamespace(config); err != nil {
-		log.Printf("⚠ Warning: Namespace cleanup encountered errors: %v", err)
+		log.Printf("warning: namespace cleanup encountered errors: %v", err)
 		errs = append(errs, fmt.Errorf("namespace cleanup: %w", err))
 	}
 
