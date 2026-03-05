@@ -33,9 +33,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		return nil, err
 	}
 	configureIntegrations(config, resource)
-	if err := configureArgoCD(config, resource); err != nil {
-		return nil, err
-	}
+	configureArgoCD(config, resource)
 
 	// Extract network policy configuration
 	if val, err := ku.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
@@ -291,7 +289,7 @@ func configureClusterMetadata(config *VClusterConfig) {
 
 // configureArgoCD sets up ArgoCD application configuration including repo URL,
 // chart, target revision, destination server, and sync policy with defaults.
-func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
+func configureArgoCD(config *VClusterConfig, resource kratix.Resource) {
 	config.ArgoCDRepoURL = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
 	config.ArgoCDChart = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
 	config.ArgoCDTargetRevision = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
@@ -320,8 +318,6 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 			config.ArgoCDSyncPolicy.SyncOptions = defaultSyncPolicy.SyncOptions
 		}
 	}
-
-	return nil
 }
 
 func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {

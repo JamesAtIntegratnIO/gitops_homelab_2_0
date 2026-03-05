@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"sort"
 	"time"
 
 	kratix "github.com/syntasso/kratix-go"
@@ -25,15 +24,8 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		"resources/argocd-cluster-registration-request.yaml": buildArgoCDClusterRegistrationRequest(config),
 	}
 
-	paths := make([]string, 0, len(resourceRequests))
-	for p := range resourceRequests {
-		paths = append(paths, p)
-	}
-	sort.Strings(paths)
-	for _, path := range paths {
-		if err := ku.WriteYAML(sdk, path, resourceRequests[path]); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
-		}
+	if err := ku.WriteOrderedResources(sdk, resourceRequests); err != nil {
+		return fmt.Errorf("write resource requests: %w", err)
 	}
 
 	if err := ku.WriteYAML(sdk, "resources/namespace.yaml", buildNamespace(config)); err != nil {
@@ -287,15 +279,8 @@ func stateStoreCleanup(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		})
 	}
 
-	outputPaths := make([]string, 0, len(outputs))
-	for p := range outputs {
-		outputPaths = append(outputPaths, p)
-	}
-	sort.Strings(outputPaths)
-	for _, path := range outputPaths {
-		if err := ku.WriteYAML(sdk, path, outputs[path]); err != nil {
-			return fmt.Errorf("write delete output %s: %w", path, err)
-		}
+	if err := ku.WriteOrderedResources(sdk, outputs); err != nil {
+		return fmt.Errorf("write delete outputs: %w", err)
 	}
 
 	return nil

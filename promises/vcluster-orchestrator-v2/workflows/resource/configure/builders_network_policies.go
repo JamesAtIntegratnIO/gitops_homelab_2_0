@@ -91,7 +91,7 @@ func buildDNSEgressPolicy(config *VClusterConfig) ku.Resource {
 						{
 							"namespaceSelector": map[string]interface{}{
 								"matchLabels": map[string]string{
-									"kubernetes.io/metadata.name": "kube-system",
+									"kubernetes.io/metadata.name": ku.KubeSystemNamespace,
 								},
 							},
 							"podSelector": map[string]interface{}{
@@ -230,7 +230,7 @@ func buildVClusterExternalPolicy(config *VClusterConfig) ku.Resource {
 						{
 							"namespaceSelector": map[string]interface{}{
 								"matchLabels": map[string]string{
-									"kubernetes.io/metadata.name": "argocd",
+									"kubernetes.io/metadata.name": ku.DefaultArgoCDNamespace,
 								},
 							},
 						},
@@ -247,7 +247,7 @@ func buildVClusterExternalPolicy(config *VClusterConfig) ku.Resource {
 						{
 							"namespaceSelector": map[string]interface{}{
 								"matchLabels": map[string]string{
-									"kubernetes.io/metadata.name": "nginx-gateway",
+									"kubernetes.io/metadata.name": ku.DefaultGatewayNamespace,
 								},
 							},
 						},
@@ -259,7 +259,7 @@ func buildVClusterExternalPolicy(config *VClusterConfig) ku.Resource {
 						{
 							"namespaceSelector": map[string]interface{}{
 								"matchLabels": map[string]string{
-									"kubernetes.io/metadata.name": "monitoring",
+									"kubernetes.io/metadata.name": ku.MonitoringNamespace,
 								},
 							},
 						},

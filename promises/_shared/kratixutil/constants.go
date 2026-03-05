@@ -19,6 +19,10 @@ const (
 	DefaultArgoCDNamespace           = "argocd"
 	DefaultPlatformRequestsNamespace = "platform-requests"
 
+	// Well-known namespace names used in network policies, RBAC, and selectors.
+	MonitoringNamespace = "monitoring"
+	KubeSystemNamespace = "kube-system"
+
 	// DefaultBaseDomain is the platform top-level base domain.
 	// Used by vcluster and cluster-registration promises for hostnames and
 	// DNS annotations.
