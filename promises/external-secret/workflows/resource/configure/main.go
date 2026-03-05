@@ -147,13 +147,13 @@ func buildExternalSecrets(config *ExternalSecretConfig) []u.Resource {
 			secretName = fmt.Sprintf("%s-%s", config.AppName, s.OnePasswordItem)
 		}
 
-		data := []map[string]interface{}{}
+		var data []u.ExternalSecretData
 		for _, k := range s.Keys {
-			data = append(data, map[string]interface{}{
-				"secretKey": k.SecretKey,
-				"remoteRef": map[string]interface{}{
-					"key":      s.OnePasswordItem,
-					"property": k.Property,
+			data = append(data, u.ExternalSecretData{
+				SecretKey: k.SecretKey,
+				RemoteRef: u.RemoteRef{
+					Key:      s.OnePasswordItem,
+					Property: k.Property,
 				},
 			})
 		}
@@ -166,15 +166,15 @@ func buildExternalSecrets(config *ExternalSecretConfig) []u.Resource {
 				Namespace: config.Namespace,
 				Labels:    u.BaseLabels(config.OwnerPromise, config.AppName),
 			},
-			Spec: map[string]interface{}{
-				"secretStoreRef": map[string]interface{}{
-					"name": config.SecretStoreName,
-					"kind": config.SecretStoreKind,
+			Spec: u.ExternalSecretSpec{
+				SecretStoreRef: u.SecretStoreRef{
+					Name: config.SecretStoreName,
+					Kind: config.SecretStoreKind,
 				},
-				"target": map[string]interface{}{
-					"name": secretName,
+				Target: u.ExternalSecretTarget{
+					Name: secretName,
 				},
-				"data": data,
+				Data: data,
 			},
 		}
 
