@@ -19,12 +19,7 @@ func main() {
 }
 
 func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*GatewayRouteConfig, error) {
-	config := &GatewayRouteConfig{
-		GatewayName:      ku.DefaultGatewayName,
-		GatewayNS:        ku.DefaultGatewayNamespace,
-		HTTPSSectionName: defaultHTTPSSection,
-		HTTPSectionName:  defaultHTTPSection,
-	}
+	config := &GatewayRouteConfig{}
 
 	var err error
 	config.Name, err = ku.GetStringValue(resource, "spec.name")
@@ -54,23 +49,15 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*GatewayRouteCo
 		return nil, fmt.Errorf("spec.backendRef.port is required: %w", err)
 	}
 
-	if v, err := ku.GetStringValue(resource, "spec.gateway.name"); err == nil && v != "" {
-		config.GatewayName = v
-	}
-	if v, err := ku.GetStringValue(resource, "spec.gateway.namespace"); err == nil && v != "" {
-		config.GatewayNS = v
-	}
+	config.GatewayName = ku.GetStringValueWithDefault(resource, "spec.gateway.name", ku.DefaultGatewayName)
+	config.GatewayNS = ku.GetStringValueWithDefault(resource, "spec.gateway.namespace", ku.DefaultGatewayNamespace)
 
 	config.HTTPRedirect = ku.GetBoolValueWithDefault(resource, "spec.httpRedirect", true)
 
 	config.OwnerPromise = ku.GetStringValueWithDefault(resource, "spec.ownerPromise", "gateway-route")
 
-	if v, err := ku.GetStringValue(resource, "spec.sectionName"); err == nil && v != "" {
-		config.HTTPSSectionName = v
-	}
-	if v, err := ku.GetStringValue(resource, "spec.httpSectionName"); err == nil && v != "" {
-		config.HTTPSectionName = v
-	}
+	config.HTTPSSectionName = ku.GetStringValueWithDefault(resource, "spec.sectionName", defaultHTTPSSection)
+	config.HTTPSectionName = ku.GetStringValueWithDefault(resource, "spec.httpSectionName", defaultHTTPSection)
 
 	return config, nil
 }

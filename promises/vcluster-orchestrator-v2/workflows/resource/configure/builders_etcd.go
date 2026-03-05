@@ -79,63 +79,36 @@ func buildEtcdCertificates(config *VClusterConfig) []ku.Resource {
 	// only created when the vcluster Helm chart is deployed (circular dependency).
 	mergeSAName := fmt.Sprintf("%s-etcd-certs-merge", config.Name)
 
-	mergeServiceAccount := ku.Resource{
-		APIVersion: "v1",
-		Kind:       "ServiceAccount",
-		Metadata: ku.ResourceMeta(
-			mergeSAName,
-			config.TargetNamespace,
-			labels("etcd-certs-merge-sa"),
-			nil,
-		),
-	}
+	mergeServiceAccount := ku.BuildServiceAccount(mergeSAName, config.TargetNamespace, labels("etcd-certs-merge-sa"))
 
-	mergeRole := ku.Resource{
-		APIVersion: "rbac.authorization.k8s.io/v1",
-		Kind:       "Role",
-		Metadata: ku.ResourceMeta(
-			mergeSAName,
-			config.TargetNamespace,
-			labels("etcd-certs-merge-role"),
-			nil,
-		),
-		Rules: []ku.PolicyRule{
-			{
-				APIGroups: []string{""},
-				Resources: []string{"secrets"},
-				ResourceNames: []string{
-					fmt.Sprintf("%s-etcd-ca", config.Name),
-					fmt.Sprintf("%s-etcd-server", config.Name),
-					fmt.Sprintf("%s-etcd-peer", config.Name),
-					fmt.Sprintf("%s-etcd-certs", config.Name),
-				},
-				Verbs: []string{"get", "list", "create", "update", "patch"},
+	mergeRole := ku.BuildRole(mergeSAName, config.TargetNamespace, labels("etcd-certs-merge-role"), []ku.PolicyRule{
+		{
+			APIGroups: []string{""},
+			Resources: []string{"secrets"},
+			ResourceNames: []string{
+				fmt.Sprintf("%s-etcd-ca", config.Name),
+				fmt.Sprintf("%s-etcd-server", config.Name),
+				fmt.Sprintf("%s-etcd-peer", config.Name),
+				fmt.Sprintf("%s-etcd-certs", config.Name),
 			},
+			Verbs: []string{"get", "list", "create", "update", "patch"},
 		},
-	}
+	})
 
-	mergeRoleBinding := ku.Resource{
-		APIVersion: "rbac.authorization.k8s.io/v1",
-		Kind:       "RoleBinding",
-		Metadata: ku.ResourceMeta(
-			mergeSAName,
-			config.TargetNamespace,
-			labels("etcd-certs-merge-binding"),
-			nil,
-		),
-		RoleRef: &ku.RoleRef{
+	mergeRoleBinding := ku.BuildRoleBinding(mergeSAName, config.TargetNamespace, labels("etcd-certs-merge-binding"),
+		ku.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
 			Name:     mergeSAName,
 		},
-		Subjects: []ku.Subject{
+		[]ku.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      mergeSAName,
 				Namespace: config.TargetNamespace,
 			},
 		},
-	}
+	)
 
 	mergeJob := ku.Resource{
 		APIVersion: "batch/v1",

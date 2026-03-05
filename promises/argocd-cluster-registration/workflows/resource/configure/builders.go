@@ -97,43 +97,31 @@ func buildKubeconfigSyncRBAC(config *RegistrationConfig) []ku.Resource {
 
 	saName := fmt.Sprintf("%s-kubeconfig-sync", config.Name)
 
-	serviceAccount := ku.Resource{
-		APIVersion: "v1",
-		Kind:       "ServiceAccount",
-		Metadata:   ku.ResourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
-	}
+	serviceAccount := ku.BuildServiceAccount(saName, config.TargetNamespace, baseRBACLabels)
 
-	role := ku.Resource{
-		APIVersion: "rbac.authorization.k8s.io/v1",
-		Kind:       "Role",
-		Metadata:   ku.ResourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
-		Rules: []ku.PolicyRule{
-			{
-				APIGroups:     []string{""},
-				Resources:     []string{"secrets"},
-				ResourceNames: []string{config.KubeconfigSecret, onePasswordTokenName},
-				Verbs:         []string{"get"},
-			},
+	role := ku.BuildRole(saName, config.TargetNamespace, baseRBACLabels, []ku.PolicyRule{
+		{
+			APIGroups:     []string{""},
+			Resources:     []string{"secrets"},
+			ResourceNames: []string{config.KubeconfigSecret, onePasswordTokenName},
+			Verbs:         []string{"get"},
 		},
-	}
+	})
 
-	roleBinding := ku.Resource{
-		APIVersion: "rbac.authorization.k8s.io/v1",
-		Kind:       "RoleBinding",
-		Metadata:   ku.ResourceMeta(saName, config.TargetNamespace, baseRBACLabels, nil),
-		RoleRef: &ku.RoleRef{
+	roleBinding := ku.BuildRoleBinding(saName, config.TargetNamespace, baseRBACLabels,
+		ku.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
 			Name:     saName,
 		},
-		Subjects: []ku.Subject{
+		[]ku.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      saName,
 				Namespace: config.TargetNamespace,
 			},
 		},
-	}
+	)
 
 	return []ku.Resource{externalSecret, serviceAccount, role, roleBinding}
 }

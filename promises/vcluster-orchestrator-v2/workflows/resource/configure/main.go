@@ -191,16 +191,33 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 // configureIntegrations sets up cert-manager, external-secrets, and ArgoCD integration
 // configuration including cluster labels, annotations, and workload repo settings.
 func configureIntegrations(config *VClusterConfig, resource kratix.Resource) error {
+	configureCertManager(config, resource)
+	configureExternalSecrets(config, resource)
+	configureArgoCDEnvironment(config, resource)
+	configureWorkloadRepo(config, resource)
+	configureClusterMetadata(config)
+	return nil
+}
+
+// configureCertManager extracts cert-manager issuer selector labels with a default.
+func configureCertManager(config *VClusterConfig, resource kratix.Resource) {
 	config.CertManagerIssuerLabels = ku.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
 	if len(config.CertManagerIssuerLabels) == 0 {
 		config.CertManagerIssuerLabels = map[string]string{"integratn.tech/cluster-issuer": "letsencrypt-prod"}
 	}
+}
 
+// configureExternalSecrets extracts external-secrets store selector labels with a default.
+func configureExternalSecrets(config *VClusterConfig, resource kratix.Resource) {
 	config.ExternalSecretsStoreLabels = ku.ExtractStringMap(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
 	if len(config.ExternalSecretsStoreLabels) == 0 {
 		config.ExternalSecretsStoreLabels = map[string]string{"integratn.tech/cluster-secret-store": "onepassword-store"}
 	}
+}
 
+// configureArgoCDEnvironment resolves the ArgoCD environment label from the resource
+// or derives it from the vcluster preset.
+func configureArgoCDEnvironment(config *VClusterConfig, resource kratix.Resource) {
 	config.ArgoCDEnvironment, _ = ku.GetStringValue(resource, "spec.integrations.argocd.environment")
 	if config.ArgoCDEnvironment == "" {
 		if config.Preset == "prod" {
@@ -209,7 +226,11 @@ func configureIntegrations(config *VClusterConfig, resource kratix.Resource) err
 			config.ArgoCDEnvironment = "development"
 		}
 	}
+}
 
+// configureWorkloadRepo extracts ArgoCD workload repository settings and user-provided
+// cluster labels/annotations from the resource.
+func configureWorkloadRepo(config *VClusterConfig, resource kratix.Resource) {
 	config.ArgoCDClusterLabels = ku.ExtractStringMap(resource, "spec.integrations.argocd.clusterLabels")
 	config.ArgoCDClusterAnnotations = ku.ExtractStringMap(resource, "spec.integrations.argocd.clusterAnnotations")
 
@@ -217,7 +238,11 @@ func configureIntegrations(config *VClusterConfig, resource kratix.Resource) err
 	config.WorkloadRepoBasePath, _ = ku.GetStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
 	config.WorkloadRepoPath = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
 	config.WorkloadRepoRevision = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
+}
 
+// configureClusterMetadata merges user-provided cluster labels/annotations with defaults
+// to produce the final ArgoCD cluster secret metadata.
+func configureClusterMetadata(config *VClusterConfig) {
 	defaultClusterLabels := map[string]string{
 		"argocd.argoproj.io/secret-type": "cluster",
 		"akuity.io/argo-cd-cluster-name":  config.Name,
@@ -252,10 +277,7 @@ func configureIntegrations(config *VClusterConfig, resource kratix.Resource) err
 	}
 
 	config.ArgoCDClusterLabels = ku.MergeStringMap(defaultClusterLabels, config.ArgoCDClusterLabels)
-
 	config.ArgoCDClusterAnnotations = ku.MergeStringMap(defaultClusterAnnotations, config.ArgoCDClusterAnnotations)
-
-	return nil
 }
 
 // configureArgoCD sets up ArgoCD application configuration including repo URL,
