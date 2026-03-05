@@ -1,82 +1,19 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	kratix "github.com/syntasso/kratix-go"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
-
-type mockResource struct {
-	data map[string]interface{}
-	name string
-	ns   string
-}
-
-var _ kratix.Resource = (*mockResource)(nil)
-
-func (m *mockResource) GetValue(path string) (interface{}, error) {
-	keys := strings.Split(strings.TrimPrefix(path, "."), ".")
-	var current interface{} = m.data
-	for _, key := range keys {
-		if cm, ok := current.(map[string]interface{}); ok {
-			val, found := cm[key]
-			if !found {
-				return nil, fmt.Errorf("path %s not found", path)
-			}
-			current = val
-		} else {
-			return nil, fmt.Errorf("path %s not found", path)
-		}
-	}
-	return current, nil
-}
-
-func (m *mockResource) GetStatus() (kratix.Status, error) { return nil, nil }
-func (m *mockResource) GetName() string                    { return m.name }
-func (m *mockResource) GetNamespace() string               { return m.ns }
-func (m *mockResource) GetGroupVersionKind() schema.GroupVersionKind {
-	return schema.GroupVersionKind{}
-}
-func (m *mockResource) GetLabels() map[string]string      { return nil }
-func (m *mockResource) GetAnnotations() map[string]string { return nil }
-func (m *mockResource) ToUnstructured() unstructured.Unstructured {
-	return unstructured.Unstructured{}
-}
-
-func newTestSDK(t *testing.T) (*kratix.KratixSDK, string) {
-	t.Helper()
-	dir := t.TempDir()
-	sdk := kratix.New(kratix.WithOutputDir(dir), kratix.WithMetadataDir(dir))
-	return sdk, dir
-}
-
-func readOutput(t *testing.T, dir, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(dir, path))
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", path, err)
-	}
-	return string(data)
-}
-
-func fileExists(dir, path string) bool {
-	_, err := os.Stat(filepath.Join(dir, path))
-	return err == nil
-}
 
 // ============================================================================
 // buildConfig
 // ============================================================================
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "my-route",
 				"namespace": "my-ns",
@@ -129,8 +66,8 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 }
 
 func TestBuildConfig_WithOverrides(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "custom-route",
 				"namespace": "prod",
@@ -180,8 +117,8 @@ func TestBuildConfig_WithOverrides(t *testing.T) {
 }
 
 func TestBuildConfig_MissingName(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"namespace": "ns",
 			},
@@ -197,8 +134,8 @@ func TestBuildConfig_MissingName(t *testing.T) {
 }
 
 func TestBuildConfig_MissingNamespace(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "route",
 			},
@@ -214,8 +151,8 @@ func TestBuildConfig_MissingNamespace(t *testing.T) {
 }
 
 func TestBuildConfig_MissingHostname(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "route",
 				"namespace": "ns",
@@ -232,8 +169,8 @@ func TestBuildConfig_MissingHostname(t *testing.T) {
 }
 
 func TestBuildConfig_MissingBackendName(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "route",
 				"namespace": "ns",
@@ -251,8 +188,8 @@ func TestBuildConfig_MissingBackendName(t *testing.T) {
 }
 
 func TestBuildConfig_MissingBackendPort(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "route",
 				"namespace": "ns",
@@ -337,7 +274,7 @@ func TestBuildHTTPRedirect(t *testing.T) {
 // ============================================================================
 
 func TestHandleConfigure_WithRedirect(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &GatewayRouteConfig{
 		Name:            "test-route",
 		Namespace:       "ns",
@@ -358,26 +295,26 @@ func TestHandleConfigure_WithRedirect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !fileExists(dir, "resources/httproute.yaml") {
+	if !u.FileExists(dir, "resources/httproute.yaml") {
 		t.Error("expected httproute.yaml")
 	}
-	if !fileExists(dir, "resources/http-redirect.yaml") {
+	if !u.FileExists(dir, "resources/http-redirect.yaml") {
 		t.Error("expected http-redirect.yaml")
 	}
 
-	route := readOutput(t, dir, "resources/httproute.yaml")
+	route := u.ReadOutput(t, dir, "resources/httproute.yaml")
 	if !strings.Contains(route, "kind: HTTPRoute") {
 		t.Error("expected HTTPRoute kind")
 	}
 
-	redirect := readOutput(t, dir, "resources/http-redirect.yaml")
+	redirect := u.ReadOutput(t, dir, "resources/http-redirect.yaml")
 	if !strings.Contains(redirect, "http-redirect") {
 		t.Error("expected redirect route name")
 	}
 }
 
 func TestHandleConfigure_WithoutRedirect(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &GatewayRouteConfig{
 		Name:         "test-route",
 		Namespace:    "ns",
@@ -397,10 +334,10 @@ func TestHandleConfigure_WithoutRedirect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !fileExists(dir, "resources/httproute.yaml") {
+	if !u.FileExists(dir, "resources/httproute.yaml") {
 		t.Error("expected httproute.yaml")
 	}
-	if fileExists(dir, "resources/http-redirect.yaml") {
+	if u.FileExists(dir, "resources/http-redirect.yaml") {
 		t.Error("should not create redirect route when HTTPRedirect is false")
 	}
 }
@@ -410,7 +347,7 @@ func TestHandleConfigure_WithoutRedirect(t *testing.T) {
 // ============================================================================
 
 func TestHandleDelete_WithRedirect(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &GatewayRouteConfig{
 		Name:         "my-route",
 		Namespace:    "ns",
@@ -423,7 +360,7 @@ func TestHandleDelete_WithRedirect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	httpsDelete := readOutput(t, dir, "resources/delete-httproute-my-route.yaml")
+	httpsDelete := u.ReadOutput(t, dir, "resources/delete-httproute-my-route.yaml")
 	if !strings.Contains(httpsDelete, "kind: HTTPRoute") {
 		t.Error("expected HTTPRoute in delete")
 	}
@@ -431,14 +368,14 @@ func TestHandleDelete_WithRedirect(t *testing.T) {
 		t.Error("expected route name in delete")
 	}
 
-	redirectDelete := readOutput(t, dir, "resources/delete-httproute-my-route-redirect.yaml")
+	redirectDelete := u.ReadOutput(t, dir, "resources/delete-httproute-my-route-redirect.yaml")
 	if !strings.Contains(redirectDelete, "my-route-http-redirect") {
 		t.Error("expected redirect route name in delete")
 	}
 }
 
 func TestHandleDelete_WithoutRedirect(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &GatewayRouteConfig{
 		Name:         "my-route",
 		Namespace:    "ns",
@@ -451,10 +388,10 @@ func TestHandleDelete_WithoutRedirect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !fileExists(dir, "resources/delete-httproute-my-route.yaml") {
+	if !u.FileExists(dir, "resources/delete-httproute-my-route.yaml") {
 		t.Error("expected delete file for HTTPS route")
 	}
-	if fileExists(dir, "resources/delete-httproute-my-route-redirect.yaml") {
+	if u.FileExists(dir, "resources/delete-httproute-my-route-redirect.yaml") {
 		t.Error("should not create delete redirect when HTTPRedirect is false")
 	}
 }

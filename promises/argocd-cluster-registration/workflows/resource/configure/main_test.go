@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,67 +8,7 @@ import (
 
 	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 	kratix "github.com/syntasso/kratix-go"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-type mockResource struct {
-	data map[string]interface{}
-	name string
-	ns   string
-}
-
-var _ kratix.Resource = (*mockResource)(nil)
-
-func (m *mockResource) GetValue(path string) (interface{}, error) {
-	keys := strings.Split(strings.TrimPrefix(path, "."), ".")
-	var current interface{} = m.data
-	for _, key := range keys {
-		if cm, ok := current.(map[string]interface{}); ok {
-			val, found := cm[key]
-			if !found {
-				return nil, fmt.Errorf("path %s not found", path)
-			}
-			current = val
-		} else {
-			return nil, fmt.Errorf("path %s not found", path)
-		}
-	}
-	return current, nil
-}
-
-func (m *mockResource) GetStatus() (kratix.Status, error) { return nil, nil }
-func (m *mockResource) GetName() string                    { return m.name }
-func (m *mockResource) GetNamespace() string               { return m.ns }
-func (m *mockResource) GetGroupVersionKind() schema.GroupVersionKind {
-	return schema.GroupVersionKind{}
-}
-func (m *mockResource) GetLabels() map[string]string      { return nil }
-func (m *mockResource) GetAnnotations() map[string]string { return nil }
-func (m *mockResource) ToUnstructured() unstructured.Unstructured {
-	return unstructured.Unstructured{}
-}
-
-func newTestSDK(t *testing.T) (*kratix.KratixSDK, string) {
-	t.Helper()
-	dir := t.TempDir()
-	sdk := kratix.New(kratix.WithOutputDir(dir), kratix.WithMetadataDir(dir))
-	return sdk, dir
-}
-
-func readOutput(t *testing.T, dir, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(dir, path))
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", path, err)
-	}
-	return string(data)
-}
-
-func fileExists(dir, path string) bool {
-	_, err := os.Stat(filepath.Join(dir, path))
-	return err == nil
-}
 
 // ============================================================================
 // buildConfig
@@ -77,8 +16,8 @@ func fileExists(dir, path string) bool {
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
 	sdk := kratix.New()
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":              "dev-cluster",
 				"targetNamespace":   "vcluster-dev",
@@ -117,8 +56,8 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 
 func TestBuildConfig_WithOverrides(t *testing.T) {
 	sdk := kratix.New()
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":                   "prod-cluster",
 				"targetNamespace":        "vcluster-prod",
@@ -170,8 +109,8 @@ func TestBuildConfig_WithOverrides(t *testing.T) {
 
 func TestBuildConfig_MissingName(t *testing.T) {
 	sdk := kratix.New()
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"targetNamespace": "ns",
 			},
@@ -189,8 +128,8 @@ func TestBuildConfig_MissingName(t *testing.T) {
 
 func TestBuildConfig_MissingTargetNamespace(t *testing.T) {
 	sdk := kratix.New()
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "test",
 			},
@@ -208,8 +147,8 @@ func TestBuildConfig_MissingTargetNamespace(t *testing.T) {
 
 func TestBuildConfig_MissingKubeconfigSecret(t *testing.T) {
 	sdk := kratix.New()
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":            "test",
 				"targetNamespace": "ns",
@@ -225,8 +164,8 @@ func TestBuildConfig_MissingKubeconfigSecret(t *testing.T) {
 
 func TestBuildConfig_MissingExternalServerURL(t *testing.T) {
 	sdk := kratix.New()
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":             "test",
 				"targetNamespace":  "ns",
@@ -424,7 +363,7 @@ func TestBuildArgoCDClusterExternalSecret_WithClusterAnnotations(t *testing.T) {
 // ============================================================================
 
 func TestHandleConfigure_Success(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := newTestConfig()
 
 	err := handleConfigure(sdk, config)
@@ -440,13 +379,13 @@ func TestHandleConfigure_Success(t *testing.T) {
 		"resources/argocd-cluster-external-secret.yaml",
 	}
 	for _, f := range expectedFiles {
-		if !fileExists(dir, f) {
+		if !u.FileExists(dir, f) {
 			t.Errorf("expected output file %s to exist", f)
 		}
 	}
 
 	// Check RBAC file contains multi-doc
-	rbac := readOutput(t, dir, "resources/kubeconfig-sync-rbac.yaml")
+	rbac := u.ReadOutput(t, dir, "resources/kubeconfig-sync-rbac.yaml")
 	if !strings.Contains(rbac, "---") {
 		t.Error("expected multi-doc YAML in RBAC file")
 	}
@@ -463,7 +402,7 @@ func TestHandleConfigure_Success(t *testing.T) {
 // ============================================================================
 
 func TestHandleDelete_CreatesDeleteResources(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := newTestConfig()
 
 	err := handleDelete(sdk, config)
@@ -482,7 +421,7 @@ func TestHandleDelete_CreatesDeleteResources(t *testing.T) {
 
 	// All delete files should contain minimal resources
 	for _, entry := range entries {
-		content := readOutput(t, dir, "resources/"+entry.Name())
+		content := u.ReadOutput(t, dir, "resources/"+entry.Name())
 		if !strings.HasPrefix(entry.Name(), "delete-") {
 			t.Errorf("unexpected file: %s", entry.Name())
 		}

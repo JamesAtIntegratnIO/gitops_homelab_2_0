@@ -1,87 +1,19 @@
 package main
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
-	kratix "github.com/syntasso/kratix-go"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-// ============================================================================
-// Mock Resource
-// ============================================================================
-
-type mockResource struct {
-	data map[string]interface{}
-	name string
-	ns   string
-}
-
-var _ kratix.Resource = (*mockResource)(nil)
-
-func (m *mockResource) GetValue(path string) (interface{}, error) {
-	keys := strings.Split(strings.TrimPrefix(path, "."), ".")
-	var current interface{} = m.data
-	for _, key := range keys {
-		if cm, ok := current.(map[string]interface{}); ok {
-			val, found := cm[key]
-			if !found {
-				return nil, fmt.Errorf("path %s not found", path)
-			}
-			current = val
-		} else {
-			return nil, fmt.Errorf("path %s not found", path)
-		}
-	}
-	return current, nil
-}
-
-func (m *mockResource) GetStatus() (kratix.Status, error)     { return nil, nil }
-func (m *mockResource) GetName() string                       { return m.name }
-func (m *mockResource) GetNamespace() string                  { return m.ns }
-func (m *mockResource) GetGroupVersionKind() schema.GroupVersionKind {
-	return schema.GroupVersionKind{}
-}
-func (m *mockResource) GetLabels() map[string]string      { return nil }
-func (m *mockResource) GetAnnotations() map[string]string { return nil }
-func (m *mockResource) ToUnstructured() unstructured.Unstructured {
-	return unstructured.Unstructured{}
-}
-
-func newTestSDK(t *testing.T) (*kratix.KratixSDK, string) {
-	t.Helper()
-	dir := t.TempDir()
-	sdk := kratix.New(kratix.WithOutputDir(dir), kratix.WithMetadataDir(dir))
-	return sdk, dir
-}
-
-func readOutput(t *testing.T, dir, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(dir, path))
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", path, err)
-	}
-	return string(data)
-}
-
-func fileExists(dir, path string) bool {
-	_, err := os.Stat(filepath.Join(dir, path))
-	return err == nil
-}
 
 // ============================================================================
 // buildConfig
 // ============================================================================
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "my-app",
 				"image": map[string]interface{}{
@@ -131,8 +63,8 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 }
 
 func TestBuildConfig_WithAllFields(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name":      "api-server",
 				"namespace": "production",
@@ -258,8 +190,8 @@ func TestBuildConfig_WithAllFields(t *testing.T) {
 }
 
 func TestBuildConfig_MissingName(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"image": map[string]interface{}{"repository": "nginx"},
 			},
@@ -275,8 +207,8 @@ func TestBuildConfig_MissingName(t *testing.T) {
 }
 
 func TestBuildConfig_MissingImageRepository(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"name": "my-app",
 			},
@@ -650,7 +582,7 @@ func TestBuildGatewayRouteRequest(t *testing.T) {
 // ============================================================================
 
 func TestHandleConfigure_MinimalConfig(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:            "web",
 		Namespace:       "web",
@@ -682,7 +614,7 @@ func TestHandleConfigure_MinimalConfig(t *testing.T) {
 	}
 
 	// Namespace
-	ns := readOutput(t, dir, "resources/namespace.yaml")
+	ns := u.ReadOutput(t, dir, "resources/namespace.yaml")
 	if !strings.Contains(ns, "kind: Namespace") {
 		t.Error("expected Namespace kind")
 	}
@@ -691,29 +623,29 @@ func TestHandleConfigure_MinimalConfig(t *testing.T) {
 	}
 
 	// ArgoCD application request
-	app := readOutput(t, dir, "resources/argocd-application-request.yaml")
+	app := u.ReadOutput(t, dir, "resources/argocd-application-request.yaml")
 	if !strings.Contains(app, "kind: ArgoCDApplication") {
 		t.Error("expected ArgoCDApplication kind")
 	}
 
 	// Network policies
-	if !fileExists(dir, "resources/network-policies.yaml") {
+	if !u.FileExists(dir, "resources/network-policies.yaml") {
 		t.Error("expected network-policies.yaml")
 	}
 
 	// Gateway route request
-	if !fileExists(dir, "resources/gateway-route-request.yaml") {
+	if !u.FileExists(dir, "resources/gateway-route-request.yaml") {
 		t.Error("expected gateway-route-request.yaml")
 	}
 
 	// No external-secret request (no secrets)
-	if fileExists(dir, "resources/external-secret-request.yaml") {
+	if u.FileExists(dir, "resources/external-secret-request.yaml") {
 		t.Error("should not create external-secret request without secrets")
 	}
 }
 
 func TestHandleConfigure_WithSecrets(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:            "web",
 		Namespace:       "web",
@@ -752,13 +684,13 @@ func TestHandleConfigure_WithSecrets(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !fileExists(dir, "resources/external-secret-request.yaml") {
+	if !u.FileExists(dir, "resources/external-secret-request.yaml") {
 		t.Error("expected external-secret-request.yaml")
 	}
 }
 
 func TestHandleConfigure_IngressDisabled(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:            "worker",
 		Namespace:       "worker",
@@ -787,7 +719,7 @@ func TestHandleConfigure_IngressDisabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if fileExists(dir, "resources/gateway-route-request.yaml") {
+	if u.FileExists(dir, "resources/gateway-route-request.yaml") {
 		t.Error("should not create gateway-route when ingress disabled")
 	}
 }
@@ -797,7 +729,7 @@ func TestHandleConfigure_IngressDisabled(t *testing.T) {
 // ============================================================================
 
 func TestHandleDelete_MinimalConfig(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:           "web",
 		Namespace:      "web",
@@ -810,23 +742,23 @@ func TestHandleDelete_MinimalConfig(t *testing.T) {
 	}
 
 	// ArgoCD deletion
-	if !fileExists(dir, "resources/delete-argocdapplication-web.yaml") {
+	if !u.FileExists(dir, "resources/delete-argocdapplication-web.yaml") {
 		t.Error("expected ArgoCD delete file")
 	}
 
 	// Gateway route deletion
-	if !fileExists(dir, "resources/delete-gatewayroute-web.yaml") {
+	if !u.FileExists(dir, "resources/delete-gatewayroute-web.yaml") {
 		t.Error("expected gateway route delete file")
 	}
 
 	// No external-secret deletion (no secrets)
-	if fileExists(dir, "resources/delete-externalsecret-web.yaml") {
+	if u.FileExists(dir, "resources/delete-externalsecret-web.yaml") {
 		t.Error("should not create external-secret delete without secrets")
 	}
 }
 
 func TestHandleDelete_WithSecrets(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:           "web",
 		Namespace:      "web",
@@ -841,13 +773,13 @@ func TestHandleDelete_WithSecrets(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !fileExists(dir, "resources/delete-externalsecret-web.yaml") {
+	if !u.FileExists(dir, "resources/delete-externalsecret-web.yaml") {
 		t.Error("expected external-secret delete file")
 	}
 }
 
 func TestHandleDelete_IngressDisabled(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &HTTPServiceConfig{
 		Name:           "worker",
 		Namespace:      "worker",
@@ -859,7 +791,7 @@ func TestHandleDelete_IngressDisabled(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if fileExists(dir, "resources/delete-gatewayroute-worker.yaml") {
+	if u.FileExists(dir, "resources/delete-gatewayroute-worker.yaml") {
 		t.Error("should not create gateway-route delete when ingress disabled")
 	}
 }

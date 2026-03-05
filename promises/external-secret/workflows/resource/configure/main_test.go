@@ -2,78 +2,20 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
-	kratix "github.com/syntasso/kratix-go"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-type mockResource struct {
-	data map[string]interface{}
-	name string
-	ns   string
-}
-
-var _ kratix.Resource = (*mockResource)(nil)
-
-func (m *mockResource) GetValue(path string) (interface{}, error) {
-	keys := strings.Split(strings.TrimPrefix(path, "."), ".")
-	var current interface{} = m.data
-	for _, key := range keys {
-		if cm, ok := current.(map[string]interface{}); ok {
-			val, found := cm[key]
-			if !found {
-				return nil, fmt.Errorf("path %s not found", path)
-			}
-			current = val
-		} else {
-			return nil, fmt.Errorf("path %s not found", path)
-		}
-	}
-	return current, nil
-}
-
-func (m *mockResource) GetStatus() (kratix.Status, error) { return nil, nil }
-func (m *mockResource) GetName() string                    { return m.name }
-func (m *mockResource) GetNamespace() string               { return m.ns }
-func (m *mockResource) GetGroupVersionKind() schema.GroupVersionKind {
-	return schema.GroupVersionKind{}
-}
-func (m *mockResource) GetLabels() map[string]string      { return nil }
-func (m *mockResource) GetAnnotations() map[string]string { return nil }
-func (m *mockResource) ToUnstructured() unstructured.Unstructured {
-	return unstructured.Unstructured{}
-}
-
-func newTestSDK(t *testing.T) (*kratix.KratixSDK, string) {
-	t.Helper()
-	dir := t.TempDir()
-	sdk := kratix.New(kratix.WithOutputDir(dir), kratix.WithMetadataDir(dir))
-	return sdk, dir
-}
-
-func readOutput(t *testing.T, dir, path string) string {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join(dir, path))
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", path, err)
-	}
-	return string(data)
-}
 
 // ============================================================================
 // buildConfig
 // ============================================================================
 
 func TestBuildConfig_MinimalValid(t *testing.T) {
-	resource := &mockResource{
-		name: "my-secret",
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Name: "my-secret",
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"namespace": "my-ns",
 				"secrets": []interface{}{
@@ -117,9 +59,9 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 }
 
 func TestBuildConfig_WithOverrides(t *testing.T) {
-	resource := &mockResource{
-		name: "my-app",
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Name: "my-app",
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"namespace":       "prod",
 				"appName":         "custom-app",
@@ -161,8 +103,8 @@ func TestBuildConfig_WithOverrides(t *testing.T) {
 }
 
 func TestBuildConfig_MissingNamespace(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"secrets": []interface{}{
 					map[string]interface{}{"name": "x", "onePasswordItem": "y"},
@@ -180,8 +122,8 @@ func TestBuildConfig_MissingNamespace(t *testing.T) {
 }
 
 func TestBuildConfig_NoSecrets(t *testing.T) {
-	resource := &mockResource{
-		data: map[string]interface{}{
+	resource := &u.MockResource{
+		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
 				"namespace": "ns",
 			},
@@ -291,7 +233,7 @@ func TestBuildExternalSecrets_MultipleSecrets(t *testing.T) {
 // ============================================================================
 
 func TestHandleConfigure_WritesExternalSecrets(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &ExternalSecretConfig{
 		AppName:         "my-app",
 		Namespace:       "production",
@@ -312,7 +254,7 @@ func TestHandleConfigure_WritesExternalSecrets(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	output := readOutput(t, dir, "resources/external-secrets.yaml")
+	output := u.ReadOutput(t, dir, "resources/external-secrets.yaml")
 	if !strings.Contains(output, "kind: ExternalSecret") {
 		t.Error("expected ExternalSecret in output")
 	}
@@ -326,7 +268,7 @@ func TestHandleConfigure_WritesExternalSecrets(t *testing.T) {
 // ============================================================================
 
 func TestHandleDelete_CreatesDeleteFiles(t *testing.T) {
-	sdk, dir := newTestSDK(t)
+	sdk, dir := u.NewTestSDK(t)
 	config := &ExternalSecretConfig{
 		AppName:   "my-app",
 		Namespace: "production",
@@ -344,7 +286,7 @@ func TestHandleDelete_CreatesDeleteFiles(t *testing.T) {
 	// Check delete files for each secret
 	for _, name := range []string{"secret-a", "secret-b"} {
 		path := fmt.Sprintf("resources/delete-externalsecret-%s.yaml", name)
-		output := readOutput(t, dir, path)
+		output := u.ReadOutput(t, dir, path)
 		if !strings.Contains(output, "kind: ExternalSecret") {
 			t.Errorf("expected ExternalSecret in %s", path)
 		}
