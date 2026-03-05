@@ -59,6 +59,12 @@ func newSecretGetCmd() *cobra.Command {
 	}
 }
 
+// newSecretListCmd returns a command that lists secrets in a namespace.
+//
+// NOTE: Directly accesses client.Clientset for secret List operations not
+// covered by the KubeClient interface. The interface is scoped to platform
+// lifecycle (vClusters, ArgoCD); general-purpose secret enumeration with
+// interactive TUI selection is CLI-specific and doesn't belong there.
 func newSecretListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list [namespace]",
@@ -76,6 +82,7 @@ func newSecretListCmd() *cobra.Command {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
+			// Direct Clientset access — see function doc comment.
 			secrets, err := client.Clientset.CoreV1().Secrets(ns).List(ctx, metav1.ListOptions{})
 			if err != nil {
 				return hcerrors.NewPlatformError("listing secrets: %w", err)

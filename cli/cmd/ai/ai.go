@@ -33,6 +33,13 @@ func NewCmd() *cobra.Command {
 	return cmd
 }
 
+// newReindexCmd returns a command that triggers the git-indexer CronJob.
+//
+// NOTE: Directly accesses client.Clientset for CronJob/Job CRUD operations
+// not covered by the KubeClient interface. These are AI-platform-specific
+// batch operations; the KubeClient interface is scoped to vCluster lifecycle
+// and ArgoCD management. Adding CronJob/Job methods to the interface would
+// bloat it for a single consumer.
 func newReindexCmd() *cobra.Command {
 	var wait bool
 	var timeout time.Duration

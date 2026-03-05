@@ -43,6 +43,8 @@ var scoreVarRegex = regexp.MustCompile(`\$\{resources\.([^.]+)\.([^}]+)\}`)
 // configuration. When cfg is nil the function tries config.FromContext(ctx)
 // before falling back to the config.Get() global singleton.
 func Translate(ctx context.Context, workload *score.Workload, cluster string, cfg *config.Config) (*TranslateResult, error) {
+	// ── Section 1: Resolve configuration ──────────────────────────────────
+	// Determine the active config from: explicit arg → context → global singleton.
 	if cfg == nil {
 		if c, ok := config.FromContext(ctx); ok {
 			cfg = c
@@ -51,6 +53,8 @@ func Translate(ctx context.Context, workload *score.Workload, cluster string, cf
 		}
 	}
 
+	// ── Section 2: Resolve target cluster ─────────────────────────────────
+	// Priority: explicit arg → workload annotation → config default.
 	if cluster == "" {
 		cluster = workload.TargetCluster()
 	}
@@ -61,12 +65,17 @@ func Translate(ctx context.Context, workload *score.Workload, cluster string, cf
 		return nil, fmt.Errorf("no target cluster specified — use --cluster, set hctl.integratn.tech/cluster annotation, or configure defaultCluster")
 	}
 
+	// ── Section 3: Resolve namespace ──────────────────────────────────────
+	// Defaults to the cluster name; can be overridden via annotation.
 	namespace := cluster // workload namespace defaults to cluster name
 	if ns, ok := workload.Metadata.Annotations["hctl.integratn.tech/namespace"]; ok && ns != "" {
 		namespace = ns
 	}
 
-	// Run provisioners for all resources
+	// ── Section 4: Run provisioners ───────────────────────────────────────
+	// Each Score resource (database, volume, route, etc.) is handled by a
+	// registered provisioner that returns outputs (connection strings, secret
+	// references) and optional Kubernetes manifests (ExternalSecrets, PVCs).
 	registry := provisioners.NewRegistry()
 	allOutputs := make(map[string]map[string]string) // resource-name → key → value
 	var extraObjects []map[string]interface{}
@@ -84,7 +93,7 @@ func Translate(ctx context.Context, workload *score.Workload, cluster string, cf
 
 		allOutputs[resName] = result.Outputs
 
-		// Add namespace to manifests
+		// Inject namespace into manifests that don't already have one.
 		for _, m := range result.Manifests {
 			if meta, ok := m["metadata"].(map[string]interface{}); ok {
 				if _, hasNs := meta["namespace"]; !hasNs {
@@ -95,10 +104,15 @@ func Translate(ctx context.Context, workload *score.Workload, cluster string, cf
 		}
 	}
 
-	// Build Stakater values
+	// ── Section 5: Build Stakater Application chart values ────────────────
+	// Converts containers, services, routes, env vars, and provisioner
+	// manifests into the values.yaml structure expected by the Stakater
+	// Application Helm chart.
 	values := buildStakaterValues(workload, allOutputs, namespace, extraObjects)
 
-	// Build addons.yaml entry
+	// ── Section 6: Build addons.yaml entry ────────────────────────────────
+	// This entry is merged into workloads/<cluster>/addons.yaml so ArgoCD
+	// picks up the new application via the ApplicationSet pattern.
 	addonsEntry := map[string]interface{}{
 		"enabled":         true,
 		"namespace":       namespace,
@@ -107,7 +121,9 @@ func Translate(ctx context.Context, workload *score.Workload, cluster string, cf
 		"defaultVersion":  "6.14.0",
 	}
 
-	// Build file map
+	// ── Section 7: Assemble result and serialize files ────────────────────
+	// Package all outputs into TranslateResult and marshal the values.yaml
+	// file into the correct workloads/<cluster>/addons/<name>/ path.
 	result := &TranslateResult{
 		WorkloadName:   workload.Metadata.Name,
 		TargetCluster:  cluster,
