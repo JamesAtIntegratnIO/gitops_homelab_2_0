@@ -23,7 +23,8 @@ func CollectPlatformStatus(ctx context.Context, client KubeClient, platformNS st
 	// All ArgoCD apps (single query, classify by labels)
 	apps, err := client.ListArgoApps(ctx, "argocd")
 	if err != nil {
-		return ps, fmt.Errorf("listing argocd apps: %w", err)
+		ps.Warnings = append(ps.Warnings, fmt.Sprintf("listing argocd apps: %v", err))
+		return ps, nil
 	}
 
 	// Build a set of known vcluster names for workload classification

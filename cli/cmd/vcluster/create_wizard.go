@@ -10,6 +10,11 @@ import (
 )
 
 // collectNameAndPreset resolves the vCluster name and preset from args, flags, or interactive prompts.
+//
+// Note: the wizard functions in this file have relatively deep call indirection because each
+// interactive step (name → preset → advanced settings → workload repo → metadata) is a
+// separate function that may prompt the user, validate, and bail out. This depth is inherent
+// to the interactive-wizard pattern and is preferred over a single monolithic function.
 func collectNameAndPreset(cmd *cobra.Command, args []string, opts *CreateOptions, interactive bool) (string, string, error) {
 	var name string
 	if len(args) > 0 {

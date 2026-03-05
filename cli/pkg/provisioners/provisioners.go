@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"strings"
 
+	// internal/score is used here intentionally — this CLI is not a library,
+	// and pkg/ exists for organizational clarity, not public API separation.
 	"github.com/jamesatintegratnio/hctl/internal/score"
 	"gopkg.in/yaml.v3"
 )

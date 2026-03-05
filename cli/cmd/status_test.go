@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
-	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/testutil"
 )
 
 func TestRunStatusOnceWithClient_CollectError(t *testing.T) {
 	fake := &testutil.FakeKubeClient{
-		// CollectPlatformStatus calls ListArgoApps — make it fail
+		// CollectPlatformStatus accumulates ArgoCD errors as warnings
+		// and returns partial results — no hard failure.
 		ArgoAppsErr: errors.New("connection refused"),
 	}
 
@@ -21,17 +21,11 @@ func TestRunStatusOnceWithClient_CollectError(t *testing.T) {
 		},
 	}
 
+	// After graceful-degradation refactor, collect returns partial data + warnings
+	// instead of a hard error — so runStatusOnceWithClient should succeed.
 	err := runStatusOnceWithClient(fake, cfg)
-	if err == nil {
-		t.Fatal("expected error when collect fails, got nil")
-	}
-
-	var hErr *hcerrors.HctlError
-	if !errors.As(err, &hErr) {
-		t.Fatalf("expected HctlError, got %T: %v", err, err)
-	}
-	if hErr.Code != hcerrors.ExitPlatformError {
-		t.Errorf("exit code = %d, want %d (ExitPlatformError)", hErr.Code, hcerrors.ExitPlatformError)
+	if err != nil {
+		t.Fatalf("expected graceful degradation (nil error), got: %v", err)
 	}
 }
 
