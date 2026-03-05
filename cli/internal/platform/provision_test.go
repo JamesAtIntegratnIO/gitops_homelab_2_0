@@ -45,8 +45,8 @@ func TestWaitForRequest_Success(t *testing.T) {
 		},
 	}}
 	client := &fakeKubeClient{
-		vcReturns: []*unstructured.Unstructured{vc},
-		vcErrs:    []error{nil},
+		VCReturns: []*unstructured.Unstructured{vc},
+		VCErrs:    []error{nil},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -64,8 +64,8 @@ func TestWaitForRequest_Success(t *testing.T) {
 func TestWaitForRequest_Timeout(t *testing.T) {
 	t.Parallel()
 	client := &fakeKubeClient{
-		vcReturns: []*unstructured.Unstructured{nil},
-		vcErrs:    []error{fmt.Errorf("not found")},
+		VCReturns: []*unstructured.Unstructured{nil},
+		VCErrs:    []error{fmt.Errorf("not found")},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -89,8 +89,8 @@ func TestWaitForRequest_EventuallyFound(t *testing.T) {
 	}}
 	// First call: not found; second call: found
 	client := &fakeKubeClient{
-		vcReturns: []*unstructured.Unstructured{nil, vc},
-		vcErrs:    []error{fmt.Errorf("not found"), nil},
+		VCReturns: []*unstructured.Unstructured{nil, vc},
+		VCErrs:    []error{fmt.Errorf("not found"), nil},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -136,8 +136,8 @@ func TestCollectProvisionResult_StatusContract(t *testing.T) {
 		},
 	}}
 	client := &fakeKubeClient{
-		vcReturns: []*unstructured.Unstructured{vc},
-		vcErrs:    []error{nil},
+		VCReturns: []*unstructured.Unstructured{vc},
+		VCErrs:    []error{nil},
 	}
 
 	result, err := CollectProvisionResult(context.Background(), client, "platform", "test-vc")
@@ -168,13 +168,13 @@ func TestCollectProvisionResult_Fallback(t *testing.T) {
 	}}
 	client := &fakeKubeClient{
 		// First call for GetStatusContract, second for fallback queries
-		vcReturns: []*unstructured.Unstructured{vc, vc},
-		vcErrs:    []error{nil, nil},
-		pods: []kube.PodInfo{
+		VCReturns: []*unstructured.Unstructured{vc, vc},
+		VCErrs:    []error{nil, nil},
+		Pods: []kube.PodInfo{
 			{Name: "vc-0", Phase: "Running", ReadyContainers: 1, TotalContainers: 1},
 			{Name: "vc-1", Phase: "Running", ReadyContainers: 1, TotalContainers: 1},
 		},
-		argoAppsCluster: []kube.ArgoAppInfo{
+		ArgoAppsCluster: []kube.ArgoAppInfo{
 			{Name: "app1", SyncStatus: "Synced", HealthStatus: "Healthy"},
 			{Name: "app2", SyncStatus: "OutOfSync", HealthStatus: "Degraded"},
 		},
@@ -207,9 +207,9 @@ func TestCollectProvisionResult_Fallback_NotAllPodsReady(t *testing.T) {
 		"metadata":   map[string]interface{}{"name": "test-vc"},
 	}}
 	client := &fakeKubeClient{
-		vcReturns: []*unstructured.Unstructured{vc, vc},
-		vcErrs:    []error{nil, nil},
-		pods: []kube.PodInfo{
+		VCReturns: []*unstructured.Unstructured{vc, vc},
+		VCErrs:    []error{nil, nil},
+		Pods: []kube.PodInfo{
 			{Name: "vc-0", Phase: "Running", ReadyContainers: 1, TotalContainers: 1},
 			{Name: "vc-1", Phase: "Pending", ReadyContainers: 0, TotalContainers: 1},
 		},

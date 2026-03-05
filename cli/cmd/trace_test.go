@@ -1,90 +1,16 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
-	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
+	"github.com/jamesatintegratnio/hctl/internal/testutil"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 )
-
-// ---------------------------------------------------------------------------
-// fakeKubeClient — implements platform.KubeClient for cmd-level tests
-// ---------------------------------------------------------------------------
-
-type fakeKubeClient struct {
-	vcluster        *unstructured.Unstructured
-	vclusterErr     error
-	vclusters       []unstructured.Unstructured
-	vclustersErr    error
-	argoApps        []unstructured.Unstructured
-	argoAppsErr     error
-	argoApp         *unstructured.Unstructured
-	argoAppErr      error
-	argoAppsCluster []kube.ArgoAppInfo
-	argoAppsClErr   error
-	argoAppsSel     []unstructured.Unstructured
-	argoAppsSelErr  error
-	pods            []kube.PodInfo
-	podsErr         error
-	podResources    []kube.PodResourceInfo
-	podResourcesErr error
-	jobs            []batchv1.Job
-	jobsErr         error
-	works           []unstructured.Unstructured
-	worksErr        error
-	workPlacements  []unstructured.Unstructured
-	workPlErr       error
-	nodes           []kube.NodeInfo
-	nodesErr        error
-	promises        []unstructured.Unstructured
-	promisesErr     error
-}
-
-func (f *fakeKubeClient) GetVCluster(_ context.Context, _, _ string) (*unstructured.Unstructured, error) {
-	return f.vcluster, f.vclusterErr
-}
-func (f *fakeKubeClient) ListVClusters(_ context.Context, _ string) ([]unstructured.Unstructured, error) {
-	return f.vclusters, f.vclustersErr
-}
-func (f *fakeKubeClient) ListArgoApps(_ context.Context, _ string) ([]unstructured.Unstructured, error) {
-	return f.argoApps, f.argoAppsErr
-}
-func (f *fakeKubeClient) GetArgoApp(_ context.Context, _, _ string) (*unstructured.Unstructured, error) {
-	return f.argoApp, f.argoAppErr
-}
-func (f *fakeKubeClient) ListArgoAppsForCluster(_ context.Context, _, _ string) ([]kube.ArgoAppInfo, error) {
-	return f.argoAppsCluster, f.argoAppsClErr
-}
-func (f *fakeKubeClient) ListArgoAppsWithSelector(_ context.Context, _, _ string) ([]unstructured.Unstructured, error) {
-	return f.argoAppsSel, f.argoAppsSelErr
-}
-func (f *fakeKubeClient) ListPods(_ context.Context, _, _ string) ([]kube.PodInfo, error) {
-	return f.pods, f.podsErr
-}
-func (f *fakeKubeClient) GetPodResourceInfo(_ context.Context, _, _ string) ([]kube.PodResourceInfo, error) {
-	return f.podResources, f.podResourcesErr
-}
-func (f *fakeKubeClient) ListJobs(_ context.Context, _, _ string) ([]batchv1.Job, error) {
-	return f.jobs, f.jobsErr
-}
-func (f *fakeKubeClient) ListWorks(_ context.Context, _ string) ([]unstructured.Unstructured, error) {
-	return f.works, f.worksErr
-}
-func (f *fakeKubeClient) ListWorkPlacements(_ context.Context, _ string) ([]unstructured.Unstructured, error) {
-	return f.workPlacements, f.workPlErr
-}
-func (f *fakeKubeClient) ListNodes(_ context.Context) ([]kube.NodeInfo, error) {
-	return f.nodes, f.nodesErr
-}
-func (f *fakeKubeClient) ListPromises(_ context.Context) ([]unstructured.Unstructured, error) {
-	return f.promises, f.promisesErr
-}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -106,10 +32,10 @@ func TestExecuteTrace_NothingFound(t *testing.T) {
 	defer tui.SetOutputFormat("")
 
 	cfg := config.Default()
-	fake := &fakeKubeClient{
-		vclusterErr: fmt.Errorf("not found"),
-		argoAppErr:  fmt.Errorf("not found"),
-		podsErr:     fmt.Errorf("not found"),
+	fake := &testutil.FakeKubeClient{
+		VClusterErr: fmt.Errorf("not found"),
+		ArgoAppErr:  fmt.Errorf("not found"),
+		PodsErr:     fmt.Errorf("not found"),
 	}
 
 	err := executeTrace(fake, "nonexistent", cfg)
@@ -162,10 +88,10 @@ func TestExecuteTrace_VClusterFound(t *testing.T) {
 		},
 	}
 
-	fake := &fakeKubeClient{
-		vcluster: vc,
-		argoApp:  argoApp,
-		pods: []kube.PodInfo{
+	fake := &testutil.FakeKubeClient{
+		VCluster: vc,
+		ArgoApp:  argoApp,
+		Pods: []kube.PodInfo{
 			{Name: "test-vc-0", Phase: "Running", ReadyContainers: 1, TotalContainers: 1},
 		},
 	}
@@ -192,14 +118,14 @@ func TestExecuteTrace_ArgoFoundWithSubApps(t *testing.T) {
 		},
 	}
 
-	fake := &fakeKubeClient{
-		vclusterErr: fmt.Errorf("not found"),
-		argoApp:     argoApp,
-		argoAppsCluster: []kube.ArgoAppInfo{
+	fake := &testutil.FakeKubeClient{
+		VClusterErr: fmt.Errorf("not found"),
+		ArgoApp:     argoApp,
+		ArgoAppsCluster: []kube.ArgoAppInfo{
 			{Name: "sub-1", SyncStatus: "Synced", HealthStatus: "Healthy"},
 			{Name: "sub-2", SyncStatus: "OutOfSync", HealthStatus: "Degraded"},
 		},
-		podsErr: fmt.Errorf("no pods"),
+		PodsErr: fmt.Errorf("no pods"),
 	}
 
 	err := executeTrace(fake, "my-app", cfg)
@@ -213,10 +139,10 @@ func TestExecuteTrace_TextOutput(t *testing.T) {
 	tui.SetOutputFormat("")
 
 	cfg := config.Default()
-	fake := &fakeKubeClient{
-		vclusterErr: fmt.Errorf("not found"),
-		argoAppErr:  fmt.Errorf("not found"),
-		podsErr:     fmt.Errorf("not found"),
+	fake := &testutil.FakeKubeClient{
+		VClusterErr: fmt.Errorf("not found"),
+		ArgoAppErr:  fmt.Errorf("not found"),
+		PodsErr:     fmt.Errorf("not found"),
 	}
 
 	err := executeTrace(fake, "test-resource", cfg)

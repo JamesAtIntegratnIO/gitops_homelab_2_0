@@ -17,9 +17,8 @@ import (
 
 // --- hctl up ---
 
-var upReplicas int32
-
 func newUpCmd() *cobra.Command {
+	var upReplicas int32
 	cmd := &cobra.Command{
 		Use:   "up [workload]",
 		Short: "Scale a workload to desired replicas",
@@ -28,13 +27,15 @@ Re-enables ArgoCD auto-sync if it was disabled.
 
 If no workload name is given, reads from score.yaml in the current directory.`,
 		Args: cobra.MaximumNArgs(1),
-		RunE: runUp,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runUp(cmd, args, upReplicas)
+		},
 	}
 	cmd.Flags().Int32VarP(&upReplicas, "replicas", "r", 1, "target replica count")
 	return cmd
 }
 
-func runUp(cmd *cobra.Command, args []string) error {
+func runUp(cmd *cobra.Command, args []string, upReplicas int32) error {
 	cfg := config.Get()
 	workloadName, cluster, err := platform.ResolveWorkloadAndCluster(args, cfg.DefaultCluster)
 	if err != nil {
@@ -113,7 +114,10 @@ func runDown(cmd *cobra.Command, args []string) error {
 	}
 
 	if cfg.Interactive {
-		ok, _ := tui.Confirm(fmt.Sprintf("Scale down %s in %s?", workloadName, cluster))
+		ok, confirmErr := tui.Confirm(fmt.Sprintf("Scale down %s in %s?", workloadName, cluster))
+		if confirmErr != nil {
+			return hcerrors.NewUserError("confirming scale down: %w", confirmErr)
+		}
 		if !ok {
 			fmt.Println(tui.DimStyle.Render("Cancelled"))
 			return nil

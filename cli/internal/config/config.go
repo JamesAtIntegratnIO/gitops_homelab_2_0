@@ -143,6 +143,10 @@ func (e ValidationError) Error() string {
 }
 
 // Validate checks the configuration for common issues and returns any problems found.
+// NOTE: Validation errors are returned as plain ValidationError values rather than
+// HctlError because config is a foundational package that cannot import internal/errors
+// without creating an import cycle risk (other packages depend on both config and errors).
+// Callers should wrap these with hcerrors at the call site if needed.
 func Validate(cfg *Config) []ValidationError {
 	var errs []ValidationError
 

@@ -106,7 +106,10 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 
 			// Confirm
 			if cfg.Interactive {
-				ok, _ := tui.Confirm("\nDeploy this workload?")
+				ok, confirmErr := tui.Confirm("\nDeploy this workload?")
+				if confirmErr != nil {
+					return hcerrors.NewUserError("confirming deploy: %w", confirmErr)
+				}
 				if !ok {
 					fmt.Println(tui.DimStyle.Render("Cancelled"))
 					return nil
@@ -132,7 +135,10 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 			// Add git step based on mode
 			gitMode := cfg.GitMode
 			if gitMode == "prompt" && cfg.Interactive {
-				ok, _ := tui.Confirm("Commit and push changes?")
+				ok, confirmErr := tui.Confirm("Commit and push changes?")
+				if confirmErr != nil {
+					return hcerrors.NewUserError("confirming git push: %w", confirmErr)
+				}
 				if ok {
 					gitMode = "auto"
 				} else {
@@ -170,7 +176,7 @@ Files are written to workloads/<cluster>/addons/<workload>/ in the gitops repo.`
 			targetCluster := result.TargetCluster
 			client, cErr := kube.SharedWithConfig(config.Get().KubeContext)
 			if cErr != nil {
-				return hcerrors.NewPlatformError("connecting to cluster for watch: %v", cErr)
+				return hcerrors.NewPlatformError("connecting to cluster for watch: %w", cErr)
 			}
 
 			deadline := time.Now().Add(watchTimeout)

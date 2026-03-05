@@ -220,7 +220,7 @@ func TestResourceRequestChecker_Check_Found(t *testing.T) {
 			"targetNamespace": "test-ns",
 		},
 	}}
-	client := &fakeKubeClient{vcluster: vc}
+	client := &fakeKubeClient{VCluster: vc}
 	state := &DiagnosticState{Namespace: "platform", Name: "test-vc", TargetNS: "test-vc"}
 
 	steps, halt := (&ResourceRequestChecker{}).Check(context.Background(), client, state)
@@ -240,7 +240,7 @@ func TestResourceRequestChecker_Check_Found(t *testing.T) {
 
 func TestResourceRequestChecker_Check_NotFound(t *testing.T) {
 	t.Parallel()
-	client := &fakeKubeClient{vclusterErr: fmt.Errorf("not found")}
+	client := &fakeKubeClient{VClusterErr: fmt.Errorf("not found")}
 	state := &DiagnosticState{Namespace: "platform", Name: "missing"}
 
 	steps, halt := (&ResourceRequestChecker{}).Check(context.Background(), client, state)
@@ -262,7 +262,7 @@ func TestResourceRequestChecker_Check_NotFound(t *testing.T) {
 func TestPipelineJobChecker_Check_Completed(t *testing.T) {
 	t.Parallel()
 	client := &fakeKubeClient{
-		jobs: []batchv1.Job{
+		Jobs: []batchv1.Job{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "pipeline-abc"},
 				Status: batchv1.JobStatus{
@@ -290,7 +290,7 @@ func TestPipelineJobChecker_Check_Completed(t *testing.T) {
 func TestPipelineJobChecker_Check_Failed(t *testing.T) {
 	t.Parallel()
 	client := &fakeKubeClient{
-		jobs: []batchv1.Job{
+		Jobs: []batchv1.Job{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "pipeline-abc"},
 				Status: batchv1.JobStatus{
@@ -317,7 +317,7 @@ func TestPipelineJobChecker_Check_Failed(t *testing.T) {
 
 func TestPipelineJobChecker_Check_NoJobs(t *testing.T) {
 	t.Parallel()
-	client := &fakeKubeClient{jobs: nil}
+	client := &fakeKubeClient{Jobs: nil}
 	state := &DiagnosticState{Namespace: "platform", Name: "test-vc"}
 
 	steps, _ := (&PipelineJobChecker{}).Check(context.Background(), client, state)
@@ -331,7 +331,7 @@ func TestPipelineJobChecker_Check_NoJobs(t *testing.T) {
 
 func TestPipelineJobChecker_Check_ListError(t *testing.T) {
 	t.Parallel()
-	client := &fakeKubeClient{jobsErr: fmt.Errorf("API error")}
+	client := &fakeKubeClient{JobsErr: fmt.Errorf("API error")}
 	state := &DiagnosticState{Namespace: "platform", Name: "test-vc"}
 
 	steps, _ := (&PipelineJobChecker{}).Check(context.Background(), client, state)
@@ -355,7 +355,7 @@ func TestArgoCDAppChecker_Check_Healthy(t *testing.T) {
 			"health": map[string]interface{}{"status": "Healthy"},
 		},
 	}}
-	client := &fakeKubeClient{argoApp: app}
+	client := &fakeKubeClient{ArgoApp: app}
 	state := &DiagnosticState{Namespace: "platform", Name: "test-vc"}
 
 	steps, halt := (&ArgoCDAppChecker{}).Check(context.Background(), client, state)
@@ -378,7 +378,7 @@ func TestArgoCDAppChecker_Check_OutOfSync(t *testing.T) {
 			"health": map[string]interface{}{"status": "Healthy"},
 		},
 	}}
-	client := &fakeKubeClient{argoApp: app}
+	client := &fakeKubeClient{ArgoApp: app}
 	state := &DiagnosticState{Namespace: "platform", Name: "test-vc"}
 
 	steps, _ := (&ArgoCDAppChecker{}).Check(context.Background(), client, state)
@@ -392,7 +392,7 @@ func TestArgoCDAppChecker_Check_OutOfSync(t *testing.T) {
 
 func TestArgoCDAppChecker_Check_NotFound(t *testing.T) {
 	t.Parallel()
-	client := &fakeKubeClient{argoAppErr: fmt.Errorf("not found")}
+	client := &fakeKubeClient{ArgoAppErr: fmt.Errorf("not found")}
 	state := &DiagnosticState{Namespace: "platform", Name: "test-vc"}
 
 	steps, _ := (&ArgoCDAppChecker{}).Check(context.Background(), client, state)

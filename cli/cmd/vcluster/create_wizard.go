@@ -59,7 +59,10 @@ func collectNameAndPreset(cmd *cobra.Command, args []string, opts *CreateOptions
 
 // collectAdvancedSettings runs the interactive wizard for advanced vCluster settings.
 func collectAdvancedSettings(cmd *cobra.Command, opts *CreateOptions, spec *platform.VClusterSpec) error {
-	advanced, _ := tui.Confirm("Customize advanced settings? (k8s version, isolation, environment, persistence, networking)")
+	advanced, confirmErr := tui.Confirm("Customize advanced settings? (k8s version, isolation, environment, persistence, networking)")
+	if confirmErr != nil {
+		return hcerrors.NewUserError("confirming advanced settings: %w", confirmErr)
+	}
 	if !advanced {
 		return nil
 	}
@@ -118,8 +121,11 @@ func collectAdvancedSettings(cmd *cobra.Command, opts *CreateOptions, spec *plat
 
 	// Persistence
 	if !cmd.Flags().Changed("persistence") && !cmd.Flags().Changed("persistence-size") {
-		enablePersist, _ := tui.Confirm(fmt.Sprintf("Enable persistence? (preset default: %v)",
+		enablePersist, confirmErr := tui.Confirm(fmt.Sprintf("Enable persistence? (preset default: %v)",
 			spec.VCluster.Persistence != nil && spec.VCluster.Persistence.Enabled))
+		if confirmErr != nil {
+			return hcerrors.NewUserError("confirming persistence: %w", confirmErr)
+		}
 		if enablePersist {
 			if spec.VCluster.Persistence == nil {
 				spec.VCluster.Persistence = &platform.PersistenceConfig{}

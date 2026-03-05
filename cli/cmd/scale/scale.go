@@ -2,6 +2,7 @@ package scale
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -65,21 +66,28 @@ Useful for maintenance or cost-saving on idle namespaces.`,
 				return nil
 			}
 
+			var errs []error
+
 			for _, deploy := range deploys {
 				if deploy.ArgoApp != "" {
 					fmt.Printf("    %s Disabling auto-sync for %s\n", tui.MutedStyle.Render(tui.IconArrow), deploy.ArgoApp)
 					if err := client.DisableArgoAutoSync(ctx, "argocd", deploy.ArgoApp); err != nil {
 						fmt.Printf("    %s Failed to disable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), deploy.ArgoApp, err)
+						errs = append(errs, fmt.Errorf("disable auto-sync %s: %w", deploy.ArgoApp, err))
 					}
 				}
 
 				fmt.Printf("    %s Scaling %s to 0\n", tui.MutedStyle.Render(tui.IconArrow), deploy.Name)
 				if err := client.ScaleDeployment(ctx, ns, deploy.Name, 0); err != nil {
 					fmt.Printf("    %s Failed to scale %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), deploy.Name, err)
+					errs = append(errs, fmt.Errorf("scale %s: %w", deploy.Name, err))
 				}
 			}
 
 			fmt.Printf("\n  %s All deployments in %s scaled down\n", tui.SuccessStyle.Render(tui.IconCheck), ns)
+			if err := errors.Join(errs...); err != nil {
+				return hcerrors.NewPlatformError("scale down completed with errors: %w", err)
+			}
 			return nil
 		},
 	}
@@ -113,11 +121,14 @@ func newScaleUpCmd() *cobra.Command {
 				return nil
 			}
 
+			var errs []error
+
 			for _, deploy := range deploys {
 				if deploy.Replicas == 0 {
 					fmt.Printf("    %s Scaling %s to 1\n", tui.MutedStyle.Render(tui.IconArrow), deploy.Name)
 					if err := client.ScaleDeployment(ctx, ns, deploy.Name, 1); err != nil {
 						fmt.Printf("    %s Failed to scale %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), deploy.Name, err)
+						errs = append(errs, fmt.Errorf("scale %s: %w", deploy.Name, err))
 					}
 				} else {
 					fmt.Printf("    %s %s already has %d replicas\n", tui.MutedStyle.Render(tui.IconCheck), deploy.Name, deploy.Replicas)
@@ -127,11 +138,15 @@ func newScaleUpCmd() *cobra.Command {
 					fmt.Printf("    %s Re-enabling auto-sync for %s\n", tui.MutedStyle.Render(tui.IconArrow), deploy.ArgoApp)
 					if err := client.EnableArgoAutoSync(ctx, "argocd", deploy.ArgoApp); err != nil {
 						fmt.Printf("    %s Failed to enable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), deploy.ArgoApp, err)
+						errs = append(errs, fmt.Errorf("enable auto-sync %s: %w", deploy.ArgoApp, err))
 					}
 				}
 			}
 
 			fmt.Printf("\n  %s All deployments in %s scaled up\n", tui.SuccessStyle.Render(tui.IconCheck), ns)
+			if err := errors.Join(errs...); err != nil {
+				return hcerrors.NewPlatformError("scale up completed with errors: %w", err)
+			}
 			return nil
 		},
 	}
