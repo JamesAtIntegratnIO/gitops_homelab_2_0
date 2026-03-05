@@ -200,6 +200,78 @@ func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
 	return secrets
 }
 
+// ---------------------------------------------------------------------------
+// Extract*E: error-returning helpers for pulling typed values out of a plain
+// map[string]interface{} (e.g. a JSON-unmarshalled object). These complement
+// the kratix.Resource-based Get*Value helpers above.
+//
+// Semantics:
+//   - Key absent or value nil → (zero, nil)        — missing is OK
+//   - Key present, wrong type → (zero, error)      — caller can handle
+//   - Key present, right type → (value, nil)
+// ---------------------------------------------------------------------------
+
+// ExtractStringE returns the string value for key, or an error if the value
+// exists but is not a string.
+func ExtractStringE(data map[string]interface{}, key string) (string, error) {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return "", nil
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("key %q: expected string, got %T", key, v)
+	}
+	return s, nil
+}
+
+// ExtractIntE returns the int value for key. Because JSON unmarshals numbers
+// as float64, both int and float64 sources are accepted.
+func ExtractIntE(data map[string]interface{}, key string) (int, error) {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return 0, nil
+	}
+	switch n := v.(type) {
+	case int:
+		return n, nil
+	case int64:
+		return int(n), nil
+	case float64:
+		return int(n), nil
+	default:
+		return 0, fmt.Errorf("key %q: expected int (or float64), got %T", key, v)
+	}
+}
+
+// ExtractBoolE returns the bool value for key, or an error if the value
+// exists but is not a bool.
+func ExtractBoolE(data map[string]interface{}, key string) (bool, error) {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return false, nil
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return false, fmt.Errorf("key %q: expected bool, got %T", key, v)
+	}
+	return b, nil
+}
+
+// ExtractMapE returns the nested map for key, or an error if the value exists
+// but is not a map[string]interface{}.
+func ExtractMapE(data map[string]interface{}, key string) (map[string]interface{}, error) {
+	v, ok := data[key]
+	if !ok || v == nil {
+		return nil, nil
+	}
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("key %q: expected map[string]interface{}, got %T", key, v)
+	}
+	return m, nil
+}
+
 // DeepMerge merges src into dst recursively. src values win on conflicts.
 // For map values, merging recurses. For non-map or mismatched types, src wins.
 func DeepMerge(dst, src map[string]interface{}) map[string]interface{} {

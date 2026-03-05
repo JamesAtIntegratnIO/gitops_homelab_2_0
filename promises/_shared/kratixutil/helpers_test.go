@@ -1,6 +1,7 @@
 package kratixutil
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -683,5 +684,173 @@ func TestMergeStringMap_NilSrc(t *testing.T) {
 	result := MergeStringMap(dst, nil)
 	if result["a"] != "1" {
 		t.Errorf("expected unchanged, got %v", result)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Extract*E tests
+// ---------------------------------------------------------------------------
+
+func TestExtractStringE(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		key       string
+		want      string
+		wantErr   bool
+		errSubstr string
+	}{
+		{name: "present string", data: map[string]interface{}{"k": "hello"}, key: "k", want: "hello"},
+		{name: "missing key", data: map[string]interface{}{}, key: "k", want: ""},
+		{name: "nil value", data: map[string]interface{}{"k": nil}, key: "k", want: ""},
+		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected string"},
+		{name: "wrong type bool", data: map[string]interface{}{"k": true}, key: "k", wantErr: true, errSubstr: "expected string"},
+		{name: "empty string", data: map[string]interface{}{"k": ""}, key: "k", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractStringE(tt.data, tt.key)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error %q should contain %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractIntE(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		key       string
+		want      int
+		wantErr   bool
+		errSubstr string
+	}{
+		{name: "int value", data: map[string]interface{}{"k": 7}, key: "k", want: 7},
+		{name: "float64 value", data: map[string]interface{}{"k": float64(42)}, key: "k", want: 42},
+		{name: "int64 value", data: map[string]interface{}{"k": int64(99)}, key: "k", want: 99},
+		{name: "missing key", data: map[string]interface{}{}, key: "k", want: 0},
+		{name: "nil value", data: map[string]interface{}{"k": nil}, key: "k", want: 0},
+		{name: "wrong type string", data: map[string]interface{}{"k": "nope"}, key: "k", wantErr: true, errSubstr: "expected int"},
+		{name: "wrong type bool", data: map[string]interface{}{"k": true}, key: "k", wantErr: true, errSubstr: "expected int"},
+		{name: "zero int", data: map[string]interface{}{"k": 0}, key: "k", want: 0},
+		{name: "zero float64", data: map[string]interface{}{"k": float64(0)}, key: "k", want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractIntE(tt.data, tt.key)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error %q should contain %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractBoolE(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		key       string
+		want      bool
+		wantErr   bool
+		errSubstr string
+	}{
+		{name: "true", data: map[string]interface{}{"k": true}, key: "k", want: true},
+		{name: "false", data: map[string]interface{}{"k": false}, key: "k", want: false},
+		{name: "missing key", data: map[string]interface{}{}, key: "k", want: false},
+		{name: "nil value", data: map[string]interface{}{"k": nil}, key: "k", want: false},
+		{name: "wrong type string", data: map[string]interface{}{"k": "yes"}, key: "k", wantErr: true, errSubstr: "expected bool"},
+		{name: "wrong type int", data: map[string]interface{}{"k": 1}, key: "k", wantErr: true, errSubstr: "expected bool"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractBoolE(tt.data, tt.key)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error %q should contain %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractMapE(t *testing.T) {
+	nested := map[string]interface{}{"a": "1"}
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		key       string
+		wantNil   bool
+		wantErr   bool
+		errSubstr string
+	}{
+		{name: "present map", data: map[string]interface{}{"k": nested}, key: "k"},
+		{name: "missing key", data: map[string]interface{}{}, key: "k", wantNil: true},
+		{name: "nil value", data: map[string]interface{}{"k": nil}, key: "k", wantNil: true},
+		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected map[string]interface{}"},
+		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected map[string]interface{}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractMapE(tt.data, tt.key)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("error %q should contain %q", err, tt.errSubstr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("expected nil, got %v", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("expected non-nil map")
+			}
+			if got["a"] != "1" {
+				t.Errorf("expected map with a=1, got %v", got)
+			}
+		})
 	}
 }

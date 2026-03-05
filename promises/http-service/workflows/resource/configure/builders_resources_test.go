@@ -326,3 +326,145 @@ func TestBuildNetworkPolicies_GatewayPortMatchesConfig(t *testing.T) {
 		t.Errorf("expected port 3000, got %v", ports[0]["port"])
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Edge-case / error-path tests — empty, nil, and minimal configs
+// ---------------------------------------------------------------------------
+
+func TestBuildExternalSecretRequest_EmptySecrets(t *testing.T) {
+	config := newResourceTestConfig()
+	config.Secrets = []ku.SecretRef{} // empty slice, no secrets
+
+	r := buildExternalSecretRequest(config)
+	spec := r.Spec.(map[string]interface{})
+	secrets := spec["secrets"].([]map[string]interface{})
+	if len(secrets) != 0 {
+		t.Errorf("expected 0 secrets for empty input, got %d", len(secrets))
+	}
+	// Name and namespace should still be set correctly
+	if r.Metadata.Name != "myapp-secrets" {
+		t.Errorf("expected name 'myapp-secrets', got %q", r.Metadata.Name)
+	}
+	if spec["appName"] != "myapp" {
+		t.Errorf("expected appName 'myapp', got %v", spec["appName"])
+	}
+}
+
+func TestBuildExternalSecretRequest_NilSecrets(t *testing.T) {
+	config := newResourceTestConfig()
+	config.Secrets = nil // nil slice
+
+	r := buildExternalSecretRequest(config)
+	spec := r.Spec.(map[string]interface{})
+	secrets := spec["secrets"].([]map[string]interface{})
+	if len(secrets) != 0 {
+		t.Errorf("expected 0 secrets for nil input, got %d", len(secrets))
+	}
+}
+
+func TestBuildExternalSecretRequest_SecretWithEmptyKeys(t *testing.T) {
+	config := newResourceTestConfig()
+	config.Secrets = []ku.SecretRef{
+		{
+			OnePasswordItem: "vault-item",
+			Keys:            []ku.SecretKey{}, // no keys
+		},
+	}
+
+	r := buildExternalSecretRequest(config)
+	spec := r.Spec.(map[string]interface{})
+	secrets := spec["secrets"].([]map[string]interface{})
+	if len(secrets) != 1 {
+		t.Fatalf("expected 1 secret, got %d", len(secrets))
+	}
+	keys := secrets[0]["keys"].([]map[string]string)
+	if len(keys) != 0 {
+		t.Errorf("expected 0 keys, got %d", len(keys))
+	}
+}
+
+func TestBuildGatewayRouteRequest_MinimalConfig(t *testing.T) {
+	// Minimal: only required fields set, optional fields at zero values
+	config := &HTTPServiceConfig{
+		Name:      "minimal",
+		Namespace: "default",
+	}
+
+	r := buildGatewayRouteRequest(config)
+	if r.Kind != "GatewayRoute" {
+		t.Errorf("expected kind GatewayRoute, got %q", r.Kind)
+	}
+	if r.Metadata.Name != "minimal-route" {
+		t.Errorf("expected name 'minimal-route', got %q", r.Metadata.Name)
+	}
+	spec := r.Spec.(map[string]interface{})
+	if spec["namespace"] != "default" {
+		t.Errorf("expected namespace 'default', got %v", spec["namespace"])
+	}
+	// Zero-value fields should be present but empty/zero
+	if spec["hostname"] != "" {
+		t.Errorf("expected empty hostname, got %v", spec["hostname"])
+	}
+	if spec["path"] != "" {
+		t.Errorf("expected empty path, got %v", spec["path"])
+	}
+	backend := spec["backendRef"].(map[string]interface{})
+	if backend["port"] != 0 {
+		t.Errorf("expected port 0 for minimal config, got %v", backend["port"])
+	}
+}
+
+func TestBuildNetworkPolicies_MinimalConfig(t *testing.T) {
+	config := &HTTPServiceConfig{
+		Name:      "minimal",
+		Namespace: "default",
+	}
+
+	policies := buildNetworkPolicies(config)
+	// Should still produce gateway + DNS policies (the baseline 2)
+	if len(policies) < 2 {
+		t.Fatalf("expected at least 2 baseline policies (gateway + dns), got %d", len(policies))
+	}
+	// First policy should be the gateway policy
+	if policies[0].Metadata.Name != "minimal-allow-gateway" {
+		t.Errorf("expected gateway policy name 'minimal-allow-gateway', got %q", policies[0].Metadata.Name)
+	}
+	// Last policy should be DNS
+	dns := policies[len(policies)-1]
+	if dns.Metadata.Name != "minimal-allow-dns" {
+		t.Errorf("expected DNS policy name 'minimal-allow-dns', got %q", dns.Metadata.Name)
+	}
+}
+
+func TestBuildNetworkPolicies_MonitoringDisabled(t *testing.T) {
+	config := newResourceTestConfig()
+	config.MonitoringEnabled = false
+
+	policies := buildNetworkPolicies(config)
+	// Should have exactly 2 policies: gateway + DNS (no monitoring)
+	if len(policies) != 2 {
+		t.Fatalf("expected 2 policies when monitoring disabled, got %d", len(policies))
+	}
+	for _, p := range policies {
+		if p.Metadata.Name == fmt.Sprintf("%s-allow-monitoring", config.Name) {
+			t.Error("should not have monitoring policy when monitoring disabled")
+		}
+	}
+}
+
+func TestBuildNetworkPolicies_AllLabelsPresent(t *testing.T) {
+	config := newResourceTestConfig()
+	policies := buildNetworkPolicies(config)
+
+	for _, p := range policies {
+		if p.Metadata.Labels["app.kubernetes.io/managed-by"] != "kratix" {
+			t.Errorf("policy %q missing managed-by label", p.Metadata.Name)
+		}
+		if p.Metadata.Labels["kratix.io/promise-name"] != "http-service" {
+			t.Errorf("policy %q missing promise-name label", p.Metadata.Name)
+		}
+		if p.Metadata.Labels["app.kubernetes.io/part-of"] != config.Name {
+			t.Errorf("policy %q missing part-of label", p.Metadata.Name)
+		}
+	}
+}

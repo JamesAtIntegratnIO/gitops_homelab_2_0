@@ -377,3 +377,105 @@ func TestBuildEtcdCertificates_AllHaveBaseLabels(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Edge-case / nil-config tests for etcd builders
+// ---------------------------------------------------------------------------
+
+func TestEtcdEnabled_NilBackingStore(t *testing.T) {
+	config := &VClusterConfig{BackingStore: nil}
+	if etcdEnabled(config) {
+		t.Error("expected etcdEnabled=false with nil BackingStore")
+	}
+}
+
+func TestEtcdEnabled_EmptyBackingStore(t *testing.T) {
+	config := &VClusterConfig{BackingStore: map[string]interface{}{}}
+	if etcdEnabled(config) {
+		t.Error("expected etcdEnabled=false with empty BackingStore")
+	}
+}
+
+func TestEtcdEnabled_MalformedEtcdKey(t *testing.T) {
+	// etcd key exists but is wrong type (string instead of map)
+	config := &VClusterConfig{BackingStore: map[string]interface{}{
+		"etcd": "not-a-map",
+	}}
+	if etcdEnabled(config) {
+		t.Error("expected etcdEnabled=false when etcd key is not a map")
+	}
+}
+
+func TestEtcdEnabled_MissingDeployKey(t *testing.T) {
+	config := &VClusterConfig{BackingStore: map[string]interface{}{
+		"etcd": map[string]interface{}{
+			"something": "else",
+		},
+	}}
+	if etcdEnabled(config) {
+		t.Error("expected etcdEnabled=false when deploy key is missing")
+	}
+}
+
+func TestEtcdEnabled_DeployEnabledNotBool(t *testing.T) {
+	config := &VClusterConfig{BackingStore: map[string]interface{}{
+		"etcd": map[string]interface{}{
+			"deploy": map[string]interface{}{
+				"enabled": "yes", // string instead of bool
+			},
+		},
+	}}
+	if etcdEnabled(config) {
+		t.Error("expected etcdEnabled=false when enabled is not a bool")
+	}
+}
+
+func TestBuildEtcdCertificates_NilBackingStore(t *testing.T) {
+	config := minimalConfig()
+	config.BackingStore = nil
+	certs := buildEtcdCertificates(config)
+	if certs != nil {
+		t.Errorf("expected nil when BackingStore is nil, got %d resources", len(certs))
+	}
+}
+
+func TestBuildEtcdCertificates_EmptyBackingStore(t *testing.T) {
+	config := minimalConfig()
+	config.BackingStore = map[string]interface{}{}
+	certs := buildEtcdCertificates(config)
+	if certs != nil {
+		t.Errorf("expected nil when BackingStore is empty, got %d resources", len(certs))
+	}
+}
+
+func TestBuildEtcdDNSNames_IncludesHeadlessVariants(t *testing.T) {
+	config := minimalConfig()
+	dns := buildEtcdDNSNames(config)
+
+	dnsSet := make(map[string]bool)
+	for _, d := range dns {
+		dnsSet[d] = true
+	}
+
+	// Verify headless service DNS entries exist
+	headlessBase := fmt.Sprintf("%s-etcd-headless", config.Name)
+	if !dnsSet[headlessBase] {
+		t.Errorf("missing headless base name: %q", headlessBase)
+	}
+	headlessFQDN := fmt.Sprintf("%s-etcd-headless.%s.svc.cluster.local", config.Name, config.TargetNamespace)
+	if !dnsSet[headlessFQDN] {
+		t.Errorf("missing headless FQDN: %q", headlessFQDN)
+	}
+}
+
+func TestBuildEtcdMergeScript_ContainsKubectlCommands(t *testing.T) {
+	config := minimalConfig()
+	script := buildEtcdMergeScript(config)
+
+	if !strings.Contains(script, "kubectl") {
+		t.Error("expected kubectl command in merge script")
+	}
+	if !strings.Contains(script, config.Name) {
+		t.Error("expected vcluster name in merge script")
+	}
+}
