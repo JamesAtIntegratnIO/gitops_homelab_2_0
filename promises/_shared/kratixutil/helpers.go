@@ -3,6 +3,7 @@ package kratixutil
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -90,8 +91,12 @@ func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
 	if err != nil {
 		return nil
 	}
+	if val == nil {
+		return nil
+	}
 	m, ok := val.(map[string]interface{})
 	if !ok {
+		log.Printf("warning: field %s has unexpected type %T, expected map[string]interface{}", path, val)
 		return nil
 	}
 	result := make(map[string]string)
@@ -111,8 +116,12 @@ func ExtractStringSlice(resource kratix.Resource, path string) []string {
 	if err != nil {
 		return nil
 	}
+	if val == nil {
+		return nil
+	}
 	arr, ok := val.([]interface{})
 	if !ok {
+		log.Printf("warning: field %s has unexpected type %T, expected []interface{}", path, val)
 		return nil
 	}
 	result := make([]string, 0, len(arr))
@@ -129,8 +138,12 @@ func ExtractObjectSlice(resource kratix.Resource, path string) []map[string]inte
 	if err != nil {
 		return nil
 	}
+	if val == nil {
+		return nil
+	}
 	arr, ok := val.([]interface{})
 	if !ok {
+		log.Printf("warning: field %s has unexpected type %T, expected []interface{}", path, val)
 		return nil
 	}
 	result := make([]map[string]interface{}, 0, len(arr))
@@ -147,8 +160,12 @@ func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
 	if err != nil {
 		return nil
 	}
+	if val == nil {
+		return nil
+	}
 	arr, ok := val.([]interface{})
 	if !ok {
+		log.Printf("warning: field %s has unexpected type %T, expected []interface{}", path, val)
 		return nil
 	}
 
