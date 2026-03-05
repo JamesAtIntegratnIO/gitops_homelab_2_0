@@ -6,12 +6,6 @@ import (
 	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// Platform-wide secret store defaults sourced from kratixutil constants.
-var (
-	defaultSecretStoreName = u.DefaultSecretStoreName
-	defaultSecretStoreKind = u.DefaultSecretStoreKind
-)
-
 func buildKubeconfigExternalSecret(config *RegistrationConfig) u.Resource {
 	labels := u.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name":      "external-secret",
@@ -29,8 +23,8 @@ func buildKubeconfigExternalSecret(config *RegistrationConfig) u.Resource {
 		),
 		Spec: u.ExternalSecretSpec{
 			SecretStoreRef: u.SecretStoreRef{
-				Name: defaultSecretStoreName,
-				Kind: defaultSecretStoreKind,
+				Name: u.DefaultSecretStoreName,
+				Kind: u.DefaultSecretStoreKind,
 			},
 			Target: u.ExternalSecretTarget{
 				Name: fmt.Sprintf("%s-kubeconfig-external", config.Name),
@@ -72,8 +66,8 @@ func buildKubeconfigSyncRBAC(config *RegistrationConfig) []u.Resource {
 		),
 		Spec: u.ExternalSecretSpec{
 			SecretStoreRef: u.SecretStoreRef{
-				Name: defaultSecretStoreName,
-				Kind: defaultSecretStoreKind,
+				Name: u.DefaultSecretStoreName,
+				Kind: u.DefaultSecretStoreKind,
 			},
 			Target: u.ExternalSecretTarget{
 				Name: onePasswordTokenName,
@@ -426,8 +420,8 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) u.Resource {
 		Metadata:   u.ResourceMeta(esName, "argocd", labels, metadataAnnotations),
 		Spec: u.ExternalSecretSpec{
 			SecretStoreRef: u.SecretStoreRef{
-				Name: defaultSecretStoreName,
-				Kind: defaultSecretStoreKind,
+				Name: u.DefaultSecretStoreName,
+				Kind: u.DefaultSecretStoreKind,
 			},
 			Target: u.ExternalSecretTarget{
 				Name: fmt.Sprintf("cluster-%s", config.Name),

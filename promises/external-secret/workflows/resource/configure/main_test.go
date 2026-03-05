@@ -44,10 +44,10 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 	if config.AppName != "my-secret" {
 		t.Errorf("expected appName from resource name, got %q", config.AppName)
 	}
-	if config.SecretStoreName != defaultSecretStore {
+	if config.SecretStoreName != u.DefaultSecretStoreName {
 		t.Errorf("expected default secret store, got %q", config.SecretStoreName)
 	}
-	if config.SecretStoreKind != defaultSecretStoreKind {
+	if config.SecretStoreKind != u.DefaultSecretStoreKind {
 		t.Errorf("expected default secret store kind, got %q", config.SecretStoreKind)
 	}
 	if config.OwnerPromise != "external-secret" {

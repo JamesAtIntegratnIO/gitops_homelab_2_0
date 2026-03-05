@@ -78,14 +78,11 @@ func GetBoolValue(resource kratix.Resource, path string) (bool, error) {
 
 // GetBoolValueWithDefault extracts a boolean or returns the default.
 func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue bool) bool {
-	val, err := resource.GetValue(path)
+	val, err := GetBoolValue(resource, path)
 	if err != nil {
 		return defaultValue
 	}
-	if b, ok := val.(bool); ok {
-		return b
-	}
-	return defaultValue
+	return val
 }
 
 // ============================================================================

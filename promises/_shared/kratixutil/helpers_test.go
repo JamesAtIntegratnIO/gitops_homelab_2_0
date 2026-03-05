@@ -1,73 +1,12 @@
 package kratixutil
 
 import (
-	"fmt"
 	"testing"
-
-	kratix "github.com/syntasso/kratix-go"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// mockResource implements kratix.Resource for testing.
-type mockResource struct {
-	data map[string]interface{}
-}
-
-var _ kratix.Resource = (*mockResource)(nil)
-
-func (m *mockResource) GetValue(path string) (interface{}, error) {
-	// Walk the nested map using dot-separated path.
-	keys := splitPath(path)
-	var current interface{} = m.data
-	for _, key := range keys {
-		if cm, ok := current.(map[string]interface{}); ok {
-			val, found := cm[key]
-			if !found {
-				return nil, fmt.Errorf("path %s not found", path)
-			}
-			current = val
-		} else {
-			return nil, fmt.Errorf("path %s not found", path)
-		}
-	}
-	return current, nil
-}
-
-func (m *mockResource) GetStatus() (kratix.Status, error) { return nil, nil }
-func (m *mockResource) GetName() string                    { return "" }
-func (m *mockResource) GetNamespace() string               { return "" }
-func (m *mockResource) GetGroupVersionKind() schema.GroupVersionKind {
-	return schema.GroupVersionKind{}
-}
-func (m *mockResource) GetLabels() map[string]string      { return nil }
-func (m *mockResource) GetAnnotations() map[string]string { return nil }
-func (m *mockResource) ToUnstructured() unstructured.Unstructured {
-	return unstructured.Unstructured{}
-}
-
-func splitPath(path string) []string {
-	var parts []string
-	current := ""
-	for _, c := range path {
-		if c == '.' {
-			if current != "" {
-				parts = append(parts, current)
-				current = ""
-			}
-		} else {
-			current += string(c)
-		}
-	}
-	if current != "" {
-		parts = append(parts, current)
-	}
-	return parts
-}
-
-// newMockResource creates a mockResource from a nested map literal.
-func newMockResource(data map[string]interface{}) *mockResource {
-	return &mockResource{data: data}
+// newMockResource creates a MockResource from a nested map literal.
+func newMockResource(data map[string]interface{}) *MockResource {
+	return &MockResource{Data: data}
 }
 
 // ============================================================================

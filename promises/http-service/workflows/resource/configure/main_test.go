@@ -57,7 +57,7 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 	if config.BaseDomain != defaultBaseDomain {
 		t.Errorf("expected default base domain, got %q", config.BaseDomain)
 	}
-	if config.SecretStoreName != defaultSecretStore {
+	if config.SecretStoreName != u.DefaultSecretStoreName {
 		t.Errorf("expected default secret store, got %q", config.SecretStoreName)
 	}
 }

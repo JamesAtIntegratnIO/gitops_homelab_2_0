@@ -48,10 +48,10 @@ func TestBuildConfig_MinimalValid(t *testing.T) {
 	if config.BackendPort != 8080 {
 		t.Errorf("expected backendPort 8080, got %d", config.BackendPort)
 	}
-	if config.GatewayName != defaultGatewayName {
+	if config.GatewayName != u.DefaultGatewayName {
 		t.Errorf("expected default gatewayName, got %q", config.GatewayName)
 	}
-	if config.GatewayNS != defaultGatewayNS {
+	if config.GatewayNS != u.DefaultGatewayNamespace {
 		t.Errorf("expected default gatewayNS, got %q", config.GatewayNS)
 	}
 	if !config.HTTPRedirect {

@@ -12,18 +12,10 @@ import (
 // Platform-wide defaults — baked into every HTTP service.
 const (
 	defaultBaseDomain      = "cluster.integratn.tech"
-	defaultGatewayName     = "nginx-gateway"
-	defaultGatewayNS       = "nginx-gateway"
 	stakaterChartRepo      = "https://stakater.github.io/stakater-charts"
 	stakaterChartName      = "application"
 	stakaterChartVersion   = "6.16.1"
 	argoCDProject          = "default"
-)
-
-// Secret store defaults sourced from kratixutil constants.
-var (
-	defaultSecretStore     = u.DefaultSecretStoreName
-	defaultSecretStoreKind = u.DefaultSecretStoreKind
 )
 
 // HTTPServiceConfig holds the fully resolved config from the CR.
@@ -129,10 +121,10 @@ func main() {
 func buildConfig(resource kratix.Resource) (*HTTPServiceConfig, error) {
 	config := &HTTPServiceConfig{
 		BaseDomain:      defaultBaseDomain,
-		GatewayName:     defaultGatewayName,
-		GatewayNS:       defaultGatewayNS,
-		SecretStoreName: defaultSecretStore,
-		SecretStoreKind: defaultSecretStoreKind,
+		GatewayName:     u.DefaultGatewayName,
+		GatewayNS:       u.DefaultGatewayNamespace,
+		SecretStoreName: u.DefaultSecretStoreName,
+		SecretStoreKind: u.DefaultSecretStoreKind,
 	}
 
 	var err error

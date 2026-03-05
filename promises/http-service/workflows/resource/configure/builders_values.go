@@ -197,26 +197,15 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 	}
 
 	// Disable everything we don't use
-	values["ingress"] = map[string]interface{}{"enabled": false}
-	values["route"] = map[string]interface{}{"enabled": false}
-	values["forecastle"] = map[string]interface{}{"enabled": false}
-	values["cronJob"] = map[string]interface{}{"enabled": false}
-	values["job"] = map[string]interface{}{"enabled": false}
-	values["configMap"] = map[string]interface{}{"enabled": false}
-	values["sealedSecret"] = map[string]interface{}{"enabled": false}
-	values["secret"] = map[string]interface{}{"enabled": false}
-	values["certificate"] = map[string]interface{}{"enabled": false}
-	values["secretProviderClass"] = map[string]interface{}{"enabled": false}
-	values["alertmanagerConfig"] = map[string]interface{}{"enabled": false}
-	values["prometheusRule"] = map[string]interface{}{"enabled": false}
-	values["externalSecret"] = map[string]interface{}{"enabled": false}
-	values["autoscaling"] = map[string]interface{}{"enabled": false}
-	values["vpa"] = map[string]interface{}{"enabled": false}
-	values["endpointMonitor"] = map[string]interface{}{"enabled": false}
-	values["pdb"] = map[string]interface{}{"enabled": false}
-	values["grafanaDashboard"] = map[string]interface{}{"enabled": false}
-	values["backup"] = map[string]interface{}{"enabled": false}
-	values["networkPolicy"] = map[string]interface{}{"enabled": false}
+	for _, feature := range []string{
+		"ingress", "route", "forecastle", "cronJob", "job", "configMap",
+		"sealedSecret", "secret", "certificate", "secretProviderClass",
+		"alertmanagerConfig", "prometheusRule", "externalSecret",
+		"autoscaling", "vpa", "endpointMonitor", "pdb",
+		"grafanaDashboard", "backup", "networkPolicy",
+	} {
+		values[feature] = map[string]interface{}{"enabled": false}
+	}
 
 	return values
 }

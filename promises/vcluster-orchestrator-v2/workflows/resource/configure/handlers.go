@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -128,11 +129,11 @@ func cleanupHostPVs(config *VClusterConfig) error {
 
 	log.Printf("Found %d host PV(s) to delete", len(pvList.Items))
 
-	var errs []string
+	var errs []error
 	for _, pv := range pvList.Items {
 		log.Printf("  Deleting PV: %s (status: %s)", pv.Name, pv.Status.Phase)
 		if err := clientset.CoreV1().PersistentVolumes().Delete(ctx, pv.Name, metav1.DeleteOptions{}); err != nil {
-			errs = append(errs, fmt.Sprintf("failed to delete PV %s: %v", pv.Name, err))
+			errs = append(errs, fmt.Errorf("failed to delete PV %s: %w", pv.Name, err))
 			log.Printf("  ✗ Failed to delete PV %s: %v", pv.Name, err)
 		} else {
 			log.Printf("  ✓ Deleted PV: %s", pv.Name)
@@ -140,7 +141,7 @@ func cleanupHostPVs(config *VClusterConfig) error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("errors deleting PVs: %s", strings.Join(errs, "; "))
+		return errors.Join(errs...)
 	}
 
 	log.Printf("✓ Successfully cleaned up %d host PV(s)", len(pvList.Items))

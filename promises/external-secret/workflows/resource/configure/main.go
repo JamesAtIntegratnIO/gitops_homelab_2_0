@@ -9,12 +9,6 @@ import (
 	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// Use platform-wide constants from kratixutil.
-var (
-	defaultSecretStore     = u.DefaultSecretStoreName
-	defaultSecretStoreKind = u.DefaultSecretStoreKind
-)
-
 // ExternalSecretConfig holds the resolved configuration from the CR.
 type ExternalSecretConfig struct {
 	AppName         string
@@ -61,8 +55,8 @@ func main() {
 
 func buildConfig(resource kratix.Resource) (*ExternalSecretConfig, error) {
 	config := &ExternalSecretConfig{
-		SecretStoreName: defaultSecretStore,
-		SecretStoreKind: defaultSecretStoreKind,
+		SecretStoreName: u.DefaultSecretStoreName,
+		SecretStoreKind: u.DefaultSecretStoreKind,
 	}
 
 	var err error

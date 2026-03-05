@@ -10,4 +10,12 @@ const (
 	// platform. All promises should reference a ClusterSecretStore unless
 	// there is a namespace-scoped override.
 	DefaultSecretStoreKind = "ClusterSecretStore"
+
+	// DefaultGatewayName is the name of the platform's default
+	// nginx-gateway-fabric Gateway resource.
+	DefaultGatewayName = "nginx-gateway"
+
+	// DefaultGatewayNamespace is the namespace where the default Gateway
+	// resource is deployed.
+	DefaultGatewayNamespace = "nginx-gateway"
 )

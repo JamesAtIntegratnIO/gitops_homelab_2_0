@@ -155,13 +155,12 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	// Generate unique job name with reconcile token if present
 	reconcileAt, _ := u.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
 	if reconcileAt != "" {
-		// Extract just numbers from reconcile-at
-		token := ""
-		for _, c := range reconcileAt {
-			if c >= '0' && c <= '9' {
-				token += string(c)
+		token := strings.Map(func(r rune) rune {
+			if r >= '0' && r <= '9' {
+				return r
 			}
-		}
+			return -1
+		}, reconcileAt)
 		if token != "" {
 			config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync-%s", config.Name, token)
 		}
@@ -356,23 +355,9 @@ func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
 		"workload_repo_revision":                     config.WorkloadRepoRevision,
 	}
 
-	if len(config.ArgoCDClusterLabels) == 0 {
-		config.ArgoCDClusterLabels = map[string]string{}
-	}
-	for key, value := range defaultClusterLabels {
-		if _, exists := config.ArgoCDClusterLabels[key]; !exists {
-			config.ArgoCDClusterLabels[key] = value
-		}
-	}
+	config.ArgoCDClusterLabels = u.MergeStringMap(defaultClusterLabels, config.ArgoCDClusterLabels)
 
-	if len(config.ArgoCDClusterAnnotations) == 0 {
-		config.ArgoCDClusterAnnotations = map[string]string{}
-	}
-	for key, value := range defaultClusterAnnotations {
-		if _, exists := config.ArgoCDClusterAnnotations[key]; !exists {
-			config.ArgoCDClusterAnnotations[key] = value
-		}
-	}
+	config.ArgoCDClusterAnnotations = u.MergeStringMap(defaultClusterAnnotations, config.ArgoCDClusterAnnotations)
 }
 
 // configureArgoCD sets up ArgoCD application configuration including repo URL,

@@ -10,8 +10,6 @@ import (
 )
 
 const (
-	defaultGatewayName     = "nginx-gateway"
-	defaultGatewayNS       = "nginx-gateway"
 	defaultHTTPSSection    = "https"
 	defaultHTTPSection     = "http"
 )
@@ -68,8 +66,8 @@ func main() {
 
 func buildConfig(resource kratix.Resource) (*GatewayRouteConfig, error) {
 	config := &GatewayRouteConfig{
-		GatewayName:      defaultGatewayName,
-		GatewayNS:        defaultGatewayNS,
+		GatewayName:      u.DefaultGatewayName,
+		GatewayNS:        u.DefaultGatewayNamespace,
 		HTTPSSectionName: defaultHTTPSSection,
 		HTTPSectionName:  defaultHTTPSection,
 	}
