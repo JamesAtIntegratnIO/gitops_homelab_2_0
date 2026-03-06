@@ -89,3 +89,15 @@ const (
 	// AllIPv4 matches all IPv4 addresses.
 	AllIPv4 = "0.0.0.0/0"
 )
+
+// Sub-promise APIVersion and Kind constants. Centralised here so that changes
+// to a promise's CRD version only require a single-file update.
+const (
+	PlatformAPIVersion = "platform.integratn.tech/v1alpha1"
+
+	ArgoCDApplicationKind         = "ArgoCDApplication"
+	ArgoCDProjectKind             = "ArgoCDProject"
+	ArgoCDClusterRegistrationKind = "ArgoCDClusterRegistration"
+	PlatformExternalSecretKind    = "PlatformExternalSecret"
+	GatewayRouteKind              = "GatewayRoute"
+)

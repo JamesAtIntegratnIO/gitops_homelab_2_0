@@ -94,7 +94,7 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 
 	config.TargetNamespace, err = ku.GetOptionalStringValue(resource, "spec.targetNamespace")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.targetNamespace: %w", err)
 	}
 	if config.TargetNamespace == "" {
 		config.TargetNamespace = config.Namespace
@@ -102,7 +102,7 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 
 	config.ProjectName, err = ku.GetOptionalStringValue(resource, "spec.projectName")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.projectName: %w", err)
 	}
 	if config.ProjectName == "" {
 		config.ProjectName = "vcluster-" + config.Name
@@ -115,7 +115,7 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	config.ClusterDomain = ku.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
 	config.PersistenceClass, err = ku.GetOptionalStringValue(resource, "spec.vcluster.persistence.storageClass")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.vcluster.persistence.storageClass: %w", err)
 	}
 
 	// Apply preset defaults
@@ -126,17 +126,17 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	// Extract backing store and helm overrides
 	config.BackingStore, err = ku.ExtractMapFromResource(resource, "spec.vcluster.backingStore")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.vcluster.backingStore: %w", err)
 	}
 
 	config.ExportKubeConfig, err = ku.ExtractMapFromResource(resource, "spec.vcluster.exportKubeConfig")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.vcluster.exportKubeConfig: %w", err)
 	}
 
 	config.HelmOverrides, err = ku.ExtractMapFromResource(resource, "spec.vcluster.helmOverrides")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.vcluster.helmOverrides: %w", err)
 	}
 
 	return nil
@@ -148,15 +148,15 @@ func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
 	var err error
 	config.Hostname, err = ku.GetOptionalStringValue(resource, "spec.exposure.hostname")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.exposure.hostname: %w", err)
 	}
 	config.Subnet, err = ku.GetOptionalStringValue(resource, "spec.exposure.subnet")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.exposure.subnet: %w", err)
 	}
 	config.VIP, err = ku.GetOptionalStringValue(resource, "spec.exposure.vip")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.exposure.vip: %w", err)
 	}
 	config.APIPort = ku.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
 
@@ -248,7 +248,7 @@ func configureCertManager(config *VClusterConfig, resource kratix.Resource) erro
 	var err error
 	config.CertManagerIssuerLabels, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.integrations.certManager.clusterIssuerSelectorLabels: %w", err)
 	}
 	if len(config.CertManagerIssuerLabels) == 0 {
 		config.CertManagerIssuerLabels = map[string]string{ku.DefaultCertManagerIssuerLabel: ku.DefaultCertManagerIssuer}
@@ -261,7 +261,7 @@ func configureExternalSecrets(config *VClusterConfig, resource kratix.Resource) 
 	var err error
 	config.ExternalSecretsStoreLabels, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.integrations.externalSecrets.clusterStoreSelectorLabels: %w", err)
 	}
 	if len(config.ExternalSecretsStoreLabels) == 0 {
 		config.ExternalSecretsStoreLabels = map[string]string{ku.DefaultExternalSecretsStoreLabel: ku.DefaultExternalSecretsStore}
@@ -275,7 +275,7 @@ func configureArgoCDEnvironment(config *VClusterConfig, resource kratix.Resource
 	var err error
 	config.ArgoCDEnvironment, err = ku.GetOptionalStringValue(resource, "spec.integrations.argocd.environment")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.integrations.argocd.environment: %w", err)
 	}
 	if config.ArgoCDEnvironment == "" {
 		if config.Preset == "prod" {
@@ -293,17 +293,17 @@ func configureWorkloadRepo(config *VClusterConfig, resource kratix.Resource) err
 	var err error
 	config.ArgoCDClusterLabels, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.argocd.clusterLabels")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.integrations.argocd.clusterLabels: %w", err)
 	}
 	config.ArgoCDClusterAnnotations, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.argocd.clusterAnnotations")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.integrations.argocd.clusterAnnotations: %w", err)
 	}
 
 	config.WorkloadRepoURL = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", ku.PlatformRepoURL)
 	config.WorkloadRepoBasePath, err = ku.GetOptionalStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.integrations.argocd.workloadRepo.basePath: %w", err)
 	}
 	config.WorkloadRepoPath = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
 	config.WorkloadRepoRevision = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")

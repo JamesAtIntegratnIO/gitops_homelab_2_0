@@ -494,6 +494,90 @@ func TestGetOptionalIntValue(t *testing.T) {
 	}
 }
 
+func TestGetOptionalBoolPtr(t *testing.T) {
+	boolTrue := true
+	boolFalse := false
+	tests := []struct {
+		name    string
+		data    map[string]interface{}
+		path    string
+		want    *bool
+		wantErr bool
+	}{
+		{"absent returns nil", map[string]interface{}{}, "spec.flag", nil, false},
+		{"explicit true", map[string]interface{}{"spec": map[string]interface{}{"flag": true}}, "spec.flag", &boolTrue, false},
+		{"explicit false", map[string]interface{}{"spec": map[string]interface{}{"flag": false}}, "spec.flag", &boolFalse, false},
+		{"wrong type errors", map[string]interface{}{"spec": map[string]interface{}{"flag": "yes"}}, "spec.flag", nil, true},
+		{"nil value returns nil", map[string]interface{}{"spec": map[string]interface{}{"flag": nil}}, "spec.flag", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			got, err := GetOptionalBoolPtr(r, tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.want == nil && got != nil {
+				t.Fatalf("expected nil, got %v", *got)
+			}
+			if tt.want != nil && got == nil {
+				t.Fatalf("expected %v, got nil", *tt.want)
+			}
+			if tt.want != nil && *got != *tt.want {
+				t.Errorf("expected %v, got %v", *tt.want, *got)
+			}
+		})
+	}
+}
+
+func TestGetOptionalIntPtr(t *testing.T) {
+	int64Val := func(v int64) *int64 { return &v }
+	tests := []struct {
+		name    string
+		data    map[string]interface{}
+		path    string
+		want    *int64
+		wantErr bool
+	}{
+		{"absent returns nil", map[string]interface{}{}, "spec.uid", nil, false},
+		{"explicit int", map[string]interface{}{"spec": map[string]interface{}{"uid": 1000}}, "spec.uid", int64Val(1000), false},
+		{"explicit zero", map[string]interface{}{"spec": map[string]interface{}{"uid": 0}}, "spec.uid", int64Val(0), false},
+		{"float64", map[string]interface{}{"spec": map[string]interface{}{"uid": float64(42)}}, "spec.uid", int64Val(42), false},
+		{"wrong type errors", map[string]interface{}{"spec": map[string]interface{}{"uid": "root"}}, "spec.uid", nil, true},
+		{"nil value returns nil", map[string]interface{}{"spec": map[string]interface{}{"uid": nil}}, "spec.uid", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			got, err := GetOptionalIntPtr(r, tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.want == nil && got != nil {
+				t.Fatalf("expected nil, got %v", *got)
+			}
+			if tt.want != nil && got == nil {
+				t.Fatalf("expected %v, got nil", *tt.want)
+			}
+			if tt.want != nil && *got != *tt.want {
+				t.Errorf("expected %v, got %v", *tt.want, *got)
+			}
+		})
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Tests for Resource-level typed extraction helpers
 // ---------------------------------------------------------------------------

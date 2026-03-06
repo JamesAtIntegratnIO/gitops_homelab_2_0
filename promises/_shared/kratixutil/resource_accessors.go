@@ -13,6 +13,19 @@ import (
 // fields.
 // ---------------------------------------------------------------------------
 
+// Which accessor to use:
+//   - GetStringValue / GetIntValue / GetBoolValue:
+//       Use for required fields. Returns error if absent or wrong type.
+//   - GetStringValueWithDefault / GetIntValueWithDefault / GetBoolValueWithDefault:
+//       Use for optional config fields where callers just need the resolved value.
+//       Does NOT distinguish missing from wrong-type — both return defaultValue.
+//   - GetOptionalStringValue / GetOptionalBoolValue / GetOptionalIntValue:
+//       Use for optional fields where wrong-type should be an error but absence is OK.
+//       Returns (zero, nil) when absent, (zero, error) on type mismatch.
+//   - GetOptionalBoolPtr / GetOptionalIntPtr:
+//       Use for pointer fields (e.g., *bool, *int64) needing three-state semantics:
+//       absent (nil), explicit true/false, or explicit zero. Returns *T or nil.
+
 func GetStringValue(resource kratix.Resource, path string) (string, error) {
 	val, err := resource.GetValue(path)
 	if err != nil {
@@ -145,6 +158,45 @@ func GetOptionalIntValue(resource kratix.Resource, path string) (int, error) {
 	default:
 		return 0, fmt.Errorf("field %s: expected numeric, got %T", path, val)
 	}
+}
+
+// GetOptionalBoolPtr returns a pointer to the value if the field exists and is a bool,
+// nil if the field is absent, or an error if the field exists but has wrong type.
+// Use for optional pointer fields (e.g., *bool in securityContext) where callers need
+// three-state semantics: absent (nil), true, or false.
+func GetOptionalBoolPtr(resource kratix.Resource, path string) (*bool, error) {
+	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return nil, nil
+	}
+	b, ok := val.(bool)
+	if !ok {
+		return nil, fmt.Errorf("field %s: expected bool, got %T", path, val)
+	}
+	return &b, nil
+}
+
+// GetOptionalIntPtr returns a pointer to the value if the field exists and is numeric,
+// nil if the field is absent, or an error if the field exists but has wrong type.
+// Use for optional pointer fields (e.g., *int64 in securityContext) where callers need
+// to distinguish absent from zero.
+func GetOptionalIntPtr(resource kratix.Resource, path string) (*int64, error) {
+	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return nil, nil
+	}
+	var v64 int64
+	switch v := val.(type) {
+	case int:
+		v64 = int64(v)
+	case int64:
+		v64 = v
+	case float64:
+		v64 = int64(v)
+	default:
+		return nil, fmt.Errorf("field %s: expected numeric, got %T", path, val)
+	}
+	return &v64, nil
 }
 
 // ---------------------------------------------------------------------------

@@ -109,28 +109,22 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceCon
 	}
 	config.PersistenceMountPath = ku.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
 
-	// Security context
-	if v, err := ku.GetBoolValue(resource, "spec.securityContext.runAsNonRoot"); err == nil {
-		config.RunAsNonRoot = &v
-	} else if rawVal, _ := resource.GetValue("spec.securityContext.runAsNonRoot"); rawVal != nil {
-		return nil, fmt.Errorf("spec.securityContext.runAsNonRoot: %w", err)
+	// Security context — use pointer accessors to distinguish absent from false/zero.
+	config.RunAsNonRoot, err = ku.GetOptionalBoolPtr(resource, "spec.securityContext.runAsNonRoot")
+	if err != nil {
+		return nil, err
 	}
-	if v, err := ku.GetBoolValue(resource, "spec.securityContext.readOnlyRootFilesystem"); err == nil {
-		config.ReadOnlyRootFilesystem = &v
-	} else if rawVal, _ := resource.GetValue("spec.securityContext.readOnlyRootFilesystem"); rawVal != nil {
-		return nil, fmt.Errorf("spec.securityContext.readOnlyRootFilesystem: %w", err)
+	config.ReadOnlyRootFilesystem, err = ku.GetOptionalBoolPtr(resource, "spec.securityContext.readOnlyRootFilesystem")
+	if err != nil {
+		return nil, err
 	}
-	if v, err := ku.GetIntValue(resource, "spec.securityContext.runAsUser"); err == nil {
-		v64 := int64(v)
-		config.RunAsUser = &v64
-	} else if rawVal, _ := resource.GetValue("spec.securityContext.runAsUser"); rawVal != nil {
-		return nil, fmt.Errorf("spec.securityContext.runAsUser: %w", err)
+	config.RunAsUser, err = ku.GetOptionalIntPtr(resource, "spec.securityContext.runAsUser")
+	if err != nil {
+		return nil, err
 	}
-	if v, err := ku.GetIntValue(resource, "spec.securityContext.runAsGroup"); err == nil {
-		v64 := int64(v)
-		config.RunAsGroup = &v64
-	} else if rawVal, _ := resource.GetValue("spec.securityContext.runAsGroup"); rawVal != nil {
-		return nil, fmt.Errorf("spec.securityContext.runAsGroup: %w", err)
+	config.RunAsGroup, err = ku.GetOptionalIntPtr(resource, "spec.securityContext.runAsGroup")
+	if err != nil {
+		return nil, err
 	}
 
 	// Helm overrides
@@ -183,8 +177,8 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	}
 
 	appRequest := ku.Resource{
-		APIVersion: "platform.integratn.tech/v1alpha1",
-		Kind:       "ArgoCDApplication",
+		APIVersion: ku.PlatformAPIVersion,
+		Kind:       ku.ArgoCDApplicationKind,
 		Metadata: ku.ObjectMeta{
 			Name:      config.Name,
 			Namespace: ku.DefaultPlatformRequestsNamespace,
@@ -274,8 +268,8 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// Delete ArgoCDApplication sub-ResourceRequest
 	appRequest := ku.DeleteFromResource(ku.Resource{
-		APIVersion: "platform.integratn.tech/v1alpha1",
-		Kind:       "ArgoCDApplication",
+		APIVersion: ku.PlatformAPIVersion,
+		Kind:       ku.ArgoCDApplicationKind,
 		Metadata: ku.ObjectMeta{
 			Name:      config.Name,
 			Namespace: ku.DefaultPlatformRequestsNamespace,
@@ -288,8 +282,8 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// Delete PlatformExternalSecret sub-ResourceRequest
 	if len(config.Secrets) > 0 {
 		esRequest := ku.DeleteFromResource(ku.Resource{
-			APIVersion: "platform.integratn.tech/v1alpha1",
-			Kind:       "PlatformExternalSecret",
+			APIVersion: ku.PlatformAPIVersion,
+			Kind:       ku.PlatformExternalSecretKind,
 			Metadata: ku.ObjectMeta{
 				Name:      fmt.Sprintf("%s-secrets", config.Name),
 				Namespace: ku.DefaultPlatformRequestsNamespace,
@@ -303,8 +297,8 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// Delete GatewayRoute sub-ResourceRequest
 	if config.IngressEnabled {
 		gwRequest := ku.DeleteFromResource(ku.Resource{
-			APIVersion: "platform.integratn.tech/v1alpha1",
-			Kind:       "GatewayRoute",
+			APIVersion: ku.PlatformAPIVersion,
+			Kind:       ku.GatewayRouteKind,
 			Metadata: ku.ObjectMeta{
 				Name:      fmt.Sprintf("%s-route", config.Name),
 				Namespace: ku.DefaultPlatformRequestsNamespace,

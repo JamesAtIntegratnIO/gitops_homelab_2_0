@@ -19,8 +19,8 @@ func buildArgoCDProjectRequest(config *VClusterConfig) ku.Resource {
 	}
 
 	return ku.Resource{
-		APIVersion: "platform.integratn.tech/v1alpha1",
-		Kind:       "ArgoCDProject",
+		APIVersion: ku.PlatformAPIVersion,
+		Kind:       ku.ArgoCDProjectKind,
 		Metadata: ku.ResourceMeta(
 			config.ProjectName,
 			config.Namespace,
@@ -82,8 +82,8 @@ func buildArgoCDApplicationRequest(config *VClusterConfig) ku.Resource {
 	}
 
 	return ku.Resource{
-		APIVersion: "platform.integratn.tech/v1alpha1",
-		Kind:       "ArgoCDApplication",
+		APIVersion: ku.PlatformAPIVersion,
+		Kind:       ku.ArgoCDApplicationKind,
 		Metadata: ku.ResourceMeta(
 			fmt.Sprintf("vcluster-%s", config.Name),
 			config.Namespace,
@@ -113,8 +113,8 @@ func buildArgoCDClusterRegistrationRequest(config *VClusterConfig) ku.Resource {
 	}
 
 	return ku.Resource{
-		APIVersion: "platform.integratn.tech/v1alpha1",
-		Kind:       "ArgoCDClusterRegistration",
+		APIVersion: ku.PlatformAPIVersion,
+		Kind:       ku.ArgoCDClusterRegistrationKind,
 		Metadata: ku.ResourceMeta(
 			fmt.Sprintf("%s-cluster-registration", config.Name),
 			config.Namespace,

@@ -12,8 +12,8 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 	// SecretRef and PlatformExternalSecretItem are now unified — no conversion needed
 
 	return ku.Resource{
-		APIVersion: "platform.integratn.tech/v1alpha1",
-		Kind:       "PlatformExternalSecret",
+		APIVersion: ku.PlatformAPIVersion,
+		Kind:       ku.PlatformExternalSecretKind,
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-secrets", config.Name),
 			Namespace: ku.DefaultPlatformRequestsNamespace,
@@ -36,8 +36,8 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 // that delegates to the gateway-route promise.
 func buildGatewayRouteRequest(config *HTTPServiceConfig) ku.Resource {
 	return ku.Resource{
-		APIVersion: "platform.integratn.tech/v1alpha1",
-		Kind:       "GatewayRoute",
+		APIVersion: ku.PlatformAPIVersion,
+		Kind:       ku.GatewayRouteKind,
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-route", config.Name),
 			Namespace: ku.DefaultPlatformRequestsNamespace,
