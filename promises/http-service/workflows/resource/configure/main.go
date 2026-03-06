@@ -66,7 +66,10 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceCon
 	// Networking
 	config.Port = ku.GetIntValueWithDefault(resource, "spec.port", 8080)
 	config.IngressEnabled = ku.GetBoolValueWithDefault(resource, "spec.ingress.enabled", true)
-	config.IngressHostname, _ = ku.GetStringValue(resource, "spec.ingress.hostname")
+	config.IngressHostname, err = ku.GetOptionalStringValue(resource, "spec.ingress.hostname")
+	if err != nil {
+		return nil, err
+	}
 	if config.IngressHostname == "" {
 		config.IngressHostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
 	}
@@ -100,7 +103,10 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceCon
 	// Storage
 	config.PersistenceEnabled = ku.GetBoolValueWithDefault(resource, "spec.persistence.enabled", false)
 	config.PersistenceSize = ku.GetStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
-	config.PersistenceClass, _ = ku.GetStringValue(resource, "spec.persistence.storageClass")
+	config.PersistenceClass, err = ku.GetOptionalStringValue(resource, "spec.persistence.storageClass")
+	if err != nil {
+		return nil, err
+	}
 	config.PersistenceMountPath = ku.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
 
 	// Security context

@@ -2,6 +2,7 @@ package kratixutil
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -311,6 +312,183 @@ func TestGetBoolValueWithDefault(t *testing.T) {
 			val := GetBoolValueWithDefault(r, tt.path, tt.defVal)
 			if val != tt.expected {
 				t.Errorf("expected %v, got %v", tt.expected, val)
+			}
+		})
+	}
+}
+
+func TestGetOptionalStringValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		path      string
+		expected  string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:     "present and valid",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"chart": "nginx"}},
+			path:     "spec.chart",
+			expected: "nginx",
+		},
+		{
+			name:     "absent returns empty",
+			data:     map[string]interface{}{},
+			path:     "spec.chart",
+			expected: "",
+			wantErr:  false,
+		},
+		{
+			name:      "wrong type returns error",
+			data:      map[string]interface{}{"spec": map[string]interface{}{"chart": 42}},
+			path:      "spec.chart",
+			wantErr:   true,
+			errSubstr: "expected string",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			val, err := GetOptionalStringValue(r, tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("expected error containing %q, got %v", tt.errSubstr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if val != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, val)
+			}
+		})
+	}
+}
+
+func TestGetOptionalBoolValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		path      string
+		expected  bool
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:     "present and true",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"enabled": true}},
+			path:     "spec.enabled",
+			expected: true,
+		},
+		{
+			name:     "present and false",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"enabled": false}},
+			path:     "spec.enabled",
+			expected: false,
+		},
+		{
+			name:     "absent returns false",
+			data:     map[string]interface{}{},
+			path:     "spec.enabled",
+			expected: false,
+			wantErr:  false,
+		},
+		{
+			name:      "wrong type returns error",
+			data:      map[string]interface{}{"spec": map[string]interface{}{"enabled": "yes"}},
+			path:      "spec.enabled",
+			wantErr:   true,
+			errSubstr: "expected bool",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			val, err := GetOptionalBoolValue(r, tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("expected error containing %q, got %v", tt.errSubstr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if val != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, val)
+			}
+		})
+	}
+}
+
+func TestGetOptionalIntValue(t *testing.T) {
+	tests := []struct {
+		name      string
+		data      map[string]interface{}
+		path      string
+		expected  int
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:     "present int",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"count": 5}},
+			path:     "spec.count",
+			expected: 5,
+		},
+		{
+			name:     "present float64",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"count": float64(42)}},
+			path:     "spec.count",
+			expected: 42,
+		},
+		{
+			name:     "present int64",
+			data:     map[string]interface{}{"spec": map[string]interface{}{"count": int64(99)}},
+			path:     "spec.count",
+			expected: 99,
+		},
+		{
+			name:     "absent returns zero",
+			data:     map[string]interface{}{},
+			path:     "spec.count",
+			expected: 0,
+			wantErr:  false,
+		},
+		{
+			name:      "wrong type returns error",
+			data:      map[string]interface{}{"spec": map[string]interface{}{"count": "not-a-number"}},
+			path:      "spec.count",
+			wantErr:   true,
+			errSubstr: "expected numeric",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.data)
+			val, err := GetOptionalIntValue(r, tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("expected error containing %q, got %v", tt.errSubstr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if val != tt.expected {
+				t.Errorf("expected %d, got %d", tt.expected, val)
 			}
 		})
 	}

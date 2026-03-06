@@ -46,7 +46,10 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, err
 	if err != nil {
 		return nil, fmt.Errorf("spec.source.repoURL is required: %w", err)
 	}
-	chart, _ := ku.GetStringValue(resource, "spec.source.chart")
+	chart, err := ku.GetOptionalStringValue(resource, "spec.source.chart")
+	if err != nil {
+		return nil, err
+	}
 	targetRevision, err := ku.GetStringValue(resource, "spec.source.targetRevision")
 	if err != nil {
 		return nil, fmt.Errorf("spec.source.targetRevision is required: %w", err)
@@ -59,7 +62,10 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, err
 	}
 
 	// Extract helm config
-	releaseName, _ := ku.GetStringValue(resource, "spec.source.helm.releaseName")
+	releaseName, err := ku.GetOptionalStringValue(resource, "spec.source.helm.releaseName")
+	if err != nil {
+		return nil, err
+	}
 	valuesObject, _ := resource.GetValue("spec.source.helm.valuesObject")
 	if releaseName != "" || valuesObject != nil {
 		config.Source.Helm = &ku.HelmSource{

@@ -22,7 +22,10 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	}
 
 	config.Namespace = ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
-	config.Description, _ = ku.GetStringValue(resource, "spec.description")
+	config.Description, err = ku.GetOptionalStringValue(resource, "spec.description")
+	if err != nil {
+		return nil, err
+	}
 	config.Annotations, err = ku.ExtractStringMapFromResource(resource, "spec.annotations")
 	if err != nil {
 		return nil, err

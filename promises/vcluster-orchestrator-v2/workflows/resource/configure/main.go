@@ -53,7 +53,10 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
 	
 	// Generate unique job name with reconcile token if present
-	reconcileAt, _ := ku.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
+	reconcileAt, err := ku.GetOptionalStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
+	if err != nil {
+		return nil, err
+	}
 	if reconcileAt != "" {
 		token := strings.Map(func(r rune) rune {
 			if r >= '0' && r <= '9' {
@@ -87,12 +90,18 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 		return fmt.Errorf("spec.name not found: %w", err)
 	}
 
-	config.TargetNamespace, _ = ku.GetStringValue(resource, "spec.targetNamespace")
+	config.TargetNamespace, err = ku.GetOptionalStringValue(resource, "spec.targetNamespace")
+	if err != nil {
+		return err
+	}
 	if config.TargetNamespace == "" {
 		config.TargetNamespace = config.Namespace
 	}
 
-	config.ProjectName, _ = ku.GetStringValue(resource, "spec.projectName")
+	config.ProjectName, err = ku.GetOptionalStringValue(resource, "spec.projectName")
+	if err != nil {
+		return err
+	}
 	if config.ProjectName == "" {
 		config.ProjectName = "vcluster-" + config.Name
 	}
@@ -102,7 +111,10 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	config.Preset = ku.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
 	config.IsolationMode = ku.GetStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
 	config.ClusterDomain = ku.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
-	config.PersistenceClass, _ = ku.GetStringValue(resource, "spec.vcluster.persistence.storageClass")
+	config.PersistenceClass, err = ku.GetOptionalStringValue(resource, "spec.vcluster.persistence.storageClass")
+	if err != nil {
+		return err
+	}
 
 	// Apply preset defaults
 	applyPresetDefaults(config, resource)
@@ -129,9 +141,19 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 // configureExposure extracts and calculates exposure settings: hostname, subnet,
 // VIP, apiPort, external server URL, exportKubeConfig merge, and proxy extraSANs.
 func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
-	config.Hostname, _ = ku.GetStringValue(resource, "spec.exposure.hostname")
-	config.Subnet, _ = ku.GetStringValue(resource, "spec.exposure.subnet")
-	config.VIP, _ = ku.GetStringValue(resource, "spec.exposure.vip")
+	var err error
+	config.Hostname, err = ku.GetOptionalStringValue(resource, "spec.exposure.hostname")
+	if err != nil {
+		return err
+	}
+	config.Subnet, err = ku.GetOptionalStringValue(resource, "spec.exposure.subnet")
+	if err != nil {
+		return err
+	}
+	config.VIP, err = ku.GetOptionalStringValue(resource, "spec.exposure.vip")
+	if err != nil {
+		return err
+	}
 	config.APIPort = ku.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
 
 	if err := calculateVIP(config); err != nil {
@@ -207,7 +229,9 @@ func configureIntegrations(config *VClusterConfig, resource kratix.Resource) err
 	if err := configureExternalSecrets(config, resource); err != nil {
 		return err
 	}
-	configureArgoCDEnvironment(config, resource)
+	if err := configureArgoCDEnvironment(config, resource); err != nil {
+		return err
+	}
 	if err := configureWorkloadRepo(config, resource); err != nil {
 		return err
 	}
@@ -243,8 +267,12 @@ func configureExternalSecrets(config *VClusterConfig, resource kratix.Resource) 
 
 // configureArgoCDEnvironment resolves the ArgoCD environment label from the resource
 // or derives it from the vcluster preset.
-func configureArgoCDEnvironment(config *VClusterConfig, resource kratix.Resource) {
-	config.ArgoCDEnvironment, _ = ku.GetStringValue(resource, "spec.integrations.argocd.environment")
+func configureArgoCDEnvironment(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.ArgoCDEnvironment, err = ku.GetOptionalStringValue(resource, "spec.integrations.argocd.environment")
+	if err != nil {
+		return err
+	}
 	if config.ArgoCDEnvironment == "" {
 		if config.Preset == "prod" {
 			config.ArgoCDEnvironment = "production"
@@ -252,6 +280,7 @@ func configureArgoCDEnvironment(config *VClusterConfig, resource kratix.Resource
 			config.ArgoCDEnvironment = "development"
 		}
 	}
+	return nil
 }
 
 // configureWorkloadRepo extracts ArgoCD workload repository settings and user-provided
@@ -268,7 +297,10 @@ func configureWorkloadRepo(config *VClusterConfig, resource kratix.Resource) err
 	}
 
 	config.WorkloadRepoURL = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", ku.PlatformRepoURL)
-	config.WorkloadRepoBasePath, _ = ku.GetStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
+	config.WorkloadRepoBasePath, err = ku.GetOptionalStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
+	if err != nil {
+		return err
+	}
 	config.WorkloadRepoPath = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
 	config.WorkloadRepoRevision = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
 	return nil

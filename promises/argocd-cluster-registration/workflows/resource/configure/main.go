@@ -41,12 +41,18 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*Registration
 	environment := ku.GetStringValueWithDefault(resource, "spec.environment", "development")
 	baseDomain := ku.GetStringValueWithDefault(resource, "spec.baseDomain", "integratn.tech")
 
-	baseDomainSanitized, _ := ku.GetStringValue(resource, "spec.baseDomainSanitized")
+	baseDomainSanitized, err := ku.GetOptionalStringValue(resource, "spec.baseDomainSanitized")
+	if err != nil {
+		return nil, err
+	}
 	if baseDomainSanitized == "" {
 		baseDomainSanitized = strings.ReplaceAll(baseDomain, ".", "-")
 	}
 
-	syncJobName, _ := ku.GetStringValue(resource, "spec.syncJobName")
+	syncJobName, err := ku.GetOptionalStringValue(resource, "spec.syncJobName")
+	if err != nil {
+		return nil, err
+	}
 	if syncJobName == "" {
 		syncJobName = fmt.Sprintf("%s-kubeconfig-sync", name)
 	}

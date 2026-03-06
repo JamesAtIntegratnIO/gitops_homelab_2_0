@@ -99,6 +99,54 @@ func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue
 	return val
 }
 
+// GetOptionalStringValue returns (value, nil) if the field exists and is a string,
+// ("", nil) if the field is absent, or ("", error) if the field exists but has wrong type.
+// Use for optional string fields that should error on type mismatch but not on absence.
+func GetOptionalStringValue(resource kratix.Resource, path string) (string, error) {
+	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return "", nil
+	}
+	s, ok := val.(string)
+	if !ok {
+		return "", fmt.Errorf("field %s: expected string, got %T", path, val)
+	}
+	return s, nil
+}
+
+// GetOptionalBoolValue returns (value, nil) if the field exists and is a bool,
+// (false, nil) if the field is absent, or (false, error) if the field exists but has wrong type.
+func GetOptionalBoolValue(resource kratix.Resource, path string) (bool, error) {
+	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return false, nil
+	}
+	b, ok := val.(bool)
+	if !ok {
+		return false, fmt.Errorf("field %s: expected bool, got %T", path, val)
+	}
+	return b, nil
+}
+
+// GetOptionalIntValue returns (value, nil) if the field exists and is numeric,
+// (0, nil) if the field is absent, or (0, error) if the field exists but has wrong type.
+func GetOptionalIntValue(resource kratix.Resource, path string) (int, error) {
+	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return 0, nil
+	}
+	switch v := val.(type) {
+	case int:
+		return v, nil
+	case int64:
+		return int(v), nil
+	case float64:
+		return int(v), nil
+	default:
+		return 0, fmt.Errorf("field %s: expected numeric, got %T", path, val)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Resource-level typed extraction helpers: bridge kratix.Resource → Extract*E.
 // These return (nil, nil) when the path is absent and (nil, error) on type
