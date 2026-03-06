@@ -44,10 +44,10 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		config.EnableNFS = val
 	}
 	extraEgress, egressErr := extractExtraEgress(resource)
-	config.ExtraEgress = extraEgress
 	if egressErr != nil {
-		log.Printf("warning: %v", egressErr)
+		return nil, fmt.Errorf("spec.networkPolicies.extraEgress: %w", egressErr)
 	}
+	config.ExtraEgress = extraEgress
 
 	// Set derived values
 	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
