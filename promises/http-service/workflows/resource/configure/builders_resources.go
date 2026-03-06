@@ -9,15 +9,7 @@ import (
 // buildExternalSecretRequest creates a PlatformExternalSecret sub-ResourceRequest
 // that delegates to the external-secret promise.
 func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
-	// Convert SecretRef slice to the typed format expected by the external-secret promise
-	secrets := make([]ku.PlatformExternalSecretItem, 0, len(config.Secrets))
-	for _, s := range config.Secrets {
-		secrets = append(secrets, ku.PlatformExternalSecretItem{
-			Name:            s.Name,
-			OnePasswordItem: s.OnePasswordItem,
-			Keys:            s.Keys,
-		})
-	}
+	// SecretRef and PlatformExternalSecretItem are now unified — no conversion needed
 
 	return ku.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
@@ -35,7 +27,7 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 			SecretStoreName: config.SecretStoreName,
 			SecretStoreKind: config.SecretStoreKind,
 			OwnerPromise:    "http-service",
-			Secrets:         secrets,
+			Secrets:         config.Secrets,
 		},
 	}
 }

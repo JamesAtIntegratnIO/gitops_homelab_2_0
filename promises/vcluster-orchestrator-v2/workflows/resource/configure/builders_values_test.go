@@ -361,7 +361,9 @@ func TestApplyPresetDefaults_CorednsReplicasOverride(t *testing.T) {
 			},
 		},
 	}
-	applyPresetDefaults(config, resource)
+	if err := applyPresetDefaults(config, resource); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if config.CorednsReplicas != 3 {
 		t.Errorf("expected coredns replicas 3, got %d", config.CorednsReplicas)
@@ -383,7 +385,9 @@ func TestApplyPresetDefaults_MemoryLimitOverride(t *testing.T) {
 			},
 		},
 	}
-	applyPresetDefaults(config, resource)
+	if err := applyPresetDefaults(config, resource); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if config.MemoryLimit != "8Gi" {
 		t.Errorf("expected memory limit '8Gi', got %q", config.MemoryLimit)

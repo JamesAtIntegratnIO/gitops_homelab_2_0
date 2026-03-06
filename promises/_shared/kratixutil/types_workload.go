@@ -3,7 +3,7 @@ package kratixutil
 // SecretRef defines a secret to provision via ExternalSecrets. Each ref maps
 // a 1Password item to one or more Kubernetes Secret keys.
 type SecretRef struct {
-	Name            string      `json:"name"`
+	Name            string      `json:"name,omitempty"`
 	OnePasswordItem string      `json:"onePasswordItem"`
 	Keys            []SecretKey `json:"keys"`
 }

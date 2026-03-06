@@ -189,7 +189,7 @@ func buildValuesObject(config *VClusterConfig) (map[string]interface{}, error) {
 	return ku.DeepMerge(valuesMap, config.HelmOverrides), nil
 }
 
-func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
+func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) error {
 	presetDefaults := map[string]PresetDefaults{
 		"dev": {
 			Replicas:           1,
@@ -219,7 +219,9 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 	}
 
 	// Apply replicas
-	if val, err := ku.GetIntValue(resource, "spec.vcluster.replicas"); err == nil && val > 0 {
+	if val, err := ku.GetOptionalIntValue(resource, "spec.vcluster.replicas"); err != nil {
+		return fmt.Errorf("spec.vcluster.replicas: %w", err)
+	} else if val > 0 {
 		config.Replicas = val
 	} else {
 		config.Replicas = defaults.Replicas
@@ -234,6 +236,8 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 	// Apply persistence
 	if val, err := ku.GetBoolValue(resource, "spec.vcluster.persistence.enabled"); err == nil {
 		config.PersistenceEnabled = val
+	} else if rawVal, _ := resource.GetValue("spec.vcluster.persistence.enabled"); rawVal != nil {
+		return fmt.Errorf("spec.vcluster.persistence.enabled: %w", err)
 	} else {
 		config.PersistenceEnabled = defaults.PersistenceEnabled
 	}
@@ -241,9 +245,13 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
 	config.PersistenceSize = ku.GetStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
 
 	// Apply coredns replicas
-	if val, err := ku.GetIntValue(resource, "spec.vcluster.coredns.replicas"); err == nil && val > 0 {
+	if val, err := ku.GetOptionalIntValue(resource, "spec.vcluster.coredns.replicas"); err != nil {
+		return fmt.Errorf("spec.vcluster.coredns.replicas: %w", err)
+	} else if val > 0 {
 		config.CorednsReplicas = val
 	} else {
 		config.CorednsReplicas = defaults.CorednsReplicas
 	}
+
+	return nil
 }

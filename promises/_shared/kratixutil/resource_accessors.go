@@ -153,77 +153,49 @@ func GetOptionalIntValue(resource kratix.Resource, path string) (int, error) {
 // mismatch.
 // ---------------------------------------------------------------------------
 
+// extractFromResource is a generic helper that bridges kratix.Resource → an
+// ExtractE-style function. It eliminates repeated boilerplate across the
+// Extract*FromResource family.
+func extractFromResource[T any](resource kratix.Resource, path string, extractFn func(map[string]interface{}, string) (T, error)) (T, error) {
+	var zero T
+	val, err := resource.GetValue(path)
+	if err != nil || val == nil {
+		return zero, nil
+	}
+	wrapper := map[string]interface{}{"_v": val}
+	result, extractErr := extractFn(wrapper, "_v")
+	if extractErr != nil {
+		return zero, fmt.Errorf("%s: %w", path, extractErr)
+	}
+	return result, nil
+}
+
 // ExtractStringMapFromResource extracts a map[string]string from a resource at the given path.
 // Returns (nil, nil) when the path is absent, (nil, error) on type mismatch.
 func ExtractStringMapFromResource(resource kratix.Resource, path string) (map[string]string, error) {
-	val, err := resource.GetValue(path)
-	if err != nil || val == nil {
-		return nil, nil
-	}
-	wrapper := map[string]interface{}{"_v": val}
-	result, extractErr := ExtractStringMapE(wrapper, "_v")
-	if extractErr != nil {
-		return nil, fmt.Errorf("%s: %w", path, extractErr)
-	}
-	return result, nil
+	return extractFromResource(resource, path, ExtractStringMapE)
 }
 
 // ExtractStringSliceFromResource extracts a []string from a resource at the given path.
 // Returns (nil, nil) when the path is absent, (nil, error) on type mismatch.
 func ExtractStringSliceFromResource(resource kratix.Resource, path string) ([]string, error) {
-	val, err := resource.GetValue(path)
-	if err != nil || val == nil {
-		return nil, nil
-	}
-	wrapper := map[string]interface{}{"_v": val}
-	result, extractErr := ExtractStringSliceE(wrapper, "_v")
-	if extractErr != nil {
-		return nil, fmt.Errorf("%s: %w", path, extractErr)
-	}
-	return result, nil
+	return extractFromResource(resource, path, ExtractStringSliceE)
 }
 
 // ExtractObjectSliceFromResource extracts a []map[string]interface{} from a resource at the given path.
 // Returns (nil, nil) when the path is absent, (nil, error) on type mismatch.
 func ExtractObjectSliceFromResource(resource kratix.Resource, path string) ([]map[string]interface{}, error) {
-	val, err := resource.GetValue(path)
-	if err != nil || val == nil {
-		return nil, nil
-	}
-	wrapper := map[string]interface{}{"_v": val}
-	result, extractErr := ExtractObjectSliceE(wrapper, "_v")
-	if extractErr != nil {
-		return nil, fmt.Errorf("%s: %w", path, extractErr)
-	}
-	return result, nil
+	return extractFromResource(resource, path, ExtractObjectSliceE)
 }
 
 // ExtractSecretsFromResource extracts a []SecretRef from a resource at the given path.
 // Returns (nil, nil) when the path is absent, (nil, error) on type mismatch.
 func ExtractSecretsFromResource(resource kratix.Resource, path string) ([]SecretRef, error) {
-	val, err := resource.GetValue(path)
-	if err != nil || val == nil {
-		return nil, nil
-	}
-	wrapper := map[string]interface{}{"_v": val}
-	result, extractErr := ExtractSecretsE(wrapper, "_v")
-	if extractErr != nil {
-		return nil, fmt.Errorf("%s: %w", path, extractErr)
-	}
-	return result, nil
+	return extractFromResource(resource, path, ExtractSecretsE)
 }
 
 // ExtractMapFromResource extracts a map[string]interface{} from a resource at the given path.
 // Returns (nil, nil) when the path is absent, (nil, error) on type mismatch.
 func ExtractMapFromResource(resource kratix.Resource, path string) (map[string]interface{}, error) {
-	val, err := resource.GetValue(path)
-	if err != nil || val == nil {
-		return nil, nil
-	}
-	wrapper := map[string]interface{}{"_v": val}
-	result, extractErr := ExtractMapE(wrapper, "_v")
-	if extractErr != nil {
-		return nil, fmt.Errorf("%s: %w", path, extractErr)
-	}
-	return result, nil
+	return extractFromResource(resource, path, ExtractMapE)
 }

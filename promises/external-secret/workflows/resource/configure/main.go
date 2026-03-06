@@ -29,10 +29,14 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ExternalSecret
 
 	config.OwnerPromise = ku.GetStringValueWithDefault(resource, "spec.ownerPromise", "external-secret")
 
-	if v, err := ku.GetStringValue(resource, "spec.secretStoreName"); err == nil && v != "" {
+	if v, err := ku.GetOptionalStringValue(resource, "spec.secretStoreName"); err != nil {
+		return nil, fmt.Errorf("spec.secretStoreName: %w", err)
+	} else if v != "" {
 		config.SecretStoreName = v
 	}
-	if v, err := ku.GetStringValue(resource, "spec.secretStoreKind"); err == nil && v != "" {
+	if v, err := ku.GetOptionalStringValue(resource, "spec.secretStoreKind"); err != nil {
+		return nil, fmt.Errorf("spec.secretStoreKind: %w", err)
+	} else if v != "" {
 		config.SecretStoreKind = v
 	}
 

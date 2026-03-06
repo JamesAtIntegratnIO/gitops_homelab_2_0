@@ -40,7 +40,9 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Extract network policy configuration
-	if val, err := ku.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
+	if val, err := ku.GetOptionalBoolValue(resource, "spec.networkPolicies.enableNFS"); err != nil {
+		return nil, fmt.Errorf("spec.networkPolicies.enableNFS: %w", err)
+	} else {
 		config.EnableNFS = val
 	}
 	extraEgress, egressErr := extractExtraEgress(resource)
@@ -117,7 +119,9 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	}
 
 	// Apply preset defaults
-	applyPresetDefaults(config, resource)
+	if err := applyPresetDefaults(config, resource); err != nil {
+		return err
+	}
 
 	// Extract backing store and helm overrides
 	config.BackingStore, err = ku.ExtractMapFromResource(resource, "spec.vcluster.backingStore")
@@ -394,7 +398,6 @@ func extractExtraEgress(resource kratix.Resource) ([]ExtraEgressRule, error) {
 	}
 
 	var rules []ExtraEgressRule
-	var warnings []string
 	for i, m := range raw {
 		rule := ExtraEgressRule{
 			Protocol: "TCP", // default
@@ -414,12 +417,8 @@ func extractExtraEgress(resource kratix.Resource) ([]ExtraEgressRule, error) {
 		if rule.Name != "" && rule.CIDR != "" && rule.Port > 0 {
 			rules = append(rules, rule)
 		} else {
-			warnings = append(warnings, fmt.Sprintf("index %d: name=%q cidr=%q port=%d", i, rule.Name, rule.CIDR, rule.Port))
+			log.Printf("WARNING: skipping incomplete egress rule at index %d: name=%q cidr=%q port=%d", i, rule.Name, rule.CIDR, rule.Port)
 		}
 	}
-	var err error
-	if len(warnings) > 0 {
-		err = fmt.Errorf("skipped incomplete egress rules: %s", strings.Join(warnings, "; "))
-	}
-	return rules, err
+	return rules, nil
 }

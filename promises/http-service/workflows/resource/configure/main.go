@@ -112,17 +112,25 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceCon
 	// Security context
 	if v, err := ku.GetBoolValue(resource, "spec.securityContext.runAsNonRoot"); err == nil {
 		config.RunAsNonRoot = &v
+	} else if rawVal, _ := resource.GetValue("spec.securityContext.runAsNonRoot"); rawVal != nil {
+		return nil, fmt.Errorf("spec.securityContext.runAsNonRoot: %w", err)
 	}
 	if v, err := ku.GetBoolValue(resource, "spec.securityContext.readOnlyRootFilesystem"); err == nil {
 		config.ReadOnlyRootFilesystem = &v
+	} else if rawVal, _ := resource.GetValue("spec.securityContext.readOnlyRootFilesystem"); rawVal != nil {
+		return nil, fmt.Errorf("spec.securityContext.readOnlyRootFilesystem: %w", err)
 	}
 	if v, err := ku.GetIntValue(resource, "spec.securityContext.runAsUser"); err == nil {
 		v64 := int64(v)
 		config.RunAsUser = &v64
+	} else if rawVal, _ := resource.GetValue("spec.securityContext.runAsUser"); rawVal != nil {
+		return nil, fmt.Errorf("spec.securityContext.runAsUser: %w", err)
 	}
 	if v, err := ku.GetIntValue(resource, "spec.securityContext.runAsGroup"); err == nil {
 		v64 := int64(v)
 		config.RunAsGroup = &v64
+	} else if rawVal, _ := resource.GetValue("spec.securityContext.runAsGroup"); rawVal != nil {
+		return nil, fmt.Errorf("spec.securityContext.runAsGroup: %w", err)
 	}
 
 	// Helm overrides

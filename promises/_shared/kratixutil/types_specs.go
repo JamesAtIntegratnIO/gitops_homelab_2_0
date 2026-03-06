@@ -38,10 +38,6 @@ type PlatformExternalSecretSpec struct {
 	Secrets         []PlatformExternalSecretItem `json:"secrets"`
 }
 
-// PlatformExternalSecretItem maps a single 1Password item to one or more
-// Kubernetes Secret keys within a PlatformExternalSecret sub-request.
-type PlatformExternalSecretItem struct {
-	Name            string      `json:"name,omitempty"`
-	OnePasswordItem string      `json:"onePasswordItem"`
-	Keys            []SecretKey `json:"keys"`
-}
+// PlatformExternalSecretItem is an alias for SecretRef, used within
+// PlatformExternalSecret sub-requests. The types are identical.
+type PlatformExternalSecretItem = SecretRef

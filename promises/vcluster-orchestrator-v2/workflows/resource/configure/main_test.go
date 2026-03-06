@@ -157,7 +157,9 @@ func TestEtcdEnabled(t *testing.T) {
 func TestApplyPresetDefaults_Dev(t *testing.T) {
 	config := &VClusterConfig{Preset: "dev"}
 	resource := &ku.MockResource{Data: map[string]interface{}{"spec": map[string]interface{}{}}}
-	applyPresetDefaults(config, resource)
+	if err := applyPresetDefaults(config, resource); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if config.Replicas != 1 {
 		t.Errorf("expected dev replicas 1, got %d", config.Replicas)
@@ -176,7 +178,9 @@ func TestApplyPresetDefaults_Dev(t *testing.T) {
 func TestApplyPresetDefaults_Prod(t *testing.T) {
 	config := &VClusterConfig{Preset: "prod"}
 	resource := &ku.MockResource{Data: map[string]interface{}{"spec": map[string]interface{}{}}}
-	applyPresetDefaults(config, resource)
+	if err := applyPresetDefaults(config, resource); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if config.Replicas != 3 {
 		t.Errorf("expected prod replicas 3, got %d", config.Replicas)
@@ -215,7 +219,9 @@ func TestApplyPresetDefaults_Override(t *testing.T) {
 			},
 		},
 	}
-	applyPresetDefaults(config, resource)
+	if err := applyPresetDefaults(config, resource); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if config.Replicas != 5 {
 		t.Errorf("expected overridden replicas 5, got %d", config.Replicas)
@@ -234,7 +240,9 @@ func TestApplyPresetDefaults_Override(t *testing.T) {
 func TestApplyPresetDefaults_UnknownPreset(t *testing.T) {
 	config := &VClusterConfig{Preset: "unknown"}
 	resource := &ku.MockResource{Data: map[string]interface{}{"spec": map[string]interface{}{}}}
-	applyPresetDefaults(config, resource)
+	if err := applyPresetDefaults(config, resource); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	// Falls back to dev defaults
 	if config.Replicas != 1 {
@@ -324,8 +332,8 @@ func TestExtractExtraEgress_IncompleteSkipped(t *testing.T) {
 	}
 
 	rules, err := extractExtraEgress(resource)
-	if err == nil {
-		t.Error("expected error for incomplete rule, got nil")
+	if err != nil {
+		t.Errorf("expected nil error (warnings logged), got: %v", err)
 	}
 	if len(rules) != 0 {
 		t.Errorf("expected 0 rules for incomplete entry, got %d", len(rules))
