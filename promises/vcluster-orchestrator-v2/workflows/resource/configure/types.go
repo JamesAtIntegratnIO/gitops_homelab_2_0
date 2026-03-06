@@ -35,7 +35,6 @@ type VClusterConfig struct {
 	K8sVersion       string
 	Preset           string
 	ClusterDomain    string
-	IsolationMode    string
 	BackingStore     map[string]interface{}
 	ExportKubeConfig map[string]interface{}
 	HelmOverrides    map[string]interface{}

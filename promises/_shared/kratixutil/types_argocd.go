@@ -42,12 +42,25 @@ type Destination struct {
 type SyncPolicy struct {
 	Automated   *AutomatedSync `json:"automated,omitempty"`
 	SyncOptions []string       `json:"syncOptions,omitempty"`
+	Retry       *RetryStrategy `json:"retry,omitempty"`
 }
 
 // AutomatedSync configures ArgoCD auto-sync self-heal and prune.
 type AutomatedSync struct {
-	SelfHeal bool `json:"selfHeal"`
-	Prune    bool `json:"prune"`
+	SelfHeal bool `json:"selfHeal,omitempty"`
+	Prune    bool `json:"prune,omitempty"`
+}
+
+// RetryStrategy controls ArgoCD sync retry behavior.
+type RetryStrategy struct {
+	Backoff *Backoff `json:"backoff,omitempty"`
+}
+
+// Backoff configures exponential backoff for sync retries.
+type Backoff struct {
+	Duration    string `json:"duration,omitempty"`
+	MaxDuration string `json:"maxDuration,omitempty"`
+	Factor      *int64 `json:"factor,omitempty"`
 }
 
 // ArgoCDProjectSpec is the spec for a platform.integratn.tech/v1alpha1

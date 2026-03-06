@@ -1166,6 +1166,31 @@ func TestBuildConfig_WrongTypeHelmOverridesReturnsError(t *testing.T) {
 	}
 }
 
+func TestBuildConfig_WrongTypeSyncPolicyReturnsError(t *testing.T) {
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
+		Name: "test-vc",
+		Ns:   "default",
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "test-vc",
+				"argocdApplication": map[string]interface{}{
+					"syncPolicy": "invalid",
+				},
+			},
+			"metadata": map[string]interface{}{},
+		},
+	}
+
+	_, err := buildConfig(sdk, resource)
+	if err == nil {
+		t.Fatal("expected error for wrong-type syncPolicy")
+	}
+	if !strings.Contains(err.Error(), "syncPolicy") {
+		t.Errorf("error should mention 'syncPolicy', got: %s", err.Error())
+	}
+}
+
 func TestBuildConfig_IntegrationsPassThrough(t *testing.T) {
 	sdk, _ := ku.NewTestSDK(t)
 	resource := &ku.MockResource{

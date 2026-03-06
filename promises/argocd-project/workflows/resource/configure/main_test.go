@@ -260,6 +260,15 @@ func TestToProjectDestinations(t *testing.T) {
 				{Namespace: "", Server: ""},
 			},
 		},
+		{
+			name: "wrong-type namespace with valid server",
+			input: []map[string]interface{}{
+				{"namespace": 42, "server": "https://kubernetes.default.svc"},
+			},
+			expected: []ku.ProjectDestination{
+				{Namespace: "", Server: "https://kubernetes.default.svc"},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -328,6 +337,15 @@ func TestToResourceFilters(t *testing.T) {
 			},
 			expected: []ku.ResourceFilter{
 				{Group: "", Kind: ""},
+			},
+		},
+		{
+			name: "wrong-type kind with valid group",
+			input: []map[string]interface{}{
+				{"group": "apps", "kind": 42},
+			},
+			expected: []ku.ResourceFilter{
+				{Group: "apps", Kind: ""},
 			},
 		},
 	}

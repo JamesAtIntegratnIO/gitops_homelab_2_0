@@ -84,49 +84,22 @@ func DeleteOutputPathForResource(prefix string, r Resource) string {
 	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
 }
 
-// ParseSyncPolicyE converts an untyped map (from resource.GetValue) into a typed
-// SyncPolicy. Returns an error if the value is not the expected map type.
+// ParseSyncPolicyE converts an untyped value (from resource.GetValue) into a typed
+// SyncPolicy via JSON round-trip. Returns an error if the value cannot be
+// deserialized into SyncPolicy.
 func ParseSyncPolicyE(raw interface{}) (*SyncPolicy, error) {
-	m, ok := raw.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("syncPolicy: expected map[string]interface{}, got %T", raw)
+	if raw == nil {
+		return nil, nil
 	}
-	sp := &SyncPolicy{}
-	if v, exists := m["automated"]; exists {
-		automated, ok := v.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("syncPolicy.automated: expected map[string]interface{}, got %T", v)
-		}
-		sp.Automated = &AutomatedSync{}
-		if v, exists := automated["selfHeal"]; exists {
-			b, ok := v.(bool)
-			if !ok {
-				return nil, fmt.Errorf("syncPolicy.automated.selfHeal: expected bool, got %T", v)
-			}
-			sp.Automated.SelfHeal = b
-		}
-		if v, exists := automated["prune"]; exists {
-			b, ok := v.(bool)
-			if !ok {
-				return nil, fmt.Errorf("syncPolicy.automated.prune: expected bool, got %T", v)
-			}
-			sp.Automated.Prune = b
-		}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("syncPolicy: failed to serialize: %w", err)
 	}
-	if v, exists := m["syncOptions"]; exists {
-		opts, ok := v.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("syncPolicy.syncOptions: expected []interface{}, got %T", v)
-		}
-		for i, o := range opts {
-			s, ok := o.(string)
-			if !ok {
-				return nil, fmt.Errorf("syncPolicy.syncOptions[%d]: expected string, got %T", i, o)
-			}
-			sp.SyncOptions = append(sp.SyncOptions, s)
-		}
+	var sp SyncPolicy
+	if err := json.Unmarshal(data, &sp); err != nil {
+		return nil, fmt.Errorf("syncPolicy: %w", err)
 	}
-	return sp, nil
+	return &sp, nil
 }
 
 // WritePromiseStatus builds a Kratix status object, sets the given phase and

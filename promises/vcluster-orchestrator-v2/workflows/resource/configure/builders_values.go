@@ -234,10 +234,10 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) error
 	config.MemoryLimit = ku.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults.MemoryLimit)
 
 	// Apply persistence
-	if val, err := ku.GetBoolValue(resource, "spec.vcluster.persistence.enabled"); err == nil {
-		config.PersistenceEnabled = val
-	} else if rawVal, _ := resource.GetValue("spec.vcluster.persistence.enabled"); rawVal != nil {
+	if val, err := ku.GetOptionalBoolValue(resource, "spec.vcluster.persistence.enabled"); err != nil {
 		return fmt.Errorf("spec.vcluster.persistence.enabled: %w", err)
+	} else if val {
+		config.PersistenceEnabled = val
 	} else {
 		config.PersistenceEnabled = defaults.PersistenceEnabled
 	}

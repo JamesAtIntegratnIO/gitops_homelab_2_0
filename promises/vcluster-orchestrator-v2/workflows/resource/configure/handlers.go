@@ -213,12 +213,10 @@ func directCleanup(config *VClusterConfig) error {
 	var errs []error
 
 	if err := cleanupHostPVs(config); err != nil {
-		log.Printf("warning: PV cleanup encountered errors: %v", err)
 		errs = append(errs, fmt.Errorf("PV cleanup: %w", err))
 	}
 
 	if err := cleanupNamespace(config); err != nil {
-		log.Printf("warning: namespace cleanup encountered errors: %v", err)
 		errs = append(errs, fmt.Errorf("namespace cleanup: %w", err))
 	}
 

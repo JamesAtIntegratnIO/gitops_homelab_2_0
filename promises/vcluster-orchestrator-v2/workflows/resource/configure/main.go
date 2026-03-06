@@ -111,7 +111,6 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	// Extract vcluster spec
 	config.K8sVersion = ku.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
 	config.Preset = ku.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
-	config.IsolationMode = ku.GetStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
 	config.ClusterDomain = ku.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
 	config.PersistenceClass, err = ku.GetOptionalStringValue(resource, "spec.vcluster.persistence.storageClass")
 	if err != nil {

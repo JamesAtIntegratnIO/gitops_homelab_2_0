@@ -130,6 +130,11 @@ func TestParseSyncPolicyE(t *testing.T) {
 		errSubstr string
 	}{
 		{
+			name:    "nil returns nil",
+			raw:     nil,
+			wantNil: true,
+		},
+		{
 			name: "valid full policy",
 			raw: map[string]interface{}{
 				"automated": map[string]interface{}{
@@ -148,13 +153,13 @@ func TestParseSyncPolicyE(t *testing.T) {
 			name:      "wrong type string",
 			raw:       "not-a-map",
 			wantErr:   true,
-			errSubstr: "expected map[string]interface{}",
+			errSubstr: "syncPolicy",
 		},
 		{
 			name:      "wrong type int",
 			raw:       42,
 			wantErr:   true,
-			errSubstr: "expected map[string]interface{}",
+			errSubstr: "syncPolicy",
 		},
 	}
 	for _, tt := range tests {
@@ -216,34 +221,34 @@ func TestParseSyncPolicyE_Values(t *testing.T) {
 
 func TestParseSyncPolicyE_WrongTypeInnerFields(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   map[string]interface{}
-		wantErr string
+		name         string
+		input        map[string]interface{}
+		wantContains string
 	}{
 		{
-			name:    "automated wrong type",
-			input:   map[string]interface{}{"automated": "not-a-map"},
-			wantErr: "syncPolicy.automated: expected map[string]interface{}, got string",
+			name:         "automated wrong type",
+			input:        map[string]interface{}{"automated": "not-a-map"},
+			wantContains: "syncPolicy",
 		},
 		{
-			name:    "selfHeal wrong type",
-			input:   map[string]interface{}{"automated": map[string]interface{}{"selfHeal": "not-bool"}},
-			wantErr: "syncPolicy.automated.selfHeal: expected bool, got string",
+			name:         "selfHeal wrong type",
+			input:        map[string]interface{}{"automated": map[string]interface{}{"selfHeal": "not-bool"}},
+			wantContains: "syncPolicy",
 		},
 		{
-			name:    "prune wrong type",
-			input:   map[string]interface{}{"automated": map[string]interface{}{"prune": 42}},
-			wantErr: "syncPolicy.automated.prune: expected bool, got int",
+			name:         "prune wrong type",
+			input:        map[string]interface{}{"automated": map[string]interface{}{"prune": 42}},
+			wantContains: "syncPolicy",
 		},
 		{
-			name:    "syncOptions wrong type",
-			input:   map[string]interface{}{"syncOptions": "not-a-slice"},
-			wantErr: "syncPolicy.syncOptions: expected []interface{}, got string",
+			name:         "syncOptions wrong type",
+			input:        map[string]interface{}{"syncOptions": "not-a-slice"},
+			wantContains: "syncPolicy",
 		},
 		{
-			name:    "syncOptions element wrong type",
-			input:   map[string]interface{}{"syncOptions": []interface{}{123}},
-			wantErr: "syncPolicy.syncOptions[0]: expected string, got int",
+			name:         "syncOptions element wrong type",
+			input:        map[string]interface{}{"syncOptions": []interface{}{123}},
+			wantContains: "syncPolicy",
 		},
 	}
 	for _, tt := range tests {
@@ -252,8 +257,8 @@ func TestParseSyncPolicyE_WrongTypeInnerFields(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
-			if err.Error() != tt.wantErr {
-				t.Errorf("error = %q, want %q", err.Error(), tt.wantErr)
+			if !strings.Contains(err.Error(), tt.wantContains) {
+				t.Errorf("error %q should contain %q", err.Error(), tt.wantContains)
 			}
 		})
 	}
