@@ -41,12 +41,11 @@ func TestBuildExternalSecretRequest_UnnamedSecret(t *testing.T) {
 	}
 
 	r := buildExternalSecretRequest(config)
-	spec := r.Spec.(map[string]interface{})
-	secrets := spec["secrets"].([]map[string]interface{})
-	if len(secrets) != 1 {
-		t.Fatalf("expected 1 secret, got %d", len(secrets))
+	spec := r.Spec.(ku.PlatformExternalSecretSpec)
+	if len(spec.Secrets) != 1 {
+		t.Fatalf("expected 1 secret, got %d", len(spec.Secrets))
 	}
-	if _, hasName := secrets[0]["name"]; hasName {
+	if spec.Secrets[0].Name != "" {
 		t.Error("unnamed secret should not have 'name' key")
 	}
 }
@@ -62,10 +61,9 @@ func TestBuildExternalSecretRequest_NamedSecret(t *testing.T) {
 	}
 
 	r := buildExternalSecretRequest(config)
-	spec := r.Spec.(map[string]interface{})
-	secrets := spec["secrets"].([]map[string]interface{})
-	if secrets[0]["name"] != "custom-name" {
-		t.Errorf("expected name 'custom-name', got %v", secrets[0]["name"])
+	spec := r.Spec.(ku.PlatformExternalSecretSpec)
+	if spec.Secrets[0].Name != "custom-name" {
+		t.Errorf("expected name 'custom-name', got %v", spec.Secrets[0].Name)
 	}
 }
 
@@ -77,15 +75,13 @@ func TestBuildExternalSecretRequest_MultipleSecrets(t *testing.T) {
 	}
 
 	r := buildExternalSecretRequest(config)
-	spec := r.Spec.(map[string]interface{})
-	secrets := spec["secrets"].([]map[string]interface{})
-	if len(secrets) != 2 {
-		t.Fatalf("expected 2 secrets, got %d", len(secrets))
+	spec := r.Spec.(ku.PlatformExternalSecretSpec)
+	if len(spec.Secrets) != 2 {
+		t.Fatalf("expected 2 secrets, got %d", len(spec.Secrets))
 	}
 	// Second secret should have 2 keys
-	keys := secrets[1]["keys"].([]map[string]string)
-	if len(keys) != 2 {
-		t.Errorf("expected 2 keys in second secret, got %d", len(keys))
+	if len(spec.Secrets[1].Keys) != 2 {
+		t.Errorf("expected 2 keys in second secret, got %d", len(spec.Secrets[1].Keys))
 	}
 }
 
@@ -96,22 +92,22 @@ func TestBuildExternalSecretRequest_SpecFields(t *testing.T) {
 	}
 
 	r := buildExternalSecretRequest(config)
-	spec := r.Spec.(map[string]interface{})
+	spec := r.Spec.(ku.PlatformExternalSecretSpec)
 
-	if spec["namespace"] != "production" {
-		t.Errorf("expected namespace 'production', got %v", spec["namespace"])
+	if spec.Namespace != "production" {
+		t.Errorf("expected namespace 'production', got %v", spec.Namespace)
 	}
-	if spec["appName"] != "myapp" {
-		t.Errorf("expected appName 'myapp', got %v", spec["appName"])
+	if spec.AppName != "myapp" {
+		t.Errorf("expected appName 'myapp', got %v", spec.AppName)
 	}
-	if spec["secretStoreName"] != ku.DefaultSecretStoreName {
-		t.Errorf("expected secret store %q, got %v", ku.DefaultSecretStoreName, spec["secretStoreName"])
+	if spec.SecretStoreName != ku.DefaultSecretStoreName {
+		t.Errorf("expected secret store %q, got %v", ku.DefaultSecretStoreName, spec.SecretStoreName)
 	}
-	if spec["secretStoreKind"] != ku.DefaultSecretStoreKind {
-		t.Errorf("expected secret store kind %q, got %v", ku.DefaultSecretStoreKind, spec["secretStoreKind"])
+	if spec.SecretStoreKind != ku.DefaultSecretStoreKind {
+		t.Errorf("expected secret store kind %q, got %v", ku.DefaultSecretStoreKind, spec.SecretStoreKind)
 	}
-	if spec["ownerPromise"] != "http-service" {
-		t.Errorf("expected ownerPromise 'http-service', got %v", spec["ownerPromise"])
+	if spec.OwnerPromise != "http-service" {
+		t.Errorf("expected ownerPromise 'http-service', got %v", spec.OwnerPromise)
 	}
 }
 
@@ -157,24 +153,24 @@ func TestBuildGatewayRouteRequest_FullSpec(t *testing.T) {
 	config := newResourceTestConfig()
 	r := buildGatewayRouteRequest(config)
 
-	spec := r.Spec.(map[string]interface{})
-	if spec["name"] != "myapp" {
-		t.Errorf("expected name 'myapp', got %v", spec["name"])
+	spec := r.Spec.(ku.GatewayRouteSpec)
+	if spec.Name != "myapp" {
+		t.Errorf("expected name 'myapp', got %v", spec.Name)
 	}
-	if spec["namespace"] != "production" {
-		t.Errorf("expected namespace 'production', got %v", spec["namespace"])
+	if spec.Namespace != "production" {
+		t.Errorf("expected namespace 'production', got %v", spec.Namespace)
 	}
-	if spec["hostname"] != "myapp.cluster.integratn.tech" {
-		t.Errorf("expected hostname, got %v", spec["hostname"])
+	if spec.Hostname != "myapp.cluster.integratn.tech" {
+		t.Errorf("expected hostname, got %v", spec.Hostname)
 	}
-	if spec["path"] != "/" {
-		t.Errorf("expected path '/', got %v", spec["path"])
+	if spec.Path != "/" {
+		t.Errorf("expected path '/', got %v", spec.Path)
 	}
-	if spec["httpRedirect"] != true {
+	if spec.HTTPRedirect != true {
 		t.Error("expected httpRedirect true")
 	}
-	if spec["ownerPromise"] != "http-service" {
-		t.Errorf("expected ownerPromise 'http-service', got %v", spec["ownerPromise"])
+	if spec.OwnerPromise != "http-service" {
+		t.Errorf("expected ownerPromise 'http-service', got %v", spec.OwnerPromise)
 	}
 }
 
@@ -182,13 +178,12 @@ func TestBuildGatewayRouteRequest_BackendRef(t *testing.T) {
 	config := newResourceTestConfig()
 	r := buildGatewayRouteRequest(config)
 
-	spec := r.Spec.(map[string]interface{})
-	backend := spec["backendRef"].(map[string]interface{})
-	if backend["name"] != "myapp" {
-		t.Errorf("expected backend name 'myapp', got %v", backend["name"])
+	spec := r.Spec.(ku.GatewayRouteSpec)
+	if spec.BackendRef.Name != "myapp" {
+		t.Errorf("expected backend name 'myapp', got %v", spec.BackendRef.Name)
 	}
-	if backend["port"] != 8080 {
-		t.Errorf("expected backend port 8080, got %v", backend["port"])
+	if spec.BackendRef.Port != 8080 {
+		t.Errorf("expected backend port 8080, got %v", spec.BackendRef.Port)
 	}
 }
 
@@ -196,13 +191,12 @@ func TestBuildGatewayRouteRequest_GatewayRef(t *testing.T) {
 	config := newResourceTestConfig()
 	r := buildGatewayRouteRequest(config)
 
-	spec := r.Spec.(map[string]interface{})
-	gw := spec["gateway"].(map[string]interface{})
-	if gw["name"] != "nginx-gateway" {
-		t.Errorf("expected gateway name, got %v", gw["name"])
+	spec := r.Spec.(ku.GatewayRouteSpec)
+	if spec.Gateway.Name != "nginx-gateway" {
+		t.Errorf("expected gateway name, got %v", spec.Gateway.Name)
 	}
-	if gw["namespace"] != "nginx-gateway" {
-		t.Errorf("expected gateway namespace, got %v", gw["namespace"])
+	if spec.Gateway.Namespace != "nginx-gateway" {
+		t.Errorf("expected gateway namespace, got %v", spec.Gateway.Namespace)
 	}
 }
 
@@ -336,17 +330,16 @@ func TestBuildExternalSecretRequest_EmptySecrets(t *testing.T) {
 	config.Secrets = []ku.SecretRef{} // empty slice, no secrets
 
 	r := buildExternalSecretRequest(config)
-	spec := r.Spec.(map[string]interface{})
-	secrets := spec["secrets"].([]map[string]interface{})
-	if len(secrets) != 0 {
-		t.Errorf("expected 0 secrets for empty input, got %d", len(secrets))
+	spec := r.Spec.(ku.PlatformExternalSecretSpec)
+	if len(spec.Secrets) != 0 {
+		t.Errorf("expected 0 secrets for empty input, got %d", len(spec.Secrets))
 	}
 	// Name and namespace should still be set correctly
 	if r.Metadata.Name != "myapp-secrets" {
 		t.Errorf("expected name 'myapp-secrets', got %q", r.Metadata.Name)
 	}
-	if spec["appName"] != "myapp" {
-		t.Errorf("expected appName 'myapp', got %v", spec["appName"])
+	if spec.AppName != "myapp" {
+		t.Errorf("expected appName 'myapp', got %v", spec.AppName)
 	}
 }
 
@@ -355,10 +348,9 @@ func TestBuildExternalSecretRequest_NilSecrets(t *testing.T) {
 	config.Secrets = nil // nil slice
 
 	r := buildExternalSecretRequest(config)
-	spec := r.Spec.(map[string]interface{})
-	secrets := spec["secrets"].([]map[string]interface{})
-	if len(secrets) != 0 {
-		t.Errorf("expected 0 secrets for nil input, got %d", len(secrets))
+	spec := r.Spec.(ku.PlatformExternalSecretSpec)
+	if len(spec.Secrets) != 0 {
+		t.Errorf("expected 0 secrets for nil input, got %d", len(spec.Secrets))
 	}
 }
 
@@ -372,14 +364,12 @@ func TestBuildExternalSecretRequest_SecretWithEmptyKeys(t *testing.T) {
 	}
 
 	r := buildExternalSecretRequest(config)
-	spec := r.Spec.(map[string]interface{})
-	secrets := spec["secrets"].([]map[string]interface{})
-	if len(secrets) != 1 {
-		t.Fatalf("expected 1 secret, got %d", len(secrets))
+	spec := r.Spec.(ku.PlatformExternalSecretSpec)
+	if len(spec.Secrets) != 1 {
+		t.Fatalf("expected 1 secret, got %d", len(spec.Secrets))
 	}
-	keys := secrets[0]["keys"].([]map[string]string)
-	if len(keys) != 0 {
-		t.Errorf("expected 0 keys, got %d", len(keys))
+	if len(spec.Secrets[0].Keys) != 0 {
+		t.Errorf("expected 0 keys, got %d", len(spec.Secrets[0].Keys))
 	}
 }
 
@@ -397,20 +387,19 @@ func TestBuildGatewayRouteRequest_MinimalConfig(t *testing.T) {
 	if r.Metadata.Name != "minimal-route" {
 		t.Errorf("expected name 'minimal-route', got %q", r.Metadata.Name)
 	}
-	spec := r.Spec.(map[string]interface{})
-	if spec["namespace"] != "default" {
-		t.Errorf("expected namespace 'default', got %v", spec["namespace"])
+	spec := r.Spec.(ku.GatewayRouteSpec)
+	if spec.Namespace != "default" {
+		t.Errorf("expected namespace 'default', got %v", spec.Namespace)
 	}
 	// Zero-value fields should be present but empty/zero
-	if spec["hostname"] != "" {
-		t.Errorf("expected empty hostname, got %v", spec["hostname"])
+	if spec.Hostname != "" {
+		t.Errorf("expected empty hostname, got %v", spec.Hostname)
 	}
-	if spec["path"] != "" {
-		t.Errorf("expected empty path, got %v", spec["path"])
+	if spec.Path != "" {
+		t.Errorf("expected empty path, got %v", spec.Path)
 	}
-	backend := spec["backendRef"].(map[string]interface{})
-	if backend["port"] != 0 {
-		t.Errorf("expected port 0 for minimal config, got %v", backend["port"])
+	if spec.BackendRef.Port != 0 {
+		t.Errorf("expected port 0 for minimal config, got %v", spec.BackendRef.Port)
 	}
 }
 

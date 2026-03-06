@@ -9,25 +9,14 @@ import (
 // buildExternalSecretRequest creates a PlatformExternalSecret sub-ResourceRequest
 // that delegates to the external-secret promise.
 func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
-	// Convert SecretRef slice to the format expected by the external-secret promise
-	secrets := []map[string]interface{}{}
+	// Convert SecretRef slice to the typed format expected by the external-secret promise
+	secrets := make([]ku.PlatformExternalSecretItem, 0, len(config.Secrets))
 	for _, s := range config.Secrets {
-		keys := []map[string]string{}
-		for _, k := range s.Keys {
-			keys = append(keys, map[string]string{
-				"secretKey": k.SecretKey,
-				"property":  k.Property,
-			})
-		}
-
-		secret := map[string]interface{}{
-			"onePasswordItem": s.OnePasswordItem,
-			"keys":            keys,
-		}
-		if s.Name != "" {
-			secret["name"] = s.Name
-		}
-		secrets = append(secrets, secret)
+		secrets = append(secrets, ku.PlatformExternalSecretItem{
+			Name:            s.Name,
+			OnePasswordItem: s.OnePasswordItem,
+			Keys:            s.Keys,
+		})
 	}
 
 	return ku.Resource{
@@ -42,13 +31,13 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 				"app.kubernetes.io/part-of":    config.Name,
 			},
 		},
-		Spec: map[string]interface{}{
-			"namespace":       config.Namespace,
-			"appName":         config.Name,
-			"secretStoreName": config.SecretStoreName,
-			"secretStoreKind": config.SecretStoreKind,
-			"ownerPromise":    "http-service",
-			"secrets":         secrets,
+		Spec: ku.PlatformExternalSecretSpec{
+			Namespace:       config.Namespace,
+			AppName:         config.Name,
+			SecretStoreName: config.SecretStoreName,
+			SecretStoreKind: config.SecretStoreKind,
+			OwnerPromise:    "http-service",
+			Secrets:         secrets,
 		},
 	}
 }
@@ -56,23 +45,6 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 // buildGatewayRouteRequest creates a GatewayRoute sub-ResourceRequest
 // that delegates to the gateway-route promise.
 func buildGatewayRouteRequest(config *HTTPServiceConfig) ku.Resource {
-	spec := map[string]interface{}{
-		"name":      config.Name,
-		"namespace": config.Namespace,
-		"hostname":  config.IngressHostname,
-		"path":      config.IngressPath,
-		"backendRef": map[string]interface{}{
-			"name": config.Name,
-			"port": config.Port,
-		},
-		"gateway": map[string]interface{}{
-			"name":      config.GatewayName,
-			"namespace": config.GatewayNS,
-		},
-		"httpRedirect": true,
-		"ownerPromise": "http-service",
-	}
-
 	return ku.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "GatewayRoute",
@@ -85,7 +57,22 @@ func buildGatewayRouteRequest(config *HTTPServiceConfig) ku.Resource {
 				"app.kubernetes.io/part-of":    config.Name,
 			},
 		},
-		Spec: spec,
+		Spec: ku.GatewayRouteSpec{
+			Name:      config.Name,
+			Namespace: config.Namespace,
+			Hostname:  config.IngressHostname,
+			Path:      config.IngressPath,
+			BackendRef: ku.GatewayBackendRef{
+				Name: config.Name,
+				Port: config.Port,
+			},
+			Gateway: ku.GatewayRef{
+				Name:      config.GatewayName,
+				Namespace: config.GatewayNS,
+			},
+			HTTPRedirect: true,
+			OwnerPromise: "http-service",
+		},
 	}
 }
 

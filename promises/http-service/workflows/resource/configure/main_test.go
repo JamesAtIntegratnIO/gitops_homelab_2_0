@@ -524,19 +524,18 @@ func TestBuildExternalSecretRequest(t *testing.T) {
 		t.Errorf("expected namespace 'platform-requests', got %q", esReq.Metadata.Namespace)
 	}
 
-	spec, ok := esReq.Spec.(map[string]interface{})
+	spec, ok := esReq.Spec.(ku.PlatformExternalSecretSpec)
 	if !ok {
-		t.Fatal("expected spec to be map")
+		t.Fatal("expected spec to be PlatformExternalSecretSpec")
 	}
-	if spec["namespace"] != "production" {
-		t.Errorf("expected namespace 'production' in spec, got %v", spec["namespace"])
+	if spec.Namespace != "production" {
+		t.Errorf("expected namespace 'production' in spec, got %v", spec.Namespace)
 	}
-	secrets, ok := spec["secrets"].([]map[string]interface{})
-	if !ok || len(secrets) != 1 {
-		t.Fatalf("expected 1 secret in spec, got %v", spec["secrets"])
+	if len(spec.Secrets) != 1 {
+		t.Fatalf("expected 1 secret in spec, got %v", spec.Secrets)
 	}
-	if secrets[0]["onePasswordItem"] != "my-vault-item" {
-		t.Errorf("expected onePasswordItem 'my-vault-item', got %v", secrets[0]["onePasswordItem"])
+	if spec.Secrets[0].OnePasswordItem != "my-vault-item" {
+		t.Errorf("expected onePasswordItem 'my-vault-item', got %v", spec.Secrets[0].OnePasswordItem)
 	}
 }
 
@@ -561,19 +560,15 @@ func TestBuildGatewayRouteRequest(t *testing.T) {
 		t.Errorf("expected name 'my-app-route', got %q", gwReq.Metadata.Name)
 	}
 
-	spec, ok := gwReq.Spec.(map[string]interface{})
+	spec, ok := gwReq.Spec.(ku.GatewayRouteSpec)
 	if !ok {
-		t.Fatal("expected spec to be map")
+		t.Fatal("expected spec to be GatewayRouteSpec")
 	}
-	if spec["hostname"] != "my-app.example.com" {
-		t.Errorf("expected hostname 'my-app.example.com', got %v", spec["hostname"])
+	if spec.Hostname != "my-app.example.com" {
+		t.Errorf("expected hostname 'my-app.example.com', got %v", spec.Hostname)
 	}
-	backendRef, ok := spec["backendRef"].(map[string]interface{})
-	if !ok {
-		t.Fatal("expected backendRef map")
-	}
-	if backendRef["port"] != 8080 {
-		t.Errorf("expected port 8080, got %v", backendRef["port"])
+	if spec.BackendRef.Port != 8080 {
+		t.Errorf("expected port 8080, got %v", spec.BackendRef.Port)
 	}
 }
 

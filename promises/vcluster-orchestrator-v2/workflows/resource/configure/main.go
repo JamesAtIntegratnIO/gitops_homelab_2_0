@@ -26,7 +26,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		},
 	}
 
-	if err := extractBasicFields(config, resource); err != nil {
+	if err := extractCoreConfig(config, resource); err != nil {
 		return nil, err
 	}
 	if err := configureExposure(config, resource); err != nil {
@@ -76,9 +76,9 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	return config, nil
 }
 
-// extractBasicFields extracts name, namespace, project, vcluster spec fields from the resource
+// extractCoreConfig extracts name, namespace, project, vcluster spec fields from the resource
 // and applies preset defaults.
-func extractBasicFields(config *VClusterConfig, resource kratix.Resource) error {
+func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	var err error
 	config.Name, err = ku.GetStringValue(resource, "spec.name")
 	if err != nil {
