@@ -44,7 +44,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	}
 	config.Destinations, err = ku.FromMapSliceE[ku.ProjectDestination](rawDestinations)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.destinations: %w", err)
 	}
 	rawClusterResourceWhitelist, err := ku.ExtractObjectSliceFromResource(resource, "spec.clusterResourceWhitelist")
 	if err != nil {
@@ -52,7 +52,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	}
 	config.ClusterResourceWhitelist, err = ku.FromMapSliceE[ku.ResourceFilter](rawClusterResourceWhitelist)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.clusterResourceWhitelist: %w", err)
 	}
 	rawNamespaceResourceWhitelist, err := ku.ExtractObjectSliceFromResource(resource, "spec.namespaceResourceWhitelist")
 	if err != nil {
@@ -60,7 +60,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	}
 	config.NamespaceResourceWhitelist, err = ku.FromMapSliceE[ku.ResourceFilter](rawNamespaceResourceWhitelist)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.namespaceResourceWhitelist: %w", err)
 	}
 
 	return config, nil

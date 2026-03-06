@@ -219,10 +219,10 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) error
 	}
 
 	// Apply replicas
-	if val, err := ku.GetOptionalIntValue(resource, "spec.vcluster.replicas"); err != nil {
+	if ptr, err := ku.GetOptionalIntPtr(resource, "spec.vcluster.replicas"); err != nil {
 		return fmt.Errorf("spec.vcluster.replicas: %w", err)
-	} else if val > 0 {
-		config.Replicas = val
+	} else if ptr != nil {
+		config.Replicas = int(*ptr)
 	} else {
 		config.Replicas = defaults.Replicas
 	}
@@ -245,10 +245,10 @@ func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) error
 	config.PersistenceSize = ku.GetStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
 
 	// Apply coredns replicas
-	if val, err := ku.GetOptionalIntValue(resource, "spec.vcluster.coredns.replicas"); err != nil {
+	if ptr, err := ku.GetOptionalIntPtr(resource, "spec.vcluster.coredns.replicas"); err != nil {
 		return fmt.Errorf("spec.vcluster.coredns.replicas: %w", err)
-	} else if val > 0 {
-		config.CorednsReplicas = val
+	} else if ptr != nil {
+		config.CorednsReplicas = int(*ptr)
 	} else {
 		config.CorednsReplicas = defaults.CorednsReplicas
 	}

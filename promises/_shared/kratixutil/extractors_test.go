@@ -338,15 +338,15 @@ func TestExtractObjectSliceE(t *testing.T) {
 		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
 		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
 		{
-			name: "filters non-maps",
+			name: "rejects non-map items",
 			data: map[string]interface{}{"k": []interface{}{
 				map[string]interface{}{"a": "1"},
 				"not-a-map",
 				42,
 			}},
-			key:        "k",
-			wantLen:    1,
-			warnSubstr: "skipped",
+			key:       "k",
+			wantErr:   true,
+			errSubstr: "expected map",
 		},
 	}
 	for _, tt := range tests {
@@ -418,14 +418,14 @@ func TestExtractSecretsE(t *testing.T) {
 		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
 		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
 		{
-			name: "skips non-map items",
+			name: "rejects non-map items",
 			data: map[string]interface{}{"k": []interface{}{
 				"not-a-map",
 				map[string]interface{}{"name": "good"},
 			}},
-			key:        "k",
-			wantLen:    1,
-			warnSubstr: "skipped",
+			key:       "k",
+			wantErr:   true,
+			errSubstr: "expected map",
 		},
 	}
 	for _, tt := range tests {

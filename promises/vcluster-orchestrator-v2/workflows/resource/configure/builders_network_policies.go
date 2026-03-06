@@ -74,10 +74,9 @@ func buildNetworkPolicies(config *VClusterConfig) []ku.Resource {
 
 func netpolicyLabels(config *VClusterConfig, name string) map[string]string {
 	return ku.MergeStringMap(map[string]string{
-		"app.kubernetes.io/name":       name,
 		"app.kubernetes.io/component":  "network-policy",
 		"platform.integratn.tech/type": "vcluster-policy",
-	}, ku.BaseLabels(config.PromiseName, config.Name))
+	}, ku.ComponentLabels(config.PromiseName, config.Name, name))
 }
 
 // --- Generic baseline policies ---

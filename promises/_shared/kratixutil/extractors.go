@@ -133,19 +133,14 @@ func ExtractObjectSliceE(data map[string]interface{}, key string) ([]map[string]
 		return nil, fmt.Errorf("key %q: expected []interface{}, got %T", key, v)
 	}
 	result := make([]map[string]interface{}, 0, len(arr))
-	var skippedCount int
-	for _, item := range arr {
-		if obj, ok := item.(map[string]interface{}); ok {
-			result = append(result, obj)
-		} else {
-			skippedCount++
+	for i, item := range arr {
+		obj, ok := item.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("key %q[%d]: expected map, got %T", key, i, item)
 		}
+		result = append(result, obj)
 	}
-	var err error
-	if skippedCount > 0 {
-		err = fmt.Errorf("key %q: skipped %d non-map item(s)", key, skippedCount)
-	}
-	return result, err
+	return result, nil
 }
 
 // ExtractSecretsE returns a []SecretRef for key, or an error if the value
@@ -161,12 +156,10 @@ func ExtractSecretsE(data map[string]interface{}, key string) ([]SecretRef, erro
 	}
 
 	var secrets []SecretRef
-	var skippedCount int
-	for _, item := range arr {
+	for i, item := range arr {
 		m, ok := item.(map[string]interface{})
 		if !ok {
-			skippedCount++
-			continue
+			return nil, fmt.Errorf("key %q[%d]: expected map, got %T", key, i, item)
 		}
 		s := SecretRef{}
 		if name, ok := m["name"].(string); ok {
@@ -176,10 +169,10 @@ func ExtractSecretsE(data map[string]interface{}, key string) ([]SecretRef, erro
 			s.OnePasswordItem = opItem
 		}
 		if keys, ok := m["keys"].([]interface{}); ok {
-			for _, kItem := range keys {
+			for j, kItem := range keys {
 				km, ok := kItem.(map[string]interface{})
 				if !ok {
-					continue
+					return nil, fmt.Errorf("key %q[%d].keys[%d]: expected map, got %T", key, i, j, kItem)
 				}
 				sk := SecretKey{}
 				if sv, ok := km["secretKey"].(string); ok {
@@ -193,11 +186,7 @@ func ExtractSecretsE(data map[string]interface{}, key string) ([]SecretRef, erro
 		}
 		secrets = append(secrets, s)
 	}
-	var retErr error
-	if skippedCount > 0 {
-		retErr = fmt.Errorf("key %q: skipped %d non-map item(s)", key, skippedCount)
-	}
-	return secrets, retErr
+	return secrets, nil
 }
 
 // FromMapSliceE converts a slice of untyped maps to a typed slice using JSON

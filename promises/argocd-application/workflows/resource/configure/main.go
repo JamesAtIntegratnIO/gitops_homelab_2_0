@@ -66,7 +66,10 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, err
 	if err != nil {
 		return nil, err
 	}
-	valuesObject, _ := resource.GetValue("spec.source.helm.valuesObject")
+	valuesObject, err := ku.ExtractMapFromResource(resource, "spec.source.helm.valuesObject")
+	if err != nil {
+		return nil, fmt.Errorf("spec.source.helm.valuesObject: %w", err)
+	}
 	if releaseName != "" || valuesObject != nil {
 		config.Source.Helm = &ku.HelmSource{
 			ReleaseName:  releaseName,
@@ -90,8 +93,12 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, err
 	}
 
 	// Extract sync policy
-	if raw, _ := resource.GetValue("spec.syncPolicy"); raw != nil {
-		parsed, parseErr := ku.ParseSyncPolicyE(raw)
+	rawSyncPolicy, err := ku.ExtractMapFromResource(resource, "spec.syncPolicy")
+	if err != nil {
+		return nil, fmt.Errorf("spec.syncPolicy: %w", err)
+	}
+	if rawSyncPolicy != nil {
+		parsed, parseErr := ku.ParseSyncPolicyE(rawSyncPolicy)
 		if parseErr != nil {
 			return nil, fmt.Errorf("spec.syncPolicy: %w", parseErr)
 		}

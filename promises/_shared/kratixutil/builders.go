@@ -17,6 +17,15 @@ func BaseLabels(promiseName, resourceName string) map[string]string {
 	}
 }
 
+// ComponentLabels returns BaseLabels merged with an app.kubernetes.io/name
+// label. This is the most common label pattern across promise builders.
+func ComponentLabels(promiseName, resourceName, componentName string) map[string]string {
+	return MergeStringMap(
+		map[string]string{"app.kubernetes.io/name": componentName},
+		BaseLabels(promiseName, resourceName),
+	)
+}
+
 func BuildServiceAccount(name, namespace string, labels map[string]string) Resource {
 	return Resource{
 		APIVersion: "v1",

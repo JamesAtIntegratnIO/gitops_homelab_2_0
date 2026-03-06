@@ -59,10 +59,9 @@ func helmCorefileOverwrite(clusterDomain string) string {
 
 func buildNamespace(config *VClusterConfig) ku.Resource {
 	labels := ku.MergeStringMap(map[string]string{
-		"app.kubernetes.io/name":        "vcluster-namespace",
 		"vcluster.loft.sh/namespace":    "true",
 		"platform.integratn.tech/type":  "vcluster",
-	}, ku.BaseLabels(config.PromiseName, config.Name))
+	}, ku.ComponentLabels(config.PromiseName, config.Name, "vcluster-namespace"))
 
 	return ku.Resource{
 		APIVersion: "v1",
@@ -78,9 +77,8 @@ func buildNamespace(config *VClusterConfig) ku.Resource {
 
 func buildCorednsConfigMap(config *VClusterConfig) ku.Resource {
 	labels := ku.MergeStringMap(map[string]string{
-		"app.kubernetes.io/name":     "coredns",
 		"app.kubernetes.io/instance": fmt.Sprintf("vc-%s", config.Name),
-	}, ku.BaseLabels(config.PromiseName, config.Name))
+	}, ku.ComponentLabels(config.PromiseName, config.Name, "coredns"))
 
 	return ku.Resource{
 		APIVersion: "v1",

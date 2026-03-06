@@ -46,8 +46,7 @@ func buildEtcdCertificates(config *VClusterConfig) []ku.Resource {
 	labels := func(name string) map[string]string {
 		return ku.MergeStringMap(map[string]string{
 			"app.kubernetes.io/instance": config.Name,
-			"app.kubernetes.io/name":     name,
-		}, ku.BaseLabels(config.PromiseName, config.Name))
+		}, ku.ComponentLabels(config.PromiseName, config.Name, name))
 	}
 
 	caCert := ku.Resource{
