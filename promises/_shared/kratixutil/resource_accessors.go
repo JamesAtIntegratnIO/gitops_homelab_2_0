@@ -2,7 +2,6 @@ package kratixutil
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 
 	kratix "github.com/syntasso/kratix-go"
@@ -98,68 +97,6 @@ func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue
 		return defaultValue
 	}
 	return val
-}
-
-// ---------------------------------------------------------------------------
-// Legacy Resource-based collection extractors. These delegate to the
-// error-returning E variants in extractors.go and log warnings on type
-// mismatches. Prefer the E variants in new code.
-// ---------------------------------------------------------------------------
-
-// Deprecated: use ExtractStringMapE for proper error handling.
-func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
-	val, err := resource.GetValue(path)
-	if err != nil || val == nil {
-		return nil
-	}
-	wrapper := map[string]interface{}{"_v": val}
-	result, err := ExtractStringMapE(wrapper, "_v")
-	if err != nil {
-		log.Printf("warning: field %s: %v", path, err)
-	}
-	return result
-}
-
-// Deprecated: use ExtractStringSliceE for proper error handling.
-func ExtractStringSlice(resource kratix.Resource, path string) []string {
-	val, err := resource.GetValue(path)
-	if err != nil || val == nil {
-		return nil
-	}
-	wrapper := map[string]interface{}{"_v": val}
-	result, err := ExtractStringSliceE(wrapper, "_v")
-	if err != nil {
-		log.Printf("warning: field %s: %v", path, err)
-	}
-	return result
-}
-
-// Deprecated: use ExtractObjectSliceE for proper error handling.
-func ExtractObjectSlice(resource kratix.Resource, path string) []map[string]interface{} {
-	val, err := resource.GetValue(path)
-	if err != nil || val == nil {
-		return nil
-	}
-	wrapper := map[string]interface{}{"_v": val}
-	result, err := ExtractObjectSliceE(wrapper, "_v")
-	if err != nil {
-		log.Printf("warning: field %s: %v", path, err)
-	}
-	return result
-}
-
-// Deprecated: use ExtractSecretsE for proper error handling.
-func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
-	val, err := resource.GetValue(path)
-	if err != nil || val == nil {
-		return nil
-	}
-	wrapper := map[string]interface{}{"_v": val}
-	result, err := ExtractSecretsE(wrapper, "_v")
-	if err != nil {
-		log.Printf("warning: field %s: %v", path, err)
-	}
-	return result
 }
 
 // ---------------------------------------------------------------------------

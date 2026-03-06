@@ -59,7 +59,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		directResources++
 	}
 
-	if err := ku.WritePromiseStatus(sdk, "Scheduled", "VCluster resources scheduled for creation",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseScheduled, "VCluster resources scheduled for creation",
 		map[string]interface{}{
 			"resourceRequestsGenerated": len(resourceRequests),
 			"directResourcesGenerated":  directResources,
@@ -189,7 +189,7 @@ func cleanupNamespace(config *VClusterConfig) error {
 func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	log.Printf("--- Handling delete for vcluster: %s ---", config.Name)
 
-	if err := ku.WritePromiseStatus(sdk, "Deleting", "VCluster resources scheduled for deletion",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseDeleting, "VCluster resources scheduled for deletion",
 		map[string]interface{}{"vclusterName": config.Name}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}

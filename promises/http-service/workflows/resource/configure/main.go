@@ -259,28 +259,28 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 // handleDelete cleans up sub-ResourceRequests.
 func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// Delete ArgoCDApplication sub-ResourceRequest
-	appRequest := ku.Resource{
+	appRequest := ku.DeleteFromResource(ku.Resource{
 		APIVersion: "platform.integratn.tech/v1alpha1",
 		Kind:       "ArgoCDApplication",
 		Metadata: ku.ObjectMeta{
 			Name:      config.Name,
 			Namespace: ku.DefaultPlatformRequestsNamespace,
 		},
-	}
+	})
 	if err := ku.WriteYAML(sdk, "resources/delete-argocdapplication-"+config.Name+".yaml", appRequest); err != nil {
 		return fmt.Errorf("write delete ArgoCDApplication request: %w", err)
 	}
 
 	// Delete PlatformExternalSecret sub-ResourceRequest
 	if len(config.Secrets) > 0 {
-		esRequest := ku.Resource{
+		esRequest := ku.DeleteFromResource(ku.Resource{
 			APIVersion: "platform.integratn.tech/v1alpha1",
 			Kind:       "PlatformExternalSecret",
 			Metadata: ku.ObjectMeta{
 				Name:      fmt.Sprintf("%s-secrets", config.Name),
 				Namespace: ku.DefaultPlatformRequestsNamespace,
 			},
-		}
+		})
 		if err := ku.WriteYAML(sdk, "resources/delete-externalsecret-"+config.Name+".yaml", esRequest); err != nil {
 			return fmt.Errorf("write delete PlatformExternalSecret request: %w", err)
 		}
@@ -288,14 +288,14 @@ func handleDelete(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 
 	// Delete GatewayRoute sub-ResourceRequest
 	if config.IngressEnabled {
-		gwRequest := ku.Resource{
+		gwRequest := ku.DeleteFromResource(ku.Resource{
 			APIVersion: "platform.integratn.tech/v1alpha1",
 			Kind:       "GatewayRoute",
 			Metadata: ku.ObjectMeta{
 				Name:      fmt.Sprintf("%s-route", config.Name),
 				Namespace: ku.DefaultPlatformRequestsNamespace,
 			},
-		}
+		})
 		if err := ku.WriteYAML(sdk, "resources/delete-gatewayroute-"+config.Name+".yaml", gwRequest); err != nil {
 			return fmt.Errorf("write delete GatewayRoute request: %w", err)
 		}
