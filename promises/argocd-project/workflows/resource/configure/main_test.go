@@ -212,3 +212,143 @@ func TestBuildConfig_WrongTypeSourceReposReturnsError(t *testing.T) {
 		t.Errorf("error should mention 'sourceRepos', got: %s", err.Error())
 	}
 }
+
+func TestToProjectDestinations(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []map[string]interface{}
+		expected []ku.ProjectDestination
+	}{
+		{
+			name:     "nil returns nil",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty slice returns empty",
+			input:    []map[string]interface{}{},
+			expected: []ku.ProjectDestination{},
+		},
+		{
+			name: "valid entries",
+			input: []map[string]interface{}{
+				{"namespace": "*", "server": "https://kubernetes.default.svc"},
+				{"namespace": "production", "server": "https://prod.example.com"},
+			},
+			expected: []ku.ProjectDestination{
+				{Namespace: "*", Server: "https://kubernetes.default.svc"},
+				{Namespace: "production", Server: "https://prod.example.com"},
+			},
+		},
+		{
+			name: "missing keys produce zero-value fields",
+			input: []map[string]interface{}{
+				{"server": "https://kubernetes.default.svc"},
+				{"namespace": "prod"},
+			},
+			expected: []ku.ProjectDestination{
+				{Namespace: "", Server: "https://kubernetes.default.svc"},
+				{Namespace: "prod", Server: ""},
+			},
+		},
+		{
+			name: "wrong-type values silently skipped",
+			input: []map[string]interface{}{
+				{"namespace": 42, "server": true},
+			},
+			expected: []ku.ProjectDestination{
+				{Namespace: "", Server: ""},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := toProjectDestinations(tc.input)
+			if tc.expected == nil {
+				if got != nil {
+					t.Fatalf("expected nil, got %v", got)
+				}
+				return
+			}
+			if len(got) != len(tc.expected) {
+				t.Fatalf("expected %d items, got %d", len(tc.expected), len(got))
+			}
+			for i := range tc.expected {
+				if got[i] != tc.expected[i] {
+					t.Errorf("item %d: expected %+v, got %+v", i, tc.expected[i], got[i])
+				}
+			}
+		})
+	}
+}
+
+func TestToResourceFilters(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []map[string]interface{}
+		expected []ku.ResourceFilter
+	}{
+		{
+			name:     "nil returns nil",
+			input:    nil,
+			expected: nil,
+		},
+		{
+			name:     "empty slice returns empty",
+			input:    []map[string]interface{}{},
+			expected: []ku.ResourceFilter{},
+		},
+		{
+			name: "valid entries",
+			input: []map[string]interface{}{
+				{"group": "", "kind": "Namespace"},
+				{"group": "apps", "kind": "Deployment"},
+			},
+			expected: []ku.ResourceFilter{
+				{Group: "", Kind: "Namespace"},
+				{Group: "apps", Kind: "Deployment"},
+			},
+		},
+		{
+			name: "missing keys produce zero-value fields",
+			input: []map[string]interface{}{
+				{"kind": "Secret"},
+				{"group": "rbac.authorization.k8s.io"},
+			},
+			expected: []ku.ResourceFilter{
+				{Group: "", Kind: "Secret"},
+				{Group: "rbac.authorization.k8s.io", Kind: ""},
+			},
+		},
+		{
+			name: "wrong-type values silently skipped",
+			input: []map[string]interface{}{
+				{"group": 42, "kind": []string{"a", "b"}},
+			},
+			expected: []ku.ResourceFilter{
+				{Group: "", Kind: ""},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := toResourceFilters(tc.input)
+			if tc.expected == nil {
+				if got != nil {
+					t.Fatalf("expected nil, got %v", got)
+				}
+				return
+			}
+			if len(got) != len(tc.expected) {
+				t.Fatalf("expected %d items, got %d", len(tc.expected), len(got))
+			}
+			for i := range tc.expected {
+				if got[i] != tc.expected[i] {
+					t.Errorf("item %d: expected %+v, got %+v", i, tc.expected[i], got[i])
+				}
+			}
+		})
+	}
+}
