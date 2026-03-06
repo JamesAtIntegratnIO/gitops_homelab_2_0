@@ -25,11 +25,9 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-secrets", config.Name),
 			Namespace: ku.DefaultPlatformRequestsNamespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "kratix",
-				"kratix.io/promise-name":       "http-service",
-				"app.kubernetes.io/part-of":    config.Name,
-			},
+			Labels: ku.MergeStringMap(ku.BaseLabels("http-service", config.Name), map[string]string{
+				"app.kubernetes.io/part-of": config.Name,
+			}),
 		},
 		Spec: ku.PlatformExternalSecretSpec{
 			Namespace:       config.Namespace,
@@ -51,11 +49,9 @@ func buildGatewayRouteRequest(config *HTTPServiceConfig) ku.Resource {
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-route", config.Name),
 			Namespace: ku.DefaultPlatformRequestsNamespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "kratix",
-				"kratix.io/promise-name":       "http-service",
-				"app.kubernetes.io/part-of":    config.Name,
-			},
+			Labels: ku.MergeStringMap(ku.BaseLabels("http-service", config.Name), map[string]string{
+				"app.kubernetes.io/part-of": config.Name,
+			}),
 		},
 		Spec: ku.GatewayRouteSpec{
 			Name:      config.Name,
@@ -90,11 +86,9 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []ku.Resource {
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-allow-gateway", config.Name),
 			Namespace: config.Namespace,
-			Labels: map[string]string{
-				"app.kubernetes.io/managed-by": "kratix",
-				"kratix.io/promise-name":       "http-service",
-				"app.kubernetes.io/part-of":    config.Name,
-			},
+			Labels: ku.MergeStringMap(ku.BaseLabels("http-service", config.Name), map[string]string{
+				"app.kubernetes.io/part-of": config.Name,
+			}),
 			Annotations: map[string]string{
 				"argocd.argoproj.io/sync-wave": "5",
 			},
@@ -129,11 +123,9 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []ku.Resource {
 	})
 
 	// Common labels and annotations for network policies
-	netpolLabels := map[string]string{
-		"app.kubernetes.io/managed-by": "kratix",
-		"kratix.io/promise-name":       "http-service",
-		"app.kubernetes.io/part-of":    config.Name,
-	}
+	netpolLabels := ku.MergeStringMap(ku.BaseLabels("http-service", config.Name), map[string]string{
+		"app.kubernetes.io/part-of": config.Name,
+	})
 	syncWaveAnnotations := map[string]string{
 		"argocd.argoproj.io/sync-wave": "5",
 	}

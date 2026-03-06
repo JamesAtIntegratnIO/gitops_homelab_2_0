@@ -92,20 +92,38 @@ func ParseSyncPolicyE(raw interface{}) (*SyncPolicy, error) {
 		return nil, fmt.Errorf("syncPolicy: expected map[string]interface{}, got %T", raw)
 	}
 	sp := &SyncPolicy{}
-	if automated, ok := m["automated"].(map[string]interface{}); ok {
-		sp.Automated = &AutomatedSync{}
-		if v, ok := automated["selfHeal"].(bool); ok {
-			sp.Automated.SelfHeal = v
+	if v, exists := m["automated"]; exists {
+		automated, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("syncPolicy.automated: expected map[string]interface{}, got %T", v)
 		}
-		if v, ok := automated["prune"].(bool); ok {
-			sp.Automated.Prune = v
+		sp.Automated = &AutomatedSync{}
+		if v, exists := automated["selfHeal"]; exists {
+			b, ok := v.(bool)
+			if !ok {
+				return nil, fmt.Errorf("syncPolicy.automated.selfHeal: expected bool, got %T", v)
+			}
+			sp.Automated.SelfHeal = b
+		}
+		if v, exists := automated["prune"]; exists {
+			b, ok := v.(bool)
+			if !ok {
+				return nil, fmt.Errorf("syncPolicy.automated.prune: expected bool, got %T", v)
+			}
+			sp.Automated.Prune = b
 		}
 	}
-	if opts, ok := m["syncOptions"].([]interface{}); ok {
-		for _, o := range opts {
-			if s, ok := o.(string); ok {
-				sp.SyncOptions = append(sp.SyncOptions, s)
+	if v, exists := m["syncOptions"]; exists {
+		opts, ok := v.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("syncPolicy.syncOptions: expected []interface{}, got %T", v)
+		}
+		for i, o := range opts {
+			s, ok := o.(string)
+			if !ok {
+				return nil, fmt.Errorf("syncPolicy.syncOptions[%d]: expected string, got %T", i, o)
 			}
+			sp.SyncOptions = append(sp.SyncOptions, s)
 		}
 	}
 	return sp, nil

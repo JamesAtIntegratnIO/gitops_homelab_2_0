@@ -87,7 +87,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 	if config.HTTPRedirect {
 		fields["httpRedirect"] = "enabled"
 	}
-	if err := ku.WritePromiseStatus(sdk, "Configured",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseConfigured,
 		fmt.Sprintf("Gateway route configured for %s", config.Hostname), fields); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
@@ -118,7 +118,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 		}
 	}
 
-	if err := ku.WritePromiseStatus(sdk, "Deleting",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseDeleting,
 		fmt.Sprintf("Gateway routes for %s scheduled for deletion", config.Hostname), nil); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}

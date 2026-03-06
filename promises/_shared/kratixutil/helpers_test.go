@@ -213,3 +213,129 @@ func TestParseSyncPolicyE_Values(t *testing.T) {
 		t.Errorf("unexpected syncOption[0]: %q", sp.SyncOptions[0])
 	}
 }
+
+func TestParseSyncPolicyE_WrongTypeInnerFields(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   map[string]interface{}
+		wantErr string
+	}{
+		{
+			name:    "automated wrong type",
+			input:   map[string]interface{}{"automated": "not-a-map"},
+			wantErr: "syncPolicy.automated: expected map[string]interface{}, got string",
+		},
+		{
+			name:    "selfHeal wrong type",
+			input:   map[string]interface{}{"automated": map[string]interface{}{"selfHeal": "not-bool"}},
+			wantErr: "syncPolicy.automated.selfHeal: expected bool, got string",
+		},
+		{
+			name:    "prune wrong type",
+			input:   map[string]interface{}{"automated": map[string]interface{}{"prune": 42}},
+			wantErr: "syncPolicy.automated.prune: expected bool, got int",
+		},
+		{
+			name:    "syncOptions wrong type",
+			input:   map[string]interface{}{"syncOptions": "not-a-slice"},
+			wantErr: "syncPolicy.syncOptions: expected []interface{}, got string",
+		},
+		{
+			name:    "syncOptions element wrong type",
+			input:   map[string]interface{}{"syncOptions": []interface{}{123}},
+			wantErr: "syncPolicy.syncOptions[0]: expected string, got int",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseSyncPolicyE(tt.input)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if err.Error() != tt.wantErr {
+				t.Errorf("error = %q, want %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// ToMap tests
+// ---------------------------------------------------------------------------
+
+func TestToMap(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   interface{}
+		wantErr bool
+		check   func(t *testing.T, m map[string]interface{})
+	}{
+		{
+			name: "simple struct",
+			input: struct {
+				Name string `json:"name"`
+				Age  int    `json:"age"`
+			}{Name: "test", Age: 42},
+			check: func(t *testing.T, m map[string]interface{}) {
+				if m["name"] != "test" {
+					t.Errorf("name = %v, want test", m["name"])
+				}
+				// JSON numbers are float64
+				if m["age"] != float64(42) {
+					t.Errorf("age = %v, want 42", m["age"])
+				}
+			},
+		},
+		{
+			name: "nested struct",
+			input: struct {
+				Outer string `json:"outer"`
+				Inner struct {
+					Val string `json:"val"`
+				} `json:"inner"`
+			}{Outer: "a", Inner: struct {
+				Val string `json:"val"`
+			}{Val: "b"}},
+			check: func(t *testing.T, m map[string]interface{}) {
+				inner, ok := m["inner"].(map[string]interface{})
+				if !ok {
+					t.Fatal("inner should be a map")
+				}
+				if inner["val"] != "b" {
+					t.Errorf("inner.val = %v, want b", inner["val"])
+				}
+			},
+		},
+		{
+			name:    "channel is not JSON-marshalable",
+			input:   make(chan int),
+			wantErr: true,
+		},
+		{
+			name:  "nil input returns nil map without error",
+			input: nil,
+			check: func(t *testing.T, m map[string]interface{}) {
+				if m != nil {
+					t.Errorf("expected nil map, got %v", m)
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, err := ToMap(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.check != nil {
+				tt.check(t, m)
+			}
+		})
+	}
+}

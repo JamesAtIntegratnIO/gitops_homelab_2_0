@@ -53,7 +53,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error 
 		return fmt.Errorf("write ExternalSecrets: %w", err)
 	}
 
-	if err := ku.WritePromiseStatus(sdk, "Configured",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseConfigured,
 		fmt.Sprintf("Rendered %d ExternalSecret(s) in namespace %s", len(config.Secrets), config.Namespace),
 		map[string]interface{}{"namespace": config.Namespace, "secretCount": len(config.Secrets)}); err != nil {
 		return fmt.Errorf("write status: %w", err)
@@ -82,7 +82,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 		}
 	}
 
-	if err := ku.WritePromiseStatus(sdk, "Deleting",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseDeleting,
 		fmt.Sprintf("ExternalSecrets in %s scheduled for deletion", config.Namespace), nil); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}

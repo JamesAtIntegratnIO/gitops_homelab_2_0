@@ -1,5 +1,13 @@
 package kratixutil
 
+// Status phases used in promise status reporting.
+const (
+	PhaseConfigured        = "Configured"
+	PhaseDeleting          = "Deleting"
+	PhaseScheduled         = "Scheduled"
+	PhaseConfigurationError = "ConfigurationError"
+)
+
 // Platform-wide default constants shared across all promise pipelines.
 const (
 	// Used by all ExternalSecret resources to reference the 1Password ClusterSecretStore.

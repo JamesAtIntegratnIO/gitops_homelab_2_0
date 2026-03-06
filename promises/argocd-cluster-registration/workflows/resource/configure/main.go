@@ -105,7 +105,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 		return fmt.Errorf("write argocd cluster external secret: %w", err)
 	}
 
-	if err := ku.WritePromiseStatus(sdk, "Configured",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseConfigured,
 		fmt.Sprintf("Cluster %s registration resources configured", config.Name),
 		map[string]interface{}{
 			"clusterName":       config.Name,
@@ -122,7 +122,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 func handleDelete(sdk *kratix.KratixSDK, config *RegistrationConfig) error {
 	log.Printf("--- Handling delete for cluster registration: %s ---", config.Name)
 
-	if err := ku.WritePromiseStatus(sdk, "Deleting",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseDeleting,
 		fmt.Sprintf("Cluster %s registration resources scheduled for deletion", config.Name),
 		map[string]interface{}{"clusterName": config.Name}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)

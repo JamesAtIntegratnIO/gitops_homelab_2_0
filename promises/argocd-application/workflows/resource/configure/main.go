@@ -119,7 +119,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *AppConfig) error {
 		return fmt.Errorf("write application: %w", err)
 	}
 
-	if err := ku.WritePromiseStatus(sdk, "Configured",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseConfigured,
 		fmt.Sprintf("Application %s configured", config.Name),
 		map[string]interface{}{"applicationName": config.Name, "namespace": config.Namespace, "project": config.Project}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
@@ -142,7 +142,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *AppConfig) error {
 		return fmt.Errorf("write delete application: %w", err)
 	}
 
-	if err := ku.WritePromiseStatus(sdk, "Deleting",
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseDeleting,
 		fmt.Sprintf("Application %s scheduled for deletion", config.Name), nil); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
