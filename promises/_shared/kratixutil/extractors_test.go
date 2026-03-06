@@ -497,3 +497,78 @@ func TestExtractSecretsE_FullParse(t *testing.T) {
 		t.Errorf("unexpected key[0]: %+v", s.Keys[0])
 	}
 }
+
+// ---------------------------------------------------------------------------
+// FromMapSliceE tests
+// ---------------------------------------------------------------------------
+
+type testDest struct {
+	Namespace string `json:"namespace"`
+	Server    string `json:"server"`
+}
+
+func TestFromMapSliceE_NilReturnsNil(t *testing.T) {
+	got, err := FromMapSliceE[testDest](nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+}
+
+func TestFromMapSliceE_EmptySlice(t *testing.T) {
+	got, err := FromMapSliceE[testDest]([]map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected empty slice, got %d items", len(got))
+	}
+}
+
+func TestFromMapSliceE_ValidEntries(t *testing.T) {
+	input := []map[string]interface{}{
+		{"namespace": "default", "server": "https://k8s.local"},
+		{"namespace": "prod", "server": "https://prod.example.com"},
+	}
+	got, err := FromMapSliceE[testDest](input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(got))
+	}
+	if got[0].Namespace != "default" || got[0].Server != "https://k8s.local" {
+		t.Errorf("item 0 mismatch: %+v", got[0])
+	}
+	if got[1].Namespace != "prod" || got[1].Server != "https://prod.example.com" {
+		t.Errorf("item 1 mismatch: %+v", got[1])
+	}
+}
+
+func TestFromMapSliceE_MissingKeysZeroValue(t *testing.T) {
+	input := []map[string]interface{}{
+		{"server": "https://k8s.local"},
+	}
+	got, err := FromMapSliceE[testDest](input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got[0].Namespace != "" {
+		t.Errorf("expected empty namespace, got %q", got[0].Namespace)
+	}
+}
+
+func TestFromMapSliceE_WrongTypeReturnsError(t *testing.T) {
+	input := []map[string]interface{}{
+		{"namespace": 42, "server": "https://k8s.local"},
+	}
+	_, err := FromMapSliceE[testDest](input)
+	if err == nil {
+		t.Fatal("expected error for wrong type, got nil")
+	}
+	if !strings.Contains(err.Error(), "unmarshal") {
+		t.Errorf("expected unmarshal error, got: %v", err)
+	}
+}
