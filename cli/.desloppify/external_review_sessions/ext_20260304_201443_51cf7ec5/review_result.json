@@ -1,0 +1,195 @@
+{
+  "session": {
+    "id": "ext_20260304_201443_51cf7ec5",
+    "token": "f594ceb6e29bb68c47e43dd49b46b340"
+  },
+  "assessments": {
+    "cross_module_architecture": 62,
+    "error_consistency": 48,
+    "abstraction_fitness": 53,
+    "test_strategy": 30,
+    "design_coherence": 57
+  },
+  "findings": [
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "pervasive_package_level_globals_flags",
+      "summary": "25+ package-level mutable variables for command flags in vcluster/create.go create hidden coupling and prevent concurrent testing",
+      "related_files": ["cmd/vcluster/create.go"],
+      "evidence": ["Lines 21-58 declare 25+ package-level var for all create flags instead of scoping them to the command constructor"],
+      "suggestion": "Move flag variables into the newCreateCmd() function scope or a createOptions struct, binding them to the *cobra.Command locally",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "global_mutable_output_format",
+      "summary": "tui.outputFormat is a package-level mutable global, making output format a shared hidden dependency",
+      "related_files": ["internal/tui/output.go"],
+      "evidence": ["var outputFormat OutputFormat = FormatText is a package-level global modified by SetOutputFormat() and read by IsStructured(), RenderOutput(), PrintStructured()"],
+      "suggestion": "Thread output format through a context or config parameter rather than relying on global mutable state",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "cmd_layer_does_unstructured_extraction",
+      "summary": "cmd/commands.go directly calls platform.UnstructuredNestedString to parse raw Kubernetes objects, violating the cmd-internal abstraction boundary",
+      "related_files": ["cmd/commands.go"],
+      "evidence": ["Lines 140-142: syncStatus, _, _ := platform.UnstructuredNestedString(app.Object, ...) appears throughout runStatus dashboard sections"],
+      "suggestion": "Move ArgoCD app parsing into kube or platform package methods that return typed structs (like ArgoAppInfo), keeping cmd layer focused on display",
+      "confidence": "high"
+    },
+    {
+      "dimension": "cross_module_architecture",
+      "identifier": "platform_pkg_thin_wrapper_coupling",
+      "summary": "platform.UnstructuredNestedString/Slice are trivial one-line delegations to internal/unstructured, creating unnecessary coupling",
+      "related_files": ["internal/platform/diagnose.go"],
+      "evidence": ["UnstructuredNestedString and UnstructuredNestedSlice simply call unstr.NestedString and unstr.NestedSlice, callers should import unstructured directly"],
+      "suggestion": "Remove wrapper functions and have callers import internal/unstructured directly, or provide richer typed helpers in platform package",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "hctl_error_types_not_used_consistently",
+      "summary": "HctlError types (NewUserError, NewPlatformError) are used in some commands but most return plain fmt.Errorf, losing exit code semantics",
+      "related_files": ["cmd/commands.go", "cmd/convenience.go", "cmd/deploy/run.go"],
+      "evidence": ["runDiagnose uses fmt.Errorf while runStatusOnce uses hcerrors.NewPlatformError for the same pattern; deploy/status.go mixes both in the same function"],
+      "suggestion": "Establish a convention: all command-level errors that reach the user should use the appropriate HctlError constructor",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "platform_error_loses_error_chain",
+      "summary": "NewPlatformError callers use %v instead of %w, breaking error chain unwrapping",
+      "related_files": ["cmd/deploy/run.go", "cmd/deploy/status.go", "cmd/commands.go"],
+      "evidence": ["hcerrors.NewPlatformError('connecting to cluster for watch: %v', cErr) uses %v not %w, so errors.Is/errors.As cannot unwrap the original error"],
+      "suggestion": "Change %v to %w in all NewPlatformError/NewUserError calls, or change the constructors to accept an error parameter explicitly",
+      "confidence": "high"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "silently_discarded_errors",
+      "summary": "Multiple tui.Confirm() calls discard the error return, masking potential I/O failures",
+      "related_files": ["cmd/convenience.go", "cmd/vcluster/create.go", "cmd/scale/scale.go"],
+      "evidence": ["convenience.go: ok, _ := tui.Confirm(...); create.go: confirmed with _, _ pattern; scale.go: confirmed, _ := tui.Confirm(...)"],
+      "suggestion": "Check the error from tui.Confirm and return it or log it; in non-TTY environments this error signals a real problem",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "no_sentinel_errors_for_common_cases",
+      "summary": "No defined sentinel errors for frequent conditions like not found, already exists, or not configured, forcing string matching",
+      "related_files": ["internal/errors/codes.go"],
+      "evidence": ["errors package defines only HctlError with exit codes but no sentinel errors; callers create ad-hoc fmt.Errorf messages"],
+      "suggestion": "Define sentinel errors like ErrNotConfigured, ErrResourceNotFound that wrap HctlError and can be checked with errors.Is()",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "error_consistency",
+      "identifier": "partial_failure_not_collected",
+      "summary": "runUp/runDown continue scaling after individual deployment failures, printing warnings but not returning aggregate errors",
+      "related_files": ["cmd/convenience.go"],
+      "evidence": ["if err := client.ScaleDeployment(...); err != nil { fmt.Printf('Failed: %v') } — failure is printed but the function returns nil"],
+      "suggestion": "Collect all errors and return a multi-error or summary error when any scaling operations fail",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "kube_client_no_interface",
+      "summary": "kube.Client is a concrete struct with no interface, making all dependent code untestable without a live cluster",
+      "related_files": ["internal/kube/client.go"],
+      "evidence": ["Client struct has 30+ methods across 9 files but no interface defined; all consumers depend on the concrete type"],
+      "suggestion": "Define a KubeClient interface (or per-domain interfaces like ArgoClient, PodClient) that Client implements, enabling test mocks",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "god_function_build_stakater_values",
+      "summary": "buildStakaterValues is a 200-line god function handling image, ports, env vars, resources, volumes, services, routes, certs, and extra objects",
+      "related_files": ["internal/deploy/translator.go"],
+      "evidence": ["Function spans lines 125-370, processing 8+ distinct concerns with deeply nested map construction"],
+      "suggestion": "Extract into focused builders: buildDeploymentSection(), buildServiceSection(), buildRouteSection(), buildCertificateSection()",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "create_cmd_god_file",
+      "summary": "vcluster/create.go is 792 lines mixing interactive wizard, spec building, git workflow, and provisioning watch",
+      "related_files": ["cmd/vcluster/create.go"],
+      "evidence": ["Single file contains runCreate, collectNameAndPreset, buildVClusterSpec, collectAdvancedSettings, applyClusterMetadata, collectWorkloadRepo, applyProdPresetExtras, writeAndCommitVCluster, watchProvisioning, parseEgressRule, parseKeyValue"],
+      "suggestion": "Split into create_wizard.go (interactive collection), create_spec.go (spec building), create_provision.go (watch provisioning), keeping create.go as orchestrator",
+      "confidence": "high"
+    },
+    {
+      "dimension": "abstraction_fitness",
+      "identifier": "repeated_kube_client_creation",
+      "summary": "kube.NewClient(cfg.KubeContext) is called repeatedly within the same command, creating multiple clients for a single operation",
+      "related_files": ["cmd/commands.go"],
+      "evidence": ["runStatus dashboard has 6 separate DashboardSection.Load closures, each calling kube.NewClient independently"],
+      "suggestion": "Create the client once before the dashboard and pass it into each section's Load function",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "no_kube_client_tests",
+      "summary": "The entire kube package (9 files, 30+ methods) has only trivial unit tests for splitFirst() and struct construction",
+      "related_files": ["internal/kube/client_test.go"],
+      "evidence": ["client_test.go tests only TestSplitFirst and TestDeploymentInfoStruct; no tests for any infrastructure methods"],
+      "suggestion": "Introduce interface for kube.Client and use fake clientsets or interface mocks to test critical methods",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "no_translator_integration_test",
+      "summary": "deploy.Translate the core Score-to-Stakater translation has no test that exercises the full function",
+      "related_files": ["internal/deploy/translator_test.go"],
+      "evidence": ["translator_test.go tests resolveVariableValue (4 cases) and template generation, but Translate() itself is never called in any test"],
+      "suggestion": "Add table-driven tests for Translate() with sample score.Workload inputs verifying the resulting StakaterValues, Files, and AddonsEntry",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "diagnose_untested_critical_path",
+      "summary": "DiagnoseVCluster performs an 8-step diagnostic chain but has zero test coverage for the actual diagnosis logic",
+      "related_files": ["internal/platform/diagnose_test.go"],
+      "evidence": ["diagnose_test.go only tests StepStatus.String() constants and UnstructuredNestedString helper"],
+      "suggestion": "With a kube client interface, test each diagnostic step independently and the full chain with fixture data",
+      "confidence": "high"
+    },
+    {
+      "dimension": "test_strategy",
+      "identifier": "no_shared_test_fixtures_or_helpers",
+      "summary": "No shared test utilities, fake clients, or fixture data across the 13 test files",
+      "related_files": ["internal/kube/client_test.go", "internal/platform/diagnose_test.go"],
+      "evidence": ["Each test file is self-contained; no testdata/ directories, no shared fake builders, no common assertion helpers"],
+      "suggestion": "Create internal/testutil/ with fake kube client builders, fixture score.yaml files, and common assertion helpers",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "inconsistent_subcommand_file_organization",
+      "summary": "Some command groups split subcommands into separate files (deploy/) while others pack all subcommands into one file (addon/, scale/)",
+      "related_files": ["cmd/addon/addon.go", "cmd/deploy/deploy.go", "cmd/scale/scale.go"],
+      "evidence": ["deploy/ has 5 files (deploy.go, init.go, run.go, render.go, status.go); addon/ has 1 file (581 lines); scale/ has 1 file (137 lines)"],
+      "suggestion": "Adopt a consistent pattern: split addon.go into addon.go (NewCmd), addon_list.go, addon_enable.go, addon_disable.go, addon_status.go",
+      "confidence": "medium"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "commands_go_mixed_responsibilities",
+      "summary": "cmd/commands.go (481 lines) contains init, status dashboard, diagnose, reconcile, and context display as multiple distinct concerns",
+      "related_files": ["cmd/commands.go"],
+      "evidence": ["File contains runInit, runStatus (6-section dashboard), runStatusOnce, runStatusWatch, runDiagnose, runReconcile, and runContext"],
+      "suggestion": "Split into status.go (dashboard), diagnose_cmd.go, reconcile.go, and context.go, keeping commands.go for only shared helpers",
+      "confidence": "high"
+    },
+    {
+      "dimension": "design_coherence",
+      "identifier": "platform_package_mixed_concerns",
+      "summary": "internal/platform/ combines type definitions, diagnostic logic, status collection, provisioning waits, and vcluster spec building in one package",
+      "related_files": ["internal/platform/types.go", "internal/platform/diagnose.go", "internal/platform/vcluster.go"],
+      "evidence": ["Package contains 8 files mixing: ResourceStatus types, DiagnoseVCluster chain, CollectPlatformStatus, WaitFor functions, VClusterSpec+presets+NewVClusterResource"],
+      "suggestion": "Consider splitting into platform/status (types, collect), platform/diagnose, platform/vcluster (spec, presets, resource builder)",
+      "confidence": "medium"
+    }
+  ]
+}

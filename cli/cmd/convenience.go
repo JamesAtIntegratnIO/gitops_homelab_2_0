@@ -2,278 +2,212 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
-	"strings"
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
-	"github.com/jamesatintegratnio/hctl/internal/score"
+	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
 )
 
 // --- hctl up ---
 
-var upCmd = &cobra.Command{
-	Use:   "up [workload]",
-	Short: "Scale a workload to desired replicas",
-	Long: `Scales a workload's deployments to the specified replica count (default: 1).
+func newUpCmd() *cobra.Command {
+	var upReplicas int32
+	cmd := &cobra.Command{
+		Use:   "up [workload]",
+		Short: "Scale a workload to desired replicas",
+		Long: `Scales a workload's deployments to the specified replica count (default: 1).
 Re-enables ArgoCD auto-sync if it was disabled.
 
 If no workload name is given, reads from score.yaml in the current directory.`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runUp,
-}
-
-var upReplicas int32
-
-func init() {
-	upCmd.Flags().Int32VarP(&upReplicas, "replicas", "r", 1, "target replica count")
-}
-
-func runUp(cmd *cobra.Command, args []string) error {
-	workloadName, cluster, err := resolveWorkloadAndCluster(args)
-	if err != nil {
-		return err
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runUp(cmd, args, upReplicas)
+		},
 	}
+	cmd.Flags().Int32VarP(&upReplicas, "replicas", "r", 1, "target replica count")
+	return cmd
+}
 
+func runUp(cmd *cobra.Command, args []string, upReplicas int32) error {
 	cfg := config.Get()
-	client, err := kube.NewClient(cfg.KubeContext)
+	workloadName, cluster, err := platform.ResolveWorkloadAndCluster(args, cfg.DefaultCluster)
 	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
+		return hcerrors.NewUserError("resolving workload: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	namespace := cluster // workloads deploy to namespace matching cluster name
-
-	fmt.Printf("\n  %s Scaling up %s in %s (replicas=%d)\n\n",
-		tui.InfoStyle.Render(tui.IconArrow), workloadName, cluster, upReplicas)
-
-	deploys, err := client.ListDeployments(ctx, namespace)
-	if err != nil {
-		return err
-	}
-
-	// Filter deployments belonging to this workload
-	matched := filterWorkloadDeployments(deploys, workloadName)
-	if len(matched) == 0 {
-		// Fallback: try all deployments in the namespace
-		if len(deploys) > 0 {
-			matched = deploys
-		} else {
-			return fmt.Errorf("no deployments found for %s in namespace %s", workloadName, namespace)
-		}
-	}
-
-	for _, d := range matched {
-		if d.ArgoApp != "" {
-			fmt.Printf("    %s Re-enabling auto-sync for %s\n",
-				tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
-			_ = client.EnableArgoAutoSync(ctx, "argocd", d.ArgoApp)
-		}
-
-		fmt.Printf("    %s Scaling %s to %d\n",
-			tui.MutedStyle.Render(tui.IconArrow), d.Name, upReplicas)
-		if err := client.ScaleDeployment(ctx, namespace, d.Name, upReplicas); err != nil {
-			fmt.Printf("    %s Failed: %v\n", tui.WarningStyle.Render(tui.IconWarn), err)
-		}
-	}
-
-	fmt.Printf("\n  %s %s scaled up in %s\n", tui.SuccessStyle.Render(tui.IconCheck), workloadName, cluster)
-	return nil
+	return runScale(scaleParams{
+		workloadName: workloadName,
+		cluster:      cluster,
+		replicas:     upReplicas,
+		direction:    "up",
+		argoAction:   "enable",
+	})
 }
 
 // --- hctl down ---
 
-var downCmd = &cobra.Command{
-	Use:   "down [workload]",
-	Short: "Scale a workload to zero",
-	Long: `Disables ArgoCD auto-sync and scales a workload's deployments to 0.
+func newDownCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "down [workload]",
+		Short: "Scale a workload to zero",
+		Long: `Disables ArgoCD auto-sync and scales a workload's deployments to 0.
 
 If no workload name is given, reads from score.yaml in the current directory.`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runDown,
+		Args: cobra.MaximumNArgs(1),
+		RunE: runDown,
+	}
 }
 
 func runDown(cmd *cobra.Command, args []string) error {
-	workloadName, cluster, err := resolveWorkloadAndCluster(args)
+	cfg := config.Get()
+	workloadName, cluster, err := platform.ResolveWorkloadAndCluster(args, cfg.DefaultCluster)
 	if err != nil {
-		return err
+		return hcerrors.NewUserError("resolving workload: %w", err)
 	}
 
-	cfg := config.Get()
 	if cfg.Interactive {
-		ok, _ := tui.Confirm(fmt.Sprintf("Scale down %s in %s?", workloadName, cluster))
+		ok, confirmErr := tui.Confirm(fmt.Sprintf("Scale down %s in %s?", workloadName, cluster))
+		if confirmErr != nil {
+			return hcerrors.NewUserError("confirming scale down: %w", confirmErr)
+		}
 		if !ok {
 			fmt.Println(tui.DimStyle.Render("Cancelled"))
 			return nil
 		}
 	}
 
-	client, err := kube.NewClient(cfg.KubeContext)
+	return runScale(scaleParams{
+		workloadName: workloadName,
+		cluster:      cluster,
+		replicas:     0,
+		direction:    "down",
+		argoAction:   "disable",
+	})
+}
+
+// scaleParams holds parameters for the shared scale operation.
+type scaleParams struct {
+	workloadName string
+	cluster      string
+	replicas     int32
+	direction    string // "up" or "down"
+	argoAction   string // "enable" or "disable"
+}
+
+// runScale is the shared core for runUp and runDown. It resolves the kube
+// client, lists and matches deployments, toggles ArgoCD auto-sync, and scales
+// deployments to the target replica count.
+//
+// This handler intentionally mixes I/O (progress output) with business logic
+// because the step-by-step user feedback is integral to the UX — each
+// deployment scale / sync-toggle must report its own success or failure
+// inline. Extracting I/O would add indirection without testability gain
+// since this path exercises kube.Client directly (no platform.KubeClient).
+func runScale(p scaleParams) error {
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
+		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	namespace := cluster
+	namespace := p.cluster // workloads deploy to namespace matching cluster name
 
-	fmt.Printf("\n  %s Scaling down %s in %s\n\n",
-		tui.WarningStyle.Render(tui.IconArrow), workloadName, cluster)
+	if p.direction == "up" {
+		fmt.Printf("\n  %s Scaling up %s in %s (replicas=%d)\n\n",
+			tui.InfoStyle.Render(tui.IconArrow), p.workloadName, p.cluster, p.replicas)
+	} else {
+		fmt.Printf("\n  %s Scaling down %s in %s\n\n",
+			tui.WarningStyle.Render(tui.IconArrow), p.workloadName, p.cluster)
+	}
 
 	deploys, err := client.ListDeployments(ctx, namespace)
 	if err != nil {
-		return err
+		return hcerrors.NewPlatformError("listing deployments: %w", err)
 	}
 
-	matched := filterWorkloadDeployments(deploys, workloadName)
-	if len(matched) == 0 {
-		if len(deploys) > 0 {
-			matched = deploys
-		} else {
-			return fmt.Errorf("no deployments found for %s in namespace %s", workloadName, namespace)
-		}
+	matched, err := platform.MatchDeployments(deploys, p.workloadName, namespace)
+	if err != nil {
+		return hcerrors.NewUserError("matching deployments: %w", err)
 	}
+
+	var errs []error
 
 	for _, d := range matched {
 		if d.ArgoApp != "" {
-			fmt.Printf("    %s Disabling auto-sync for %s\n",
-				tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
-			_ = client.DisableArgoAutoSync(ctx, "argocd", d.ArgoApp)
+			switch p.argoAction {
+			case "enable":
+				fmt.Printf("    %s Re-enabling auto-sync for %s\n",
+					tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
+				if err := client.EnableArgoAutoSync(ctx, "argocd", d.ArgoApp); err != nil {
+					fmt.Printf("    %s Failed to enable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), d.ArgoApp, err)
+					errs = append(errs, fmt.Errorf("enable auto-sync %s: %w", d.ArgoApp, err))
+				}
+			case "disable":
+				fmt.Printf("    %s Disabling auto-sync for %s\n",
+					tui.MutedStyle.Render(tui.IconArrow), d.ArgoApp)
+				if err := client.DisableArgoAutoSync(ctx, "argocd", d.ArgoApp); err != nil {
+					fmt.Printf("    %s Failed to disable auto-sync for %s: %v\n", tui.WarningStyle.Render(tui.IconWarn), d.ArgoApp, err)
+					errs = append(errs, fmt.Errorf("disable auto-sync %s: %w", d.ArgoApp, err))
+				}
+			}
 		}
 
-		fmt.Printf("    %s Scaling %s to 0\n",
-			tui.MutedStyle.Render(tui.IconArrow), d.Name)
-		if err := client.ScaleDeployment(ctx, namespace, d.Name, 0); err != nil {
+		fmt.Printf("    %s Scaling %s to %d\n",
+			tui.MutedStyle.Render(tui.IconArrow), d.Name, p.replicas)
+		if err := client.ScaleDeployment(ctx, namespace, d.Name, p.replicas); err != nil {
 			fmt.Printf("    %s Failed: %v\n", tui.WarningStyle.Render(tui.IconWarn), err)
+			errs = append(errs, fmt.Errorf("scale %s: %w", d.Name, err))
 		}
 	}
 
-	fmt.Printf("\n  %s %s scaled down in %s\n", tui.SuccessStyle.Render(tui.IconCheck), workloadName, cluster)
+	fmt.Printf("\n  %s %s scaled %s in %s\n", tui.SuccessStyle.Render(tui.IconCheck), p.workloadName, p.direction, p.cluster)
+	if err := errors.Join(errs...); err != nil {
+		return hcerrors.NewPlatformError("scale %s completed with errors: %w", p.direction, err)
+	}
 	return nil
 }
 
 // --- hctl open ---
 
-var openCmd = &cobra.Command{
-	Use:   "open [workload]",
-	Short: "Open a workload's URL in the browser",
-	Long: `Looks up the workload's HTTPRoute or route resource to find its URL
+func newOpenCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "open [workload]",
+		Short: "Open a workload's URL in the browser",
+		Long: `Looks up the workload's HTTPRoute or route resource to find its URL
 and opens it in the default browser.
 
 If no workload name is given, reads from score.yaml in the current directory.`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runOpen,
+		Args: cobra.MaximumNArgs(1),
+		RunE: runOpen,
+	}
 }
 
 func runOpen(cmd *cobra.Command, args []string) error {
-	workloadName, cluster, err := resolveWorkloadAndCluster(args)
-	if err != nil {
-		return err
-	}
-
 	cfg := config.Get()
-
-	// Try to find URL from the route resource in score.yaml
-	url := ""
-	if w, loadErr := score.LoadWorkload("score.yaml"); loadErr == nil {
-		routes := w.ResourcesByType("route")
-		for _, r := range routes {
-			if host, ok := r.Params["host"].(string); ok {
-				url = "https://" + host
-				break
-			}
-		}
+	workloadName, cluster, err := platform.ResolveWorkloadAndCluster(args, cfg.DefaultCluster)
+	if err != nil {
+		return hcerrors.NewUserError("resolving workload: %w", err)
 	}
 
-	// Fallback: check rendered values for httpRoute host
-	if url == "" {
-		valuesPath := fmt.Sprintf("workloads/%s/addons/%s/values.yaml", cluster, workloadName)
-		absPath := fmt.Sprintf("%s/%s", cfg.RepoPath, valuesPath)
-		if data, readErr := os.ReadFile(absPath); readErr == nil {
-			content := string(data)
-			// Simple heuristic: find host in httpRoute section
-			for _, line := range strings.Split(content, "\n") {
-				trimmed := strings.TrimSpace(line)
-				if strings.HasPrefix(trimmed, "host:") {
-					host := strings.TrimSpace(strings.TrimPrefix(trimmed, "host:"))
-					host = strings.Trim(host, "\"'")
-					if host != "" {
-						url = "https://" + host
-						break
-					}
-				}
-			}
-		}
-	}
-
-	// Fallback: check ArgoCD app for URLs
-	if url == "" {
-		client, cErr := kube.NewClient(cfg.KubeContext)
-		if cErr == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			app, aErr := client.GetArgoApp(ctx, "argocd", workloadName)
-			if aErr != nil {
-				app, aErr = client.GetArgoApp(ctx, "argocd", cluster+"-"+workloadName)
-			}
-			if aErr == nil {
-				// Check for URL in annotations
-				if meta, ok := app.Object["metadata"].(map[string]interface{}); ok {
-					if anns, ok := meta["annotations"].(map[string]interface{}); ok {
-						if u, ok := anns["hctl.integratn.tech/url"].(string); ok {
-							url = u
-						}
-					}
-				}
-			}
-		}
-	}
-
-	if url == "" {
-		return fmt.Errorf("could not determine URL for %s — add a route resource to score.yaml or set hctl.integratn.tech/url annotation", workloadName)
+	url, err := platform.ResolveWorkloadURL(workloadName, cluster, cfg.RepoPath, cfg.KubeContext)
+	if err != nil {
+		return hcerrors.NewPlatformError("resolving workload URL: %w", err)
 	}
 
 	fmt.Printf("  %s Opening %s\n", tui.InfoStyle.Render(tui.IconArrow), url)
 	return openBrowser(url)
 }
 
-func openBrowser(url string) error {
-	var cmd string
-	var args []string
-	switch runtime.GOOS {
-	case "linux":
-		cmd = "xdg-open"
-		args = []string{url}
-	case "darwin":
-		cmd = "open"
-		args = []string{url}
-	default:
-		return fmt.Errorf("unsupported OS for browser open: %s", runtime.GOOS)
-	}
-	return exec.Command(cmd, args...).Start()
-}
-
 // --- hctl logs ---
-
-var logsCmd = &cobra.Command{
-	Use:   "logs [workload]",
-	Short: "Stream logs for a workload's pods",
-	Long: `Finds pods belonging to a workload and streams their logs.
-
-If no workload name is given, reads from score.yaml in the current directory.
-Use --follow to stream continuously (like kubectl logs -f).`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runLogs,
-}
 
 var (
 	logsFollow    bool
@@ -281,22 +215,33 @@ var (
 	logsContainer string
 )
 
-func init() {
-	logsCmd.Flags().BoolVarP(&logsFollow, "follow", "f", false, "stream logs continuously")
-	logsCmd.Flags().Int64VarP(&logsTail, "tail", "t", 100, "number of recent lines to show")
-	logsCmd.Flags().StringVarP(&logsContainer, "container", "c", "", "specific container name")
+func newLogsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "logs [workload]",
+		Short: "Stream logs for a workload's pods",
+		Long: `Finds pods belonging to a workload and streams their logs.
+
+If no workload name is given, reads from score.yaml in the current directory.
+Use --follow to stream continuously (like kubectl logs -f).`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: runLogs,
+	}
+	cmd.Flags().BoolVarP(&logsFollow, "follow", "f", false, "stream logs continuously")
+	cmd.Flags().Int64VarP(&logsTail, "tail", "t", 100, "number of recent lines to show")
+	cmd.Flags().StringVarP(&logsContainer, "container", "c", "", "specific container name")
+	return cmd
 }
 
 func runLogs(cmd *cobra.Command, args []string) error {
-	workloadName, cluster, err := resolveWorkloadAndCluster(args)
+	cfg := config.Get()
+	workloadName, cluster, err := platform.ResolveWorkloadAndCluster(args, cfg.DefaultCluster)
 	if err != nil {
-		return err
+		return hcerrors.NewUserError("resolving workload: %w", err)
 	}
 
-	cfg := config.Get()
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
+		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
 
 	namespace := cluster
@@ -308,17 +253,9 @@ func runLogs(cmd *cobra.Command, args []string) error {
 		defer cancel()
 	}
 
-	// Find pods for this workload
-	pods, err := client.ListPods(ctx, namespace, fmt.Sprintf("app.kubernetes.io/name=%s", workloadName))
+	pods, err := platform.FindWorkloadPods(ctx, client, namespace, workloadName)
 	if err != nil {
-		return fmt.Errorf("listing pods: %w", err)
-	}
-	if len(pods) == 0 {
-		// Try broader label
-		pods, err = client.ListPods(ctx, namespace, fmt.Sprintf("app=%s", workloadName))
-		if err != nil || len(pods) == 0 {
-			return fmt.Errorf("no pods found for workload %s in namespace %s", workloadName, namespace)
-		}
+		return hcerrors.NewPlatformError("finding workload pods: %w", err)
 	}
 
 	if len(pods) == 1 {
@@ -332,51 +269,4 @@ func runLogs(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(os.Stderr, "%s Found %d pods, streaming from first: %s\n\n",
 		tui.InfoStyle.Render(tui.IconArrow), len(pods), pods[0].Name)
 	return client.StreamPodLogs(ctx, namespace, pods[0].Name, logsContainer, logsFollow, logsTail, os.Stdout)
-}
-
-// --- Shared helpers ---
-
-// resolveWorkloadAndCluster determines the workload name and target cluster from
-// command arguments or by reading score.yaml in the current directory.
-func resolveWorkloadAndCluster(args []string) (workloadName, cluster string, err error) {
-	cfg := config.Get()
-
-	if len(args) > 0 {
-		workloadName = args[0]
-	}
-
-	// Try to load score.yaml for metadata
-	if w, loadErr := score.LoadWorkload("score.yaml"); loadErr == nil {
-		if workloadName == "" {
-			workloadName = w.Metadata.Name
-		}
-		if cluster == "" {
-			cluster = w.TargetCluster()
-		}
-	}
-
-	if workloadName == "" {
-		return "", "", fmt.Errorf("no workload specified and no score.yaml found in current directory")
-	}
-
-	if cluster == "" {
-		cluster = cfg.DefaultCluster
-	}
-	if cluster == "" {
-		return "", "", fmt.Errorf("no cluster specified — use config defaultCluster or have score.yaml with cluster annotation")
-	}
-
-	return workloadName, cluster, nil
-}
-
-// filterWorkloadDeployments returns deployments whose name contains the workload name
-// or whose ArgoCD app matches.
-func filterWorkloadDeployments(deploys []kube.DeploymentInfo, workloadName string) []kube.DeploymentInfo {
-	var matched []kube.DeploymentInfo
-	for _, d := range deploys {
-		if d.Name == workloadName || strings.Contains(d.Name, workloadName) || d.ArgoApp == workloadName {
-			matched = append(matched, d)
-		}
-	}
-	return matched
 }

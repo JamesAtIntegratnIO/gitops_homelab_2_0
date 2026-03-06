@@ -3,12 +3,10 @@ package platform
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/kube"
-	"github.com/jamesatintegratnio/hctl/internal/tui"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 )
 
 // ProvisionPhase represents a phase in the provisioning lifecycle.
@@ -48,11 +46,11 @@ type ProvisionHealth struct {
 
 // WaitForRequest polls until the ResourceRequest exists in the cluster.
 // This is the first phase after git push — ArgoCD must sync the request.
-func WaitForRequest(ctx context.Context, client *kube.Client, namespace, name string, pollInterval time.Duration) (string, error) {
+func WaitForRequest(ctx context.Context, client KubeClient, namespace, name string, pollInterval time.Duration) (string, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timed out waiting for request to appear (ArgoCD may not have synced yet)")
+			return "", hcerrors.NewTimeoutError("timed out waiting for request to appear (ArgoCD may not have synced yet)")
 		default:
 		}
 
@@ -67,34 +65,32 @@ func WaitForRequest(ctx context.Context, client *kube.Client, namespace, name st
 }
 
 // WaitForPipeline polls until the Kratix pipeline job completes.
-func WaitForPipeline(ctx context.Context, client *kube.Client, namespace, name string, pollInterval time.Duration) (string, error) {
+func WaitForPipeline(ctx context.Context, client KubeClient, namespace, name string, pollInterval time.Duration) (string, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timed out waiting for pipeline to complete")
+			return "", hcerrors.NewTimeoutError("timed out waiting for pipeline to complete")
 		default:
 		}
 
-		jobs, err := client.Clientset.BatchV1().Jobs(namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("kratix.io/resource-name=%s", name),
-		})
+		jobs, err := client.ListJobs(ctx, namespace, fmt.Sprintf("kratix.io/resource-name=%s", name))
 		if err != nil {
 			time.Sleep(pollInterval)
 			continue
 		}
 
-		if len(jobs.Items) == 0 {
+		if len(jobs) == 0 {
 			time.Sleep(pollInterval)
 			continue
 		}
 
-		latest := jobs.Items[len(jobs.Items)-1]
+		latest := jobs[len(jobs)-1]
 		for _, cond := range latest.Status.Conditions {
 			if cond.Type == "Complete" && cond.Status == "True" {
 				return fmt.Sprintf("job %s completed", latest.Name), nil
 			}
 			if cond.Type == "Failed" && cond.Status == "True" {
-				return "", fmt.Errorf("pipeline failed: %s", cond.Message)
+				return "", hcerrors.NewPlatformError("pipeline failed: %s", cond.Message)
 			}
 		}
 
@@ -103,13 +99,13 @@ func WaitForPipeline(ctx context.Context, client *kube.Client, namespace, name s
 }
 
 // WaitForArgoSync polls until the ArgoCD application is synced and healthy.
-func WaitForArgoSync(ctx context.Context, client *kube.Client, name string, pollInterval time.Duration) (string, error) {
+func WaitForArgoSync(ctx context.Context, client KubeClient, name string, pollInterval time.Duration) (string, error) {
 	argoAppName := "vcluster-" + name
 
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timed out waiting for ArgoCD to sync")
+			return "", hcerrors.NewTimeoutError("timed out waiting for ArgoCD to sync")
 		default:
 		}
 
@@ -123,15 +119,15 @@ func WaitForArgoSync(ctx context.Context, client *kube.Client, name string, poll
 			continue
 		}
 
-		syncStatus, _, _ := UnstructuredNestedString(app.Object, "status", "sync", "status")
-		healthStatus, _, _ := UnstructuredNestedString(app.Object, "status", "health", "status")
+		syncStatus := unstr.MustString(app.Object, "status", "sync", "status")
+		healthStatus := unstr.MustString(app.Object, "status", "health", "status")
 
 		if syncStatus == "Synced" && healthStatus == "Healthy" {
 			return "synced and healthy", nil
 		}
 
 		if healthStatus == "Degraded" {
-			return "", fmt.Errorf("application is degraded — run 'hctl vcluster status %s --diagnose' for details", name)
+			return "", hcerrors.NewPlatformError("application is degraded — run 'hctl vcluster status %s --diagnose' for details", name)
 		}
 
 		time.Sleep(pollInterval)
@@ -139,13 +135,13 @@ func WaitForArgoSync(ctx context.Context, client *kube.Client, name string, poll
 }
 
 // WaitForClusterReady polls until the vCluster pods are running in the target namespace.
-func WaitForClusterReady(ctx context.Context, client *kube.Client, name string, pollInterval time.Duration) (string, error) {
+func WaitForClusterReady(ctx context.Context, client KubeClient, name string, pollInterval time.Duration) (string, error) {
 	targetNs := name
 
 	for {
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timed out waiting for cluster to become ready")
+			return "", hcerrors.NewTimeoutError("timed out waiting for cluster to become ready")
 		default:
 		}
 
@@ -176,7 +172,7 @@ func WaitForClusterReady(ctx context.Context, client *kube.Client, name string, 
 }
 
 // CollectProvisionResult gathers the final result after provisioning completes.
-func CollectProvisionResult(ctx context.Context, client *kube.Client, namespace, name string) (*ProvisionResult, error) {
+func CollectProvisionResult(ctx context.Context, client KubeClient, namespace, name string) (*ProvisionResult, error) {
 	result := &ProvisionResult{Name: name}
 
 	// Try to get status contract first (most complete source)
@@ -227,68 +223,4 @@ func CollectProvisionResult(ctx context.Context, client *kube.Client, namespace,
 	}
 
 	return result, nil
-}
-
-// FormatProvisionSummary formats the provisioning result for developer-friendly terminal output.
-// Zero Kubernetes jargon — uses terms like "components", "endpoints", "access".
-func FormatProvisionSummary(result *ProvisionResult, hostname string) string {
-	var sb strings.Builder
-
-	// Status line
-	if result.Healthy {
-		sb.WriteString(fmt.Sprintf("\n  %s %s is ready!\n", tui.SuccessStyle.Render(tui.IconCheck), result.Name))
-	} else {
-		sb.WriteString(fmt.Sprintf("\n  %s %s is provisioning (may take a few more minutes)\n", tui.WarningStyle.Render(tui.IconWarn), result.Name))
-	}
-
-	// Endpoints
-	hasEndpoints := result.Endpoints.API != "" || result.Endpoints.ArgoCD != "" || hostname != ""
-	if hasEndpoints {
-		sb.WriteString(tui.SectionHeader("Access") + "\n")
-		if result.Endpoints.API != "" {
-			sb.WriteString(tui.KeyValue("API Server", tui.CodeStyle.Render(result.Endpoints.API)) + "\n")
-		} else if hostname != "" {
-			sb.WriteString(tui.KeyValue("API Server", tui.CodeStyle.Render("https://"+hostname)) + "\n")
-		}
-		if result.Endpoints.ArgoCD != "" {
-			sb.WriteString(tui.KeyValue("ArgoCD", tui.CodeStyle.Render(result.Endpoints.ArgoCD)) + "\n")
-		}
-	}
-
-	// Health
-	if result.Health.ComponentsTotal > 0 {
-		sb.WriteString(tui.SectionHeader("Health") + "\n")
-		compStr := fmt.Sprintf("%d/%d ready", result.Health.ComponentsReady, result.Health.ComponentsTotal)
-		if result.Health.ComponentsReady == result.Health.ComponentsTotal {
-			compStr = tui.SuccessStyle.Render(compStr)
-		} else {
-			compStr = tui.WarningStyle.Render(compStr)
-		}
-		sb.WriteString(tui.KeyValue("Components", compStr) + "\n")
-		if result.Health.SubAppsTotal > 0 {
-			appStr := fmt.Sprintf("%d/%d healthy", result.Health.SubAppsHealthy, result.Health.SubAppsTotal)
-			if result.Health.SubAppsHealthy == result.Health.SubAppsTotal {
-				appStr = tui.SuccessStyle.Render(appStr)
-			} else {
-				appStr = tui.WarningStyle.Render(appStr)
-			}
-			sb.WriteString(tui.KeyValue("Apps", appStr) + "\n")
-		}
-	}
-
-	// Unhealthy items
-	if len(result.Health.Unhealthy) > 0 {
-		sb.WriteString(fmt.Sprintf("\n  %s Still converging:\n", tui.WarningStyle.Render(tui.IconWarn)))
-		for _, u := range result.Health.Unhealthy {
-			sb.WriteString(fmt.Sprintf("    %s %s\n", tui.MutedStyle.Render(tui.IconBullet), u))
-		}
-	}
-
-	// Next steps
-	sb.WriteString(tui.SectionHeader("Next Steps") + "\n")
-	sb.WriteString(tui.KeyValue("Connect", tui.CodeStyle.Render(fmt.Sprintf("hctl vcluster connect %s", result.Name))) + "\n")
-	sb.WriteString(tui.KeyValue("Status", tui.CodeStyle.Render(fmt.Sprintf("hctl vcluster status %s", result.Name))) + "\n")
-	sb.WriteString(tui.KeyValue("Diagnose", tui.CodeStyle.Render(fmt.Sprintf("hctl vcluster status %s --diagnose", result.Name))) + "\n")
-
-	return sb.String()
 }

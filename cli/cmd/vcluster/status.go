@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -24,9 +25,9 @@ func newStatusCmd() *cobra.Command {
 			name := args[0]
 			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -37,7 +38,7 @@ func newStatusCmd() *cobra.Command {
 				sc, err := platform.GetStatusContract(ctx, client, cfg.Platform.PlatformNamespace, name)
 				if err == nil && sc.Phase != "" {
 					fmt.Println()
-					fmt.Println(platform.FormatStatusContract(name, sc))
+					fmt.Println(FormatStatusContract(name, sc))
 					return nil
 				}
 				// Fall through to diagnostic chain if no status contract
@@ -46,7 +47,7 @@ func newStatusCmd() *cobra.Command {
 			// Full diagnostic chain
 			result, err := platform.DiagnoseVCluster(ctx, client, cfg.Platform.PlatformNamespace, name)
 			if err != nil {
-				return err
+				return hcerrors.NewPlatformError("diagnosing vcluster %s: %w", name, err)
 			}
 
 			fmt.Printf("\n  %s\n", tui.TitleStyle.Render(name))
@@ -54,7 +55,7 @@ func newStatusCmd() *cobra.Command {
 				isLast := i == len(result.Steps)-1
 				fmt.Println(tui.TreeNode(
 					fmt.Sprintf("%-15s", step.Name),
-					step.Status.String(),
+					tui.DiagIcon(int(step.Status)),
 					step.Message,
 					isLast,
 				))

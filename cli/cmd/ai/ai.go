@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -32,6 +33,13 @@ func NewCmd() *cobra.Command {
 	return cmd
 }
 
+// newReindexCmd returns a command that triggers the git-indexer CronJob.
+//
+// NOTE: Directly accesses client.Clientset for CronJob/Job CRUD operations
+// not covered by the KubeClient interface. These are AI-platform-specific
+// batch operations; the KubeClient interface is scoped to vCluster lifecycle
+// and ArgoCD management. Adding CronJob/Job methods to the interface would
+// bloat it for a single consumer.
 func newReindexCmd() *cobra.Command {
 	var wait bool
 	var timeout time.Duration
@@ -41,19 +49,21 @@ func newReindexCmd() *cobra.Command {
 		Short: "Trigger the git-indexer job",
 		Long:  "Creates a one-off Job from the git-indexer CronJob to re-index the repository into the RAG vector store.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := config.Get()
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), timeout+10*time.Second)
 			defer cancel()
 
+			// NOTE: Direct Clientset access is intentional here. These CronJob/Job
+			// operations are AI-specific and don't belong in the platform.KubeClient
+			// interface, which is scoped to vCluster lifecycle and ArgoCD operations.
 			// Get the CronJob to extract the job template
 			cronJob, err := client.Clientset.BatchV1().CronJobs(aiNamespace).Get(ctx, cronJobName, metav1.GetOptions{})
 			if err != nil {
-				return fmt.Errorf("getting cronjob %s/%s: %w", aiNamespace, cronJobName, err)
+				return hcerrors.NewPlatformError("getting cronjob %s/%s: %w", aiNamespace, cronJobName, err)
 			}
 
 			// Build a Job from the CronJob template
@@ -76,7 +86,7 @@ func newReindexCmd() *cobra.Command {
 
 			created, err := client.Clientset.BatchV1().Jobs(aiNamespace).Create(ctx, job, metav1.CreateOptions{})
 			if err != nil {
-				return fmt.Errorf("creating job: %w", err)
+				return hcerrors.NewPlatformError("creating job: %w", err)
 			}
 
 			fmt.Printf("  %s Created job %s/%s\n", tui.SuccessStyle.Render(tui.IconCheck), aiNamespace, created.Name)
@@ -96,11 +106,11 @@ func newReindexCmd() *cobra.Command {
 			for {
 				select {
 				case <-ctx.Done():
-					return fmt.Errorf("timed out waiting for job to complete")
+					return hcerrors.NewTimeoutError("timed out waiting for job to complete")
 				case <-ticker.C:
 					j, err := client.Clientset.BatchV1().Jobs(aiNamespace).Get(ctx, created.Name, metav1.GetOptions{})
 					if err != nil {
-						return fmt.Errorf("checking job status: %w", err)
+						return hcerrors.NewPlatformError("checking job status: %w", err)
 					}
 
 					for _, cond := range j.Status.Conditions {
@@ -109,12 +119,12 @@ func newReindexCmd() *cobra.Command {
 							return nil
 						}
 						if cond.Type == batchv1.JobFailed && cond.Status == "True" {
-							return fmt.Errorf("job failed: %s", cond.Message)
+							return hcerrors.NewPlatformError("job failed: %s", cond.Message)
 						}
 					}
 
 					if time.Now().After(deadline) {
-						return fmt.Errorf("timed out after %s — job still running", timeout)
+						return hcerrors.NewTimeoutError("timed out after %s \u2014 job still running", timeout)
 					}
 				}
 			}

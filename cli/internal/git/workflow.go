@@ -2,8 +2,6 @@ package git
 
 import (
 	"fmt"
-
-	"github.com/jamesatintegratnio/hctl/internal/tui"
 )
 
 // GitResult describes what happened after HandleGitWorkflow ran.
@@ -14,6 +12,8 @@ const (
 	GitCommitted GitResult = iota
 	// GitCommittedLocal means changes were committed locally only (generate mode).
 	GitCommittedLocal
+	// GitPushFailed means changes were committed but push failed.
+	GitPushFailed
 	// GitStaged means files were staged but user declined to commit.
 	GitStaged
 	// GitSkipped means git was skipped entirely (generate mode or no repo detected).
@@ -21,6 +21,17 @@ const (
 	// GitNoRepo means no git repository was detected.
 	GitNoRepo
 )
+
+// UI abstracts the user-interaction methods that HandleGitWorkflow needs,
+// keeping the git package free of TUI dependencies.
+type UI interface {
+	// Confirm asks a yes/no question and returns the answer.
+	Confirm(prompt string) (bool, error)
+	// PrintSuccess prints a success-styled message.
+	PrintSuccess(msg string)
+	// PrintDim prints a dim/muted message.
+	PrintDim(msg string)
+}
 
 // WorkflowOpts configures HandleGitWorkflow behavior.
 type WorkflowOpts struct {
@@ -40,6 +51,9 @@ type WorkflowOpts struct {
 	Interactive bool
 	// ConfirmPrompt overrides the default "Commit and push?" prompt.
 	ConfirmPrompt string
+	// UI provides user interaction callbacks. Required for "auto", "generate",
+	// and "prompt" modes; may be nil for "default"/skip.
+	UI UI
 }
 
 // HandleGitWorkflow executes the standard git commit/push workflow based on
@@ -62,10 +76,18 @@ func HandleGitWorkflow(opts WorkflowOpts) (GitResult, error) {
 
 	switch opts.GitMode {
 	case "auto":
-		if err := repo.CommitAndPush(opts.Paths, msg); err != nil {
-			return GitCommitted, fmt.Errorf("git commit/push: %w", err)
+		if err := repo.Add(opts.Paths...); err != nil {
+			return GitSkipped, fmt.Errorf("staging files: %w", err)
 		}
-		fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
+		if err := repo.Commit(msg); err != nil {
+			return GitStaged, fmt.Errorf("committing: %w", err)
+		}
+		if err := repo.Push(""); err != nil {
+			return GitPushFailed, fmt.Errorf("push failed (commit succeeded): %w", err)
+		}
+		if opts.UI != nil {
+			opts.UI.PrintSuccess("Committed and pushed")
+		}
 		return GitCommitted, nil
 
 	case "generate":
@@ -75,74 +97,50 @@ func HandleGitWorkflow(opts WorkflowOpts) (GitResult, error) {
 		if err := repo.Commit(msg); err != nil {
 			return GitStaged, fmt.Errorf("committing: %w", err)
 		}
-		fmt.Printf("%s Committed (push manually)\n", tui.SuccessStyle.Render(tui.IconCheck))
+		if opts.UI != nil {
+			opts.UI.PrintSuccess("Committed (push manually)")
+		}
 		return GitCommittedLocal, nil
 
 	case "prompt":
 		if !opts.Interactive {
 			return GitSkipped, nil
 		}
-		confirmed, _ := tui.Confirm(prompt)
+		if opts.UI == nil {
+			return GitSkipped, nil
+		}
+		confirmed, confirmErr := opts.UI.Confirm(prompt)
+		if confirmErr != nil {
+			return GitSkipped, fmt.Errorf("confirming git operation: %w", confirmErr)
+		}
 		if !confirmed {
 			// Best-effort stage so files aren't lost
-			_ = repo.Add(opts.Paths...)
-			fmt.Println(tui.DimStyle.Render("  Skipped git commit. Run manually: git add && git commit && git push"))
+			if err := repo.Add(opts.Paths...); err != nil {
+				return GitSkipped, fmt.Errorf("staging git changes: %w", err)
+			}
+			opts.UI.PrintDim("  Skipped git commit. Run manually: git add && git commit && git push")
 			return GitStaged, nil
 		}
-		if err := repo.CommitAndPush(opts.Paths, msg); err != nil {
-			return GitCommitted, fmt.Errorf("git commit/push: %w", err)
+		if err := repo.Add(opts.Paths...); err != nil {
+			return GitSkipped, fmt.Errorf("staging files: %w", err)
 		}
-		fmt.Printf("%s Committed and pushed\n", tui.SuccessStyle.Render(tui.IconCheck))
+		if err := repo.Commit(msg); err != nil {
+			return GitStaged, fmt.Errorf("committing: %w", err)
+		}
+		if err := repo.Push(""); err != nil {
+			return GitPushFailed, fmt.Errorf("push failed (commit succeeded): %w", err)
+		}
+		if opts.UI != nil {
+			opts.UI.PrintSuccess("Committed and pushed")
+		}
 		return GitCommitted, nil
 
 	default:
-		fmt.Println(tui.DimStyle.Render("  Generated only. Commit and push when ready."))
+		if opts.UI != nil {
+			opts.UI.PrintDim("  Generated only. Commit and push when ready.")
+		}
 		return GitSkipped, nil
 	}
 }
 
-// HandleGitWorkflowStep returns a tui.Step for use inside tui.RunSteps.
-// If gitMode is "prompt", the prompt is shown *before* calling RunSteps,
-// so this should only be used with "auto" or "generate" modes.
-func HandleGitWorkflowStep(opts WorkflowOpts) tui.Step {
-	var stepTitle string
-	switch opts.GitMode {
-	case "auto":
-		stepTitle = "Committing and pushing"
-	case "generate":
-		stepTitle = "Committing changes"
-	default:
-		stepTitle = "Staging files"
-	}
 
-	return tui.Step{
-		Title: stepTitle,
-		Run: func() (string, error) {
-			repo, err := DetectRepo(opts.RepoPath)
-			if err != nil {
-				return "no git repo detected", nil
-			}
-
-			msg := FormatCommitMessage(opts.Action, opts.Resource, opts.Details)
-
-			switch opts.GitMode {
-			case "auto":
-				if err := repo.CommitAndPush(opts.Paths, msg); err != nil {
-					return "", err
-				}
-				return msg, nil
-			case "generate":
-				if err := repo.Add(opts.Paths...); err != nil {
-					return "", err
-				}
-				if err := repo.Commit(msg); err != nil {
-					return "", err
-				}
-				return msg + " (push manually)", nil
-			default:
-				_ = repo.Add(opts.Paths...)
-				return "staged — commit manually", nil
-			}
-		},
-	}
-}

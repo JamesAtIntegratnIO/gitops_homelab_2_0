@@ -2,161 +2,95 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 const (
-	defaultGatewayName     = "nginx-gateway"
-	defaultGatewayNS       = "nginx-gateway"
 	defaultHTTPSSection    = "https"
 	defaultHTTPSection     = "http"
 )
 
-// GatewayRouteConfig holds the resolved configuration from the CR.
-type GatewayRouteConfig struct {
-	Name             string
-	Namespace        string
-	Hostname         string
-	Path             string
-	BackendName      string
-	BackendPort      int
-	GatewayName      string
-	GatewayNS        string
-	HTTPRedirect     bool
-	OwnerPromise     string
-	SectionName      string
-	HTTPSectionName  string
-}
-
 func main() {
-	sdk := kratix.New()
-
-	log.Printf("=== Gateway Route Promise Pipeline ===")
-	log.Printf("Action: %s", sdk.WorkflowAction())
-
-	resource, err := sdk.ReadResourceInput()
-	if err != nil {
-		log.Fatalf("ERROR: Failed to read resource input: %v", err)
-	}
-
-	log.Printf("Processing resource: %s/%s",
-		resource.GetNamespace(), resource.GetName())
-
-	config, err := buildConfig(resource)
-	if err != nil {
-		log.Fatalf("ERROR: Failed to build config: %v", err)
-	}
-
-	if sdk.WorkflowAction() == "configure" {
-		if err := handleConfigure(sdk, config); err != nil {
-			log.Fatalf("ERROR: Configure failed: %v", err)
-		}
-	} else if sdk.WorkflowAction() == "delete" {
-		if err := handleDelete(sdk, config); err != nil {
-			log.Fatalf("ERROR: Delete failed: %v", err)
-		}
-	} else {
-		log.Fatalf("ERROR: Unknown workflow action: %s", sdk.WorkflowAction())
-	}
-
-	log.Println("=== Pipeline completed successfully ===")
+	ku.RunPromiseWithConfig("Gateway Route", buildConfig, handleConfigure, handleDelete)
 }
 
-func buildConfig(resource kratix.Resource) (*GatewayRouteConfig, error) {
+func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*GatewayRouteConfig, error) {
 	config := &GatewayRouteConfig{
-		GatewayName:     defaultGatewayName,
-		GatewayNS:       defaultGatewayNS,
-		SectionName:     defaultHTTPSSection,
-		HTTPSectionName: defaultHTTPSection,
+		PromiseName: sdk.PromiseName(),
 	}
 
 	var err error
-	config.Name, err = u.GetStringValue(resource, "spec.name")
+	config.Name, err = ku.GetStringValue(resource, "spec.name")
 	if err != nil {
 		return nil, fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	config.Namespace, err = u.GetStringValue(resource, "spec.namespace")
+	config.Namespace, err = ku.GetStringValue(resource, "spec.namespace")
 	if err != nil {
 		return nil, fmt.Errorf("spec.namespace is required: %w", err)
 	}
 
-	config.Hostname, err = u.GetStringValue(resource, "spec.hostname")
+	config.Hostname, err = ku.GetStringValue(resource, "spec.hostname")
 	if err != nil {
 		return nil, fmt.Errorf("spec.hostname is required: %w", err)
 	}
 
-	config.Path, _ = u.GetStringValueWithDefault(resource, "spec.path", "/")
+	config.Path = ku.GetStringValueWithDefault(resource, "spec.path", "/")
 
-	config.BackendName, err = u.GetStringValue(resource, "spec.backendRef.name")
+	config.BackendName, err = ku.GetStringValue(resource, "spec.backendRef.name")
 	if err != nil {
 		return nil, fmt.Errorf("spec.backendRef.name is required: %w", err)
 	}
 
-	config.BackendPort, err = u.GetIntValue(resource, "spec.backendRef.port")
+	config.BackendPort, err = ku.GetIntValue(resource, "spec.backendRef.port")
 	if err != nil {
 		return nil, fmt.Errorf("spec.backendRef.port is required: %w", err)
 	}
 
-	if v, err := u.GetStringValue(resource, "spec.gateway.name"); err == nil && v != "" {
-		config.GatewayName = v
-	}
-	if v, err := u.GetStringValue(resource, "spec.gateway.namespace"); err == nil && v != "" {
-		config.GatewayNS = v
-	}
+	config.GatewayName = ku.GetStringValueWithDefault(resource, "spec.gateway.name", ku.DefaultGatewayName)
+	config.GatewayNS = ku.GetStringValueWithDefault(resource, "spec.gateway.namespace", ku.DefaultGatewayNamespace)
 
-	config.HTTPRedirect, _ = u.GetBoolValueWithDefault(resource, "spec.httpRedirect", true)
+	config.HTTPRedirect = ku.GetBoolValueWithDefault(resource, "spec.httpRedirect", true)
 
-	config.OwnerPromise, _ = u.GetStringValueWithDefault(resource, "spec.ownerPromise", "gateway-route")
+	config.OwnerPromise = ku.GetStringValueWithDefault(resource, "spec.ownerPromise", "gateway-route")
 
-	if v, err := u.GetStringValue(resource, "spec.sectionName"); err == nil && v != "" {
-		config.SectionName = v
-	}
-	if v, err := u.GetStringValue(resource, "spec.httpSectionName"); err == nil && v != "" {
-		config.HTTPSectionName = v
-	}
+	config.HTTPSSectionName = ku.GetStringValueWithDefault(resource, "spec.sectionName", defaultHTTPSSection)
+	config.HTTPSectionName = ku.GetStringValueWithDefault(resource, "spec.httpSectionName", defaultHTTPSection)
 
 	return config, nil
 }
 
 func handleConfigure(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
-	labels := map[string]string{
-		"app.kubernetes.io/managed-by": "kratix",
-		"kratix.io/promise-name":       config.OwnerPromise,
-		"app.kubernetes.io/part-of":    config.Name,
-	}
+	labels := ku.MergeStringMap(ku.BaseLabels(config.OwnerPromise, config.Name), map[string]string{
+		"app.kubernetes.io/part-of": config.Name,
+	})
 
 	// 1. HTTPS HTTPRoute (primary route)
 	httpsRoute := buildHTTPSRoute(config, labels)
-	if err := u.WriteYAML(sdk, "resources/httproute.yaml", httpsRoute); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/httproute.yaml", httpsRoute); err != nil {
 		return fmt.Errorf("write HTTPRoute: %w", err)
 	}
-	log.Printf("✓ Rendered HTTPS HTTPRoute: %s", config.Name)
 
 	// 2. HTTP→HTTPS redirect route
 	if config.HTTPRedirect {
 		redirectRoute := buildHTTPRedirect(config, labels)
-		if err := u.WriteYAML(sdk, "resources/http-redirect.yaml", redirectRoute); err != nil {
+		if err := ku.WriteYAML(sdk, "resources/http-redirect.yaml", redirectRoute); err != nil {
 			return fmt.Errorf("write HTTP redirect: %w", err)
 		}
-		log.Printf("✓ Rendered HTTP→HTTPS redirect route: %s-http-redirect", config.Name)
 	}
 
-	// Write status
-	status := kratix.NewStatus()
-	status.Set("phase", "Configured")
-	status.Set("hostname", config.Hostname)
-	status.Set("url", fmt.Sprintf("https://%s%s", config.Hostname, config.Path))
+	fields := map[string]interface{}{
+		"hostname": config.Hostname,
+		"url":      fmt.Sprintf("https://%s%s", config.Hostname, config.Path),
+	}
 	if config.HTTPRedirect {
-		status.Set("httpRedirect", "enabled")
+		fields["httpRedirect"] = "enabled"
 	}
-	status.Set("message", fmt.Sprintf("Gateway route configured for %s", config.Hostname))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseConfigured,
+		fmt.Sprintf("Gateway route configured for %s", config.Hostname), fields); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 
@@ -165,34 +99,29 @@ func handleConfigure(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 
 func handleDelete(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 	// HTTPS route
-	httpsDelete := u.DeleteResource(
-		"gateway.networking.k8s.io/v1",
-		"HTTPRoute",
-		config.Name,
-		config.Namespace,
-	)
-	if err := u.WriteYAML(sdk, "resources/delete-httproute-"+config.Name+".yaml", httpsDelete); err != nil {
+	httpsDelete := ku.DeleteFromResource(ku.Resource{
+		APIVersion: "gateway.networking.k8s.io/v1",
+		Kind:       "HTTPRoute",
+		Metadata:   ku.ObjectMeta{Name: config.Name, Namespace: config.Namespace},
+	})
+	if err := ku.WriteYAML(sdk, "resources/delete-httproute-"+config.Name+".yaml", httpsDelete); err != nil {
 		return fmt.Errorf("write delete HTTPRoute: %w", err)
 	}
 
 	// HTTP redirect route
 	if config.HTTPRedirect {
-		redirectDelete := u.DeleteResource(
-			"gateway.networking.k8s.io/v1",
-			"HTTPRoute",
-			fmt.Sprintf("%s-http-redirect", config.Name),
-			config.Namespace,
-		)
-		if err := u.WriteYAML(sdk, "resources/delete-httproute-"+config.Name+"-redirect.yaml", redirectDelete); err != nil {
+		redirectDelete := ku.DeleteFromResource(ku.Resource{
+			APIVersion: "gateway.networking.k8s.io/v1",
+			Kind:       "HTTPRoute",
+			Metadata:   ku.ObjectMeta{Name: fmt.Sprintf("%s-http-redirect", config.Name), Namespace: config.Namespace},
+		})
+		if err := ku.WriteYAML(sdk, "resources/delete-httproute-"+config.Name+"-redirect.yaml", redirectDelete); err != nil {
 			return fmt.Errorf("write delete redirect HTTPRoute: %w", err)
 		}
 	}
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", fmt.Sprintf("Gateway routes for %s scheduled for deletion", config.Hostname))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseDeleting,
+		fmt.Sprintf("Gateway routes for %s scheduled for deletion", config.Hostname), nil); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 
@@ -201,11 +130,11 @@ func handleDelete(sdk *kratix.KratixSDK, config *GatewayRouteConfig) error {
 
 // buildHTTPSRoute creates the primary HTTPS HTTPRoute targeting the gateway's
 // HTTPS listener with backend service routing.
-func buildHTTPSRoute(config *GatewayRouteConfig, labels map[string]string) u.Resource {
-	return u.Resource{
+func buildHTTPSRoute(config *GatewayRouteConfig, labels map[string]string) ku.Resource {
+	return ku.Resource{
 		APIVersion: "gateway.networking.k8s.io/v1",
 		Kind:       "HTTPRoute",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      config.Name,
 			Namespace: config.Namespace,
 			Labels:    labels,
@@ -219,7 +148,7 @@ func buildHTTPSRoute(config *GatewayRouteConfig, labels map[string]string) u.Res
 				{
 					"name":        config.GatewayName,
 					"namespace":   config.GatewayNS,
-					"sectionName": config.SectionName,
+					"sectionName": config.HTTPSSectionName,
 				},
 			},
 			"rules": []map[string]interface{}{
@@ -247,11 +176,11 @@ func buildHTTPSRoute(config *GatewayRouteConfig, labels map[string]string) u.Res
 // buildHTTPRedirect creates an HTTPRoute that redirects HTTP→HTTPS (301).
 // It targets the gateway's HTTP listener so plain HTTP requests are automatically
 // redirected to the HTTPS equivalent.
-func buildHTTPRedirect(config *GatewayRouteConfig, labels map[string]string) u.Resource {
-	return u.Resource{
+func buildHTTPRedirect(config *GatewayRouteConfig, labels map[string]string) ku.Resource {
+	return ku.Resource{
 		APIVersion: "gateway.networking.k8s.io/v1",
 		Kind:       "HTTPRoute",
-		Metadata: u.ObjectMeta{
+		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-http-redirect", config.Name),
 			Namespace: config.Namespace,
 			Labels:    labels,

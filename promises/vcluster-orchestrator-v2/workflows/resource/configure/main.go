@@ -1,222 +1,201 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
-	"net"
 	"strings"
-	"time"
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-// VClusterConfig holds all configuration for template rendering
-type VClusterConfig struct {
-	// Basic identity
-	Name            string
-	Namespace       string
-	ProjectName     string
-	TargetNamespace string
-
-	// Vcluster configuration
-	K8sVersion          string
-	Preset              string
-	Replicas            int
-	CPURequest          string
-	MemoryRequest       string
-	CPULimit            string
-	MemoryLimit         string
-	PersistenceEnabled  bool
-	PersistenceSize     string
-	PersistenceClass    string
-	CorednsReplicas     int
-	ClusterDomain       string
-	IsolationMode       string
-	BackingStore        map[string]interface{}
-	ExportKubeConfig    map[string]interface{}
-	HelmOverrides       map[string]interface{}
-	ValuesObject        map[string]interface{}
-	ProxyExtraSANs      []string
-
-	// Exposure configuration
-	Hostname         string
-	VIP              string
-	Subnet           string
-	APIPort          int
-	ExternalServerURL string
-
-	// Integration configuration
-	CertManagerIssuerLabels        map[string]string
-	ExternalSecretsStoreLabels     map[string]string
-	ArgoCDEnvironment              string
-	ArgoCDClusterLabels            map[string]string
-	ArgoCDClusterAnnotations       map[string]string
-	WorkloadRepoURL                string
-	WorkloadRepoBasePath           string
-	WorkloadRepoPath               string
-	WorkloadRepoRevision           string
-
-	// ArgoCD Application configuration
-	ArgoCDRepoURL        string
-	ArgoCDChart          string
-	ArgoCDTargetRevision string
-	ArgoCDDestServer     string
-	ArgoCDSyncPolicy     map[string]interface{}
-
-	// Network policy configuration
-	EnableNFS   bool
-	ExtraEgress []ExtraEgressRule
-
-	// Derived values
-	OnePasswordItem     string
-	KubeconfigSyncJobName string
-	BaseDomain          string
-	BaseDomainSanitized string
-	
-	WorkflowContext WorkflowContext
-}
-
-type WorkflowContext struct {
-	WorkflowAction string
-	WorkflowType   string
-	PromiseName    string
-	PipelineName   string
-}
-
 func main() {
-	sdk := kratix.New()
-
-	log.Printf("=== VCluster Orchestrator V2 Pipeline ===")
-	log.Printf("Action: %s", sdk.WorkflowAction())
-	log.Printf("Type: %s", sdk.WorkflowType())
-	log.Printf("Promise: %s", sdk.PromiseName())
-
-	resource, err := sdk.ReadResourceInput()
-	if err != nil {
-		log.Fatalf("ERROR: Failed to read resource input: %v", err)
-	}
-
-	log.Printf("Processing resource: %s in namespace: %s",
-		resource.GetName(), resource.GetNamespace())
-
-	config, err := buildConfig(sdk, resource)
-	if err != nil {
-		log.Fatalf("ERROR: Failed to build config: %v", err)
-	}
-
-	if sdk.WorkflowAction() == "configure" {
-		if err := handleConfigure(sdk, config); err != nil {
-			log.Fatalf("ERROR: Configure failed: %v", err)
-		}
-	} else if sdk.WorkflowAction() == "delete" {
-		if err := handleDelete(sdk, config); err != nil {
-			log.Fatalf("ERROR: Delete failed: %v", err)
-		}
-	} else {
-		log.Fatalf("ERROR: Unknown workflow action: %s", sdk.WorkflowAction())
-	}
-
-	log.Println("=== Pipeline completed successfully ===")
+	ku.RunPromiseWithConfig("VCluster Orchestrator V2", buildConfig, handleConfigure, handleDelete)
 }
 
 func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConfig, error) {
 	config := &VClusterConfig{
-		Namespace: resource.GetNamespace(),
-		WorkflowContext: WorkflowContext{
-			WorkflowAction: sdk.WorkflowAction(),
-			WorkflowType:   sdk.WorkflowType(),
-			PromiseName:    sdk.PromiseName(),
-			PipelineName:   sdk.PipelineName(),
-		},
+		Namespace:   resource.GetNamespace(),
+		KubeClient:  InClusterClientFactory{},
+		PromiseName: sdk.PromiseName(),
 	}
 
-	// Extract basic fields
-	var err error
-	config.Name, err = u.GetStringValue(resource, "spec.name")
+	if err := extractCoreConfig(config, resource); err != nil {
+		return nil, err
+	}
+	if err := configureExposure(config, resource); err != nil {
+		return nil, err
+	}
+	if err := configureIntegrations(config, resource); err != nil {
+		return nil, err
+	}
+	if err := configureArgoCD(config, resource); err != nil {
+		return nil, err
+	}
+
+	if err := configureNetworkPolicies(config, resource); err != nil {
+		return nil, err
+	}
+
+	// Set derived values
+	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
+	
+	// Generate unique job name with reconcile token if present
+	reconcileAt, err := ku.GetOptionalStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
 	if err != nil {
-		return nil, fmt.Errorf("spec.name not found: %w", err)
+		return nil, fmt.Errorf("metadata.annotations.reconcile-at: %w", err)
+	}
+	if reconcileAt != "" {
+		token := strings.Map(func(r rune) rune {
+			if r >= '0' && r <= '9' {
+				return r
+			}
+			return -1
+		}, reconcileAt)
+		if token != "" {
+			config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync-%s", config.Name, token)
+		}
+	}
+	if config.KubeconfigSyncJobName == "" {
+		config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync", config.Name)
 	}
 
-	config.TargetNamespace, _ = u.GetStringValue(resource, "spec.targetNamespace")
+	valuesObj, err := buildValuesObject(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build values object: %w", err)
+	}
+	config.ValuesObject = valuesObj
+
+	return config, nil
+}
+
+// extractCoreConfig extracts name, namespace, project, vcluster spec fields from the resource
+// and applies preset defaults.
+func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.Name, err = ku.GetStringValue(resource, "spec.name")
+	if err != nil {
+		return fmt.Errorf("spec.name is required: %w", err)
+	}
+
+	config.TargetNamespace, err = ku.GetOptionalStringValue(resource, "spec.targetNamespace")
+	if err != nil {
+		return fmt.Errorf("spec.targetNamespace: %w", err)
+	}
 	if config.TargetNamespace == "" {
 		config.TargetNamespace = config.Namespace
 	}
 
-	config.ProjectName, _ = u.GetStringValue(resource, "spec.projectName")
+	config.ProjectName, err = ku.GetOptionalStringValue(resource, "spec.projectName")
+	if err != nil {
+		return fmt.Errorf("spec.projectName: %w", err)
+	}
 	if config.ProjectName == "" {
 		config.ProjectName = "vcluster-" + config.Name
 	}
 
 	// Extract vcluster spec
-	config.K8sVersion, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
-	config.Preset, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
-	config.IsolationMode, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
-	config.ClusterDomain, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
-	config.PersistenceClass, _ = u.GetStringValue(resource, "spec.vcluster.persistence.storageClass")
+	config.K8sVersion = ku.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
+	config.Preset = ku.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
+	config.ClusterDomain = ku.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
+	config.PersistenceClass, err = ku.GetOptionalStringValue(resource, "spec.vcluster.persistence.storageClass")
+	if err != nil {
+		return fmt.Errorf("spec.vcluster.persistence.storageClass: %w", err)
+	}
 
 	// Apply preset defaults
-	applyPresetDefaults(config, resource)
+	if err := applyPresetDefaults(config, resource); err != nil {
+		return err
+	}
 
 	// Extract backing store and helm overrides
-	if val, err := resource.GetValue("spec.vcluster.backingStore"); err == nil && val != nil {
-		if m, ok := val.(map[string]interface{}); ok {
-			config.BackingStore = m
-		}
+	config.BackingStore, err = ku.ExtractMapFromResource(resource, "spec.vcluster.backingStore")
+	if err != nil {
+		return fmt.Errorf("spec.vcluster.backingStore: %w", err)
+	}
+	// Validate and cache etcd state for use by post-validation callers.
+	etcdOn, err := etcdEnabledE(config)
+	if err != nil {
+		return fmt.Errorf("spec.vcluster.backingStore: %w", err)
+	}
+	config.EtcdEnabled = etcdOn
+
+	config.ExportKubeConfig, err = ku.ExtractMapFromResource(resource, "spec.vcluster.exportKubeConfig")
+	if err != nil {
+		return fmt.Errorf("spec.vcluster.exportKubeConfig: %w", err)
 	}
 
-	if val, err := resource.GetValue("spec.vcluster.exportKubeConfig"); err == nil && val != nil {
-		if m, ok := val.(map[string]interface{}); ok {
-			config.ExportKubeConfig = m
-		}
+	config.HelmOverrides, err = ku.ExtractMapFromResource(resource, "spec.vcluster.helmOverrides")
+	if err != nil {
+		return fmt.Errorf("spec.vcluster.helmOverrides: %w", err)
 	}
 
-	if val, err := resource.GetValue("spec.vcluster.helmOverrides"); err == nil && val != nil {
-		if m, ok := val.(map[string]interface{}); ok {
-			config.HelmOverrides = m
-		}
+	return nil
+}
+
+// configureExposure extracts and calculates exposure settings: hostname, subnet,
+// VIP, apiPort, external server URL, exportKubeConfig merge, and proxy extraSANs.
+func configureExposure(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.Hostname, err = ku.GetOptionalStringValue(resource, "spec.exposure.hostname")
+	if err != nil {
+		return fmt.Errorf("spec.exposure.hostname: %w", err)
 	}
+	config.Subnet, err = ku.GetOptionalStringValue(resource, "spec.exposure.subnet")
+	if err != nil {
+		return fmt.Errorf("spec.exposure.subnet: %w", err)
+	}
+	config.VIP, err = ku.GetOptionalStringValue(resource, "spec.exposure.vip")
+	if err != nil {
+		return fmt.Errorf("spec.exposure.vip: %w", err)
+	}
+	config.APIPort = ku.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
 
-	// Extract exposure configuration
-	config.Hostname, _ = u.GetStringValue(resource, "spec.exposure.hostname")
-	config.Subnet, _ = u.GetStringValue(resource, "spec.exposure.subnet")
-	config.VIP, _ = u.GetStringValue(resource, "spec.exposure.vip")
-	config.APIPort, _ = u.GetIntValueWithDefault(resource, "spec.exposure.apiPort", 443)
+	if err := calculateVIP(config); err != nil {
+		return err
+	}
+	resolveHostname(config, resource)
+	resolveExposureDefaults(config)
+	return nil
+}
 
-	// Calculate VIP if needed (offset 200 aligns with MetalLB pool 10.0.4.200-253)
+// calculateVIP calculates a default VIP from the subnet CIDR if not explicitly
+// set, and validates the VIP is within the subnet.
+func calculateVIP(config *VClusterConfig) error {
 	if config.Subnet != "" && config.VIP == "" {
-		vip, err := defaultVIPFromCIDR(config.Subnet, 200)
+		vip, err := defaultVIPFromCIDR(config.Subnet, ku.DefaultMetalLBPoolOffset)
 		if err != nil {
-			return nil, fmt.Errorf("failed to calculate VIP: %w", err)
+			return fmt.Errorf("failed to calculate VIP: %w", err)
 		}
 		config.VIP = vip
 		log.Printf("Calculated default VIP: %s", vip)
 	}
-
-	// Validate VIP is in subnet
 	if config.VIP != "" && config.Subnet != "" {
-		if !ipInCIDR(config.VIP, config.Subnet) {
-			return nil, fmt.Errorf("VIP %s is not within subnet %s", config.VIP, config.Subnet)
+		inCIDR, err := ipInCIDR(config.VIP, config.Subnet)
+		if err != nil {
+			return fmt.Errorf("VIP/subnet validation: %w", err)
+		}
+		if !inCIDR {
+			return fmt.Errorf("VIP %s is not within subnet %s", config.VIP, config.Subnet)
 		}
 	}
+	return nil
+}
 
-	// Set hostname if not specified
-	config.BaseDomain, _ = u.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain")
-	if config.BaseDomain == "" || config.BaseDomain == "null" {
-		config.BaseDomain = "integratn.tech"
-	}
+// resolveHostname determines the hostname and baseDomain from the resource
+// annotations, falling back to sensible defaults.
+func resolveHostname(config *VClusterConfig, resource kratix.Resource) {
+	config.BaseDomain = ku.GetStringValueWithDefault(resource, "metadata.annotations.platform\\.integratn\\.tech/base-domain", ku.DefaultBaseDomain)
 	if config.Hostname == "" {
 		config.Hostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
 	}
 	config.BaseDomainSanitized = strings.ReplaceAll(config.BaseDomain, ".", "-")
+}
 
-	// Calculate external server URL
+// resolveExposureDefaults derives the ExternalServerURL, merges ExportKubeConfig
+// defaults, and populates ProxyExtraSANs from the resolved hostname and VIP.
+func resolveExposureDefaults(config *VClusterConfig) {
 	if config.Hostname != "" {
 		config.ExternalServerURL = fmt.Sprintf("https://%s:%d", config.Hostname, config.APIPort)
 	} else if config.VIP != "" {
@@ -228,31 +207,72 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		defaultExport["server"] = config.ExternalServerURL
 	}
 	if len(config.ExportKubeConfig) > 0 {
-		config.ExportKubeConfig = u.DeepMerge(defaultExport, config.ExportKubeConfig)
+		config.ExportKubeConfig = ku.DeepMerge(defaultExport, config.ExportKubeConfig)
 	} else if len(defaultExport) > 0 {
 		config.ExportKubeConfig = defaultExport
 	}
 
-	// Build proxy extraSANs
 	if config.Hostname != "" {
 		config.ProxyExtraSANs = append(config.ProxyExtraSANs, config.Hostname)
 	}
 	if config.VIP != "" {
 		config.ProxyExtraSANs = append(config.ProxyExtraSANs, config.VIP)
 	}
+}
 
-	// Extract integration configuration
-	config.CertManagerIssuerLabels = u.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
+// configureIntegrations sets up cert-manager, external-secrets, and ArgoCD integration
+// configuration including cluster labels, annotations, and workload repo settings.
+func configureIntegrations(config *VClusterConfig, resource kratix.Resource) error {
+	if err := configureCertManager(config, resource); err != nil {
+		return err
+	}
+	if err := configureExternalSecrets(config, resource); err != nil {
+		return err
+	}
+	if err := configureArgoCDEnvironment(config, resource); err != nil {
+		return err
+	}
+	if err := configureWorkloadRepo(config, resource); err != nil {
+		return err
+	}
+	configureClusterMetadata(config)
+	return nil
+}
+
+// configureCertManager extracts cert-manager issuer selector labels with a default.
+func configureCertManager(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.CertManagerIssuerLabels, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
+	if err != nil {
+		return fmt.Errorf("spec.integrations.certManager.clusterIssuerSelectorLabels: %w", err)
+	}
 	if len(config.CertManagerIssuerLabels) == 0 {
-		config.CertManagerIssuerLabels = map[string]string{"integratn.tech/cluster-issuer": "letsencrypt-prod"}
+		config.CertManagerIssuerLabels = map[string]string{ku.DefaultCertManagerIssuerLabel: ku.DefaultCertManagerIssuer}
 	}
+	return nil
+}
 
-	config.ExternalSecretsStoreLabels = u.ExtractStringMap(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
+// configureExternalSecrets extracts external-secrets store selector labels with a default.
+func configureExternalSecrets(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.ExternalSecretsStoreLabels, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
+	if err != nil {
+		return fmt.Errorf("spec.integrations.externalSecrets.clusterStoreSelectorLabels: %w", err)
+	}
 	if len(config.ExternalSecretsStoreLabels) == 0 {
-		config.ExternalSecretsStoreLabels = map[string]string{"integratn.tech/cluster-secret-store": "onepassword-store"}
+		config.ExternalSecretsStoreLabels = map[string]string{ku.DefaultExternalSecretsStoreLabel: ku.DefaultExternalSecretsStore}
 	}
+	return nil
+}
 
-	config.ArgoCDEnvironment, _ = u.GetStringValue(resource, "spec.integrations.argocd.environment")
+// configureArgoCDEnvironment resolves the ArgoCD environment label from the resource
+// or derives it from the vcluster preset.
+func configureArgoCDEnvironment(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.ArgoCDEnvironment, err = ku.GetOptionalStringValue(resource, "spec.integrations.argocd.environment")
+	if err != nil {
+		return fmt.Errorf("spec.integrations.argocd.environment: %w", err)
+	}
 	if config.ArgoCDEnvironment == "" {
 		if config.Preset == "prod" {
 			config.ArgoCDEnvironment = "production"
@@ -260,15 +280,35 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 			config.ArgoCDEnvironment = "development"
 		}
 	}
+	return nil
+}
 
-	config.ArgoCDClusterLabels = u.ExtractStringMap(resource, "spec.integrations.argocd.clusterLabels")
-	config.ArgoCDClusterAnnotations = u.ExtractStringMap(resource, "spec.integrations.argocd.clusterAnnotations")
+// configureWorkloadRepo extracts ArgoCD workload repository settings and user-provided
+// cluster labels/annotations from the resource.
+func configureWorkloadRepo(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.ArgoCDClusterLabels, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.argocd.clusterLabels")
+	if err != nil {
+		return fmt.Errorf("spec.integrations.argocd.clusterLabels: %w", err)
+	}
+	config.ArgoCDClusterAnnotations, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.argocd.clusterAnnotations")
+	if err != nil {
+		return fmt.Errorf("spec.integrations.argocd.clusterAnnotations: %w", err)
+	}
 
-	config.WorkloadRepoURL, _ = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", "https://github.com/jamesatintegratnio/gitops_homelab_2_0")
-	config.WorkloadRepoBasePath, _ = u.GetStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
-	config.WorkloadRepoPath, _ = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
-	config.WorkloadRepoRevision, _ = u.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
+	config.WorkloadRepoURL = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", ku.PlatformRepoURL)
+	config.WorkloadRepoBasePath, err = ku.GetOptionalStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
+	if err != nil {
+		return fmt.Errorf("spec.integrations.argocd.workloadRepo.basePath: %w", err)
+	}
+	config.WorkloadRepoPath = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
+	config.WorkloadRepoRevision = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
+	return nil
+}
 
+// configureClusterMetadata merges user-provided cluster labels/annotations with defaults
+// to produce the final ArgoCD cluster secret metadata.
+func configureClusterMetadata(config *VClusterConfig) {
 	defaultClusterLabels := map[string]string{
 		"argocd.argoproj.io/secret-type": "cluster",
 		"akuity.io/argo-cd-cluster-name":  config.Name,
@@ -284,7 +324,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		"environment":                     config.ArgoCDEnvironment,
 	}
 	defaultClusterAnnotations := map[string]string{
-		"addons_repo_url":                            "https://github.com/jamesatintegratnio/gitops_homelab_2_0.git",
+		"addons_repo_url":                            ku.PlatformRepoGitURL,
 		"addons_repo_revision":                       "main",
 		"addons_repo_basepath":                       "addons/",
 		"addons_repo_path":                           "charts/application-sets",
@@ -302,697 +342,107 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		"workload_repo_revision":                     config.WorkloadRepoRevision,
 	}
 
-	if len(config.ArgoCDClusterLabels) == 0 {
-		config.ArgoCDClusterLabels = map[string]string{}
-	}
-	for key, value := range defaultClusterLabels {
-		if _, exists := config.ArgoCDClusterLabels[key]; !exists {
-			config.ArgoCDClusterLabels[key] = value
-		}
-	}
+	config.ArgoCDClusterLabels = ku.MergeStringMap(defaultClusterLabels, config.ArgoCDClusterLabels)
+	config.ArgoCDClusterAnnotations = ku.MergeStringMap(defaultClusterAnnotations, config.ArgoCDClusterAnnotations)
+}
 
-	if len(config.ArgoCDClusterAnnotations) == 0 {
-		config.ArgoCDClusterAnnotations = map[string]string{}
-	}
-	for key, value := range defaultClusterAnnotations {
-		if _, exists := config.ArgoCDClusterAnnotations[key]; !exists {
-			config.ArgoCDClusterAnnotations[key] = value
-		}
-	}
-
-	// Extract ArgoCD application configuration
-	config.ArgoCDRepoURL, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
-	config.ArgoCDChart, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
-	config.ArgoCDTargetRevision, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
-	config.ArgoCDDestServer, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
+// configureArgoCD sets up ArgoCD application configuration including repo URL,
+// chart, target revision, destination server, and sync policy with defaults.
+func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
+	config.ArgoCDRepoURL = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
+	config.ArgoCDChart = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
+	config.ArgoCDTargetRevision = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
+	config.ArgoCDDestServer = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
 
 	// Extract sync policy
-	if val, err := resource.GetValue("spec.argocdApplication.syncPolicy"); err == nil && val != nil {
-		if m, ok := val.(map[string]interface{}); ok {
-			config.ArgoCDSyncPolicy = m
+	rawSP, err := ku.ExtractMapFromResource(resource, "spec.argocdApplication.syncPolicy")
+	if err != nil {
+		return fmt.Errorf("argocdApplication.syncPolicy: %w", err)
+	}
+	if rawSP != nil {
+		sp, parseErr := ku.ParseSyncPolicyE(rawSP)
+		if parseErr != nil {
+			return fmt.Errorf("argocdApplication.syncPolicy: %w", parseErr)
 		}
+		config.ArgoCDSyncPolicy = sp
 	}
 
-	defaultSyncPolicy := map[string]interface{}{
-		"automated": map[string]interface{}{
-			"selfHeal": true,
-			"prune":    true,
+	defaultSyncPolicy := &ku.SyncPolicy{
+		Automated: &ku.AutomatedSync{
+			SelfHeal: true,
+			Prune:    true,
 		},
-		"syncOptions": []string{"CreateNamespace=true"},
+		SyncOptions: []string{"CreateNamespace=true"},
 	}
 	if config.ArgoCDSyncPolicy == nil {
 		config.ArgoCDSyncPolicy = defaultSyncPolicy
 	} else {
-		config.ArgoCDSyncPolicy = u.DeepMerge(defaultSyncPolicy, config.ArgoCDSyncPolicy)
-	}
-
-	// Extract network policy configuration
-	if val, err := u.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
-		config.EnableNFS = val
-	}
-	config.ExtraEgress = extractExtraEgress(resource)
-
-	// Set derived values
-	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
-	
-	// Generate unique job name with reconcile token if present
-	reconcileAt, _ := u.GetStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
-	if reconcileAt != "" {
-		// Extract just numbers from reconcile-at
-		token := ""
-		for _, c := range reconcileAt {
-			if c >= '0' && c <= '9' {
-				token += string(c)
-			}
+		// Merge: user-provided values win over defaults
+		if config.ArgoCDSyncPolicy.Automated == nil {
+			config.ArgoCDSyncPolicy.Automated = defaultSyncPolicy.Automated
 		}
-		if token != "" {
-			config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync-%s", config.Name, token)
+		if len(config.ArgoCDSyncPolicy.SyncOptions) == 0 {
+			config.ArgoCDSyncPolicy.SyncOptions = defaultSyncPolicy.SyncOptions
 		}
 	}
-	if config.KubeconfigSyncJobName == "" {
-		config.KubeconfigSyncJobName = fmt.Sprintf("vcluster-%s-kubeconfig-sync", config.Name)
-	}
-
-	config.ValuesObject = buildValuesObject(config)
-
-	return config, nil
-}
-
-func buildValuesObject(config *VClusterConfig) map[string]interface{} {
-	cp := ControlPlane{
-		Distro: DistroConfig{
-			K8s: K8sDistro{
-				Enabled: true,
-				Version: config.K8sVersion,
-			},
-		},
-		ServiceMonitor: ServiceMonitor{
-			Enabled: true,
-			Labels: map[string]string{
-				"vcluster_name":      config.Name,
-				"vcluster_namespace": config.TargetNamespace,
-				"environment":        config.ArgoCDEnvironment,
-				"cluster_role":       "vcluster",
-			},
-		},
-		StatefulSet: StatefulSetConfig{
-			HighAvailability: HAConfig{Replicas: config.Replicas},
-			Scheduling: SchedulingConfig{
-				PodManagementPolicy: "Parallel",
-				PriorityClassName:   "system-cluster-critical",
-			},
-			ImagePullPolicy: "Always",
-			Image:           ImageConfig{Repository: "loft-sh/vcluster-oss"},
-			Persistence: PersistenceConfig{
-				VolumeClaim: VolumeClaimConfig{
-					Enabled: config.PersistenceEnabled,
-					Size:    config.PersistenceSize,
-				},
-			},
-			Resources: ResourcesConfig{
-				Requests: ResourceValues{CPU: config.CPURequest, Memory: config.MemoryRequest},
-				Limits:   ResourceValues{CPU: config.CPULimit, Memory: config.MemoryLimit},
-			},
-		},
-		CoreDNS: CoreDNSConfig{
-			Enabled: true,
-			Deployment: DeploymentConfig{Replicas: config.CorednsReplicas},
-			OverwriteConfig: fmt.Sprintf(`.:1053 {
-  errors
-  health
-  ready
-  kubernetes %s in-addr.arpa ip6.arpa {
-    pods insecure
-    fallthrough in-addr.arpa ip6.arpa
-    ttl 30
-  }
-  prometheus 0.0.0.0:9153
-  forward . /etc/resolv.conf
-  cache 30
-  loop
-  reload
-  loadbalance
-}`,
-				config.ClusterDomain,
-			),
-		},
-		Ingress: EnabledFlag{Enabled: false},
-		Advanced: AdvancedConfig{
-			PodDisruptionBudget: PDBConfig{Enabled: true, MinAvailable: 1},
-		},
-		Service: ServiceConfig{
-			Enabled: true,
-			Annotations: map[string]string{
-				"external-dns.alpha.kubernetes.io/hostname": config.Hostname,
-			},
-			Spec: ServiceSpecConfig{
-				Type: "LoadBalancer",
-				Ports: []ServicePort{
-					{
-						Name:       "https",
-						Port:       config.APIPort,
-						TargetPort: 8443,
-						Protocol:   "TCP",
-					},
-				},
-			},
-		},
-	}
-
-	if config.PersistenceClass != "" {
-		cp.StatefulSet.Persistence.VolumeClaim.StorageClass = config.PersistenceClass
-	}
-
-	if config.BackingStore != nil {
-		cp.BackingStore = config.BackingStore
-	}
-
-	if len(config.ProxyExtraSANs) > 0 {
-		cp.Proxy = &ProxyConfig{ExtraSANs: config.ProxyExtraSANs}
-	}
-
-	if config.VIP != "" {
-		cp.Service.Spec.LoadBalancerIP = config.VIP
-	}
-
-	if config.APIPort != 443 {
-		cp.Service.Spec.Ports = append(cp.Service.Spec.Ports, ServicePort{
-			Name:       "https-internal",
-			Port:       443,
-			TargetPort: 8443,
-			Protocol:   "TCP",
-		})
-	}
-
-	values := VClusterValues{
-		ControlPlane: cp,
-		Deploy: DeployConfig{
-			MetalLB: EnabledFlag{Enabled: true},
-		},
-		Integrations: Integrations{
-			ExternalSecrets: IntegrationExternalSecrets{
-				Enabled: true,
-				Webhook: EnabledFlag{Enabled: true},
-				Sync: ESSyncConfig{
-					FromHost: ESFromHostConfig{
-						ClusterStores: ClusterStoresConfig{
-							Enabled: true,
-							Selector: LabelSelector{
-								MatchLabels: config.ExternalSecretsStoreLabels,
-							},
-						},
-					},
-				},
-			},
-			MetricsServer: EnabledFlag{Enabled: true},
-			CertManager: IntegrationCertManager{
-				Enabled: true,
-				Sync: CMSyncConfig{
-					FromHost: CMFromHostConfig{
-						ClusterIssuers: ClusterIssuersConfig{
-							Enabled: true,
-							Selector: LabelSelector{
-								Labels: config.CertManagerIssuerLabels,
-							},
-						},
-					},
-				},
-			},
-		},
-		Telemetry: EnabledFlag{Enabled: false},
-		Logging:   LoggingConfig{Encoding: "json"},
-		Networking: NetworkingConfig{
-			Advanced: NetworkAdvanced{ClusterDomain: config.ClusterDomain},
-			ReplicateServices: ReplicateServices{
-				FromHost: []ServiceMapping{
-					{From: "default/kubernetes", To: "default/kubernetes"},
-				},
-			},
-		},
-		Sync: SyncConfig{
-			ToHost: SyncToHost{
-				Pods:              EnabledFlag{Enabled: true},
-				PersistentVolumes: EnabledFlag{Enabled: true},
-				Ingresses:         EnabledFlag{Enabled: true},
-				NetworkPolicies:   EnabledFlag{Enabled: true},
-			},
-			FromHost: SyncFromHost{
-				StorageClasses: EnabledFlag{Enabled: true},
-				IngressClasses: EnabledFlag{Enabled: true},
-				Secrets: SecretSyncConfig{
-					Enabled: true,
-					Mappings: SecretMappings{
-						ByName: map[string]string{
-							"external-secrets/eso-onepassword-token": "external-secrets/eso-onepassword-token",
-						},
-					},
-				},
-			},
-		},
-		RBAC: RBACConfig{
-			ClusterRole: ClusterRoleConfig{
-				Enabled: true,
-				ExtraRules: []PolicyRule{
-					{
-						APIGroups:     []string{""},
-						Resources:     []string{"secrets"},
-						Verbs:         []string{"get", "list", "watch"},
-						ResourceNames: []string{"eso-onepassword-token"},
-					},
-				},
-			},
-		},
-	}
-
-	if len(config.ExportKubeConfig) > 0 {
-		values.ExportKubeConfig = config.ExportKubeConfig
-	}
-
-	// Convert typed struct to map for merging with HelmOverrides
-	valuesMap, err := u.ToMap(values)
-	if err != nil {
-		log.Fatalf("ERROR: Failed to convert values to map: %v", err)
-	}
-
-	return u.DeepMerge(valuesMap, config.HelmOverrides)
-}
-
-func applyPresetDefaults(config *VClusterConfig, resource kratix.Resource) {
-	presetDefaults := map[string]PresetDefaults{
-		"dev": {
-			Replicas:           1,
-			CPURequest:         "200m",
-			MemoryRequest:      "768Mi",
-			CPULimit:           "1000m",
-			MemoryLimit:        "1536Mi",
-			PersistenceEnabled: false,
-			PersistenceSize:    "5Gi",
-			CorednsReplicas:    1,
-		},
-		"prod": {
-			Replicas:           3,
-			CPURequest:         "500m",
-			MemoryRequest:      "1Gi",
-			CPULimit:           "2",
-			MemoryLimit:        "2Gi",
-			PersistenceEnabled: true,
-			PersistenceSize:    "10Gi",
-			CorednsReplicas:    2,
-		},
-	}
-
-	defaults := presetDefaults[config.Preset]
-	if defaults == (PresetDefaults{}) {
-		defaults = presetDefaults["dev"]
-	}
-
-	// Apply replicas
-	if val, err := u.GetIntValue(resource, "spec.vcluster.replicas"); err == nil && val > 0 {
-		config.Replicas = val
-	} else {
-		config.Replicas = defaults.Replicas
-	}
-
-	// Apply resource requests/limits
-	config.CPURequest, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.cpu", defaults.CPURequest)
-	config.MemoryRequest, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.requests.memory", defaults.MemoryRequest)
-	config.CPULimit, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.cpu", defaults.CPULimit)
-	config.MemoryLimit, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.resources.limits.memory", defaults.MemoryLimit)
-
-	// Apply persistence
-	if val, err := u.GetBoolValue(resource, "spec.vcluster.persistence.enabled"); err == nil {
-		config.PersistenceEnabled = val
-	} else {
-		config.PersistenceEnabled = defaults.PersistenceEnabled
-	}
-
-	config.PersistenceSize, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.persistence.size", defaults.PersistenceSize)
-
-	// Apply coredns replicas
-	if val, err := u.GetIntValue(resource, "spec.vcluster.coredns.replicas"); err == nil && val > 0 {
-		config.CorednsReplicas = val
-	} else {
-		config.CorednsReplicas = defaults.CorednsReplicas
-	}
-}
-
-func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
-	log.Println("--- Rendering orchestrator resources ---")
-
-	resourceRequests := map[string]u.Resource{
-		"resources/argocd-project-request.yaml":              buildArgoCDProjectRequest(config),
-		"resources/argocd-application-request.yaml":          buildArgoCDApplicationRequest(config),
-		"resources/argocd-cluster-registration-request.yaml": buildArgoCDClusterRegistrationRequest(config),
-	}
-
-	for path, obj := range resourceRequests {
-		if err := u.WriteYAML(sdk, path, obj); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
-		}
-		log.Printf("✓ Rendered: %s", path)
-	}
-
-	if err := u.WriteYAML(sdk, "resources/namespace.yaml", buildNamespace(config)); err != nil {
-		return fmt.Errorf("write namespace: %w", err)
-	}
-	log.Printf("✓ Rendered: %s", "resources/namespace.yaml")
-
-	if docs := buildEtcdCertificates(config); len(docs) > 0 {
-		if err := u.WriteYAMLDocuments(sdk, "resources/etcd-certificates.yaml", docs); err != nil {
-			return fmt.Errorf("write etcd certificates: %w", err)
-		}
-		log.Printf("✓ Rendered: %s", "resources/etcd-certificates.yaml")
-	}
-
-	if err := u.WriteYAML(sdk, "resources/coredns-configmap.yaml", buildCorednsConfigMap(config)); err != nil {
-		return fmt.Errorf("write coredns configmap: %w", err)
-	}
-	log.Printf("✓ Rendered: %s", "resources/coredns-configmap.yaml")
-
-	// Per-vcluster network policies (NFS, extra egress)
-	netPolicies := buildNetworkPolicies(config)
-	if len(netPolicies) > 0 {
-		if err := u.WriteYAMLDocuments(sdk, "resources/network-policies.yaml", netPolicies); err != nil {
-			return fmt.Errorf("write network policies: %w", err)
-		}
-		log.Printf("✓ Rendered: resources/network-policies.yaml (%d policies)", len(netPolicies))
-	}
-
-	directResources := 2 // namespace + coredns configmap
-	if etcdEnabled(config) {
-		directResources++
-	}
-	if len(netPolicies) > 0 {
-		directResources++
-	}
-
-	status := kratix.NewStatus()
-	status.Set("phase", "Scheduled")
-	status.Set("message", "VCluster resources scheduled for creation")
-	status.Set("resourceRequestsGenerated", len(resourceRequests))
-	status.Set("directResourcesGenerated", directResources)
-	status.Set("vclusterName", config.Name)
-	status.Set("targetNamespace", config.TargetNamespace)
-	status.Set("hostname", config.Hostname)
-	status.Set("environment", config.ArgoCDEnvironment)
-
-	// Platform Status Contract — endpoint and credential references
-	status.Set("endpoints", map[string]string{
-		"api":    config.ExternalServerURL,
-		"argocd": fmt.Sprintf("https://argocd.cluster.integratn.tech/applications/vcluster-%s", config.Name),
-	})
-	status.Set("credentials", map[string]string{
-		"kubeconfigSecret": fmt.Sprintf("vcluster-%s-kubeconfig", config.Name),
-		"onePasswordItem":  config.OnePasswordItem,
-	})
-
-	if err := sdk.WriteStatus(status); err != nil {
-		return fmt.Errorf("failed to write status: %w", err)
-	}
-
-	log.Println("✓ Status updated")
 	return nil
 }
 
-// cleanupHostPVs deletes host-level PersistentVolumes that were created by the
-// vcluster syncer. These PVs are NOT in the Kratix state store, so they cannot
-// be cleaned up via the normal Kratix output mechanism. They must be deleted via
-// direct Kubernetes API calls using the pipeline pod's ServiceAccount.
-//
-// Synced PVs are identified by the label:
-//
-//	vcluster.loft.sh/managed-by: {vcluster-name}-x-{namespace}
-func cleanupHostPVs(config *VClusterConfig) error {
-	labelValue := fmt.Sprintf("%s-x-%s", config.Name, config.TargetNamespace)
-	labelSelector := fmt.Sprintf("vcluster.loft.sh/managed-by=%s", labelValue)
-
-	log.Printf("Cleaning up host PVs with label selector: %s", labelSelector)
-
-	restConfig, err := rest.InClusterConfig()
+// configureNetworkPolicies extracts NFS toggle and custom egress rules
+// from the resource's networkPolicies spec.
+func configureNetworkPolicies(config *VClusterConfig, resource kratix.Resource) error {
+	if ptr, err := ku.GetOptionalBoolPtr(resource, "spec.networkPolicies.enableNFS"); err != nil {
+		return fmt.Errorf("spec.networkPolicies.enableNFS: %w", err)
+	} else if ptr != nil {
+		config.EnableNFS = *ptr
+	}
+	extraEgress, err := extractExtraEgress(resource)
 	if err != nil {
-		return fmt.Errorf("failed to get in-cluster config: %w", err)
+		return fmt.Errorf("spec.networkPolicies.extraEgress: %w", err)
 	}
-
-	clientset, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	pvList, err := clientset.CoreV1().PersistentVolumes().List(ctx, metav1.ListOptions{
-		LabelSelector: labelSelector,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to list PVs with selector %s: %w", labelSelector, err)
-	}
-
-	if len(pvList.Items) == 0 {
-		log.Println("No host PVs found to clean up")
-		return nil
-	}
-
-	log.Printf("Found %d host PV(s) to delete", len(pvList.Items))
-
-	var errs []string
-	for _, pv := range pvList.Items {
-		log.Printf("  Deleting PV: %s (status: %s)", pv.Name, pv.Status.Phase)
-		if err := clientset.CoreV1().PersistentVolumes().Delete(ctx, pv.Name, metav1.DeleteOptions{}); err != nil {
-			errs = append(errs, fmt.Sprintf("failed to delete PV %s: %v", pv.Name, err))
-			log.Printf("  ✗ Failed to delete PV %s: %v", pv.Name, err)
-		} else {
-			log.Printf("  ✓ Deleted PV: %s", pv.Name)
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("errors deleting PVs: %s", strings.Join(errs, "; "))
-	}
-
-	log.Printf("✓ Successfully cleaned up %d host PV(s)", len(pvList.Items))
+	config.ExtraEgress = extraEgress
 	return nil
 }
 
-// cleanupNamespace deletes the vcluster target namespace, which cascade-deletes
-// all namespace-scoped resources (PVCs, pods, services, etc.).
-// This ensures no orphaned resources remain after vcluster deletion.
-func cleanupNamespace(config *VClusterConfig) error {
-	log.Printf("Cleaning up namespace: %s", config.TargetNamespace)
-
-	restConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return fmt.Errorf("failed to get in-cluster config: %w", err)
+func extractExtraEgress(resource kratix.Resource) ([]ExtraEgressRule, error) {
+	raw, extractErr := ku.ExtractObjectSliceFromResource(resource, "spec.networkPolicies.extraEgress")
+	if extractErr != nil {
+		return nil, extractErr
 	}
-
-	clientset, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	// Check if namespace exists before trying to delete
-	_, err = clientset.CoreV1().Namespaces().Get(ctx, config.TargetNamespace, metav1.GetOptions{})
-	if err != nil {
-		log.Printf("Namespace %s not found or already deleted, skipping", config.TargetNamespace)
-		return nil
-	}
-
-	if err := clientset.CoreV1().Namespaces().Delete(ctx, config.TargetNamespace, metav1.DeleteOptions{}); err != nil {
-		return fmt.Errorf("failed to delete namespace %s: %w", config.TargetNamespace, err)
-	}
-
-	log.Printf("✓ Namespace %s scheduled for deletion", config.TargetNamespace)
-	return nil
-}
-
-func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
-	log.Printf("--- Handling delete for vcluster: %s ---", config.Name)
-
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", "VCluster resources scheduled for deletion")
-	status.Set("vclusterName", config.Name)
-
-	if err := sdk.WriteStatus(status); err != nil {
-		return fmt.Errorf("failed to write status: %w", err)
-	}
-
-	// --- Direct API cleanup for resources NOT in the Kratix state store ---
-	// These resources are created by the vcluster syncer directly on the host
-	// cluster and must be cleaned up via direct API calls.
-
-	// Clean up host-level PVs created by the vcluster syncer
-	if err := cleanupHostPVs(config); err != nil {
-		// Log but don't fail — PV cleanup is best-effort to avoid blocking
-		// the rest of the delete pipeline
-		log.Printf("⚠ Warning: PV cleanup encountered errors: %v", err)
-	}
-
-	// Clean up the vcluster namespace (cascade-deletes PVCs, pods, etc.)
-	if err := cleanupNamespace(config); err != nil {
-		log.Printf("⚠ Warning: Namespace cleanup encountered errors: %v", err)
-	}
-
-	// --- Kratix state store cleanup (removes manifests → ArgoCD deletes from cluster) ---
-
-	outputs := map[string]u.Resource{}
-
-	// Delete all created resources
-	allResources := []u.Resource{
-		buildArgoCDProjectRequest(config),
-		buildArgoCDApplicationRequest(config),
-		buildArgoCDClusterRegistrationRequest(config),
-		buildCorednsConfigMap(config),
-	}
-
-	for _, obj := range allResources {
-		deleteObj := u.DeleteFromResource(obj)
-		path := u.DeleteOutputPathForResource("resources", obj)
-		outputs[path] = deleteObj
-	}
-
-	// Delete per-vcluster network policies
-	for _, obj := range buildNetworkPolicies(config) {
-		deleteObj := u.DeleteFromResource(obj)
-		path := u.DeleteOutputPathForResource("resources", obj)
-		outputs[path] = deleteObj
-	}
-
-	if etcdEnabled(config) {
-		for _, obj := range buildEtcdCertificates(config) {
-			deleteObj := u.DeleteFromResource(obj)
-			path := u.DeleteOutputPathForResource("resources", obj)
-			outputs[path] = deleteObj
-		}
-	}
-
-	outputs["resources/delete-vcluster-clusterrole.yaml"] = u.DeleteResource(
-		"rbac.authorization.k8s.io/v1",
-		"ClusterRole",
-		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
-		"",
-	)
-	outputs["resources/delete-vcluster-clusterrolebinding.yaml"] = u.DeleteResource(
-		"rbac.authorization.k8s.io/v1",
-		"ClusterRoleBinding",
-		fmt.Sprintf("vc-%s-v-%s", config.Name, config.TargetNamespace),
-		"",
-	)
-
-	if etcdEnabled(config) {
-		outputs["resources/delete-etcd-ca-secret.yaml"] = u.DeleteResource(
-			"v1",
-			"Secret",
-			fmt.Sprintf("%s-etcd-ca", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-server-secret.yaml"] = u.DeleteResource(
-			"v1",
-			"Secret",
-			fmt.Sprintf("%s-etcd-server", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-peer-secret.yaml"] = u.DeleteResource(
-			"v1",
-			"Secret",
-			fmt.Sprintf("%s-etcd-peer", config.Name),
-			config.TargetNamespace,
-		)
-		outputs["resources/delete-etcd-merged-secret.yaml"] = u.DeleteResource(
-			"v1",
-			"Secret",
-			fmt.Sprintf("%s-etcd-certs", config.Name),
-			config.TargetNamespace,
-		)
-	}
-
-	for path, obj := range outputs {
-		if err := u.WriteYAML(sdk, path, obj); err != nil {
-			return fmt.Errorf("write delete output %s: %w", path, err)
-		}
-	}
-
-	return nil
-}
-
-// IP utility functions
-func defaultVIPFromCIDR(cidr string, offset int) (string, error) {
-	_, ipNet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return "", fmt.Errorf("invalid CIDR: %w", err)
-	}
-
-	networkIP := ipNet.IP.Mask(ipNet.Mask)
-	networkInt := ipToInt(networkIP)
-	vipInt := networkInt + uint32(offset)
-	vip := intToIP(vipInt)
-
-	return vip.String(), nil
-}
-
-func ipInCIDR(ipStr, cidr string) bool {
-	ip := net.ParseIP(ipStr)
-	if ip == nil {
-		return false
-	}
-
-	_, ipNet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return false
-	}
-
-	return ipNet.Contains(ip)
-}
-
-func ipToInt(ip net.IP) uint32 {
-	ip = ip.To4()
-	if ip == nil {
-		return 0
-	}
-	return uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3])
-}
-
-func intToIP(n uint32) net.IP {
-	return net.IPv4(byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
-}
-
-func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {
-	val, err := resource.GetValue("spec.networkPolicies.extraEgress")
-	if err != nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
-		return nil
+	if raw == nil {
+		return nil, nil
 	}
 
 	var rules []ExtraEgressRule
-	for _, item := range arr {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
+	for i, m := range raw {
+		name, err := ku.ExtractStringE(m, "name")
+		if err != nil {
+			return nil, fmt.Errorf("egress rule[%d].name: %w", i, err)
 		}
-		rule := ExtraEgressRule{
-			Protocol: "TCP", // default
+		cidr, err := ku.ExtractStringE(m, "cidr")
+		if err != nil {
+			return nil, fmt.Errorf("egress rule[%d].cidr: %w", i, err)
 		}
-		if v, ok := m["name"].(string); ok {
-			rule.Name = v
+		port, err := ku.ExtractIntE(m, "port")
+		if err != nil {
+			return nil, fmt.Errorf("egress rule[%d].port: %w", i, err)
 		}
-		if v, ok := m["cidr"].(string); ok {
-			rule.CIDR = v
+		protocol, err := ku.ExtractStringE(m, "protocol")
+		if err != nil {
+			return nil, fmt.Errorf("egress rule[%d].protocol: %w", i, err)
 		}
-		if v, ok := m["port"].(float64); ok {
-			rule.Port = int(v)
+		if protocol == "" {
+			protocol = "TCP"
 		}
-		if v, ok := m["protocol"].(string); ok && v != "" {
-			rule.Protocol = v
+		if name == "" || cidr == "" || port == 0 {
+			return nil, fmt.Errorf("egress rule[%d]: missing required fields (name=%q cidr=%q port=%d)", i, name, cidr, port)
 		}
-		if rule.Name != "" && rule.CIDR != "" && rule.Port > 0 {
-			rules = append(rules, rule)
-		}
+		rules = append(rules, ExtraEgressRule{
+			Name:     name,
+			CIDR:     cidr,
+			Port:     port,
+			Protocol: protocol,
+		})
 	}
-	return rules
+	return rules, nil
 }

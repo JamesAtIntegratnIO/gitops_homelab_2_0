@@ -64,6 +64,7 @@ type PlatformStatus struct {
 	VClusters []ResourceStatus `json:"vclusters" yaml:"vclusters"`
 	Workloads []ResourceStatus `json:"workloads" yaml:"workloads"`
 	Addons    []ResourceStatus `json:"addons" yaml:"addons"`
+	Warnings  []string         `json:"warnings,omitempty" yaml:"warnings,omitempty"`
 }
 
 // PhaseFromArgoCD derives a simple phase string from ArgoCD sync+health status.

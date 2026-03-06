@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -28,25 +29,28 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 			if repoPath == "" {
 				repo, err := git.DetectRepo("")
 				if err != nil {
-					return fmt.Errorf("cannot detect repo — run 'hctl init' first")
+					return hcerrors.NewUserError("cannot detect repo — run 'hctl init' first")
 				}
 				repoPath = repo.Root
 			}
 
 			filePath := filepath.Join(repoPath, "platform", "vclusters", name+".yaml")
 			if _, err := os.Stat(filePath); os.IsNotExist(err) {
-				return fmt.Errorf("vCluster file not found: %s", filePath)
+				return hcerrors.NewUserError("vCluster file not found: %s", filePath)
 			}
 
 			// Confirm deletion
-			confirmed, _ := tui.Confirm(fmt.Sprintf("Delete vCluster %q? This will remove %s and trigger cleanup.", name, filePath))
+			confirmed, confirmErr := tui.Confirm(fmt.Sprintf("Delete vCluster %q? This will remove %s and trigger cleanup.", name, filePath))
+			if confirmErr != nil {
+				return hcerrors.NewUserError("confirming operation: %w", confirmErr)
+			}
 			if !confirmed {
 				fmt.Println("Cancelled")
 				return nil
 			}
 
 			if err := os.Remove(filePath); err != nil {
-				return fmt.Errorf("removing file: %w", err)
+				return hcerrors.NewPlatformError("removing file: %w", err)
 			}
 
 			relPath, _ := filepath.Rel(repoPath, filePath)
@@ -60,8 +64,9 @@ ArgoCD will then remove the resource, triggering Kratix cleanup.`,
 				Resource:    name,
 				GitMode:     cfg.GitMode,
 				Interactive: cfg.Interactive,
+				UI:          tui.GitUIAdapter{},
 			}); err != nil {
-				return err
+				return hcerrors.NewPlatformError("committing vcluster deletion: %w", err)
 			}
 
 			fmt.Printf("\n%s\n", tui.DimStyle.Render("ArgoCD will remove the resource and Kratix will clean up."))

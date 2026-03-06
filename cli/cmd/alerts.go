@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -17,17 +18,17 @@ var (
 	alertsShowAll bool
 )
 
-var alertsCmd = &cobra.Command{
-	Use:   "alerts",
-	Short: "Show firing alerts from Prometheus",
-	Long: `Queries Prometheus for currently firing alerts and displays them in a
+func newAlertsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "alerts",
+		Short: "Show firing alerts from Prometheus",
+		Long: `Queries Prometheus for currently firing alerts and displays them in a
 developer-friendly summary. Watchdog and InfoInhibitor (noise) alerts are
 hidden by default — use --all to include them.`,
-	RunE: runAlerts,
-}
-
-func init() {
-	alertsCmd.Flags().BoolVar(&alertsShowAll, "all", false, "include noise alerts (Watchdog, InfoInhibitor)")
+		RunE: runAlerts,
+	}
+	cmd.Flags().BoolVar(&alertsShowAll, "all", false, "include noise alerts (Watchdog, InfoInhibitor)")
+	return cmd
 }
 
 // noiseAlerts are meta-alerts that don't indicate real problems.
@@ -37,14 +38,12 @@ var noiseAlerts = map[string]bool{
 }
 
 func runAlerts(cmd *cobra.Command, args []string) error {
-	cfg := config.Get()
-
 	var alerts []kube.PrometheusAlert
 
 	_, err := tui.Spin("Querying Prometheus", func() (string, error) {
-		client, err := kube.NewClient(cfg.KubeContext)
+		client, err := kube.SharedWithConfig(config.Get().KubeContext)
 		if err != nil {
-			return "", fmt.Errorf("connecting to cluster: %w", err)
+			return "", hcerrors.NewPlatformError("connecting to cluster: %w", err)
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -56,7 +55,7 @@ func runAlerts(cmd *cobra.Command, args []string) error {
 			9090,
 		)
 		if err != nil {
-			return "", err
+			return "", hcerrors.NewPlatformError("querying firing alerts: %w", err)
 		}
 		return fmt.Sprintf("%d alerts", len(alerts)), nil
 	})

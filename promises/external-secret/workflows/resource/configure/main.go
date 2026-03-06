@@ -2,87 +2,49 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	kratix "github.com/syntasso/kratix-go"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
-
-const (
-	defaultSecretStore     = "onepassword-store"
-	defaultSecretStoreKind = "ClusterSecretStore"
-)
-
-// ExternalSecretConfig holds the resolved configuration from the CR.
-type ExternalSecretConfig struct {
-	AppName         string
-	Namespace       string
-	OwnerPromise    string
-	SecretStoreName string
-	SecretStoreKind string
-	Secrets         []u.SecretRef
-}
 
 func main() {
-	sdk := kratix.New()
-
-	log.Printf("=== External Secret Promise Pipeline ===")
-	log.Printf("Action: %s", sdk.WorkflowAction())
-
-	resource, err := sdk.ReadResourceInput()
-	if err != nil {
-		log.Fatalf("ERROR: Failed to read resource input: %v", err)
-	}
-
-	log.Printf("Processing resource: %s/%s",
-		resource.GetNamespace(), resource.GetName())
-
-	config, err := buildConfig(resource)
-	if err != nil {
-		log.Fatalf("ERROR: Failed to build config: %v", err)
-	}
-
-	if sdk.WorkflowAction() == "configure" {
-		if err := handleConfigure(sdk, config); err != nil {
-			log.Fatalf("ERROR: Configure failed: %v", err)
-		}
-	} else if sdk.WorkflowAction() == "delete" {
-		if err := handleDelete(sdk, config); err != nil {
-			log.Fatalf("ERROR: Delete failed: %v", err)
-		}
-	} else {
-		log.Fatalf("ERROR: Unknown workflow action: %s", sdk.WorkflowAction())
-	}
-
-	log.Println("=== Pipeline completed successfully ===")
+	ku.RunPromiseWithConfig("External Secret", buildConfig, handleConfigure, handleDelete)
 }
 
-func buildConfig(resource kratix.Resource) (*ExternalSecretConfig, error) {
+func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*ExternalSecretConfig, error) {
 	config := &ExternalSecretConfig{
-		SecretStoreName: defaultSecretStore,
-		SecretStoreKind: defaultSecretStoreKind,
+		SecretStoreName: ku.DefaultSecretStoreName,
+		SecretStoreKind: ku.DefaultSecretStoreKind,
+		PromiseName:     sdk.PromiseName(),
 	}
 
 	var err error
-	config.Namespace, err = u.GetStringValue(resource, "spec.namespace")
+	config.Namespace, err = ku.GetStringValue(resource, "spec.namespace")
 	if err != nil {
 		return nil, fmt.Errorf("spec.namespace is required: %w", err)
 	}
 
 	// appName defaults to the resource name
-	config.AppName, _ = u.GetStringValueWithDefault(resource, "spec.appName", resource.GetName())
+	config.AppName = ku.GetStringValueWithDefault(resource, "spec.appName", resource.GetName())
 
-	config.OwnerPromise, _ = u.GetStringValueWithDefault(resource, "spec.ownerPromise", "external-secret")
+	config.OwnerPromise = ku.GetStringValueWithDefault(resource, "spec.ownerPromise", "external-secret")
 
-	if v, err := u.GetStringValue(resource, "spec.secretStoreName"); err == nil && v != "" {
+	if v, err := ku.GetOptionalStringValue(resource, "spec.secretStoreName"); err != nil {
+		return nil, fmt.Errorf("spec.secretStoreName: %w", err)
+	} else if v != "" {
 		config.SecretStoreName = v
 	}
-	if v, err := u.GetStringValue(resource, "spec.secretStoreKind"); err == nil && v != "" {
+	if v, err := ku.GetOptionalStringValue(resource, "spec.secretStoreKind"); err != nil {
+		return nil, fmt.Errorf("spec.secretStoreKind: %w", err)
+	} else if v != "" {
 		config.SecretStoreKind = v
 	}
 
-	config.Secrets = u.ExtractSecrets(resource, "spec.secrets")
+	config.Secrets, err = ku.ExtractSecretsFromResource(resource, "spec.secrets")
+	if err != nil {
+		return nil, err
+	}
 	if len(config.Secrets) == 0 {
 		return nil, fmt.Errorf("spec.secrets must contain at least one entry")
 	}
@@ -92,19 +54,13 @@ func buildConfig(resource kratix.Resource) (*ExternalSecretConfig, error) {
 
 func handleConfigure(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 	externalSecrets := buildExternalSecrets(config)
-	if err := u.WriteYAMLDocuments(sdk, "resources/external-secrets.yaml", externalSecrets); err != nil {
+	if err := ku.WriteYAMLDocuments(sdk, "resources/external-secrets.yaml", externalSecrets); err != nil {
 		return fmt.Errorf("write ExternalSecrets: %w", err)
 	}
-	log.Printf("✓ Rendered %d ExternalSecret(s)", len(externalSecrets))
 
-	// Write status
-	status := kratix.NewStatus()
-	status.Set("phase", "Configured")
-	status.Set("message", fmt.Sprintf("Rendered %d ExternalSecret(s) in namespace %s", len(config.Secrets), config.Namespace))
-	status.Set("namespace", config.Namespace)
-	status.Set("secretCount", len(config.Secrets))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseConfigured,
+		fmt.Sprintf("Rendered %d ExternalSecret(s) in namespace %s", len(config.Secrets), config.Namespace),
+		map[string]interface{}{"namespace": config.Namespace, "secretCount": len(config.Secrets)}); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 
@@ -119,32 +75,28 @@ func handleDelete(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 			secretName = fmt.Sprintf("%s-%s", config.AppName, s.OnePasswordItem)
 		}
 
-		deleteObj := u.DeleteResource(
-			"external-secrets.io/v1beta1",
-			"ExternalSecret",
-			secretName,
-			config.Namespace,
-		)
+		deleteObj := ku.DeleteFromResource(ku.Resource{
+			APIVersion: "external-secrets.io/v1beta1",
+			Kind:       "ExternalSecret",
+			Metadata:   ku.ObjectMeta{Name: secretName, Namespace: config.Namespace},
+		})
 
 		path := fmt.Sprintf("resources/delete-externalsecret-%s.yaml", secretName)
-		if err := u.WriteYAML(sdk, path, deleteObj); err != nil {
+		if err := ku.WriteYAML(sdk, path, deleteObj); err != nil {
 			return fmt.Errorf("write delete ExternalSecret %s: %w", secretName, err)
 		}
 	}
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", fmt.Sprintf("ExternalSecrets in %s scheduled for deletion", config.Namespace))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseDeleting,
+		fmt.Sprintf("ExternalSecrets in %s scheduled for deletion", config.Namespace), nil); err != nil {
 		return fmt.Errorf("write status: %w", err)
 	}
 
 	return nil
 }
 
-func buildExternalSecrets(config *ExternalSecretConfig) []u.Resource {
-	var resources []u.Resource
+func buildExternalSecrets(config *ExternalSecretConfig) []ku.Resource {
+	var resources []ku.Resource
 
 	for _, s := range config.Secrets {
 		secretName := s.Name
@@ -152,38 +104,34 @@ func buildExternalSecrets(config *ExternalSecretConfig) []u.Resource {
 			secretName = fmt.Sprintf("%s-%s", config.AppName, s.OnePasswordItem)
 		}
 
-		data := []map[string]interface{}{}
+		var data []ku.ExternalSecretData
 		for _, k := range s.Keys {
-			data = append(data, map[string]interface{}{
-				"secretKey": k.SecretKey,
-				"remoteRef": map[string]interface{}{
-					"key":      s.OnePasswordItem,
-					"property": k.Property,
+			data = append(data, ku.ExternalSecretData{
+				SecretKey: k.SecretKey,
+				RemoteRef: ku.RemoteRef{
+					Key:      s.OnePasswordItem,
+					Property: k.Property,
 				},
 			})
 		}
 
-		es := u.Resource{
+		es := ku.Resource{
 			APIVersion: "external-secrets.io/v1beta1",
 			Kind:       "ExternalSecret",
-			Metadata: u.ObjectMeta{
+			Metadata: ku.ObjectMeta{
 				Name:      secretName,
 				Namespace: config.Namespace,
-				Labels: map[string]string{
-					"app.kubernetes.io/managed-by": "kratix",
-					"kratix.io/promise-name":       config.OwnerPromise,
-					"app.kubernetes.io/part-of":    config.AppName,
-				},
+				Labels:    ku.BaseLabels(config.OwnerPromise, config.AppName),
 			},
-			Spec: map[string]interface{}{
-				"secretStoreRef": map[string]interface{}{
-					"name": config.SecretStoreName,
-					"kind": config.SecretStoreKind,
+			Spec: ku.ExternalSecretSpec{
+				SecretStoreRef: ku.SecretStoreRef{
+					Name: config.SecretStoreName,
+					Kind: config.SecretStoreKind,
 				},
-				"target": map[string]interface{}{
-					"name": secretName,
+				Target: ku.ExternalSecretTarget{
+					Name: secretName,
 				},
-				"data": data,
+				Data: data,
 			},
 		}
 

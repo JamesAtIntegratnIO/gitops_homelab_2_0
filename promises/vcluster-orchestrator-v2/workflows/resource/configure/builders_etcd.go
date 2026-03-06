@@ -2,26 +2,57 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
-	u "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
-	if !etcdEnabled(config) {
+func etcdEnabledE(config *VClusterConfig) (bool, error) {
+	if config.BackingStore == nil {
+		return false, nil
+	}
+	raw, ok := config.BackingStore["etcd"]
+	if !ok {
+		return false, nil
+	}
+	etcd, ok := raw.(map[string]interface{})
+	if !ok {
+		return false, fmt.Errorf("backingStore.etcd: expected map, got %T", raw)
+	}
+	rawDeploy, ok := etcd["deploy"]
+	if !ok {
+		return false, nil
+	}
+	deploy, ok := rawDeploy.(map[string]interface{})
+	if !ok {
+		return false, fmt.Errorf("backingStore.etcd.deploy: expected map, got %T", rawDeploy)
+	}
+	rawEnabled, ok := deploy["enabled"]
+	if !ok {
+		return false, nil
+	}
+	enabled, ok := rawEnabled.(bool)
+	if !ok {
+		return false, fmt.Errorf("backingStore.etcd.deploy.enabled: expected bool, got %T", rawEnabled)
+	}
+	return enabled, nil
+}
+
+func buildEtcdCertificates(config *VClusterConfig) []ku.Resource {
+	if !config.EtcdEnabled {
 		return nil
 	}
 
 	labels := func(name string) map[string]string {
-		return u.MergeStringMap(map[string]string{
+		return ku.MergeStringMap(map[string]string{
 			"app.kubernetes.io/instance": config.Name,
-			"app.kubernetes.io/name":     name,
-		}, u.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
+		}, ku.ComponentLabels(config.PromiseName, config.Name, name))
 	}
 
-	caCert := u.Resource{
+	caCert := ku.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Certificate",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			fmt.Sprintf("%s-etcd-ca", config.Name),
 			config.TargetNamespace,
 			labels("etcd-ca"),
@@ -43,10 +74,10 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 		},
 	}
 
-	selfsignedIssuer := u.Resource{
+	selfsignedIssuer := ku.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Issuer",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			fmt.Sprintf("%s-etcd-selfsigned", config.Name),
 			config.TargetNamespace,
 			labels("etcd-issuer"),
@@ -57,10 +88,10 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 		},
 	}
 
-	caIssuer := u.Resource{
+	caIssuer := ku.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Issuer",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			fmt.Sprintf("%s-etcd-ca", config.Name),
 			config.TargetNamespace,
 			labels("etcd-ca-issuer"),
@@ -78,81 +109,60 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 	// only created when the vcluster Helm chart is deployed (circular dependency).
 	mergeSAName := fmt.Sprintf("%s-etcd-certs-merge", config.Name)
 
-	mergeServiceAccount := u.Resource{
-		APIVersion: "v1",
-		Kind:       "ServiceAccount",
-		Metadata: u.ResourceMeta(
-			mergeSAName,
-			config.TargetNamespace,
-			labels("etcd-certs-merge-sa"),
-			nil,
-		),
-	}
+	mergeServiceAccount := ku.BuildServiceAccount(mergeSAName, config.TargetNamespace, labels("etcd-certs-merge-sa"))
 
-	mergeRole := u.Resource{
-		APIVersion: "rbac.authorization.k8s.io/v1",
-		Kind:       "Role",
-		Metadata: u.ResourceMeta(
-			mergeSAName,
-			config.TargetNamespace,
-			labels("etcd-certs-merge-role"),
-			nil,
-		),
-		Rules: []PolicyRule{
-			{
-				APIGroups: []string{""},
-				Resources: []string{"secrets"},
-				Verbs:     []string{"get", "list", "create", "update", "patch"},
+	mergeRole := ku.BuildRole(mergeSAName, config.TargetNamespace, labels("etcd-certs-merge-role"), []ku.PolicyRule{
+		{
+			APIGroups: []string{""},
+			Resources: []string{"secrets"},
+			ResourceNames: []string{
+				fmt.Sprintf("%s-etcd-ca", config.Name),
+				fmt.Sprintf("%s-etcd-server", config.Name),
+				fmt.Sprintf("%s-etcd-peer", config.Name),
+				fmt.Sprintf("%s-etcd-certs", config.Name),
 			},
+			Verbs: []string{"get", "list", "create", "update", "patch"},
 		},
-	}
+	})
 
-	mergeRoleBinding := u.Resource{
-		APIVersion: "rbac.authorization.k8s.io/v1",
-		Kind:       "RoleBinding",
-		Metadata: u.ResourceMeta(
-			mergeSAName,
-			config.TargetNamespace,
-			labels("etcd-certs-merge-binding"),
-			nil,
-		),
-		RoleRef: &u.RoleRef{
+	mergeRoleBinding := ku.BuildRoleBinding(mergeSAName, config.TargetNamespace, labels("etcd-certs-merge-binding"),
+		ku.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "Role",
 			Name:     mergeSAName,
 		},
-		Subjects: []u.Subject{
+		[]ku.Subject{
 			{
 				Kind:      "ServiceAccount",
 				Name:      mergeSAName,
 				Namespace: config.TargetNamespace,
 			},
 		},
-	}
+	)
 
-	mergeJob := u.Resource{
+	mergeJob := ku.Resource{
 		APIVersion: "batch/v1",
 		Kind:       "Job",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			fmt.Sprintf("%s-etcd-certs-merge", config.Name),
 			config.TargetNamespace,
 			labels("etcd-certs-job"),
 			nil,
 		),
-		Spec: JobSpec{
-			Template: PodTemplateSpec{
-				Metadata: &ObjectMetaLocal{
+		Spec: ku.JobSpec{
+			Template: ku.PodTemplateSpec{
+				Metadata: &ku.ObjectMeta{
 					Labels: map[string]string{
 						"app": "etcd-certs-merge",
 					},
 				},
-				Spec: PodSpec{
+				Spec: ku.PodSpec{
 					RestartPolicy:      "OnFailure",
-				ServiceAccountName: mergeSAName,
-					Containers: []Container{
+					ServiceAccountName: mergeSAName,
+					Containers: []ku.Container{
 						{
 							Name:    "merge-certs",
-							Image:   "bitnami/kubectl:latest",
+							Image:   ku.DefaultKubectlImage,
 							Command: []string{"/bin/bash", "-c", buildEtcdMergeScript(config)},
 						},
 					},
@@ -161,10 +171,10 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 		},
 	}
 
-	serverCert := u.Resource{
+	serverCert := ku.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Certificate",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			fmt.Sprintf("%s-etcd-server", config.Name),
 			config.TargetNamespace,
 			labels("etcd-server-cert"),
@@ -194,10 +204,10 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 		},
 	}
 
-	peerCert := u.Resource{
+	peerCert := ku.Resource{
 		APIVersion: "cert-manager.io/v1",
 		Kind:       "Certificate",
-		Metadata: u.ResourceMeta(
+		Metadata: ku.ResourceMeta(
 			fmt.Sprintf("%s-etcd-peer", config.Name),
 			config.TargetNamespace,
 			labels("etcd-peer-cert"),
@@ -226,7 +236,7 @@ func buildEtcdCertificates(config *VClusterConfig) []u.Resource {
 		},
 	}
 
-	return []u.Resource{mergeServiceAccount, mergeRole, mergeRoleBinding, caCert, selfsignedIssuer, caIssuer, mergeJob, serverCert, peerCert}
+	return []ku.Resource{mergeServiceAccount, mergeRole, mergeRoleBinding, caCert, selfsignedIssuer, caIssuer, mergeJob, serverCert, peerCert}
 }
 
 func buildEtcdDNSNames(config *VClusterConfig) []string {
@@ -240,7 +250,7 @@ func buildEtcdDNSNames(config *VClusterConfig) []string {
 		fmt.Sprintf("%s-etcd-headless.%s.svc", config.Name, config.TargetNamespace),
 		fmt.Sprintf("%s-etcd-headless.%s.svc.cluster.local", config.Name, config.TargetNamespace),
 	}
-	for i := 0; i < 3; i++ {
+	for i := 0; i < ku.DefaultEtcdReplicas; i++ {
 		base = append(base,
 			fmt.Sprintf("%s-etcd-%d", config.Name, i),
 			fmt.Sprintf("%s-etcd-%d.%s-etcd-headless.%s", config.Name, i, config.Name, config.TargetNamespace),
@@ -253,54 +263,6 @@ func buildEtcdDNSNames(config *VClusterConfig) []string {
 }
 
 func buildEtcdMergeScript(config *VClusterConfig) string {
-	return fmt.Sprintf(`set -e
-echo "Waiting for certificates to be ready..."
-
-# Wait for CA cert
-until kubectl get secret %s-etcd-ca -n %s 2>/dev/null; do
-  echo "Waiting for CA certificate..."
-  sleep 2
-done
-
-# Wait for server cert
-until kubectl get secret %s-etcd-server -n %s 2>/dev/null; do
-  echo "Waiting for server certificate..."
-  sleep 2
-done
-
-# Wait for peer cert
-until kubectl get secret %s-etcd-peer -n %s 2>/dev/null; do
-  echo "Waiting for peer certificate..."
-  sleep 2
-done
-
-echo "All certificates ready, merging..."
-
-# Extract certs
-CA_CRT=$(kubectl get secret %s-etcd-ca -n %s -o jsonpath='{.data.tls\.crt}')
-SERVER_CRT=$(kubectl get secret %s-etcd-server -n %s -o jsonpath='{.data.tls\.crt}')
-SERVER_KEY=$(kubectl get secret %s-etcd-server -n %s -o jsonpath='{.data.tls\.key}')
-PEER_CRT=$(kubectl get secret %s-etcd-peer -n %s -o jsonpath='{.data.tls\.crt}')
-PEER_KEY=$(kubectl get secret %s-etcd-peer -n %s -o jsonpath='{.data.tls\.key}')
-
-# Create merged secret
-kubectl create secret generic %s-etcd-certs -n %s \
-  --from-literal=etcd-ca.crt="$(echo $CA_CRT | base64 -d)" \
-  --from-literal=etcd-server.crt="$(echo $SERVER_CRT | base64 -d)" \
-  --from-literal=etcd-server.key="$(echo $SERVER_KEY | base64 -d)" \
-  --from-literal=etcd-peer.crt="$(echo $PEER_CRT | base64 -d)" \
-  --from-literal=etcd-peer.key="$(echo $PEER_KEY | base64 -d)" \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-echo "Certificate merge complete!"`,
-		config.Name, config.TargetNamespace,
-		config.Name, config.TargetNamespace,
-		config.Name, config.TargetNamespace,
-		config.Name, config.TargetNamespace,
-		config.Name, config.TargetNamespace,
-		config.Name, config.TargetNamespace,
-		config.Name, config.TargetNamespace,
-		config.Name, config.TargetNamespace,
-		config.Name, config.TargetNamespace,
-	)
+	r := strings.NewReplacer("{{NAME}}", config.Name, "{{NS}}", config.TargetNamespace)
+	return r.Replace(mergeEtcdCertsScript)
 }

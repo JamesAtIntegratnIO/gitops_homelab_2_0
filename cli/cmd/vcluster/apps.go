@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -26,11 +27,10 @@ Highlights:
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -40,7 +40,7 @@ Highlights:
 			clusterName := name
 			apps, err := client.ListArgoAppsForCluster(ctx, "argocd", clusterName)
 			if err != nil {
-				return fmt.Errorf("listing apps for cluster %s: %w", clusterName, err)
+				return hcerrors.NewPlatformError("listing apps for cluster %s: %w", clusterName, err)
 			}
 
 			if len(apps) == 0 {

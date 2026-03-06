@@ -1,0 +1,429 @@
+{
+  "command": "show",
+  "query": "test_coverage",
+  "status_filter": "open",
+  "total": 10,
+  "summary": {
+    "by_tier": {
+      "T3": 10
+    },
+    "by_detector": {
+      "test_coverage": 10
+    },
+    "files": 10
+  },
+  "by_file": {
+    "cmd/ai/ai.go": [
+      {
+        "id": "test_coverage::cmd/ai/ai.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (128 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 128,
+          "importer_count": 0,
+          "loc_weight": 11.313708498984761
+        }
+      }
+    ],
+    "cmd/alerts.go": [
+      {
+        "id": "test_coverage::cmd/alerts.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (150 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 150,
+          "importer_count": 0,
+          "loc_weight": 12.24744871391589
+        }
+      }
+    ],
+    "cmd/completions.go": [
+      {
+        "id": "test_coverage::cmd/completions.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (67 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 67,
+          "importer_count": 0,
+          "loc_weight": 8.18535277187245
+        }
+      }
+    ],
+    "cmd/deploy/init.go": [
+      {
+        "id": "test_coverage::cmd/deploy/init.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (242 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 242,
+          "importer_count": 0,
+          "loc_weight": 15.556349186104045
+        }
+      }
+    ],
+    "cmd/deploy/render.go": [
+      {
+        "id": "test_coverage::cmd/deploy/render.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (196 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 196,
+          "importer_count": 0,
+          "loc_weight": 14.0
+        }
+      }
+    ],
+    "cmd/deploy/run.go": [
+      {
+        "id": "test_coverage::cmd/deploy/run.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (218 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 218,
+          "importer_count": 0,
+          "loc_weight": 14.7648230602334
+        }
+      }
+    ],
+    "cmd/deploy/status.go": [
+      {
+        "id": "test_coverage::cmd/deploy/status.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (265 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 265,
+          "importer_count": 0,
+          "loc_weight": 16.278820596099706
+        }
+      }
+    ],
+    "cmd/doctor.go": [
+      {
+        "id": "test_coverage::cmd/doctor.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (234 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 234,
+          "importer_count": 0,
+          "loc_weight": 15.297058540778355
+        }
+      }
+    ],
+    "cmd/root.go": [
+      {
+        "id": "test_coverage::cmd/root.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (227 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 227,
+          "importer_count": 0,
+          "loc_weight": 15.066519173319364
+        }
+      }
+    ],
+    "cmd/scale/scale.go": [
+      {
+        "id": "test_coverage::cmd/scale/scale.go::untested_module",
+        "tier": 3,
+        "confidence": "high",
+        "summary": "Untested module (136 LOC, 0 importers)",
+        "detail": {
+          "kind": "untested_module",
+          "loc": 136,
+          "importer_count": 0,
+          "loc_weight": 11.661903789690601
+        }
+      }
+    ]
+  },
+  "total_matching": 41,
+  "hidden": {
+    "by_detector": {
+      "test_coverage": 31
+    },
+    "total": 31
+  },
+  "noise_budget": 10,
+  "noise_global_budget": 0,
+  "narrative": {
+    "phase": "early_momentum",
+    "headline": "Score 62.0/100 with 277 findings open. Keep the momentum going. (18 review findings \u2014 run `desloppify issues`)",
+    "dimensions": {
+      "lowest_dimensions": [
+        {
+          "name": "Test strategy",
+          "strict": 30.0,
+          "issues": 4,
+          "impact": 0.0,
+          "subjective": true,
+          "impact_description": "re-review to improve"
+        },
+        {
+          "name": "Test health",
+          "strict": 33.0,
+          "issues": 41,
+          "impact": 0.0
+        },
+        {
+          "name": "Error consistency",
+          "strict": 48.0,
+          "issues": 5,
+          "impact": 0.0,
+          "subjective": true,
+          "impact_description": "re-review to improve"
+        }
+      ],
+      "biggest_gap_dimensions": [],
+      "stagnant_dimensions": [
+        {
+          "name": "File health",
+          "strict": 96.2,
+          "stuck_scans": 3
+        },
+        {
+          "name": "Code quality",
+          "strict": 85.4,
+          "stuck_scans": 3
+        },
+        {
+          "name": "Duplication",
+          "strict": 96.6,
+          "stuck_scans": 3
+        },
+        {
+          "name": "Security",
+          "strict": 100.0,
+          "stuck_scans": 3
+        }
+      ]
+    },
+    "actions": [
+      {
+        "type": "issue_queue",
+        "detector": "review",
+        "count": 18,
+        "description": "18 review findings need investigation \u2014 run `desloppify issues` to see the work queue",
+        "command": "desloppify issues",
+        "impact": 0.0,
+        "dimension": "Unknown",
+        "priority": 1,
+        "lane": "refactor_0"
+      },
+      {
+        "type": "refactor",
+        "detector": "structural",
+        "count": 3,
+        "description": "3 structural findings \u2014 decompose large files \u2014 extract logic into focused modules",
+        "command": "desloppify show structural --status open",
+        "impact": 0.0,
+        "dimension": "File health",
+        "priority": 2,
+        "lane": "refactor_1"
+      },
+      {
+        "type": "refactor",
+        "detector": "test_coverage",
+        "count": 41,
+        "description": "41 test_coverage findings \u2014 add tests for untested production modules \u2014 prioritize by import count",
+        "command": "desloppify show test_coverage --status open",
+        "impact": 0.0,
+        "dimension": "Test health",
+        "priority": 3,
+        "lane": "test_coverage"
+      },
+      {
+        "type": "refactor",
+        "detector": "signature",
+        "count": 1,
+        "description": "1 signature findings \u2014 consolidate inconsistent function signatures",
+        "command": "desloppify show signature --status open",
+        "impact": 0.0,
+        "dimension": "Unknown",
+        "priority": 4,
+        "lane": "refactor_1"
+      },
+      {
+        "type": "refactor",
+        "detector": "responsibility_cohesion",
+        "count": 6,
+        "description": "6 responsibility_cohesion findings \u2014 split modules with too many responsibilities \u2014 extract focused sub-modules",
+        "command": "desloppify show responsibility_cohesion --status open",
+        "impact": 0.0,
+        "dimension": "Code quality",
+        "priority": 5,
+        "lane": "refactor_1"
+      },
+      {
+        "type": "refactor",
+        "detector": "boilerplate_duplication",
+        "count": 18,
+        "description": "18 boilerplate_duplication findings \u2014 extract shared boilerplate into reusable helpers or base classes",
+        "command": "desloppify show boilerplate_duplication --status open",
+        "impact": 0.0,
+        "dimension": "Duplication",
+        "priority": 6,
+        "lane": "refactor_1"
+      },
+      {
+        "type": "manual_fix",
+        "detector": "unused",
+        "count": 190,
+        "description": "190 unused findings \u2014 inspect with `desloppify next` and fix manually",
+        "command": "desloppify show unused --status open",
+        "impact": 0.0,
+        "dimension": "Code quality",
+        "priority": 7,
+        "lane": "refactor_1"
+      }
+    ],
+    "strategy": {
+      "fixer_leverage": {
+        "auto_fixable_count": 0,
+        "total_count": 313,
+        "coverage": 0.0,
+        "impact_ratio": 0.0,
+        "recommendation": "none"
+      },
+      "lanes": {
+        "refactor_0": {
+          "actions": [
+            1
+          ],
+          "file_count": 1,
+          "total_impact": 0.0,
+          "automation": "manual",
+          "run_first": false
+        },
+        "refactor_1": {
+          "actions": [
+            2,
+            4,
+            5,
+            6,
+            7
+          ],
+          "file_count": 52,
+          "total_impact": 0.0,
+          "automation": "manual",
+          "run_first": false
+        },
+        "test_coverage": {
+          "actions": [
+            3
+          ],
+          "file_count": 41,
+          "total_impact": 0.0,
+          "automation": "manual",
+          "run_first": false
+        }
+      },
+      "can_parallelize": true,
+      "hint": "3 independent workstreams, safe to parallelize. Rescan after each phase to verify. Review: 18 finding(s) \u2014 `desloppify issues`."
+    },
+    "tools": {
+      "fixers": [],
+      "move": {
+        "available": true,
+        "relevant": false,
+        "reason": null,
+        "usage": "desloppify move <source> <dest> [--dry-run]"
+      },
+      "plan": {
+        "command": "desloppify plan",
+        "description": "Generate prioritized markdown cleanup plan"
+      },
+      "badge": {
+        "generated": false,
+        "in_readme": false,
+        "path": "scorecard.png",
+        "recommendation": null
+      }
+    },
+    "debt": {
+      "overall_gap": 0.0,
+      "wontfix_count": 0,
+      "worst_dimension": null,
+      "worst_gap": 0.0,
+      "trend": "stable"
+    },
+    "milestone": null,
+    "primary_action": {
+      "command": "desloppify issues",
+      "description": "18 review findings need investigation \u2014 run `desloppify issues` to see the work queue"
+    },
+    "why_now": "3 independent workstreams, safe to parallelize. Rescan after each phase to verify. Review: 18 finding(s) \u2014 `desloppify issues`.",
+    "verification_step": {
+      "command": "desloppify scan",
+      "reason": "revalidate after changes"
+    },
+    "risk_flags": [],
+    "strict_target": {
+      "target": 95.0,
+      "current": 62.0,
+      "gap": 33.0,
+      "state": "below",
+      "warning": null
+    },
+    "reminders": [
+      {
+        "type": "review_findings_pending",
+        "message": "18 review finding(s) need investigation. Run `desloppify issues` to see the work queue.",
+        "command": "desloppify issues",
+        "priority": 1,
+        "severity": "high"
+      },
+      {
+        "type": "zone_classification",
+        "message": "13 of 68 files classified as non-production (13 test). Override with `desloppify zone set <file> production` if any are misclassified.",
+        "command": "desloppify zone show",
+        "priority": 2,
+        "severity": "medium"
+      }
+    ],
+    "reminder_history": {
+      "zone_classification": 3,
+      "report_scores": 2,
+      "review_findings_pending": 2,
+      "stagnant_nudge": 4,
+      "feedback_nudge": 1
+    }
+  },
+  "config": {
+    "target_strict_score": 95,
+    "review_max_age_days": 30,
+    "review_batch_max_files": 80,
+    "holistic_max_age_days": 30,
+    "generate_scorecard": true,
+    "badge_path": "scorecard.png",
+    "exclude": [],
+    "ignore": [
+      "unused::*"
+    ],
+    "ignore_metadata": {},
+    "zone_overrides": {},
+    "review_dimensions": [],
+    "large_files_threshold": 0,
+    "props_threshold": 0,
+    "finding_noise_budget": 10,
+    "finding_noise_global_budget": 0,
+    "languages": {}
+  }
+}

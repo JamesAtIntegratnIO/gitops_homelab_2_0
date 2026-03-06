@@ -3,13 +3,29 @@ package kratixutil
 import (
 	"bytes"
 	"fmt"
+	"sort"
 
 	kratix "github.com/syntasso/kratix-go"
 	"sigs.k8s.io/yaml"
 )
 
-// WriteYAML marshals a single object to YAML and writes it to the Kratix
-// output directory at the specified path.
+// WriteOrderedResources writes a map of path→Resource to the Kratix output
+// directory in deterministic (sorted-key) order. This is the standard pattern
+// for emitting multiple resources from a promise pipeline.
+func WriteOrderedResources(sdk *kratix.KratixSDK, resources map[string]Resource) error {
+	paths := make([]string, 0, len(resources))
+	for p := range resources {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		if err := WriteYAML(sdk, path, resources[path]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func WriteYAML(sdk *kratix.KratixSDK, path string, obj interface{}) error {
 	data, err := yaml.Marshal(obj)
 	if err != nil {

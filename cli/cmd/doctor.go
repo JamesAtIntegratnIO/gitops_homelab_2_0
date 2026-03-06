@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/git"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
@@ -15,10 +16,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var doctorCmd = &cobra.Command{
-	Use:   "doctor",
-	Short: "Check platform prerequisites and connectivity",
-	Long: `Validates that the local environment and platform are correctly configured.
+func newDoctorCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "doctor",
+		Short: "Check platform prerequisites and connectivity",
+		Long: `Validates that the local environment and platform are correctly configured.
 
 Checks include:
   - hctl config file exists and is valid
@@ -28,7 +30,8 @@ Checks include:
   - Git repository is detected and clean
   - Platform namespace exists
   - Kratix CRDs are installed`,
-	RunE: runDoctor,
+		RunE: runDoctor,
+	}
 }
 
 // Check represents a single doctor check.
@@ -110,7 +113,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	if failCount > 0 {
-		return fmt.Errorf("%d check(s) failed", failCount)
+		return hcerrors.NewUserError("%d check(s) failed", failCount)
 	}
 	return nil
 }
@@ -118,7 +121,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 func checkConfigFile(cfg *config.Config) (string, error) {
 	path := config.ConfigPath()
 	if _, err := os.Stat(path); err != nil {
-		return "", fmt.Errorf("config file not found at %s — run 'hctl init'", path)
+		return "", hcerrors.NewUserError("config file not found at %s — run 'hctl init'", path)
 	}
 	return path, nil
 }
@@ -126,7 +129,7 @@ func checkConfigFile(cfg *config.Config) (string, error) {
 func checkKubectl(_ *config.Config) (string, error) {
 	path, err := exec.LookPath("kubectl")
 	if err != nil {
-		return "", fmt.Errorf("kubectl not found in PATH")
+		return "", hcerrors.NewUserError("kubectl not found in PATH")
 	}
 	out, err := exec.Command("kubectl", "version", "--client", "--short").CombinedOutput()
 	if err != nil {
@@ -138,7 +141,7 @@ func checkKubectl(_ *config.Config) (string, error) {
 func checkGit(_ *config.Config) (string, error) {
 	path, err := exec.LookPath("git")
 	if err != nil {
-		return "", fmt.Errorf("git not found in PATH")
+		return "", hcerrors.NewUserError("git not found in PATH")
 	}
 	out, _ := exec.Command("git", "--version").CombinedOutput()
 	if len(out) > 0 {
@@ -150,26 +153,26 @@ func checkGit(_ *config.Config) (string, error) {
 func checkGitRepo(cfg *config.Config) (string, error) {
 	repoPath := cfg.RepoPath
 	if repoPath == "" {
-		return "", fmt.Errorf("repoPath not set in config")
+		return "", hcerrors.NewUserError("repoPath not set in config")
 	}
 	repo, err := git.DetectRepo(repoPath)
 	if err != nil {
-		return "", fmt.Errorf("not a git repository: %s", repoPath)
+		return "", hcerrors.NewUserError("not a git repository: %s", repoPath)
 	}
 	branch, _ := repo.CurrentBranch()
 	return fmt.Sprintf("branch=%s", branch), nil
 }
 
 func checkCluster(cfg *config.Config) (string, error) {
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
-		return "", fmt.Errorf("cannot create client: %w", err)
+		return "", hcerrors.NewPlatformError("cannot create client: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	nodes, err := client.ListNodes(ctx)
 	if err != nil {
-		return "", fmt.Errorf("cannot reach cluster: %w", err)
+		return "", hcerrors.NewPlatformError("cannot reach cluster: %w", err)
 	}
 	ready := 0
 	for _, n := range nodes {
@@ -183,9 +186,9 @@ func checkCluster(cfg *config.Config) (string, error) {
 func checkPlatformNamespace(cfg *config.Config) (string, error) {
 	ns := cfg.Platform.PlatformNamespace
 	if ns == "" {
-		return "", fmt.Errorf("platformNamespace not configured")
+		return "", hcerrors.NewUserError("platformNamespace not configured")
 	}
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return "", err
 	}
@@ -193,13 +196,13 @@ func checkPlatformNamespace(cfg *config.Config) (string, error) {
 	defer cancel()
 	_, err = client.Clientset.CoreV1().Namespaces().Get(ctx, ns, metav1Options())
 	if err != nil {
-		return "", fmt.Errorf("namespace %s not found: %w", ns, err)
+		return "", hcerrors.NewPlatformError("namespace %s not found: %w", ns, err)
 	}
 	return ns, nil
 }
 
 func checkArgoCD(cfg *config.Config) (string, error) {
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return "", err
 	}
@@ -207,13 +210,13 @@ func checkArgoCD(cfg *config.Config) (string, error) {
 	defer cancel()
 	apps, err := client.ListArgoApps(ctx, "argocd")
 	if err != nil {
-		return "", fmt.Errorf("cannot list ArgoCD apps: %w", err)
+		return "", hcerrors.NewPlatformError("cannot list ArgoCD apps: %w", err)
 	}
 	return fmt.Sprintf("%d apps", len(apps)), nil
 }
 
 func checkKratixCRDs(cfg *config.Config) (string, error) {
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
 		return "", err
 	}
@@ -225,7 +228,7 @@ func checkKratixCRDs(cfg *config.Config) (string, error) {
 		Namespace(cfg.Platform.PlatformNamespace).
 		List(ctx, metav1ListOptions())
 	if err != nil {
-		return "", fmt.Errorf("Kratix CRDs not found: %w", err)
+		return "", hcerrors.NewPlatformError("Kratix CRDs not found: %w", err)
 	}
 	return "VClusterOrchestratorV2 available", nil
 }

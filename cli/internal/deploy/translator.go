@@ -3,8 +3,8 @@
 package deploy
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -39,9 +39,22 @@ var secretRefRegex = regexp.MustCompile(`^\$\(([^:]+):([^)]+)\)$`)
 var scoreVarRegex = regexp.MustCompile(`\$\{resources\.([^.]+)\.([^}]+)\}`)
 
 // Translate converts a Score workload into platform resources.
-func Translate(workload *score.Workload, cluster string) (*TranslateResult, error) {
-	cfg := config.Get()
+// ctx carries optional config via config.NewContext; cfg is the active
+// configuration. When cfg is nil the function tries config.FromContext(ctx)
+// before falling back to the config.Get() global singleton.
+func Translate(ctx context.Context, workload *score.Workload, cluster string, cfg *config.Config) (*TranslateResult, error) {
+	// ── Section 1: Resolve configuration ──────────────────────────────────
+	// Determine the active config from: explicit arg → context → global singleton.
+	if cfg == nil {
+		if c, ok := config.FromContext(ctx); ok {
+			cfg = c
+		} else {
+			cfg = config.Get()
+		}
+	}
 
+	// ── Section 2: Resolve target cluster ─────────────────────────────────
+	// Priority: explicit arg → workload annotation → config default.
 	if cluster == "" {
 		cluster = workload.TargetCluster()
 	}
@@ -52,12 +65,17 @@ func Translate(workload *score.Workload, cluster string) (*TranslateResult, erro
 		return nil, fmt.Errorf("no target cluster specified — use --cluster, set hctl.integratn.tech/cluster annotation, or configure defaultCluster")
 	}
 
+	// ── Section 3: Resolve namespace ──────────────────────────────────────
+	// Defaults to the cluster name; can be overridden via annotation.
 	namespace := cluster // workload namespace defaults to cluster name
 	if ns, ok := workload.Metadata.Annotations["hctl.integratn.tech/namespace"]; ok && ns != "" {
 		namespace = ns
 	}
 
-	// Run provisioners for all resources
+	// ── Section 4: Run provisioners ───────────────────────────────────────
+	// Each Score resource (database, volume, route, etc.) is handled by a
+	// registered provisioner that returns outputs (connection strings, secret
+	// references) and optional Kubernetes manifests (ExternalSecrets, PVCs).
 	registry := provisioners.NewRegistry()
 	allOutputs := make(map[string]map[string]string) // resource-name → key → value
 	var extraObjects []map[string]interface{}
@@ -75,7 +93,7 @@ func Translate(workload *score.Workload, cluster string) (*TranslateResult, erro
 
 		allOutputs[resName] = result.Outputs
 
-		// Add namespace to manifests
+		// Inject namespace into manifests that don't already have one.
 		for _, m := range result.Manifests {
 			if meta, ok := m["metadata"].(map[string]interface{}); ok {
 				if _, hasNs := meta["namespace"]; !hasNs {
@@ -86,10 +104,15 @@ func Translate(workload *score.Workload, cluster string) (*TranslateResult, erro
 		}
 	}
 
-	// Build Stakater values
+	// ── Section 5: Build Stakater Application chart values ────────────────
+	// Converts containers, services, routes, env vars, and provisioner
+	// manifests into the values.yaml structure expected by the Stakater
+	// Application Helm chart.
 	values := buildStakaterValues(workload, allOutputs, namespace, extraObjects)
 
-	// Build addons.yaml entry
+	// ── Section 6: Build addons.yaml entry ────────────────────────────────
+	// This entry is merged into workloads/<cluster>/addons.yaml so ArgoCD
+	// picks up the new application via the ApplicationSet pattern.
 	addonsEntry := map[string]interface{}{
 		"enabled":         true,
 		"namespace":       namespace,
@@ -98,7 +121,9 @@ func Translate(workload *score.Workload, cluster string) (*TranslateResult, erro
 		"defaultVersion":  "6.14.0",
 	}
 
-	// Build file map
+	// ── Section 7: Assemble result and serialize files ────────────────────
+	// Package all outputs into TranslateResult and marshal the values.yaml
+	// file into the correct workloads/<cluster>/addons/<name>/ path.
 	result := &TranslateResult{
 		WorkloadName:   workload.Metadata.Name,
 		TargetCluster:  cluster,
@@ -126,6 +151,39 @@ func buildStakaterValues(w *score.Workload, allOutputs map[string]map[string]str
 	}
 
 	// --- Deployment section ---
+	deployment, additionalContainers := buildDeploymentSection(w, allOutputs)
+	if len(additionalContainers) > 0 {
+		deployment["additionalContainers"] = additionalContainers
+	}
+	values["deployment"] = deployment
+
+	// --- Service section ---
+	if svc := buildServiceSection(w); svc != nil {
+		values["service"] = svc
+	}
+
+	// --- Persistence (disabled, managed via extraObjects) ---
+	values["persistence"] = map[string]interface{}{
+		"enabled": false,
+	}
+
+	// --- HTTPRoute and Certificate from route resources ---
+	buildRouteAndCertSections(w, values)
+
+	// --- Extra objects (provisioner manifests: ExternalSecrets, PVCs) ---
+	if len(extraObjects) > 0 {
+		var extras []interface{}
+		for _, obj := range extraObjects {
+			extras = append(extras, obj)
+		}
+		values["extraObjects"] = extras
+	}
+
+	return values
+}
+
+// buildDeploymentSection constructs the deployment values and additional containers from the Score workload.
+func buildDeploymentSection(w *score.Workload, allOutputs map[string]map[string]string) (map[string]interface{}, []map[string]interface{}) {
 	deployment := map[string]interface{}{}
 
 	// Use the first (or only) container for the primary deployment
@@ -154,14 +212,15 @@ func buildStakaterValues(w *score.Workload, allOutputs map[string]map[string]str
 	// Image
 	if primaryContainer.Image != "" && primaryContainer.Image != "." {
 		parts := strings.SplitN(primaryContainer.Image, ":", 2)
-		deployment["image"] = map[string]interface{}{
+		imgMap := map[string]interface{}{
 			"repository": parts[0],
 		}
 		if len(parts) == 2 {
-			deployment["image"].(map[string]interface{})["tag"] = parts[1]
+			imgMap["tag"] = parts[1]
 		} else {
-			deployment["image"].(map[string]interface{})["tag"] = "latest"
+			imgMap["tag"] = "latest"
 		}
+		deployment["image"] = imgMap
 	}
 
 	// Ports from service
@@ -254,124 +313,110 @@ func buildStakaterValues(w *score.Workload, allOutputs map[string]map[string]str
 		deployment["volumeMounts"] = volumeMounts
 	}
 
-	// Additional containers
-	if len(additionalContainers) > 0 {
-		deployment["additionalContainers"] = additionalContainers
+	return deployment, additionalContainers
+}
+
+// buildServiceSection constructs the service values from the Score workload. Returns nil if no service.
+func buildServiceSection(w *score.Workload) map[string]interface{} {
+	if w.Service == nil || len(w.Service.Ports) == 0 {
+		return nil
 	}
 
-	values["deployment"] = deployment
-
-	// --- Service section ---
-	if w.Service != nil && len(w.Service.Ports) > 0 {
-		var servicePorts []map[string]interface{}
-		portNames := make([]string, 0, len(w.Service.Ports))
-		for name := range w.Service.Ports {
-			portNames = append(portNames, name)
-		}
-		sort.Strings(portNames)
-
-		for _, name := range portNames {
-			p := w.Service.Ports[name]
-			sp := map[string]interface{}{
-				"name":       name,
-				"port":       p.Port,
-				"targetPort": p.Port,
-				"protocol":   "TCP",
-			}
-			if p.TargetPort > 0 {
-				sp["targetPort"] = p.TargetPort
-			}
-			if p.Protocol != "" {
-				sp["protocol"] = p.Protocol
-			}
-			servicePorts = append(servicePorts, sp)
-		}
-		values["service"] = map[string]interface{}{
-			"ports": servicePorts,
-		}
+	var servicePorts []map[string]interface{}
+	portNames := make([]string, 0, len(w.Service.Ports))
+	for name := range w.Service.Ports {
+		portNames = append(portNames, name)
 	}
+	sort.Strings(portNames)
 
-	// --- Persistence (disabled, managed via extraObjects) ---
-	values["persistence"] = map[string]interface{}{
-		"enabled": false,
+	for _, name := range portNames {
+		p := w.Service.Ports[name]
+		sp := map[string]interface{}{
+			"name":       name,
+			"port":       p.Port,
+			"targetPort": p.Port,
+			"protocol":   "TCP",
+		}
+		if p.TargetPort > 0 {
+			sp["targetPort"] = p.TargetPort
+		}
+		if p.Protocol != "" {
+			sp["protocol"] = p.Protocol
+		}
+		servicePorts = append(servicePorts, sp)
 	}
+	return map[string]interface{}{
+		"ports": servicePorts,
+	}
+}
 
-	// --- HTTPRoute and Certificate from route resources ---
+// buildRouteAndCertSections adds httpRoute and certificate entries to values if a route resource is present.
+func buildRouteAndCertSections(w *score.Workload, values map[string]interface{}) {
 	for _, res := range w.Resources {
-		if res.Type == "route" {
-			host, _ := res.Params["host"].(string)
-			port := 8080
-			if p, ok := res.Params["port"]; ok {
-				if pi, ok := p.(int); ok {
-					port = pi
-				}
-				if pf, ok := p.(float64); ok {
-					port = int(pf)
-				}
+		if res.Type != "route" {
+			continue
+		}
+		host, _ := res.Params["host"].(string)
+		port := 8080
+		if p, ok := res.Params["port"]; ok {
+			if pi, ok := p.(int); ok {
+				port = pi
 			}
-			path := "/"
-			if p, ok := res.Params["path"].(string); ok {
-				path = p
+			if pf, ok := p.(float64); ok {
+				port = int(pf)
 			}
+		}
+		path := "/"
+		if p, ok := res.Params["path"].(string); ok {
+			path = p
+		}
 
-			if host != "" {
-				values["httpRoute"] = map[string]interface{}{
-					"enabled": true,
-					"parentRefs": []map[string]interface{}{
-						{
-							"name":        "nginx-gateway",
-							"namespace":   "nginx-gateway",
-							"sectionName": "https-public",
-						},
+		if host != "" {
+			values["httpRoute"] = map[string]interface{}{
+				"enabled": true,
+				"parentRefs": []map[string]interface{}{
+					{
+						"name":        "nginx-gateway",
+						"namespace":   "nginx-gateway",
+						"sectionName": "https-public",
 					},
-					"hostnames": []string{host},
-					"rules": []map[string]interface{}{
-						{
-							"backendRefs": []map[string]interface{}{
-								{
-									"name": w.Metadata.Name,
-									"port": port,
-								},
-							},
-							"matches": []map[string]interface{}{
-								{
-									"path": map[string]interface{}{
-										"type":  "PathPrefix",
-										"value": path,
-									},
-								},
+				},
+				"hostnames": []string{host},
+				"rules": []map[string]interface{}{
+					{
+						"backendRefs": []map[string]interface{}{
+							{
+								"name": w.Metadata.Name,
+								"port": port,
 							},
 						},
+						"matches": []map[string]interface{}{
+							{
+								"path": map[string]interface{}{
+									"type":  "PathPrefix",
+									"value": path,
+								},
+							},
+						},
 					},
-				}
-
-				// Auto-generate certificate
-				values["certificate"] = map[string]interface{}{
-					"enabled":    true,
-					"secretName": w.Metadata.Name + "-tls",
-					"dnsNames":   []string{host},
-					"commonName": host,
-					"usages":     []string{"digital signature", "key encipherment", "server auth"},
-					"issuerRef": map[string]interface{}{
-						"name": "letsencrypt-prod",
-						"kind": "ClusterIssuer",
-					},
-				}
+				},
 			}
-			break // only use the first route resource
-		}
-	}
 
-	// --- Extra objects (provisioner manifests: ExternalSecrets, PVCs) ---
-	if len(extraObjects) > 0 {
-		var extras []interface{}
-		for _, obj := range extraObjects {
-			extras = append(extras, obj)
+			// Auto-generate certificate
+			values["certificate"] = map[string]interface{}{
+				"enabled":    true,
+				"secretName": w.Metadata.Name + "-tls",
+				"dnsNames":   []string{host},
+				"commonName": host,
+				"usages":     []string{"digital signature", "key encipherment", "server auth"},
+				"issuerRef": map[string]interface{}{
+					"name": "letsencrypt-prod",
+					"kind": "ClusterIssuer",
+				},
+			}
 		}
-		values["extraObjects"] = extras
+		break // only use the first route resource
 	}
-
-	return values
 }
 
 // buildContainerSpec converts a Score container to a Stakater additional container spec.
@@ -457,146 +502,4 @@ func resolveVariableValue(val string, allOutputs map[string]map[string]string) i
 
 	// Literal value
 	return map[string]interface{}{"value": val}
-}
-
-// WriteResult writes the translation result to the gitops repo.
-func WriteResult(result *TranslateResult, repoPath string) ([]string, error) {
-	var writtenPaths []string
-
-	for relPath, data := range result.Files {
-		absPath := filepath.Join(repoPath, relPath)
-		dir := filepath.Dir(absPath)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return nil, fmt.Errorf("creating directory %s: %w", dir, err)
-		}
-		if err := os.WriteFile(absPath, data, 0o644); err != nil {
-			return nil, fmt.Errorf("writing %s: %w", relPath, err)
-		}
-		writtenPaths = append(writtenPaths, relPath)
-	}
-
-	// Update addons.yaml
-	addonsPath := filepath.Join(repoPath, "workloads", result.TargetCluster, "addons.yaml")
-	if err := updateAddonsYAML(addonsPath, result.WorkloadName, result.AddonsEntry, result.TargetCluster); err != nil {
-		return nil, fmt.Errorf("updating addons.yaml: %w", err)
-	}
-	addonsRelPath := filepath.Join("workloads", result.TargetCluster, "addons.yaml")
-	writtenPaths = append(writtenPaths, addonsRelPath)
-
-	return writtenPaths, nil
-}
-
-// updateAddonsYAML reads or creates the addons.yaml and adds/updates the workload entry.
-func updateAddonsYAML(path, workloadName string, entry map[string]interface{}, clusterName string) error {
-	var existing map[string]interface{}
-
-	data, err := os.ReadFile(path)
-	if err == nil {
-		if err := yaml.Unmarshal(data, &existing); err != nil {
-			return fmt.Errorf("parsing existing addons.yaml: %w", err)
-		}
-	}
-
-	if existing == nil {
-		existing = map[string]interface{}{
-			"globalSelectors": map[string]interface{}{
-				"cluster_name": clusterName,
-			},
-			"useAddonNameForValues": true,
-		}
-	}
-
-	// Add or update the workload entry
-	existing[workloadName] = entry
-
-	out, err := yaml.Marshal(existing)
-	if err != nil {
-		return fmt.Errorf("marshaling addons.yaml: %w", err)
-	}
-
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("creating directory: %w", err)
-	}
-
-	return os.WriteFile(path, out, 0o644)
-}
-
-// RemoveWorkload removes a workload from the addons.yaml and deletes its values directory.
-func RemoveWorkload(repoPath, cluster, workloadName string) ([]string, error) {
-	var removedPaths []string
-
-	// Remove from addons.yaml
-	addonsPath := filepath.Join(repoPath, "workloads", cluster, "addons.yaml")
-	data, err := os.ReadFile(addonsPath)
-	if err != nil {
-		return nil, fmt.Errorf("reading addons.yaml: %w", err)
-	}
-
-	var existing map[string]interface{}
-	if err := yaml.Unmarshal(data, &existing); err != nil {
-		return nil, fmt.Errorf("parsing addons.yaml: %w", err)
-	}
-
-	if _, ok := existing[workloadName]; !ok {
-		return nil, fmt.Errorf("workload %q not found in addons.yaml", workloadName)
-	}
-
-	delete(existing, workloadName)
-
-	out, err := yaml.Marshal(existing)
-	if err != nil {
-		return nil, fmt.Errorf("marshaling addons.yaml: %w", err)
-	}
-
-	if err := os.WriteFile(addonsPath, out, 0o644); err != nil {
-		return nil, fmt.Errorf("writing addons.yaml: %w", err)
-	}
-	removedPaths = append(removedPaths, filepath.Join("workloads", cluster, "addons.yaml"))
-
-	// Remove values directory
-	valuesDir := filepath.Join(repoPath, "workloads", cluster, "addons", workloadName)
-	if _, err := os.Stat(valuesDir); err == nil {
-		if err := os.RemoveAll(valuesDir); err != nil {
-			return nil, fmt.Errorf("removing values directory: %w", err)
-		}
-		removedPaths = append(removedPaths, filepath.Join("workloads", cluster, "addons", workloadName))
-	}
-
-	return removedPaths, nil
-}
-
-// ListWorkloads reads a cluster's addons.yaml and returns all enabled workload names.
-func ListWorkloads(repoPath, cluster string) ([]string, error) {
-	addonsPath := filepath.Join(repoPath, "workloads", cluster, "addons.yaml")
-	data, err := os.ReadFile(addonsPath)
-	if err != nil {
-		return nil, err
-	}
-
-	var existing map[string]interface{}
-	if err := yaml.Unmarshal(data, &existing); err != nil {
-		return nil, err
-	}
-
-	// Skip non-addon keys
-	skipKeys := map[string]bool{
-		"globalSelectors":       true,
-		"useAddonNameForValues": true,
-		"appsetPrefix":          true,
-	}
-
-	var workloads []string
-	for name, val := range existing {
-		if skipKeys[name] {
-			continue
-		}
-		if entry, ok := val.(map[string]interface{}); ok {
-			if enabled, ok := entry["enabled"].(bool); ok && enabled {
-				workloads = append(workloads, name)
-			}
-		}
-	}
-	sort.Strings(workloads)
-	return workloads, nil
 }

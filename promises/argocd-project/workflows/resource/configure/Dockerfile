@@ -7,6 +7,9 @@ ARG TARGETARCH
 
 WORKDIR /workspace
 
+# Copy shared module first (for caching)
+COPY _shared/kratixutil/ ./_shared/kratixutil/
+
 # Copy go mod and sum files
 COPY argocd-project/workflows/resource/configure/go.mod argocd-project/workflows/resource/configure/go.sum ./argocd-project/workflows/resource/configure/
 WORKDIR /workspace/argocd-project/workflows/resource/configure

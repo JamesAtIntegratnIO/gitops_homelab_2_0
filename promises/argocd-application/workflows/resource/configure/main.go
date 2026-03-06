@@ -2,226 +2,163 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	kratix "github.com/syntasso/kratix-go"
+
+	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
 func main() {
-	sdk := kratix.New()
-
-	log.Printf("=== ArgoCD Application Promise Pipeline ===")
-	log.Printf("Action: %s", sdk.WorkflowAction())
-
-	resource, err := sdk.ReadResourceInput()
-	if err != nil {
-		log.Fatalf("ERROR: Failed to read resource input: %v", err)
-	}
-
-	log.Printf("Processing resource: %s/%s",
-		resource.GetNamespace(), resource.GetName())
-
-	if sdk.WorkflowAction() == "configure" {
-		if err := handleConfigure(sdk, resource); err != nil {
-			log.Fatalf("ERROR: Configure failed: %v", err)
-		}
-	} else if sdk.WorkflowAction() == "delete" {
-		if err := handleDelete(sdk, resource); err != nil {
-			log.Fatalf("ERROR: Delete failed: %v", err)
-		}
-	} else {
-		log.Fatalf("ERROR: Unknown workflow action: %s", sdk.WorkflowAction())
-	}
-
-	log.Println("=== Pipeline completed successfully ===")
+	ku.RunPromiseWithConfig("ArgoCD Application", buildConfig, handleConfigure, handleDelete)
 }
 
-func handleConfigure(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := getStringValue(resource, "spec.name")
+func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, error) {
+	config := &AppConfig{}
+
+	var err error
+	config.Name, err = ku.GetStringValue(resource, "spec.name")
 	if err != nil {
-		return fmt.Errorf("spec.name is required: %w", err)
+		return nil, fmt.Errorf("spec.name is required: %w", err)
 	}
 
-	namespace, _ := getStringValueWithDefault(resource, "spec.namespace", "argocd")
-	project, err := getStringValue(resource, "spec.project")
+	config.Namespace = ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
+
+	config.Project, err = ku.GetStringValue(resource, "spec.project")
 	if err != nil {
-		return fmt.Errorf("spec.project is required: %w", err)
+		return nil, fmt.Errorf("spec.project is required: %w", err)
 	}
 
-	annotations := extractStringMap(resource, "spec.annotations")
-	labels := extractStringMap(resource, "spec.labels")
-	finalizers := extractStringSlice(resource, "spec.finalizers")
+	config.Annotations, err = ku.ExtractStringMapFromResource(resource, "spec.annotations")
+	if err != nil {
+		return nil, fmt.Errorf("spec.annotations: %w", err)
+	}
+	config.Labels, err = ku.ExtractStringMapFromResource(resource, "spec.labels")
+	if err != nil {
+		return nil, fmt.Errorf("spec.labels: %w", err)
+	}
+	config.Finalizers, err = ku.ExtractStringSliceFromResource(resource, "spec.finalizers")
+	if err != nil {
+		return nil, fmt.Errorf("spec.finalizers: %w", err)
+	}
 
 	// Extract source
-	repoURL, err := getStringValue(resource, "spec.source.repoURL")
+	repoURL, err := ku.GetStringValue(resource, "spec.source.repoURL")
 	if err != nil {
-		return fmt.Errorf("spec.source.repoURL is required: %w", err)
+		return nil, fmt.Errorf("spec.source.repoURL is required: %w", err)
 	}
-	chart, _ := getStringValue(resource, "spec.source.chart")
-	targetRevision, err := getStringValue(resource, "spec.source.targetRevision")
+	chart, err := ku.GetOptionalStringValue(resource, "spec.source.chart")
 	if err != nil {
-		return fmt.Errorf("spec.source.targetRevision is required: %w", err)
+		return nil, fmt.Errorf("spec.source.chart: %w", err)
+	}
+	targetRevision, err := ku.GetStringValue(resource, "spec.source.targetRevision")
+	if err != nil {
+		return nil, fmt.Errorf("spec.source.targetRevision is required: %w", err)
 	}
 
-	source := AppSource{
+	config.Source = ku.AppSource{
 		RepoURL:        repoURL,
 		Chart:          chart,
 		TargetRevision: targetRevision,
 	}
 
 	// Extract helm config
-	releaseName, _ := getStringValue(resource, "spec.source.helm.releaseName")
-	valuesObject, _ := resource.GetValue("spec.source.helm.valuesObject")
+	releaseName, err := ku.GetOptionalStringValue(resource, "spec.source.helm.releaseName")
+	if err != nil {
+		return nil, fmt.Errorf("spec.source.helm.releaseName: %w", err)
+	}
+	valuesObject, err := ku.ExtractMapFromResource(resource, "spec.source.helm.valuesObject")
+	if err != nil {
+		return nil, fmt.Errorf("spec.source.helm.valuesObject: %w", err)
+	}
 	if releaseName != "" || valuesObject != nil {
-		source.Helm = &HelmSource{
+		config.Source.Helm = &ku.HelmSource{
 			ReleaseName:  releaseName,
 			ValuesObject: valuesObject,
 		}
 	}
 
 	// Extract destination
-	destServer, err := getStringValue(resource, "spec.destination.server")
+	destServer, err := ku.GetStringValue(resource, "spec.destination.server")
 	if err != nil {
-		return fmt.Errorf("spec.destination.server is required: %w", err)
+		return nil, fmt.Errorf("spec.destination.server is required: %w", err)
 	}
-	destNamespace, err := getStringValue(resource, "spec.destination.namespace")
+	destNamespace, err := ku.GetStringValue(resource, "spec.destination.namespace")
 	if err != nil {
-		return fmt.Errorf("spec.destination.namespace is required: %w", err)
+		return nil, fmt.Errorf("spec.destination.namespace is required: %w", err)
+	}
+
+	config.Destination = ku.Destination{
+		Server:    destServer,
+		Namespace: destNamespace,
 	}
 
 	// Extract sync policy
-	syncPolicy, _ := resource.GetValue("spec.syncPolicy")
+	rawSyncPolicy, err := ku.ExtractMapFromResource(resource, "spec.syncPolicy")
+	if err != nil {
+		return nil, fmt.Errorf("spec.syncPolicy: %w", err)
+	}
+	if rawSyncPolicy != nil {
+		parsed, parseErr := ku.ParseSyncPolicyE(rawSyncPolicy)
+		if parseErr != nil {
+			return nil, fmt.Errorf("spec.syncPolicy: %w", parseErr)
+		}
+		config.SyncPolicy = parsed
+	}
 
+	return config, nil
+}
+
+func handleConfigure(sdk *kratix.KratixSDK, config *AppConfig) error {
 	// Build ArgoCD Application
-	app := Resource{
+	app := ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "Application",
-		Metadata: ObjectMeta{
-			Name:        name,
-			Namespace:   namespace,
-			Labels:      labels,
-			Annotations: annotations,
-			Finalizers:  finalizers,
+		Metadata: ku.ObjectMeta{
+			Name:        config.Name,
+			Namespace:   config.Namespace,
+			Labels:      config.Labels,
+			Annotations: config.Annotations,
+			Finalizers:  config.Finalizers,
 		},
 		Spec: ApplicationSpec{
-			Project: project,
-			Source:  source,
-			Destination: Destination{
-				Server:    destServer,
-				Namespace: destNamespace,
-			},
-			SyncPolicy: syncPolicy,
+			Project:     config.Project,
+			Source:      config.Source,
+			Destination: config.Destination,
+			SyncPolicy:  config.SyncPolicy,
 		},
 	}
 
-	if err := writeYAML(sdk, "resources/application.yaml", app); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/application.yaml", app); err != nil {
 		return fmt.Errorf("write application: %w", err)
 	}
-	log.Printf("✓ Rendered ArgoCD Application: %s", name)
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Configured")
-	status.Set("message", fmt.Sprintf("Application %s configured", name))
-	status.Set("applicationName", name)
-	status.Set("namespace", namespace)
-	status.Set("project", project)
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseConfigured,
+		fmt.Sprintf("Application %s configured", config.Name),
+		map[string]interface{}{"applicationName": config.Name, "namespace": config.Namespace, "project": config.Project}); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
 	return nil
 }
 
-func handleDelete(sdk *kratix.KratixSDK, resource kratix.Resource) error {
-	name, err := getStringValue(resource, "spec.name")
-	if err != nil {
-		return fmt.Errorf("spec.name is required: %w", err)
-	}
-
-	namespace, _ := getStringValueWithDefault(resource, "spec.namespace", "argocd")
-
-	deleteObj := Resource{
+func handleDelete(sdk *kratix.KratixSDK, config *AppConfig) error {
+	deleteObj := ku.DeleteFromResource(ku.Resource{
 		APIVersion: "argoproj.io/v1alpha1",
 		Kind:       "Application",
-		Metadata: ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+		Metadata: ku.ObjectMeta{
+			Name:      config.Name,
+			Namespace: config.Namespace,
 		},
-	}
+	})
 
-	if err := writeYAML(sdk, "resources/delete-application.yaml", deleteObj); err != nil {
+	if err := ku.WriteYAML(sdk, "resources/delete-application.yaml", deleteObj); err != nil {
 		return fmt.Errorf("write delete application: %w", err)
 	}
-	log.Printf("✓ Delete scheduled for Application: %s", name)
 
-	status := kratix.NewStatus()
-	status.Set("phase", "Deleting")
-	status.Set("message", fmt.Sprintf("Application %s scheduled for deletion", name))
-
-	if err := sdk.WriteStatus(status); err != nil {
+	if err := ku.WritePromiseStatus(sdk, ku.PhaseDeleting,
+		fmt.Sprintf("Application %s scheduled for deletion", config.Name), nil); err != nil {
 		return fmt.Errorf("failed to write status: %w", err)
 	}
 
 	return nil
-}
-
-// Helper functions
-
-func getStringValue(resource kratix.Resource, path string) (string, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return "", err
-	}
-	if str, ok := val.(string); ok {
-		return str, nil
-	}
-	return "", fmt.Errorf("%s is not a string", path)
-}
-
-func getStringValueWithDefault(resource kratix.Resource, path, defaultValue string) (string, error) {
-	val, err := getStringValue(resource, path)
-	if err != nil || val == "" {
-		return defaultValue, nil
-	}
-	return val, nil
-}
-
-func extractStringMap(resource kratix.Resource, path string) map[string]string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	m, ok := val.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	result := make(map[string]string)
-	for k, v := range m {
-		if str, ok := v.(string); ok {
-			result[k] = str
-		}
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
-}
-
-func extractStringSlice(resource kratix.Resource, path string) []string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
-		return nil
-	}
-	result := make([]string, 0, len(arr))
-	for _, v := range arr {
-		if str, ok := v.(string); ok {
-			result = append(result, str)
-		}
-	}
-	return result
 }

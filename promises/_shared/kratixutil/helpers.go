@@ -1,188 +1,12 @@
 package kratixutil
 
 import (
+	"encoding/json"
 	"fmt"
-	"strconv"
+	"strings"
 
 	kratix "github.com/syntasso/kratix-go"
 )
-
-// ============================================================================
-// Value Extraction Helpers
-// ============================================================================
-
-// GetStringValue extracts a string from a Kratix resource at the given path.
-func GetStringValue(resource kratix.Resource, path string) (string, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return "", err
-	}
-	if str, ok := val.(string); ok {
-		return str, nil
-	}
-	return "", fmt.Errorf("%s is not a string", path)
-}
-
-// GetStringValueWithDefault extracts a string or returns the default.
-// Also treats "null" (YAML null rendered as string) as empty.
-func GetStringValueWithDefault(resource kratix.Resource, path, defaultValue string) (string, error) {
-	val, err := GetStringValue(resource, path)
-	if err != nil || val == "" || val == "null" {
-		return defaultValue, nil
-	}
-	return val, nil
-}
-
-// GetIntValue extracts an integer from a Kratix resource at the given path.
-// Handles int, int64, float64, and string (via strconv.Atoi) representations.
-func GetIntValue(resource kratix.Resource, path string) (int, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return 0, err
-	}
-	switch v := val.(type) {
-	case int:
-		return v, nil
-	case int64:
-		return int(v), nil
-	case float64:
-		return int(v), nil
-	case string:
-		return strconv.Atoi(v)
-	}
-	return 0, fmt.Errorf("value at %s is not an integer", path)
-}
-
-// GetIntValueWithDefault extracts an integer or returns the default.
-func GetIntValueWithDefault(resource kratix.Resource, path string, defaultValue int) (int, error) {
-	val, err := GetIntValue(resource, path)
-	if err != nil || val == 0 {
-		return defaultValue, nil
-	}
-	return val, nil
-}
-
-// GetBoolValue extracts a boolean from a Kratix resource at the given path.
-func GetBoolValue(resource kratix.Resource, path string) (bool, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return false, err
-	}
-	if b, ok := val.(bool); ok {
-		return b, nil
-	}
-	return false, fmt.Errorf("value at %s is not a bool", path)
-}
-
-// GetBoolValueWithDefault extracts a boolean or returns the default.
-func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue bool) (bool, error) {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return defaultValue, nil
-	}
-	if b, ok := val.(bool); ok {
-		return b, nil
-	}
-	return defaultValue, nil
-}
-
-// ============================================================================
-// Collection Extractors
-// ============================================================================
-
-// ExtractStringMap extracts a map[string]string from the given path.
-func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	m, ok := val.(map[string]interface{})
-	if !ok {
-		return nil
-	}
-	result := make(map[string]string)
-	for k, v := range m {
-		if str, ok := v.(string); ok {
-			result[k] = str
-		}
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
-}
-
-// ExtractStringSlice extracts a []string from the given path.
-func ExtractStringSlice(resource kratix.Resource, path string) []string {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
-		return nil
-	}
-	result := make([]string, 0, len(arr))
-	for _, v := range arr {
-		if str, ok := v.(string); ok {
-			result = append(result, str)
-		}
-	}
-	return result
-}
-
-// ExtractSecrets extracts a slice of SecretRef from the standard secrets path.
-func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
-	val, err := resource.GetValue(path)
-	if err != nil {
-		return nil
-	}
-	arr, ok := val.([]interface{})
-	if !ok {
-		return nil
-	}
-
-	var secrets []SecretRef
-	for _, item := range arr {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		s := SecretRef{}
-		if name, ok := m["name"].(string); ok {
-			s.Name = name
-		}
-		if opItem, ok := m["onePasswordItem"].(string); ok {
-			s.OnePasswordItem = opItem
-		}
-
-		if keys, ok := m["keys"].([]interface{}); ok {
-			for _, kItem := range keys {
-				km, ok := kItem.(map[string]interface{})
-				if !ok {
-					continue
-				}
-				sk := SecretKey{}
-				if v, ok := km["secretKey"].(string); ok {
-					sk.SecretKey = v
-				}
-				if v, ok := km["property"].(string); ok {
-					sk.Property = v
-				}
-				s.Keys = append(s.Keys, sk)
-			}
-		}
-
-		secrets = append(secrets, s)
-	}
-
-	return secrets
-}
-
-// ============================================================================
-// Map Utilities
-// ============================================================================
 
 // DeepMerge merges src into dst recursively. src values win on conflicts.
 // For map values, merging recurses. For non-map or mismatched types, src wins.
@@ -209,13 +33,84 @@ func DeepMerge(dst, src map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-// MergeStringMap merges src into dst. dst is created if nil. src values win.
+// MergeStringMap merges src into dst without mutating either input. src values win.
 func MergeStringMap(dst, src map[string]string) map[string]string {
-	if dst == nil {
-		dst = map[string]string{}
+	result := make(map[string]string, len(dst)+len(src))
+	for k, v := range dst {
+		result[k] = v
 	}
-	for key, value := range src {
-		dst[key] = value
+	for k, v := range src {
+		result[k] = v
 	}
-	return dst
+	return result
+}
+
+// ToMap converts a struct to map[string]interface{} via JSON roundtrip.
+// Useful at the merge boundary where typed structs meet DeepMerge.
+func ToMap(v interface{}) (map[string]interface{}, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("toMap marshal: %w", err)
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("toMap unmarshal: %w", err)
+	}
+	return m, nil
+}
+
+// DeleteFromResource strips a Resource down to its identity fields
+// (apiVersion, kind, name, namespace) for use as a Kratix delete output.
+func DeleteFromResource(r Resource) Resource {
+	return Resource{
+		APIVersion: r.APIVersion,
+		Kind:       r.Kind,
+		Metadata: ObjectMeta{
+			Name:      r.Metadata.Name,
+			Namespace: r.Metadata.Namespace,
+		},
+	}
+}
+
+// DeleteOutputPathForResource computes the output path using the standard
+// "resources/delete-{kind}-{name}.yaml" pattern.
+func DeleteOutputPathForResource(prefix string, r Resource) string {
+	if prefix == "" {
+		prefix = "resources/"
+	}
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	return fmt.Sprintf("%sdelete-%s-%s.yaml", prefix, strings.ToLower(r.Kind), r.Metadata.Name)
+}
+
+// ParseSyncPolicyE converts an untyped value (from resource.GetValue) into a typed
+// SyncPolicy via JSON round-trip. Returns an error if the value cannot be
+// deserialized into SyncPolicy.
+func ParseSyncPolicyE(raw interface{}) (*SyncPolicy, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("syncPolicy: failed to serialize: %w", err)
+	}
+	var sp SyncPolicy
+	if err := json.Unmarshal(data, &sp); err != nil {
+		return nil, fmt.Errorf("syncPolicy: %w", err)
+	}
+	return &sp, nil
+}
+
+// WritePromiseStatus builds a Kratix status object, sets the given phase and
+// message, applies any extra fields, and writes it via the SDK. This reduces
+// repetitive status-setting boilerplate across promise handlers.
+func WritePromiseStatus(sdk *kratix.KratixSDK, phase, message string, fields map[string]interface{}) error {
+	status := kratix.NewStatus()
+	status.Set("phase", phase)
+	status.Set("message", message)
+	for k, v := range fields {
+		status.Set(k, v)
+	}
+	return sdk.WriteStatus(status)
 }

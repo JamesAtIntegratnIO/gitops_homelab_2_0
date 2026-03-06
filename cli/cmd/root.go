@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/cmd/addon"
@@ -61,7 +62,10 @@ addon management, platform diagnostics, and day-to-day operational tasks.`,
 	SilenceErrors: true,
 }
 
+var setupOnce sync.Once
+
 func Execute() error {
+	setupOnce.Do(setupCommands)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(hcerrors.ExitCode(err))
@@ -69,7 +73,10 @@ func Execute() error {
 	return nil
 }
 
-func init() {
+// setupCommands wires all subcommands, persistent flags, and completions
+// onto rootCmd. It replaces the former init()-based registration and is
+// guarded by sync.Once so it runs exactly once even when called from tests.
+func setupCommands() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default $XDG_CONFIG_HOME/hctl/config.yaml)")
@@ -78,18 +85,25 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "enable verbose/debug output")
 	rootCmd.PersistentFlags().BoolVarP(&quietFlag, "quiet", "q", false, "suppress informational output")
 
+	// Create subcommands via factory functions
+	statusCmd := newStatusCmd()
+	diagnoseCmd := newDiagnoseCmd()
+	reconcileCmd := newReconcileCmd()
+	traceCmd := newTraceCmd()
+	upCmd := newUpCmd()
+	downCmd := newDownCmd()
+	openCmd := newOpenCmd()
+	logsCmd := newLogsCmd()
+
 	// Register sub-command groups
-	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(newInitCmd())
+	rootCmd.AddCommand(newVersionCmd())
 	rootCmd.AddCommand(statusCmd)
-	statusCmd.Flags().BoolVarP(&watchFlag, "watch", "w", false, "continuously refresh status (structured output only)")
-	statusCmd.Flags().DurationVar(&watchInterval, "interval", 10*time.Second, "refresh interval for --watch")
 	rootCmd.AddCommand(diagnoseCmd)
-	diagnoseCmd.Flags().StringVar(&bundlePath, "bundle", "", "export diagnostic bundle to file (JSON)")
 	rootCmd.AddCommand(reconcileCmd)
-	rootCmd.AddCommand(contextCmd)
-	rootCmd.AddCommand(alertsCmd)
-	rootCmd.AddCommand(completionCmd)
+	rootCmd.AddCommand(newContextCmd())
+	rootCmd.AddCommand(newAlertsCmd())
+	rootCmd.AddCommand(newCompletionCmd())
 
 	rootCmd.AddCommand(vcluster.NewCmd())
 	rootCmd.AddCommand(deploy.NewCmd())
@@ -103,10 +117,10 @@ func init() {
 	rootCmd.AddCommand(downCmd)
 	rootCmd.AddCommand(openCmd)
 	rootCmd.AddCommand(logsCmd)
-	rootCmd.AddCommand(doctorCmd)
+	rootCmd.AddCommand(newDoctorCmd())
 	rootCmd.AddCommand(traceCmd)
 
-	registerCompletions()
+	registerCompletions(diagnoseCmd, reconcileCmd, traceCmd, upCmd, downCmd, logsCmd, openCmd)
 }
 
 func initConfig() {
@@ -135,7 +149,9 @@ func initConfig() {
 	}
 	config.Set(cfg)
 
-	// Wire output format into TUI layer
+	// Wire config values into TUI layer (avoids tui→config dependency)
+	tui.SetVerbose(cfg.Verbose)
+	tui.SetQuiet(cfg.Quiet)
 	if cfg.OutputFormat != "" {
 		tui.SetOutputFormat(cfg.OutputFormat)
 	}
@@ -150,56 +166,74 @@ func initConfig() {
 	}
 }
 
-// --- Inline simple commands ---
+// --- Factory functions for inline commands ---
 
-var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Print hctl version",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("hctl %s (commit: %s)\n", Version, Commit)
-	},
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print hctl version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("hctl %s (commit: %s)\n", Version, Commit)
+		},
+	}
 }
 
-var initCmd = &cobra.Command{
-	Use:   "init",
-	Short: "Initialize hctl configuration",
-	Long:  "Detects the gitops repo, validates cluster access, and writes ~/.config/hctl/config.yaml.",
-	RunE:  runInit,
+func newInitCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "init",
+		Short: "Initialize hctl configuration",
+		Long:  "Detects the gitops repo, validates cluster access, and writes ~/.config/hctl/config.yaml.",
+		RunE:  runInit,
+	}
 }
 
-var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Platform health dashboard",
-	Long:  "Shows node health, ArgoCD application status, Kratix promises, active vClusters, workloads, and addons.",
-	RunE:  runStatus,
+func newStatusCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Platform health dashboard",
+		Long:  "Shows node health, ArgoCD application status, Kratix promises, active vClusters, workloads, and addons.",
+		RunE:  runStatus,
+	}
+	cmd.Flags().BoolVarP(&watchFlag, "watch", "w", false, "continuously refresh status (structured output only)")
+	cmd.Flags().DurationVar(&watchInterval, "interval", 10*time.Second, "refresh interval for --watch")
+	return cmd
 }
 
-var diagnoseCmd = &cobra.Command{
-	Use:   "diagnose [resource]",
-	Short: "Automated troubleshooting",
-	Long:  "Walks the resource lifecycle chain (CR → Pipeline → Work → ArgoCD) and reports issues.",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runDiagnose,
+func newDiagnoseCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "diagnose [resource]",
+		Short: "Automated troubleshooting",
+		Long:  "Walks the resource lifecycle chain (CR → Pipeline → Work → ArgoCD) and reports issues.",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runDiagnose,
+	}
+	cmd.Flags().StringVar(&bundlePath, "bundle", "", "export diagnostic bundle to file (JSON)")
+	return cmd
 }
 
-var reconcileCmd = &cobra.Command{
-	Use:   "reconcile [resource]",
-	Short: "Force re-reconciliation of a resource",
-	Long:  "Sets the reconcile-at annotation to trigger Kratix pipeline re-execution.",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runReconcile,
+func newReconcileCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "reconcile [resource]",
+		Short: "Force re-reconciliation of a resource",
+		Long:  "Sets the reconcile-at annotation to trigger Kratix pipeline re-execution.",
+		Args:  cobra.ExactArgs(1),
+		RunE:  runReconcile,
+	}
 }
 
-var contextCmd = &cobra.Command{
-	Use:   "context",
-	Short: "Show current platform context",
-	RunE:  runContext,
+func newContextCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "context",
+		Short: "Show current platform context",
+		RunE:  runContext,
+	}
 }
 
-var completionCmd = &cobra.Command{
-	Use:   "completion [bash|zsh|fish]",
-	Short: "Generate shell completion scripts",
-	Long: `Generate shell completion scripts for hctl.
+func newCompletionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "completion [bash|zsh|fish]",
+		Short: "Generate shell completion scripts",
+		Long: `Generate shell completion scripts for hctl.
 
 Examples:
   # Bash
@@ -210,18 +244,19 @@ Examples:
 
   # Fish
   hctl completion fish | source`,
-	Args:      cobra.ExactArgs(1),
-	ValidArgs: []string{"bash", "zsh", "fish"},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		switch args[0] {
-		case "bash":
-			return rootCmd.GenBashCompletion(os.Stdout)
-		case "zsh":
-			return rootCmd.GenZshCompletion(os.Stdout)
-		case "fish":
-			return rootCmd.GenFishCompletion(os.Stdout, true)
-		default:
-			return fmt.Errorf("unsupported shell: %s", args[0])
-		}
-	},
+		Args:      cobra.ExactArgs(1),
+		ValidArgs: []string{"bash", "zsh", "fish"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch args[0] {
+			case "bash":
+				return rootCmd.GenBashCompletion(os.Stdout)
+			case "zsh":
+				return rootCmd.GenZshCompletion(os.Stdout)
+			case "fish":
+				return rootCmd.GenFishCompletion(os.Stdout, true)
+			default:
+				return hcerrors.NewUserError("unsupported shell: %s", args[0])
+			}
+		},
+	}
 }

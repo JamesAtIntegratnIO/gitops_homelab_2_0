@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	"github.com/spf13/cobra"
 )
 
@@ -20,9 +22,9 @@ func newListCmd() *cobra.Command {
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := config.Get()
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -30,7 +32,7 @@ func newListCmd() *cobra.Command {
 
 			vclusters, err := client.ListVClusters(ctx, cfg.Platform.PlatformNamespace)
 			if err != nil {
-				return fmt.Errorf("listing vclusters: %w", err)
+				return hcerrors.NewPlatformError("listing vclusters: %w", err)
 			}
 
 			if len(vclusters) == 0 {
@@ -41,8 +43,8 @@ func newListCmd() *cobra.Command {
 			var rows [][]string
 			for _, vc := range vclusters {
 				name := vc.GetName()
-				preset, _, _ := platform.UnstructuredNestedString(vc.Object, "spec", "vcluster", "preset")
-				hostname, _, _ := platform.UnstructuredNestedString(vc.Object, "spec", "exposure", "hostname")
+				preset := unstr.MustString(vc.Object, "spec", "vcluster", "preset")
+				hostname := unstr.MustString(vc.Object, "spec", "exposure", "hostname")
 				age := time.Since(vc.GetCreationTimestamp().Time).Round(time.Minute)
 
 				// Check ArgoCD app health
@@ -53,8 +55,8 @@ func newListCmd() *cobra.Command {
 				}
 				health := tui.DimStyle.Render("unknown")
 				if err == nil {
-					syncStatus, _, _ := platform.UnstructuredNestedString(argoApp.Object, "status", "sync", "status")
-					healthStatus, _, _ := platform.UnstructuredNestedString(argoApp.Object, "status", "health", "status")
+					syncStatus := unstr.MustString(argoApp.Object, "status", "sync", "status")
+					healthStatus := unstr.MustString(argoApp.Object, "status", "health", "status")
 					if syncStatus == "Synced" && healthStatus == "Healthy" {
 						health = tui.SuccessStyle.Render("Healthy")
 					} else {
@@ -86,7 +88,7 @@ func newListCmd() *cobra.Command {
 						isLast := i == len(result.Steps)-1
 						sb.WriteString(tui.TreeNode(
 							fmt.Sprintf("%-15s", step.Name),
-							step.Status.String(),
+							tui.DiagIcon(int(step.Status)),
 							step.Message,
 							isLast,
 						) + "\n")

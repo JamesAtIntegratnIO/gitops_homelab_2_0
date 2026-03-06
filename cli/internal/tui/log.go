@@ -3,9 +3,20 @@ package tui
 import (
 	"fmt"
 	"os"
-
-	"github.com/jamesatintegratnio/hctl/internal/config"
 )
+
+// verbose and quiet are package-level flags set at initialisation time via
+// SetVerbose / SetQuiet. This avoids a reverse dependency on config.
+var (
+	verbose bool
+	quiet   bool
+)
+
+// SetVerbose enables or disables verbose (debug) output.
+func SetVerbose(v bool) { verbose = v }
+
+// SetQuiet enables or disables quiet mode (suppresses info/success output).
+func SetQuiet(q bool) { quiet = q }
 
 // Log provides leveled output helpers that respect --verbose, --quiet, and
 // structured output modes. Use these instead of raw fmt.Print in commands.
@@ -16,8 +27,7 @@ func Debug(format string, args ...any) {
 	if IsStructured() {
 		return
 	}
-	cfg := config.Get()
-	if !cfg.Verbose {
+	if !verbose {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)
@@ -30,8 +40,7 @@ func Info(format string, args ...any) {
 	if IsStructured() {
 		return
 	}
-	cfg := config.Get()
-	if cfg.Quiet {
+	if quiet {
 		return
 	}
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
@@ -61,8 +70,7 @@ func Success(format string, args ...any) {
 	if IsStructured() {
 		return
 	}
-	cfg := config.Get()
-	if cfg.Quiet {
+	if quiet {
 		return
 	}
 	msg := fmt.Sprintf(format, args...)

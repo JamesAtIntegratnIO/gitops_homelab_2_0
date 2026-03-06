@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -41,26 +42,15 @@ Examples:
 	return cmd
 }
 
-func runKubeconfig(cmd *cobra.Command, args []string) error {
-	name := args[0]
-	cfg := config.Get()
-
-	client, err := kube.NewClient(cfg.KubeContext)
-	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Try common secret name patterns
+// resolveVClusterKubeconfig looks up the kubeconfig for a vCluster by trying
+// common secret name patterns and key names. Returns the raw kubeconfig bytes.
+func resolveVClusterKubeconfig(ctx context.Context, client *kube.Client, name string) ([]byte, error) {
 	secretNames := []string{
-		"vc-" + name,           // vCluster default
-		name + "-kubeconfig",   // ExternalSecret pattern
-		"vc-" + name + "-kubeconfig",
+		"vc-" + name,                // vCluster default
+		name + "-kubeconfig",        // ExternalSecret pattern
+		"vc-" + name + "-kubeconfig", // alternate pattern
 	}
 
-	var kubeconfigData []byte
 	for _, secretName := range secretNames {
 		data, err := client.GetSecretData(ctx, name, secretName)
 		if err != nil {
@@ -69,42 +59,48 @@ func runKubeconfig(cmd *cobra.Command, args []string) error {
 		// Look for common kubeconfig keys
 		for _, key := range []string{"config", "value", "kubeconfig"} {
 			if v, ok := data[key]; ok {
-				kubeconfigData = v
-				break
+				return v, nil
 			}
-		}
-		if kubeconfigData != nil {
-			break
 		}
 		// If no known key, try base64 decode of first value
 		for _, v := range data {
 			decoded, err := base64.StdEncoding.DecodeString(string(v))
 			if err == nil && len(decoded) > 0 {
-				kubeconfigData = decoded
-			} else {
-				kubeconfigData = v
+				return decoded, nil
 			}
-			break
-		}
-		if kubeconfigData != nil {
-			break
+			return v, nil
 		}
 	}
 
-	if kubeconfigData == nil {
-		return fmt.Errorf("kubeconfig secret not found for vCluster %q — tried: %v", name, secretNames)
+	return nil, fmt.Errorf("kubeconfig secret not found for vCluster %q — tried: %v", name, secretNames)
+}
+
+func runKubeconfig(cmd *cobra.Command, args []string) error {
+	name := args[0]
+
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
+	if err != nil {
+		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	kubeconfigData, err := resolveVClusterKubeconfig(ctx, client, name)
+	if err != nil {
+		return hcerrors.NewPlatformError("resolving kubeconfig for %s: %w", name, err)
 	}
 
 	// Write output
 	if kubeconfigOutput != "" {
 		if err := writeFile(kubeconfigOutput, kubeconfigData); err != nil {
-			return err
+			return hcerrors.NewPlatformError("writing kubeconfig to %s: %w", kubeconfigOutput, err)
 		}
 		fmt.Println(kubeconfigOutput)
 	} else {
 		path, err := kube.WriteKubeconfig(kubeconfigData, name)
 		if err != nil {
-			return fmt.Errorf("writing kubeconfig: %w", err)
+			return hcerrors.NewPlatformError("writing kubeconfig: %w", err)
 		}
 		fmt.Printf("%s Kubeconfig written to %s\n", tui.SuccessStyle.Render(tui.IconCheck), path)
 		fmt.Printf("\n  %s\n", tui.DimStyle.Render(fmt.Sprintf("export KUBECONFIG=%s", path)))
@@ -125,41 +121,23 @@ func newConnectCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
-			secretNames := []string{"vc-" + name, name + "-kubeconfig"}
-			var kubeconfigData []byte
-			for _, secretName := range secretNames {
-				data, err := client.GetSecretData(ctx, name, secretName)
-				if err != nil {
-					continue
-				}
-				for _, key := range []string{"config", "value", "kubeconfig"} {
-					if v, ok := data[key]; ok {
-						kubeconfigData = v
-						break
-					}
-				}
-				if kubeconfigData != nil {
-					break
-				}
-			}
-
-			if kubeconfigData == nil {
-				return fmt.Errorf("kubeconfig not found for %q", name)
+			kubeconfigData, err := resolveVClusterKubeconfig(ctx, client, name)
+			if err != nil {
+				return hcerrors.NewPlatformError("resolving kubeconfig for %s: %w", name, err)
 			}
 
 			path, err := kube.WriteKubeconfig(kubeconfigData, name)
 			if err != nil {
-				return fmt.Errorf("writing kubeconfig: %w", err)
+				return hcerrors.NewPlatformError("writing kubeconfig: %w", err)
 			}
 
 			fmt.Printf("%s Connected to vCluster %s\n", tui.SuccessStyle.Render(tui.IconCheck), name)

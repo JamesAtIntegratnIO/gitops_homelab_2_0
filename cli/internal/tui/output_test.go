@@ -104,14 +104,22 @@ func TestFprintOutputText(t *testing.T) {
 
 func TestPrintStructuredReturnsCorrectly(t *testing.T) {
 	SetOutputFormat("text")
-	if PrintStructured(map[string]string{"a": "b"}) {
+	printed, err := PrintStructured(map[string]string{"a": "b"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if printed {
 		t.Error("PrintStructured should return false in text mode")
 	}
 
 	// In JSON mode it should return true (output goes to stdout, can't easily capture)
 	SetOutputFormat("json")
 	defer SetOutputFormat("text")
-	if !PrintStructured(map[string]string{"a": "b"}) {
+	printed, err = PrintStructured(map[string]string{"a": "b"})
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !printed {
 		t.Error("PrintStructured should return true in json mode")
 	}
 }

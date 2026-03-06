@@ -5,25 +5,26 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jamesatintegratnio/hctl/internal/kube"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // CollectPlatformStatus gathers status for all vclusters, workloads, and addons.
-func CollectPlatformStatus(ctx context.Context, client *kube.Client, platformNS string) (*PlatformStatus, error) {
+func CollectPlatformStatus(ctx context.Context, client KubeClient, platformNS string) (*PlatformStatus, error) {
 	ps := &PlatformStatus{}
 
 	// vClusters from CRs
 	vclusters, err := CollectVClusterStatus(ctx, client, platformNS)
-	if err == nil {
+	if err != nil {
+		ps.Warnings = append(ps.Warnings, fmt.Sprintf("collecting vcluster status: %v", err))
+	} else {
 		ps.VClusters = vclusters
 	}
 
 	// All ArgoCD apps (single query, classify by labels)
 	apps, err := client.ListArgoApps(ctx, "argocd")
 	if err != nil {
-		return ps, fmt.Errorf("listing argocd apps: %w", err)
+		ps.Warnings = append(ps.Warnings, fmt.Sprintf("listing argocd apps: %v", err))
+		return ps, nil
 	}
 
 	// Build a set of known vcluster names for workload classification
@@ -55,7 +56,7 @@ func CollectPlatformStatus(ctx context.Context, client *kube.Client, platformNS 
 }
 
 // CollectVClusterStatus gathers status for all VClusterOrchestratorV2 CRs.
-func CollectVClusterStatus(ctx context.Context, client *kube.Client, namespace string) ([]ResourceStatus, error) {
+func CollectVClusterStatus(ctx context.Context, client KubeClient, namespace string) ([]ResourceStatus, error) {
 	vclusters, err := client.ListVClusters(ctx, namespace)
 	if err != nil {
 		return nil, err
@@ -127,16 +128,14 @@ func CollectVClusterStatus(ctx context.Context, client *kube.Client, namespace s
 }
 
 // CollectWorkloadStatus gathers status for workload ArgoCD apps targeting vclusters.
-func CollectWorkloadStatus(ctx context.Context, client *kube.Client, vclusterName string) ([]ResourceStatus, error) {
-	apps, err := client.Dynamic.Resource(kube.ArgoCDApplicationGVR).Namespace("argocd").List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("addon=true,clusterName=%s", vclusterName),
-	})
+func CollectWorkloadStatus(ctx context.Context, client KubeClient, vclusterName string) ([]ResourceStatus, error) {
+	items, err := client.ListArgoAppsWithSelector(ctx, "argocd", fmt.Sprintf("addon=true,clusterName=%s", vclusterName))
 	if err != nil {
 		return nil, fmt.Errorf("listing workload apps: %w", err)
 	}
 
 	var result []ResourceStatus
-	for _, app := range apps.Items {
+	for _, app := range items {
 		rs := argoAppToResourceStatus(app)
 		rs.Kind = KindWorkload
 		result = append(result, rs)
@@ -145,20 +144,18 @@ func CollectWorkloadStatus(ctx context.Context, client *kube.Client, vclusterNam
 }
 
 // CollectAddonStatus gathers status for infrastructure addon ArgoCD apps.
-func CollectAddonStatus(ctx context.Context, client *kube.Client, clusterName string) ([]ResourceStatus, error) {
+func CollectAddonStatus(ctx context.Context, client KubeClient, clusterName string) ([]ResourceStatus, error) {
 	selector := "addon=true"
 	if clusterName != "" {
 		selector += ",clusterName=" + clusterName
 	}
-	apps, err := client.Dynamic.Resource(kube.ArgoCDApplicationGVR).Namespace("argocd").List(ctx, metav1.ListOptions{
-		LabelSelector: selector,
-	})
+	items, err := client.ListArgoAppsWithSelector(ctx, "argocd", selector)
 	if err != nil {
 		return nil, fmt.Errorf("listing addon apps: %w", err)
 	}
 
 	var result []ResourceStatus
-	for _, app := range apps.Items {
+	for _, app := range items {
 		rs := argoAppToResourceStatus(app)
 		rs.Kind = KindAddon
 		result = append(result, rs)

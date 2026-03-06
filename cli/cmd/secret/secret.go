@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -34,11 +35,10 @@ func newSecretGetCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ns, name := args[0], args[1]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -46,7 +46,7 @@ func newSecretGetCmd() *cobra.Command {
 
 			data, err := client.GetSecretData(ctx, ns, name)
 			if err != nil {
-				return err
+				return hcerrors.NewPlatformError("fetching secret %s/%s: %w", ns, name, err)
 			}
 
 			fmt.Printf("\n%s %s/%s\n\n", tui.TitleStyle.Render("Secret"), ns, name)
@@ -59,6 +59,12 @@ func newSecretGetCmd() *cobra.Command {
 	}
 }
 
+// newSecretListCmd returns a command that lists secrets in a namespace.
+//
+// NOTE: Directly accesses client.Clientset for secret List operations not
+// covered by the KubeClient interface. The interface is scoped to platform
+// lifecycle (vClusters, ArgoCD); general-purpose secret enumeration with
+// interactive TUI selection is CLI-specific and doesn't belong there.
 func newSecretListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list [namespace]",
@@ -67,19 +73,19 @@ func newSecretListCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ns := args[0]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
+			// Direct Clientset access — see function doc comment.
 			secrets, err := client.Clientset.CoreV1().Secrets(ns).List(ctx, metav1.ListOptions{})
 			if err != nil {
-				return fmt.Errorf("listing secrets: %w", err)
+				return hcerrors.NewPlatformError("listing secrets: %w", err)
 			}
 
 			if len(secrets.Items) == 0 {
@@ -109,13 +115,12 @@ func newSecretListCmd() *cobra.Command {
 					if err != nil {
 						return tui.ErrorStyle.Render("Error: " + err.Error())
 					}
-					var sb fmt.Stringer = &strings.Builder{}
-					w := sb.(*strings.Builder)
-					w.WriteString(tui.TitleStyle.Render(secretName) + "\n")
+					var sb strings.Builder
+					sb.WriteString(tui.TitleStyle.Render(secretName) + "\n")
 					for k, v := range data {
-						w.WriteString(fmt.Sprintf("  %s: %s\n", tui.HeaderStyle.Render(k), string(v)))
+						sb.WriteString(fmt.Sprintf("  %s: %s\n", tui.HeaderStyle.Render(k), string(v)))
 					}
-					return w.String()
+					return sb.String()
 				},
 			})
 			_ = action

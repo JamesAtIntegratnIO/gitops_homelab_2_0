@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
 	"github.com/spf13/cobra"
@@ -28,11 +29,10 @@ sync all apps regardless of current state.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			cfg := config.Get()
 
-			client, err := kube.NewClient(cfg.KubeContext)
+			client, err := kube.SharedWithConfig(config.Get().KubeContext)
 			if err != nil {
-				return fmt.Errorf("connecting to cluster: %w", err)
+				return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -40,7 +40,7 @@ sync all apps regardless of current state.`,
 
 			apps, err := client.ListArgoAppsForCluster(ctx, "argocd", name)
 			if err != nil {
-				return fmt.Errorf("listing apps for cluster %s: %w", name, err)
+				return hcerrors.NewPlatformError("listing apps for cluster %s: %w", name, err)
 			}
 
 			if len(apps) == 0 {
@@ -58,7 +58,7 @@ sync all apps regardless of current state.`,
 					}
 				}
 				if len(filtered) == 0 {
-					return fmt.Errorf("app %q not found targeting cluster %s", appFilter, name)
+					return hcerrors.NewUserError("app %q not found targeting cluster %s", appFilter, name)
 				}
 				apps = filtered
 			}

@@ -7,16 +7,19 @@ import (
 	"time"
 
 	"github.com/jamesatintegratnio/hctl/internal/config"
+	hcerrors "github.com/jamesatintegratnio/hctl/internal/errors"
 	"github.com/jamesatintegratnio/hctl/internal/kube"
 	"github.com/jamesatintegratnio/hctl/internal/platform"
 	"github.com/jamesatintegratnio/hctl/internal/tui"
+	unstr "github.com/jamesatintegratnio/hctl/internal/unstructured"
 	"github.com/spf13/cobra"
 )
 
-var traceCmd = &cobra.Command{
-	Use:   "trace [resource]",
-	Short: "Trace a resource through the platform lifecycle",
-	Long: `Follows a resource (vCluster, workload, addon) through each stage of the
+func newTraceCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "trace [resource]",
+		Short: "Trace a resource through the platform lifecycle",
+		Long: `Follows a resource (vCluster, workload, addon) through each stage of the
 platform lifecycle and shows its current state at each hop.
 
 Lifecycle chain:
@@ -27,8 +30,9 @@ Lifecycle chain:
   5. Runtime resources (Pods, Services)
 
 This gives a complete picture of where a resource is in the delivery pipeline.`,
-	Args: cobra.ExactArgs(1),
-	RunE: runTrace,
+		Args: cobra.ExactArgs(1),
+		RunE: runTrace,
+	}
 }
 
 type traceHop struct {
@@ -39,13 +43,18 @@ type traceHop struct {
 
 func runTrace(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	cfg := config.Get()
 
-	client, err := kube.NewClient(cfg.KubeContext)
+	client, err := kube.SharedWithConfig(config.Get().KubeContext)
 	if err != nil {
-		return fmt.Errorf("connecting to cluster: %w", err)
+		return hcerrors.NewPlatformError("connecting to cluster: %w", err)
 	}
 
+	return runTraceWithClient(client, name, config.Get())
+}
+
+// runTraceWithClient contains the core trace logic, accepting the KubeClient interface
+// for testability. runTrace is the cobra glue that creates the concrete client.
+func runTraceWithClient(client platform.KubeClient, name string, cfg *config.Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -54,7 +63,7 @@ func runTrace(cmd *cobra.Command, args []string) error {
 	// Stage 1: Kratix ResourceRequest (VClusterOrchestratorV2)
 	vc, vcErr := client.GetVCluster(ctx, cfg.Platform.PlatformNamespace, name)
 	if vcErr == nil {
-		phase, _, _ := platform.UnstructuredNestedString(vc.Object, "status", "phase")
+		phase := unstr.MustString(vc.Object, "status", "phase")
 		if phase == "" {
 			phase = "Unknown"
 		}
@@ -65,8 +74,8 @@ func runTrace(cmd *cobra.Command, args []string) error {
 		})
 
 		// Stage 2: Pipeline Job
-		pipelineMsg, _, _ := platform.UnstructuredNestedString(vc.Object, "status", "message")
-		conditions, _, _ := platform.UnstructuredNestedSlice(vc.Object, "status", "conditions")
+		pipelineMsg := unstr.MustString(vc.Object, "status", "message")
+		conditions := unstr.MustSlice(vc.Object, "status", "conditions")
 		pipelineStatus := "Unknown"
 		if len(conditions) > 0 {
 			pipelineStatus = "Completed"
@@ -103,9 +112,9 @@ func runTrace(cmd *cobra.Command, args []string) error {
 		}
 	}
 	if aErr == nil {
-		syncStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "status")
-		healthStatus, _, _ := platform.UnstructuredNestedString(app.Object, "status", "health", "status")
-		revision, _, _ := platform.UnstructuredNestedString(app.Object, "status", "sync", "revision")
+		syncStatus := unstr.MustString(app.Object, "status", "sync", "status")
+		healthStatus := unstr.MustString(app.Object, "status", "health", "status")
+		revision := unstr.MustString(app.Object, "status", "sync", "revision")
 		argoStatus := fmt.Sprintf("%s/%s", syncStatus, healthStatus)
 		details := ""
 		if revision != "" {
@@ -199,9 +208,3 @@ func runTrace(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

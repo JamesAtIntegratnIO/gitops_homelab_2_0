@@ -1,0 +1,20 @@
+{
+  "session_id": "ext_20260304_201443_51cf7ec5",
+  "status": "submitted",
+  "runner": "claude",
+  "created_at": "2026-03-04T20:14:43+00:00",
+  "expires_at": "2026-03-05T20:14:43+00:00",
+  "ttl_hours": 24,
+  "token": "f594ceb6e29bb68c47e43dd49b46b340",
+  "attest": "I validated this review was completed without awareness of overall score and is unbiased.",
+  "packet_path": "/home/boboysdadda/projects/gitops_homelab_2_0/cli/.desloppify/review_packets/holistic_packet_20260304_201443.json",
+  "blind_packet_path": "/home/boboysdadda/projects/gitops_homelab_2_0/cli/.desloppify/review_packet_blind.json",
+  "packet_sha256": "789377b8313c73330d2858b35c5de5dc815849dfae8f40cf2d7895393f1a7fd0",
+  "template_path": "/home/boboysdadda/projects/gitops_homelab_2_0/cli/.desloppify/external_review_sessions/ext_20260304_201443_51cf7ec5/review_result.template.json",
+  "launch_prompt_path": "/home/boboysdadda/projects/gitops_homelab_2_0/cli/.desloppify/external_review_sessions/ext_20260304_201443_51cf7ec5/claude_launch_prompt.md",
+  "instructions_path": "/home/boboysdadda/projects/gitops_homelab_2_0/cli/.desloppify/external_review_sessions/ext_20260304_201443_51cf7ec5/reviewer_instructions.md",
+  "expected_output_path": "/home/boboysdadda/projects/gitops_homelab_2_0/cli/.desloppify/external_review_sessions/ext_20260304_201443_51cf7ec5/review_result.json",
+  "submitted_at": "2026-03-04T20:22:00+00:00",
+  "submitted_input_file": "/home/boboysdadda/projects/gitops_homelab_2_0/cli/.desloppify/external_review_sessions/ext_20260304_201443_51cf7ec5/review_result.json",
+  "submitted_canonical_file": "/home/boboysdadda/projects/gitops_homelab_2_0/cli/.desloppify/external_review_sessions/ext_20260304_201443_51cf7ec5/canonical_import_20260304_202200.json"
+}
