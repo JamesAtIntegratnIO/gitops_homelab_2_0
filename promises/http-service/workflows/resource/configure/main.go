@@ -66,7 +66,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceC
 	// Helm overrides
 	config.HelmOverrides, err = ku.ExtractMapFromResource(resource, "spec.helmOverrides")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.helmOverrides: %w", err)
 	}
 
 	return config, nil
@@ -83,11 +83,11 @@ func extractImageConfig(resource kratix.Resource, config *HTTPServiceConfig) err
 	config.ImagePullPolicy = ku.GetStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
 	config.Command, err = ku.ExtractStringSliceFromResource(resource, "spec.command")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.command: %w", err)
 	}
 	config.Args, err = ku.ExtractStringSliceFromResource(resource, "spec.args")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.args: %w", err)
 	}
 	return nil
 }
@@ -109,7 +109,7 @@ func extractNetworkConfig(resource kratix.Resource, config *HTTPServiceConfig) e
 	config.IngressEnabled = ku.GetBoolValueWithDefault(resource, "spec.ingress.enabled", true)
 	config.IngressHostname, err = ku.GetOptionalStringValue(resource, "spec.ingress.hostname")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.ingress.hostname: %w", err)
 	}
 	if config.IngressHostname == "" {
 		config.IngressHostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
@@ -123,15 +123,15 @@ func extractSecretConfig(resource kratix.Resource, config *HTTPServiceConfig) er
 	var err error
 	config.Secrets, err = ku.ExtractSecretsFromResource(resource, "spec.secrets")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.secrets: %w", err)
 	}
 	config.Env, err = ku.ExtractStringMapFromResource(resource, "spec.env")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.env: %w", err)
 	}
 	config.EnvFromSecrets, err = ku.ExtractStringSliceFromResource(resource, "spec.envFromSecrets")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.envFromSecrets: %w", err)
 	}
 	return nil
 }
@@ -153,7 +153,7 @@ func extractStorageConfig(resource kratix.Resource, config *HTTPServiceConfig) e
 	config.PersistenceSize = ku.GetStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
 	config.PersistenceClass, err = ku.GetOptionalStringValue(resource, "spec.persistence.storageClass")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.persistence.storageClass: %w", err)
 	}
 	config.PersistenceMountPath = ku.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
 	return nil
@@ -164,19 +164,19 @@ func extractSecurityConfig(resource kratix.Resource, config *HTTPServiceConfig) 
 	var err error
 	config.RunAsNonRoot, err = ku.GetOptionalBoolPtr(resource, "spec.securityContext.runAsNonRoot")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.securityContext.runAsNonRoot: %w", err)
 	}
 	config.ReadOnlyRootFilesystem, err = ku.GetOptionalBoolPtr(resource, "spec.securityContext.readOnlyRootFilesystem")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.securityContext.readOnlyRootFilesystem: %w", err)
 	}
 	config.RunAsUser, err = ku.GetOptionalIntPtr(resource, "spec.securityContext.runAsUser")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.securityContext.runAsUser: %w", err)
 	}
 	config.RunAsGroup, err = ku.GetOptionalIntPtr(resource, "spec.securityContext.runAsGroup")
 	if err != nil {
-		return err
+		return fmt.Errorf("spec.securityContext.runAsGroup: %w", err)
 	}
 	return nil
 }

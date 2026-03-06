@@ -24,23 +24,23 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	config.Namespace = ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
 	config.Description, err = ku.GetOptionalStringValue(resource, "spec.description")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.description: %w", err)
 	}
 	config.Annotations, err = ku.ExtractStringMapFromResource(resource, "spec.annotations")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.annotations: %w", err)
 	}
 	config.Labels, err = ku.ExtractStringMapFromResource(resource, "spec.labels")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.labels: %w", err)
 	}
 	config.SourceRepos, err = ku.ExtractStringSliceFromResource(resource, "spec.sourceRepos")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.sourceRepos: %w", err)
 	}
 	rawDestinations, err := ku.ExtractObjectSliceFromResource(resource, "spec.destinations")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.destinations: %w", err)
 	}
 	config.Destinations, err = ku.FromMapSliceE[ku.ProjectDestination](rawDestinations)
 	if err != nil {
@@ -48,7 +48,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	}
 	rawClusterResourceWhitelist, err := ku.ExtractObjectSliceFromResource(resource, "spec.clusterResourceWhitelist")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.clusterResourceWhitelist: %w", err)
 	}
 	config.ClusterResourceWhitelist, err = ku.FromMapSliceE[ku.ResourceFilter](rawClusterResourceWhitelist)
 	if err != nil {
@@ -56,7 +56,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	}
 	rawNamespaceResourceWhitelist, err := ku.ExtractObjectSliceFromResource(resource, "spec.namespaceResourceWhitelist")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.namespaceResourceWhitelist: %w", err)
 	}
 	config.NamespaceResourceWhitelist, err = ku.FromMapSliceE[ku.ResourceFilter](rawNamespaceResourceWhitelist)
 	if err != nil {

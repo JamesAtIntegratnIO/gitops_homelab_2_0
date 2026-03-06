@@ -30,15 +30,15 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, err
 
 	config.Annotations, err = ku.ExtractStringMapFromResource(resource, "spec.annotations")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.annotations: %w", err)
 	}
 	config.Labels, err = ku.ExtractStringMapFromResource(resource, "spec.labels")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.labels: %w", err)
 	}
 	config.Finalizers, err = ku.ExtractStringSliceFromResource(resource, "spec.finalizers")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.finalizers: %w", err)
 	}
 
 	// Extract source
@@ -48,7 +48,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, err
 	}
 	chart, err := ku.GetOptionalStringValue(resource, "spec.source.chart")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.source.chart: %w", err)
 	}
 	targetRevision, err := ku.GetStringValue(resource, "spec.source.targetRevision")
 	if err != nil {
@@ -64,7 +64,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, err
 	// Extract helm config
 	releaseName, err := ku.GetOptionalStringValue(resource, "spec.source.helm.releaseName")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("spec.source.helm.releaseName: %w", err)
 	}
 	valuesObject, err := ku.ExtractMapFromResource(resource, "spec.source.helm.valuesObject")
 	if err != nil {

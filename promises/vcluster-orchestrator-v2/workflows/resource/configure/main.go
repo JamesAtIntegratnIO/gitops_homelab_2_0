@@ -391,10 +391,10 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 // configureNetworkPolicies extracts NFS toggle and custom egress rules
 // from the resource's networkPolicies spec.
 func configureNetworkPolicies(config *VClusterConfig, resource kratix.Resource) error {
-	if val, err := ku.GetOptionalBoolValue(resource, "spec.networkPolicies.enableNFS"); err != nil {
+	if ptr, err := ku.GetOptionalBoolPtr(resource, "spec.networkPolicies.enableNFS"); err != nil {
 		return fmt.Errorf("spec.networkPolicies.enableNFS: %w", err)
-	} else {
-		config.EnableNFS = val
+	} else if ptr != nil {
+		config.EnableNFS = *ptr
 	}
 	extraEgress, err := extractExtraEgress(resource)
 	if err != nil {
