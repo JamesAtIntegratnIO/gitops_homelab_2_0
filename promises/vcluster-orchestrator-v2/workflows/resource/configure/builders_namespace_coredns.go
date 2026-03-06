@@ -62,7 +62,7 @@ func buildNamespace(config *VClusterConfig) ku.Resource {
 		"app.kubernetes.io/name":        "vcluster-namespace",
 		"vcluster.loft.sh/namespace":    "true",
 		"platform.integratn.tech/type":  "vcluster",
-	}, ku.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
+	}, ku.BaseLabels(config.PromiseName, config.Name))
 
 	return ku.Resource{
 		APIVersion: "v1",
@@ -80,7 +80,7 @@ func buildCorednsConfigMap(config *VClusterConfig) ku.Resource {
 	labels := ku.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name":     "coredns",
 		"app.kubernetes.io/instance": fmt.Sprintf("vc-%s", config.Name),
-	}, ku.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
+	}, ku.BaseLabels(config.PromiseName, config.Name))
 
 	return ku.Resource{
 		APIVersion: "v1",

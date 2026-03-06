@@ -9,12 +9,12 @@ import (
 func buildArgoCDProjectRequest(config *VClusterConfig) ku.Resource {
 	metadataLabels := ku.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "argocd-project",
-	}, ku.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
+	}, ku.BaseLabels(config.PromiseName, config.Name))
 
 	specLabels := map[string]string{
 		"app.kubernetes.io/managed-by":     "kratix",
 		"argocd.argoproj.io/project-group": "appteam",
-		"kratix.io/promise-name":           config.WorkflowContext.PromiseName,
+		"kratix.io/promise-name":           config.PromiseName,
 		"kratix.io/resource-name":          config.Name,
 	}
 
@@ -55,7 +55,7 @@ func buildArgoCDProjectRequest(config *VClusterConfig) ku.Resource {
 func buildArgoCDApplicationRequest(config *VClusterConfig) ku.Resource {
 	metadataLabels := ku.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "argocd-application",
-	}, ku.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
+	}, ku.BaseLabels(config.PromiseName, config.Name))
 
 	spec := ku.ArgoCDApplicationSpec{
 		Name:      fmt.Sprintf("vcluster-%s", config.Name),
@@ -97,7 +97,7 @@ func buildArgoCDApplicationRequest(config *VClusterConfig) ku.Resource {
 func buildArgoCDClusterRegistrationRequest(config *VClusterConfig) ku.Resource {
 	metadataLabels := ku.MergeStringMap(map[string]string{
 		"app.kubernetes.io/name": "argocd-cluster-registration",
-	}, ku.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
+	}, ku.BaseLabels(config.PromiseName, config.Name))
 
 	spec := ku.ArgoCDClusterRegistrationSpec{
 		Name:              config.Name,

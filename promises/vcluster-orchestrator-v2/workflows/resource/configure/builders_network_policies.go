@@ -77,7 +77,7 @@ func netpolicyLabels(config *VClusterConfig, name string) map[string]string {
 		"app.kubernetes.io/name":       name,
 		"app.kubernetes.io/component":  "network-policy",
 		"platform.integratn.tech/type": "vcluster-policy",
-	}, ku.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
+	}, ku.BaseLabels(config.PromiseName, config.Name))
 }
 
 // --- Generic baseline policies ---

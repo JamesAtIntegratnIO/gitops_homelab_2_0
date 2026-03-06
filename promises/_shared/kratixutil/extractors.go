@@ -2,7 +2,6 @@ package kratixutil
 
 import (
 	"fmt"
-	"strings"
 )
 
 // ---------------------------------------------------------------------------
@@ -89,19 +88,14 @@ func ExtractStringMapE(data map[string]interface{}, key string) (map[string]stri
 		return nil, fmt.Errorf("key %q: expected map[string]interface{}, got %T", key, v)
 	}
 	result := make(map[string]string, len(m))
-	var skipped []string
 	for k, val := range m {
-		if str, ok := val.(string); ok {
-			result[k] = str
-		} else {
-			skipped = append(skipped, fmt.Sprintf("%s(%T)", k, val))
+		str, ok := val.(string)
+		if !ok {
+			return nil, fmt.Errorf("key %q: value for %q expected string, got %T", key, k, val)
 		}
+		result[k] = str
 	}
-	var err error
-	if len(skipped) > 0 {
-		err = fmt.Errorf("key %q: skipped non-string values: %s", key, strings.Join(skipped, ", "))
-	}
-	return result, err
+	return result, nil
 }
 
 // ExtractStringSliceE returns a []string for key, or an error if the value
@@ -116,19 +110,14 @@ func ExtractStringSliceE(data map[string]interface{}, key string) ([]string, err
 		return nil, fmt.Errorf("key %q: expected []interface{}, got %T", key, v)
 	}
 	result := make([]string, 0, len(arr))
-	var skippedCount int
-	for _, item := range arr {
-		if str, ok := item.(string); ok {
-			result = append(result, str)
-		} else {
-			skippedCount++
+	for i, item := range arr {
+		str, ok := item.(string)
+		if !ok {
+			return nil, fmt.Errorf("key %q: element [%d] expected string, got %T", key, i, item)
 		}
+		result = append(result, str)
 	}
-	var err error
-	if skippedCount > 0 {
-		err = fmt.Errorf("key %q: skipped %d non-string item(s)", key, skippedCount)
-	}
-	return result, err
+	return result, nil
 }
 
 // ExtractObjectSliceE returns a []map[string]interface{} for key, or an error

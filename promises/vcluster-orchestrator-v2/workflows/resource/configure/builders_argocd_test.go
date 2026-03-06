@@ -23,7 +23,7 @@ func TestBuildArgoCDProjectRequest_Labels(t *testing.T) {
 	wantLabels := map[string]string{
 		"app.kubernetes.io/name":       "argocd-project",
 		"app.kubernetes.io/managed-by": "kratix",
-		"kratix.io/promise-name":       config.WorkflowContext.PromiseName,
+		"kratix.io/promise-name":       config.PromiseName,
 		"kratix.io/resource-name":      config.Name,
 	}
 	for k, want := range wantLabels {
@@ -80,7 +80,7 @@ func TestBuildArgoCDProjectRequest_SpecLabels(t *testing.T) {
 	wantSpecLabels := map[string]string{
 		"app.kubernetes.io/managed-by":     "kratix",
 		"argocd.argoproj.io/project-group": "appteam",
-		"kratix.io/promise-name":           config.WorkflowContext.PromiseName,
+		"kratix.io/promise-name":           config.PromiseName,
 		"kratix.io/resource-name":          config.Name,
 	}
 	for k, want := range wantSpecLabels {

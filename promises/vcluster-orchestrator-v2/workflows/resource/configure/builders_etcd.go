@@ -38,16 +38,8 @@ func etcdEnabledE(config *VClusterConfig) (bool, error) {
 	return enabled, nil
 }
 
-// etcdEnabled returns whether etcd backing store is enabled.
-// The backing store structure must be validated first by buildConfig (via etcdEnabledE).
-// This is a convenience wrapper that silently returns false on error.
-func etcdEnabled(config *VClusterConfig) bool {
-	enabled, _ := etcdEnabledE(config)
-	return enabled
-}
-
 func buildEtcdCertificates(config *VClusterConfig) []ku.Resource {
-	if !etcdEnabled(config) {
+	if !config.EtcdEnabled {
 		return nil
 	}
 
@@ -55,7 +47,7 @@ func buildEtcdCertificates(config *VClusterConfig) []ku.Resource {
 		return ku.MergeStringMap(map[string]string{
 			"app.kubernetes.io/instance": config.Name,
 			"app.kubernetes.io/name":     name,
-		}, ku.BaseLabels(config.WorkflowContext.PromiseName, config.Name))
+		}, ku.BaseLabels(config.PromiseName, config.Name))
 	}
 
 	caCert := ku.Resource{

@@ -68,11 +68,7 @@ func minimalConfig() *VClusterConfig {
 		KubeconfigSyncJobName: "vcluster-test-vc-kubeconfig-sync",
 		BaseDomain:            "integratn.tech",
 		BaseDomainSanitized:   "integratn-tech",
-		WorkflowContext: WorkflowContext{
-			WorkflowContext: ku.WorkflowContext{
-				PromiseName: "vcluster-orchestrator-v2",
-			},
-		},
+		PromiseName:           "vcluster-orchestrator-v2",
 	}
 }
 
@@ -158,9 +154,12 @@ func TestEtcdEnabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &VClusterConfig{BackingStore: tt.backingStore}
-			got := etcdEnabled(config)
+			got, err := etcdEnabledE(config)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if got != tt.expected {
-				t.Errorf("etcdEnabled() = %v, want %v", got, tt.expected)
+				t.Errorf("etcdEnabledE() = %v, want %v", got, tt.expected)
 			}
 		})
 	}
@@ -493,6 +492,7 @@ func TestBuildEtcdCertificates_Enabled(t *testing.T) {
 			},
 		},
 	}
+	config.EtcdEnabled = true
 
 	certs := buildEtcdCertificates(config)
 	if len(certs) != 9 {
@@ -654,6 +654,7 @@ func TestBuildValuesObject_WithEtcdBackingStore(t *testing.T) {
 			},
 		},
 	}
+	config.EtcdEnabled = true
 	values, err := buildValuesObject(config)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -769,6 +770,7 @@ func TestHandleConfigure_WithEtcd(t *testing.T) {
 			},
 		},
 	}
+	config.EtcdEnabled = true
 	vals, err := buildValuesObject(config)
 	if err != nil {
 		t.Fatalf("buildValuesObject failed: %v", err)
@@ -857,6 +859,7 @@ func TestHandleDelete_WithEtcd(t *testing.T) {
 			"deploy": map[string]interface{}{"enabled": true},
 		},
 	}
+	config.EtcdEnabled = true
 
 	fakeClient := fakeclientset.NewSimpleClientset(
 		&corev1.Namespace{
@@ -928,6 +931,7 @@ func TestDeleteOutputGeneration_WithEtcd(t *testing.T) {
 			"deploy": map[string]interface{}{"enabled": true},
 		},
 	}
+	config.EtcdEnabled = true
 
 	etcdCerts := buildEtcdCertificates(config)
 	for _, obj := range etcdCerts {

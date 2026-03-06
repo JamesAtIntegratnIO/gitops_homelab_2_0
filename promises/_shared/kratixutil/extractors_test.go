@@ -199,11 +199,11 @@ func TestExtractStringMapE(t *testing.T) {
 		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected map[string]interface{}"},
 		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected map[string]interface{}"},
 		{
-			name:       "skips non-string values",
-			data:       map[string]interface{}{"k": map[string]interface{}{"good": "val", "bad": 42}},
-			key:        "k",
-			wantLen:    1,
-			warnSubstr: "skipped non-string",
+			name:      "rejects non-string values",
+			data:      map[string]interface{}{"k": map[string]interface{}{"good": "val", "bad": 42}},
+			key:       "k",
+			wantErr:   true,
+			errSubstr: "expected string",
 		},
 	}
 	for _, tt := range tests {
@@ -267,11 +267,11 @@ func TestExtractStringSliceE(t *testing.T) {
 		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
 		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
 		{
-			name:       "filters non-strings",
-			data:       map[string]interface{}{"k": []interface{}{"a", 42, "b"}},
-			key:        "k",
-			wantLen:    2,
-			warnSubstr: "skipped",
+			name:      "rejects non-strings",
+			data:      map[string]interface{}{"k": []interface{}{"a", 42, "b"}},
+			key:       "k",
+			wantErr:   true,
+			errSubstr: "expected string",
 		},
 	}
 	for _, tt := range tests {

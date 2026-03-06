@@ -10,6 +10,7 @@ import (
 
 func etcdConfig() *VClusterConfig {
 	config := minimalConfig()
+	config.EtcdEnabled = true
 	config.BackingStore = map[string]interface{}{
 		"etcd": map[string]interface{}{
 			"deploy": map[string]interface{}{
@@ -333,7 +334,7 @@ func TestBuildEtcdCertificates_AllHaveBaseLabels(t *testing.T) {
 	certs := buildEtcdCertificates(config)
 
 	for i, cert := range certs {
-		if cert.Metadata.Labels["kratix.io/promise-name"] != config.WorkflowContext.PromiseName {
+		if cert.Metadata.Labels["kratix.io/promise-name"] != config.PromiseName {
 			t.Errorf("resource %d (%s): missing kratix.io/promise-name label", i, cert.Kind)
 		}
 		if cert.Metadata.Labels["kratix.io/resource-name"] != config.Name {
@@ -351,14 +352,14 @@ func TestBuildEtcdCertificates_AllHaveBaseLabels(t *testing.T) {
 
 func TestEtcdEnabled_NilBackingStore(t *testing.T) {
 	config := &VClusterConfig{BackingStore: nil}
-	if etcdEnabled(config) {
+	if config.EtcdEnabled {
 		t.Error("expected etcdEnabled=false with nil BackingStore")
 	}
 }
 
 func TestEtcdEnabled_EmptyBackingStore(t *testing.T) {
 	config := &VClusterConfig{BackingStore: map[string]interface{}{}}
-	if etcdEnabled(config) {
+	if config.EtcdEnabled {
 		t.Error("expected etcdEnabled=false with empty BackingStore")
 	}
 }
@@ -368,7 +369,7 @@ func TestEtcdEnabled_MalformedEtcdKey(t *testing.T) {
 	config := &VClusterConfig{BackingStore: map[string]interface{}{
 		"etcd": "not-a-map",
 	}}
-	if etcdEnabled(config) {
+	if config.EtcdEnabled {
 		t.Error("expected etcdEnabled=false when etcd key is not a map")
 	}
 }
@@ -379,7 +380,7 @@ func TestEtcdEnabled_MissingDeployKey(t *testing.T) {
 			"something": "else",
 		},
 	}}
-	if etcdEnabled(config) {
+	if config.EtcdEnabled {
 		t.Error("expected etcdEnabled=false when deploy key is missing")
 	}
 }
@@ -392,7 +393,7 @@ func TestEtcdEnabled_DeployEnabledNotBool(t *testing.T) {
 			},
 		},
 	}}
-	if etcdEnabled(config) {
+	if config.EtcdEnabled {
 		t.Error("expected etcdEnabled=false when enabled is not a bool")
 	}
 }

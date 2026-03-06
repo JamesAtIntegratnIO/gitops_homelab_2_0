@@ -25,7 +25,7 @@ func TestNetpolicyLabels(t *testing.T) {
 	}
 
 	// Should also include BaseLabels keys
-	base := ku.BaseLabels(config.WorkflowContext.PromiseName, config.Name)
+	base := ku.BaseLabels(config.PromiseName, config.Name)
 	for k, want := range base {
 		got, ok := labels[k]
 		if !ok {

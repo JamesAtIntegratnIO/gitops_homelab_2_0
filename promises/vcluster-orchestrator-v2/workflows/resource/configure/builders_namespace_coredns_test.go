@@ -149,7 +149,7 @@ func TestBuildNamespace_AllLabels(t *testing.T) {
 		"vcluster.loft.sh/namespace":    "true",
 		"platform.integratn.tech/type":  "vcluster",
 		"app.kubernetes.io/managed-by":  "kratix",
-		"kratix.io/promise-name":        config.WorkflowContext.PromiseName,
+		"kratix.io/promise-name":        config.PromiseName,
 		"kratix.io/resource-name":       config.Name,
 	}
 	for k, want := range wantLabels {
@@ -177,7 +177,7 @@ func TestBuildCorednsConfigMap_Labels(t *testing.T) {
 		"app.kubernetes.io/name":       "coredns",
 		"app.kubernetes.io/instance":   fmt.Sprintf("vc-%s", config.Name),
 		"app.kubernetes.io/managed-by": "kratix",
-		"kratix.io/promise-name":       config.WorkflowContext.PromiseName,
+		"kratix.io/promise-name":       config.PromiseName,
 		"kratix.io/resource-name":      config.Name,
 	}
 	for k, want := range wantLabels {

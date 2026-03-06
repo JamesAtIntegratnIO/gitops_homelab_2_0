@@ -16,13 +16,9 @@ func main() {
 
 func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConfig, error) {
 	config := &VClusterConfig{
-		Namespace:  resource.GetNamespace(),
-		KubeClient: InClusterClientFactory{},
-		WorkflowContext: WorkflowContext{
-			WorkflowContext: ku.WorkflowContext{
-				PromiseName: sdk.PromiseName(),
-			},
-		},
+		Namespace:   resource.GetNamespace(),
+		KubeClient:  InClusterClientFactory{},
+		PromiseName: sdk.PromiseName(),
 	}
 
 	if err := extractCoreConfig(config, resource); err != nil {
@@ -38,17 +34,9 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		return nil, err
 	}
 
-	// Extract network policy configuration
-	if val, err := ku.GetOptionalBoolValue(resource, "spec.networkPolicies.enableNFS"); err != nil {
-		return nil, fmt.Errorf("spec.networkPolicies.enableNFS: %w", err)
-	} else {
-		config.EnableNFS = val
+	if err := configureNetworkPolicies(config, resource); err != nil {
+		return nil, err
 	}
-	extraEgress, egressErr := extractExtraEgress(resource)
-	if egressErr != nil {
-		return nil, fmt.Errorf("spec.networkPolicies.extraEgress: %w", egressErr)
-	}
-	config.ExtraEgress = extraEgress
 
 	// Set derived values
 	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
@@ -88,7 +76,7 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	var err error
 	config.Name, err = ku.GetStringValue(resource, "spec.name")
 	if err != nil {
-		return fmt.Errorf("spec.name not found: %w", err)
+		return fmt.Errorf("spec.name is required: %w", err)
 	}
 
 	config.TargetNamespace, err = ku.GetOptionalStringValue(resource, "spec.targetNamespace")
@@ -126,10 +114,12 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	if err != nil {
 		return fmt.Errorf("spec.vcluster.backingStore: %w", err)
 	}
-	// Validate backing store internal structure early
-	if _, err := etcdEnabledE(config); err != nil {
+	// Validate and cache etcd state for use by post-validation callers.
+	etcdOn, err := etcdEnabledE(config)
+	if err != nil {
 		return fmt.Errorf("spec.vcluster.backingStore: %w", err)
 	}
+	config.EtcdEnabled = etcdOn
 
 	config.ExportKubeConfig, err = ku.ExtractMapFromResource(resource, "spec.vcluster.exportKubeConfig")
 	if err != nil {
@@ -398,6 +388,22 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 	return nil
 }
 
+// configureNetworkPolicies extracts NFS toggle and custom egress rules
+// from the resource's networkPolicies spec.
+func configureNetworkPolicies(config *VClusterConfig, resource kratix.Resource) error {
+	if val, err := ku.GetOptionalBoolValue(resource, "spec.networkPolicies.enableNFS"); err != nil {
+		return fmt.Errorf("spec.networkPolicies.enableNFS: %w", err)
+	} else {
+		config.EnableNFS = val
+	}
+	extraEgress, err := extractExtraEgress(resource)
+	if err != nil {
+		return fmt.Errorf("spec.networkPolicies.extraEgress: %w", err)
+	}
+	config.ExtraEgress = extraEgress
+	return nil
+}
+
 func extractExtraEgress(resource kratix.Resource) ([]ExtraEgressRule, error) {
 	raw, extractErr := ku.ExtractObjectSliceFromResource(resource, "spec.networkPolicies.extraEgress")
 	if extractErr != nil {
@@ -409,25 +415,34 @@ func extractExtraEgress(resource kratix.Resource) ([]ExtraEgressRule, error) {
 
 	var rules []ExtraEgressRule
 	for i, m := range raw {
-		rule := ExtraEgressRule{
-			Protocol: "TCP", // default
+		name, err := ku.ExtractStringE(m, "name")
+		if err != nil {
+			return nil, fmt.Errorf("egress rule[%d].name: %w", i, err)
 		}
-		if v, ok := m["name"].(string); ok {
-			rule.Name = v
+		cidr, err := ku.ExtractStringE(m, "cidr")
+		if err != nil {
+			return nil, fmt.Errorf("egress rule[%d].cidr: %w", i, err)
 		}
-		if v, ok := m["cidr"].(string); ok {
-			rule.CIDR = v
+		port, err := ku.ExtractIntE(m, "port")
+		if err != nil {
+			return nil, fmt.Errorf("egress rule[%d].port: %w", i, err)
 		}
-		if v, ok := m["port"].(float64); ok {
-			rule.Port = int(v)
+		protocol, err := ku.ExtractStringE(m, "protocol")
+		if err != nil {
+			return nil, fmt.Errorf("egress rule[%d].protocol: %w", i, err)
 		}
-		if v, ok := m["protocol"].(string); ok && v != "" {
-			rule.Protocol = v
+		if protocol == "" {
+			protocol = "TCP"
 		}
-		if rule.Name == "" || rule.CIDR == "" || rule.Port == 0 {
-			return nil, fmt.Errorf("egress rule at index %d: missing required fields (name=%q cidr=%q port=%d)", i, rule.Name, rule.CIDR, rule.Port)
+		if name == "" || cidr == "" || port == 0 {
+			return nil, fmt.Errorf("egress rule[%d]: missing required fields (name=%q cidr=%q port=%d)", i, name, cidr, port)
 		}
-		rules = append(rules, rule)
+		rules = append(rules, ExtraEgressRule{
+			Name:     name,
+			CIDR:     cidr,
+			Port:     port,
+			Protocol: protocol,
+		})
 	}
 	return rules, nil
 }

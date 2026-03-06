@@ -200,6 +200,7 @@ func TestHandleConfigure_StatusOutput(t *testing.T) {
 func TestHandleConfigure_EtcdCertsContent(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := minimalConfig()
+	config.EtcdEnabled = true
 	config.BackingStore = map[string]interface{}{
 		"etcd": map[string]interface{}{
 			"deploy": map[string]interface{}{"enabled": true},
@@ -339,6 +340,7 @@ func TestHandleDelete_NetworkPolicyCleanup(t *testing.T) {
 func TestHandleDelete_EtcdStateStoreCleanup(t *testing.T) {
 	sdk, dir := ku.NewTestSDK(t)
 	config := minimalConfig()
+	config.EtcdEnabled = true
 	config.BackingStore = map[string]interface{}{
 		"etcd": map[string]interface{}{
 			"deploy": map[string]interface{}{"enabled": true},

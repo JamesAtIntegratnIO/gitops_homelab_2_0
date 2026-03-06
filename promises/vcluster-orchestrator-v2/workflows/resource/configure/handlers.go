@@ -52,7 +52,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	}
 
 	directResources := 2 // namespace + coredns configmap
-	if etcdEnabled(config) {
+	if config.EtcdEnabled {
 		directResources++
 	}
 	if len(netPolicies) > 0 {
@@ -247,7 +247,7 @@ func stateStoreCleanup(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		outputs[path] = deleteObj
 	}
 
-	if etcdEnabled(config) {
+	if config.EtcdEnabled {
 		for _, obj := range buildEtcdCertificates(config) {
 			deleteObj := ku.DeleteFromResource(obj)
 			path := ku.DeleteOutputPathForResource("resources", obj)
@@ -267,7 +267,7 @@ func stateStoreCleanup(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 		Metadata:   ku.ObjectMeta{Name: crName},
 	})
 
-	if etcdEnabled(config) {
+	if config.EtcdEnabled {
 		for _, suffix := range []string{"ca", "server", "peer"} {
 			outputs[fmt.Sprintf("resources/delete-etcd-%s-secret.yaml", suffix)] = ku.DeleteFromResource(ku.Resource{
 				APIVersion: "v1",
