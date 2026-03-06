@@ -27,6 +27,9 @@ package.json
 package-lock.json
 node_modules/
 
+# Desloppify state
+**/.desloppify/
+
 # Local scratch directory
 tmp/
 
