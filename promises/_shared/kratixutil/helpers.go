@@ -3,7 +3,6 @@ package kratixutil
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 
 	kratix "github.com/syntasso/kratix-go"
@@ -110,18 +109,6 @@ func ParseSyncPolicyE(raw interface{}) (*SyncPolicy, error) {
 		}
 	}
 	return sp, nil
-}
-
-// ParseSyncPolicy converts an untyped map (from resource.GetValue) into a typed
-// SyncPolicy. Returns nil if the value is not the expected map type.
-// Deprecated: prefer ParseSyncPolicyE for proper error handling.
-func ParseSyncPolicy(raw interface{}) *SyncPolicy {
-	sp, err := ParseSyncPolicyE(raw)
-	if err != nil {
-		log.Printf("warning: %v", err)
-		return nil
-	}
-	return sp
 }
 
 // WritePromiseStatus builds a Kratix status object, sets the given phase and

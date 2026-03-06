@@ -1,6 +1,9 @@
 package kratixutil
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // ---------------------------------------------------------------------------
 // Extract*E: error-returning helpers for pulling typed values out of a plain
@@ -86,12 +89,19 @@ func ExtractStringMapE(data map[string]interface{}, key string) (map[string]stri
 		return nil, fmt.Errorf("key %q: expected map[string]interface{}, got %T", key, v)
 	}
 	result := make(map[string]string, len(m))
+	var skipped []string
 	for k, val := range m {
 		if str, ok := val.(string); ok {
 			result[k] = str
+		} else {
+			skipped = append(skipped, fmt.Sprintf("%s(%T)", k, val))
 		}
 	}
-	return result, nil
+	var err error
+	if len(skipped) > 0 {
+		err = fmt.Errorf("key %q: skipped non-string values: %s", key, strings.Join(skipped, ", "))
+	}
+	return result, err
 }
 
 // ExtractStringSliceE returns a []string for key, or an error if the value
@@ -106,12 +116,19 @@ func ExtractStringSliceE(data map[string]interface{}, key string) ([]string, err
 		return nil, fmt.Errorf("key %q: expected []interface{}, got %T", key, v)
 	}
 	result := make([]string, 0, len(arr))
+	var skippedCount int
 	for _, item := range arr {
 		if str, ok := item.(string); ok {
 			result = append(result, str)
+		} else {
+			skippedCount++
 		}
 	}
-	return result, nil
+	var err error
+	if skippedCount > 0 {
+		err = fmt.Errorf("key %q: skipped %d non-string item(s)", key, skippedCount)
+	}
+	return result, err
 }
 
 // ExtractObjectSliceE returns a []map[string]interface{} for key, or an error
@@ -126,12 +143,19 @@ func ExtractObjectSliceE(data map[string]interface{}, key string) ([]map[string]
 		return nil, fmt.Errorf("key %q: expected []interface{}, got %T", key, v)
 	}
 	result := make([]map[string]interface{}, 0, len(arr))
+	var skippedCount int
 	for _, item := range arr {
 		if obj, ok := item.(map[string]interface{}); ok {
 			result = append(result, obj)
+		} else {
+			skippedCount++
 		}
 	}
-	return result, nil
+	var err error
+	if skippedCount > 0 {
+		err = fmt.Errorf("key %q: skipped %d non-map item(s)", key, skippedCount)
+	}
+	return result, err
 }
 
 // ExtractSecretsE returns a []SecretRef for key, or an error if the value
@@ -147,9 +171,11 @@ func ExtractSecretsE(data map[string]interface{}, key string) ([]SecretRef, erro
 	}
 
 	var secrets []SecretRef
+	var skippedCount int
 	for _, item := range arr {
 		m, ok := item.(map[string]interface{})
 		if !ok {
+			skippedCount++
 			continue
 		}
 		s := SecretRef{}
@@ -177,5 +203,9 @@ func ExtractSecretsE(data map[string]interface{}, key string) ([]SecretRef, erro
 		}
 		secrets = append(secrets, s)
 	}
-	return secrets, nil
+	var retErr error
+	if skippedCount > 0 {
+		retErr = fmt.Errorf("key %q: skipped %d non-map item(s)", key, skippedCount)
+	}
+	return secrets, retErr
 }

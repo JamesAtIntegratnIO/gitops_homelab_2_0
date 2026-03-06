@@ -30,6 +30,10 @@ func GetStringValue(resource kratix.Resource, path string) (string, error) {
 // resources may serialize a Go nil pointer as the YAML scalar "null", which
 // round-trips through JSON unmarshalling as the string "null" rather than a
 // Go nil/empty-string.
+//
+// Design note: this intentionally does not distinguish between a missing field
+// and a wrong-type field — both return defaultValue. This suits optional
+// configuration fields where callers only need the resolved value.
 func GetStringValueWithDefault(resource kratix.Resource, path, defaultValue string) string {
 	val, err := GetStringValue(resource, path)
 	if err != nil || val == "" || val == "null" {
@@ -59,6 +63,10 @@ func GetIntValue(resource kratix.Resource, path string) (int, error) {
 
 // GetIntValueWithDefault returns defaultValue only when the path is missing or not parseable;
 // an explicit 0 is returned as-is.
+//
+// Design note: this intentionally does not distinguish between a missing field
+// and a wrong-type field — both return defaultValue. This suits optional
+// configuration fields where callers only need the resolved value.
 func GetIntValueWithDefault(resource kratix.Resource, path string, defaultValue int) int {
 	val, err := GetIntValue(resource, path)
 	if err != nil {
@@ -78,6 +86,12 @@ func GetBoolValue(resource kratix.Resource, path string) (bool, error) {
 	return false, fmt.Errorf("value at %s is not a bool", path)
 }
 
+// GetBoolValueWithDefault returns defaultValue when the path is missing or the
+// value is not a bool.
+//
+// Design note: this intentionally does not distinguish between a missing field
+// and a wrong-type field — both return defaultValue. This suits optional
+// configuration fields where callers only need the resolved value.
 func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue bool) bool {
 	val, err := GetBoolValue(resource, path)
 	if err != nil {
@@ -92,6 +106,7 @@ func GetBoolValueWithDefault(resource kratix.Resource, path string, defaultValue
 // mismatches. Prefer the E variants in new code.
 // ---------------------------------------------------------------------------
 
+// Deprecated: use ExtractStringMapE for proper error handling.
 func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
 	val, err := resource.GetValue(path)
 	if err != nil || val == nil {
@@ -100,12 +115,12 @@ func ExtractStringMap(resource kratix.Resource, path string) map[string]string {
 	wrapper := map[string]interface{}{"_v": val}
 	result, err := ExtractStringMapE(wrapper, "_v")
 	if err != nil {
-		log.Printf("warning: field %s has unexpected type %T, expected map[string]interface{}", path, val)
-		return nil
+		log.Printf("warning: field %s: %v", path, err)
 	}
 	return result
 }
 
+// Deprecated: use ExtractStringSliceE for proper error handling.
 func ExtractStringSlice(resource kratix.Resource, path string) []string {
 	val, err := resource.GetValue(path)
 	if err != nil || val == nil {
@@ -114,12 +129,12 @@ func ExtractStringSlice(resource kratix.Resource, path string) []string {
 	wrapper := map[string]interface{}{"_v": val}
 	result, err := ExtractStringSliceE(wrapper, "_v")
 	if err != nil {
-		log.Printf("warning: field %s has unexpected type %T, expected []interface{}", path, val)
-		return nil
+		log.Printf("warning: field %s: %v", path, err)
 	}
 	return result
 }
 
+// Deprecated: use ExtractObjectSliceE for proper error handling.
 func ExtractObjectSlice(resource kratix.Resource, path string) []map[string]interface{} {
 	val, err := resource.GetValue(path)
 	if err != nil || val == nil {
@@ -128,12 +143,12 @@ func ExtractObjectSlice(resource kratix.Resource, path string) []map[string]inte
 	wrapper := map[string]interface{}{"_v": val}
 	result, err := ExtractObjectSliceE(wrapper, "_v")
 	if err != nil {
-		log.Printf("warning: field %s has unexpected type %T, expected []interface{}", path, val)
-		return nil
+		log.Printf("warning: field %s: %v", path, err)
 	}
 	return result
 }
 
+// Deprecated: use ExtractSecretsE for proper error handling.
 func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
 	val, err := resource.GetValue(path)
 	if err != nil || val == nil {
@@ -142,8 +157,7 @@ func ExtractSecrets(resource kratix.Resource, path string) []SecretRef {
 	wrapper := map[string]interface{}{"_v": val}
 	result, err := ExtractSecretsE(wrapper, "_v")
 	if err != nil {
-		log.Printf("warning: field %s has unexpected type %T, expected []interface{}", path, val)
-		return nil
+		log.Printf("warning: field %s: %v", path, err)
 	}
 	return result
 }

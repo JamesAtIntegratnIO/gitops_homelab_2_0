@@ -179,13 +179,14 @@ func TestExtractMapE(t *testing.T) {
 
 func TestExtractStringMapE(t *testing.T) {
 	tests := []struct {
-		name      string
-		data      map[string]interface{}
-		key       string
-		wantNil   bool
-		wantLen   int
-		wantErr   bool
-		errSubstr string
+		name       string
+		data       map[string]interface{}
+		key        string
+		wantNil    bool
+		wantLen    int
+		wantErr    bool
+		errSubstr  string
+		warnSubstr string
 	}{
 		{
 			name:    "present map",
@@ -198,10 +199,11 @@ func TestExtractStringMapE(t *testing.T) {
 		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected map[string]interface{}"},
 		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected map[string]interface{}"},
 		{
-			name:    "skips non-string values",
-			data:    map[string]interface{}{"k": map[string]interface{}{"good": "val", "bad": 42}},
-			key:     "k",
-			wantLen: 1,
+			name:       "skips non-string values",
+			data:       map[string]interface{}{"k": map[string]interface{}{"good": "val", "bad": 42}},
+			key:        "k",
+			wantLen:    1,
+			warnSubstr: "skipped non-string",
 		},
 	}
 	for _, tt := range tests {
@@ -216,7 +218,14 @@ func TestExtractStringMapE(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
+			if tt.warnSubstr != "" {
+				if err == nil {
+					t.Fatal("expected warning error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.warnSubstr) {
+					t.Errorf("warning error %q should contain %q", err, tt.warnSubstr)
+				}
+			} else if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if tt.wantNil {
@@ -238,13 +247,14 @@ func TestExtractStringMapE(t *testing.T) {
 
 func TestExtractStringSliceE(t *testing.T) {
 	tests := []struct {
-		name      string
-		data      map[string]interface{}
-		key       string
-		wantNil   bool
-		wantLen   int
-		wantErr   bool
-		errSubstr string
+		name       string
+		data       map[string]interface{}
+		key        string
+		wantNil    bool
+		wantLen    int
+		wantErr    bool
+		errSubstr  string
+		warnSubstr string
 	}{
 		{
 			name:    "present slice",
@@ -257,10 +267,11 @@ func TestExtractStringSliceE(t *testing.T) {
 		{name: "wrong type string", data: map[string]interface{}{"k": "oops"}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
 		{name: "wrong type int", data: map[string]interface{}{"k": 42}, key: "k", wantErr: true, errSubstr: "expected []interface{}"},
 		{
-			name:    "filters non-strings",
-			data:    map[string]interface{}{"k": []interface{}{"a", 42, "b"}},
-			key:     "k",
-			wantLen: 2,
+			name:       "filters non-strings",
+			data:       map[string]interface{}{"k": []interface{}{"a", 42, "b"}},
+			key:        "k",
+			wantLen:    2,
+			warnSubstr: "skipped",
 		},
 	}
 	for _, tt := range tests {
@@ -275,7 +286,14 @@ func TestExtractStringSliceE(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
+			if tt.warnSubstr != "" {
+				if err == nil {
+					t.Fatal("expected warning error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.warnSubstr) {
+					t.Errorf("warning error %q should contain %q", err, tt.warnSubstr)
+				}
+			} else if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if tt.wantNil {
@@ -297,13 +315,14 @@ func TestExtractStringSliceE(t *testing.T) {
 
 func TestExtractObjectSliceE(t *testing.T) {
 	tests := []struct {
-		name      string
-		data      map[string]interface{}
-		key       string
-		wantNil   bool
-		wantLen   int
-		wantErr   bool
-		errSubstr string
+		name       string
+		data       map[string]interface{}
+		key        string
+		wantNil    bool
+		wantLen    int
+		wantErr    bool
+		errSubstr  string
+		warnSubstr string
 	}{
 		{
 			name: "present slice",
@@ -325,8 +344,9 @@ func TestExtractObjectSliceE(t *testing.T) {
 				"not-a-map",
 				42,
 			}},
-			key:     "k",
-			wantLen: 1,
+			key:        "k",
+			wantLen:    1,
+			warnSubstr: "skipped",
 		},
 	}
 	for _, tt := range tests {
@@ -341,7 +361,14 @@ func TestExtractObjectSliceE(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
+			if tt.warnSubstr != "" {
+				if err == nil {
+					t.Fatal("expected warning error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.warnSubstr) {
+					t.Errorf("warning error %q should contain %q", err, tt.warnSubstr)
+				}
+			} else if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if tt.wantNil {
@@ -363,13 +390,14 @@ func TestExtractObjectSliceE(t *testing.T) {
 
 func TestExtractSecretsE(t *testing.T) {
 	tests := []struct {
-		name      string
-		data      map[string]interface{}
-		key       string
-		wantNil   bool
-		wantLen   int
-		wantErr   bool
-		errSubstr string
+		name       string
+		data       map[string]interface{}
+		key        string
+		wantNil    bool
+		wantLen    int
+		wantErr    bool
+		errSubstr  string
+		warnSubstr string
 	}{
 		{
 			name: "full parse",
@@ -395,8 +423,9 @@ func TestExtractSecretsE(t *testing.T) {
 				"not-a-map",
 				map[string]interface{}{"name": "good"},
 			}},
-			key:     "k",
-			wantLen: 1,
+			key:        "k",
+			wantLen:    1,
+			warnSubstr: "skipped",
 		},
 	}
 	for _, tt := range tests {
@@ -411,7 +440,14 @@ func TestExtractSecretsE(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
+			if tt.warnSubstr != "" {
+				if err == nil {
+					t.Fatal("expected warning error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.warnSubstr) {
+					t.Errorf("warning error %q should contain %q", err, tt.warnSubstr)
+				}
+			} else if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if tt.wantNil {

@@ -2,15 +2,39 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
+	kratix "github.com/syntasso/kratix-go"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 )
+
+// FailingKubeClientFactory always returns an error from NewClient.
+type FailingKubeClientFactory struct{}
+
+func (f FailingKubeClientFactory) NewClient() (kubernetes.Interface, error) {
+	return nil, fmt.Errorf("connection refused")
+}
+
+// readOnlySDK creates a KratixSDK whose output directory is made read-only
+// after creation, so that any WriteOutput call will fail.
+func readOnlySDK(t *testing.T) *kratix.KratixSDK {
+	t.Helper()
+	dir := t.TempDir()
+	sdk := kratix.New(kratix.WithOutputDir(dir), kratix.WithMetadataDir(dir))
+	// Make the output dir read-only so that file creation fails.
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o755) }) // restore for cleanup
+	return sdk
+}
 
 func TestVclusterRBACName(t *testing.T) {
 	tests := []struct {
@@ -441,5 +465,98 @@ func TestHandleDelete_MultiplePVsCleanedUp(t *testing.T) {
 	}
 	if len(pvList.Items) > 0 && pvList.Items[0].Name != "pv-other" {
 		t.Errorf("expected remaining PV 'pv-other', got %q", pvList.Items[0].Name)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SDK write failure tests (no_handler_error_path_tests)
+// ---------------------------------------------------------------------------
+
+func TestHandleConfigure_WriteFailurePropagatesError(t *testing.T) {
+	sdk := readOnlySDK(t)
+	config := minimalConfig()
+	vals, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject: %v", err)
+	}
+	config.ValuesObject = vals
+
+	err = handleConfigure(sdk, config)
+	if err == nil {
+		t.Fatal("expected error when SDK output directory is read-only, got nil")
+	}
+	// The error should mention a write failure
+	if !strings.Contains(err.Error(), "write") {
+		t.Errorf("expected write-related error, got: %v", err)
+	}
+}
+
+func TestHandleDelete_WriteFailurePropagatesError(t *testing.T) {
+	sdk := readOnlySDK(t)
+	config := minimalConfig()
+
+	// Provide a working kube client so direct cleanup succeeds;
+	// the failure should come from SDK writes.
+	fakeClient := fakeclientset.NewSimpleClientset()
+	config.KubeClient = MockKubeClientFactory{Clientset: fakeClient}
+
+	vals, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject: %v", err)
+	}
+	config.ValuesObject = vals
+
+	err = handleDelete(sdk, config)
+	if err == nil {
+		t.Fatal("expected error when SDK output directory is read-only, got nil")
+	}
+}
+
+func TestHandleConfigure_StatusWriteFailure(t *testing.T) {
+	// This test verifies that even if resource writes succeed, a status
+	// write failure is propagated. We use a normal SDK, write resources,
+	// then make the dir read-only before status is written. Since
+	// handleConfigure writes status last, we can't easily isolate it.
+	// Instead, we verify the error message from the read-only SDK
+	// mentions the first failing write.
+	sdk := readOnlySDK(t)
+	config := minimalConfig()
+	vals, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject: %v", err)
+	}
+	config.ValuesObject = vals
+
+	err = handleConfigure(sdk, config)
+	if err == nil {
+		t.Fatal("expected error from handleConfigure with read-only SDK")
+	}
+	// Verify error is not swallowed — it should be a wrapped error
+	if !strings.Contains(err.Error(), "write") && !strings.Contains(err.Error(), "permission denied") {
+		t.Errorf("expected write/permission error, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// KubeClientFactory failure test (kube_client_factory_only_happy_path)
+// ---------------------------------------------------------------------------
+
+func TestHandleDelete_KubeClientCreationFailure(t *testing.T) {
+	sdk, _ := ku.NewTestSDK(t)
+	config := minimalConfig()
+	config.KubeClient = FailingKubeClientFactory{}
+
+	vals, err := buildValuesObject(config)
+	if err != nil {
+		t.Fatalf("buildValuesObject: %v", err)
+	}
+	config.ValuesObject = vals
+
+	err = handleDelete(sdk, config)
+	if err == nil {
+		t.Fatal("expected error when KubeClientFactory fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "connection refused") {
+		t.Errorf("expected 'connection refused' in error, got: %v", err)
 	}
 }

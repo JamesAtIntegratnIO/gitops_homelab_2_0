@@ -260,7 +260,10 @@ func TestExtractExtraEgress_Valid(t *testing.T) {
 		},
 	}
 
-	rules := extractExtraEgress(resource)
+	rules, err := extractExtraEgress(resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(rules) != 1 {
 		t.Fatalf("expected 1 rule, got %d", len(rules))
 	}
@@ -292,7 +295,10 @@ func TestExtractExtraEgress_DefaultProtocol(t *testing.T) {
 		},
 	}
 
-	rules := extractExtraEgress(resource)
+	rules, err := extractExtraEgress(resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(rules) != 1 {
 		t.Fatalf("expected 1 rule, got %d", len(rules))
 	}
@@ -317,7 +323,10 @@ func TestExtractExtraEgress_IncompleteSkipped(t *testing.T) {
 		},
 	}
 
-	rules := extractExtraEgress(resource)
+	rules, err := extractExtraEgress(resource)
+	if err == nil {
+		t.Error("expected error for incomplete rule, got nil")
+	}
 	if len(rules) != 0 {
 		t.Errorf("expected 0 rules for incomplete entry, got %d", len(rules))
 	}
@@ -327,7 +336,10 @@ func TestExtractExtraEgress_NoField(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{"spec": map[string]interface{}{}},
 	}
-	rules := extractExtraEgress(resource)
+	rules, err := extractExtraEgress(resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if rules != nil {
 		t.Errorf("expected nil, got %v", rules)
 	}
@@ -1036,5 +1048,217 @@ func TestBuildConfig_WithProdPreset(t *testing.T) {
 	}
 	if config.ArgoCDEnvironment != "production" {
 		t.Errorf("expected production environment, got %q", config.ArgoCDEnvironment)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// buildConfig extended coverage (thin_buildconfig_coverage_vcluster)
+// ---------------------------------------------------------------------------
+
+func TestBuildConfig_EmptyK8sVersionUsesDefault(t *testing.T) {
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
+		Name: "test-vc",
+		Ns:   "default",
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "test-vc",
+				"vcluster": map[string]interface{}{
+					"k8sVersion": "",
+				},
+			},
+			"metadata": map[string]interface{}{},
+		},
+	}
+
+	config, err := buildConfig(sdk, resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Empty k8sVersion should fall back to the default
+	if config.K8sVersion == "" {
+		t.Error("expected non-empty K8sVersion (should use default)")
+	}
+	if config.K8sVersion != "v1.34.3" {
+		t.Errorf("expected default K8sVersion 'v1.34.3', got %q", config.K8sVersion)
+	}
+}
+
+func TestBuildConfig_MissingK8sVersionUsesDefault(t *testing.T) {
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
+		Name: "test-vc",
+		Ns:   "default",
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "test-vc",
+				// No vcluster.k8sVersion field at all
+			},
+			"metadata": map[string]interface{}{},
+		},
+	}
+
+	config, err := buildConfig(sdk, resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if config.K8sVersion != "v1.34.3" {
+		t.Errorf("expected default K8sVersion 'v1.34.3', got %q", config.K8sVersion)
+	}
+}
+
+func TestBuildConfig_InvalidBackingStoreTypeIgnored(t *testing.T) {
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
+		Name: "test-vc",
+		Ns:   "default",
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "test-vc",
+				"vcluster": map[string]interface{}{
+					// backingStore is a string instead of a map — should be ignored
+					"backingStore": "invalid-string-value",
+				},
+			},
+			"metadata": map[string]interface{}{},
+		},
+	}
+
+	config, err := buildConfig(sdk, resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Invalid backing store type should result in nil (silently ignored)
+	if config.BackingStore != nil {
+		t.Errorf("expected nil BackingStore for non-map value, got %v", config.BackingStore)
+	}
+}
+
+func TestBuildConfig_IntegrationsPassThrough(t *testing.T) {
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
+		Name: "test-vc",
+		Ns:   "default",
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "test-vc",
+				"integrations": map[string]interface{}{
+					"certManager": map[string]interface{}{
+						"clusterIssuerSelectorLabels": map[string]interface{}{
+							"my-label": "my-issuer",
+						},
+					},
+					"externalSecrets": map[string]interface{}{
+						"clusterStoreSelectorLabels": map[string]interface{}{
+							"store-label": "my-store",
+						},
+					},
+					"argocd": map[string]interface{}{
+						"environment": "staging",
+						"clusterLabels": map[string]interface{}{
+							"team": "platform",
+						},
+						"clusterAnnotations": map[string]interface{}{
+							"owner": "ops",
+						},
+						"workloadRepo": map[string]interface{}{
+							"url":      "https://github.com/example/repo",
+							"path":     "apps",
+							"revision": "develop",
+						},
+					},
+				},
+			},
+			"metadata": map[string]interface{}{},
+		},
+	}
+
+	config, err := buildConfig(sdk, resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// cert-manager labels
+	if config.CertManagerIssuerLabels["my-label"] != "my-issuer" {
+		t.Errorf("expected cert-manager label 'my-label'='my-issuer', got %v", config.CertManagerIssuerLabels)
+	}
+
+	// external-secrets labels
+	if config.ExternalSecretsStoreLabels["store-label"] != "my-store" {
+		t.Errorf("expected external-secrets label 'store-label'='my-store', got %v", config.ExternalSecretsStoreLabels)
+	}
+
+	// ArgoCD environment
+	if config.ArgoCDEnvironment != "staging" {
+		t.Errorf("expected ArgoCD environment 'staging', got %q", config.ArgoCDEnvironment)
+	}
+
+	// Cluster labels (should contain user-provided + defaults)
+	if config.ArgoCDClusterLabels["team"] != "platform" {
+		t.Errorf("expected cluster label 'team'='platform', got %v", config.ArgoCDClusterLabels)
+	}
+	// Default labels should still be present
+	if config.ArgoCDClusterLabels["cluster_name"] != "test-vc" {
+		t.Errorf("expected default cluster_name label, got %v", config.ArgoCDClusterLabels["cluster_name"])
+	}
+
+	// Workload repo
+	if config.WorkloadRepoURL != "https://github.com/example/repo" {
+		t.Errorf("expected workload repo URL 'https://github.com/example/repo', got %q", config.WorkloadRepoURL)
+	}
+	if config.WorkloadRepoPath != "apps" {
+		t.Errorf("expected workload repo path 'apps', got %q", config.WorkloadRepoPath)
+	}
+	if config.WorkloadRepoRevision != "develop" {
+		t.Errorf("expected workload repo revision 'develop', got %q", config.WorkloadRepoRevision)
+	}
+}
+
+func TestBuildConfig_MultipleExposureFields(t *testing.T) {
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
+		Name: "test-vc",
+		Ns:   "default",
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "test-vc",
+				"exposure": map[string]interface{}{
+					"hostname": "custom.example.com",
+					"apiPort":  float64(6443),
+					"subnet":   "10.0.4.0/24",
+					"vip":      "10.0.4.210",
+				},
+			},
+			"metadata": map[string]interface{}{},
+		},
+	}
+
+	config, err := buildConfig(sdk, resource)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if config.Hostname != "custom.example.com" {
+		t.Errorf("expected hostname 'custom.example.com', got %q", config.Hostname)
+	}
+	if config.APIPort != 6443 {
+		t.Errorf("expected apiPort 6443, got %d", config.APIPort)
+	}
+	if config.VIP != "10.0.4.210" {
+		t.Errorf("expected VIP '10.0.4.210', got %q", config.VIP)
+	}
+	expectedURL := "https://custom.example.com:6443"
+	if config.ExternalServerURL != expectedURL {
+		t.Errorf("expected ExternalServerURL %q, got %q", expectedURL, config.ExternalServerURL)
+	}
+	// ProxyExtraSANs should include both hostname and VIP
+	sanFound := map[string]bool{}
+	for _, san := range config.ProxyExtraSANs {
+		sanFound[san] = true
+	}
+	if !sanFound["custom.example.com"] {
+		t.Error("expected hostname in ProxyExtraSANs")
+	}
+	if !sanFound["10.0.4.210"] {
+		t.Error("expected VIP in ProxyExtraSANs")
 	}
 }

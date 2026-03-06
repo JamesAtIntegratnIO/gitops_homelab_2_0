@@ -41,7 +41,11 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	if val, err := ku.GetBoolValue(resource, "spec.networkPolicies.enableNFS"); err == nil {
 		config.EnableNFS = val
 	}
-	config.ExtraEgress = extractExtraEgress(resource)
+	extraEgress, egressErr := extractExtraEgress(resource)
+	config.ExtraEgress = extraEgress
+	if egressErr != nil {
+		log.Printf("warning: %v", egressErr)
+	}
 
 	// Set derived values
 	config.OnePasswordItem = fmt.Sprintf("vcluster-%s-kubeconfig", config.Name)
@@ -324,13 +328,14 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 	return nil
 }
 
-func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {
+func extractExtraEgress(resource kratix.Resource) ([]ExtraEgressRule, error) {
 	raw := ku.ExtractObjectSlice(resource, "spec.networkPolicies.extraEgress")
 	if raw == nil {
-		return nil
+		return nil, nil
 	}
 
 	var rules []ExtraEgressRule
+	var warnings []string
 	for i, m := range raw {
 		rule := ExtraEgressRule{
 			Protocol: "TCP", // default
@@ -350,8 +355,12 @@ func extractExtraEgress(resource kratix.Resource) []ExtraEgressRule {
 		if rule.Name != "" && rule.CIDR != "" && rule.Port > 0 {
 			rules = append(rules, rule)
 		} else {
-			log.Printf("warning: skipping incomplete egress rule at index %d: name=%q cidr=%q port=%d", i, rule.Name, rule.CIDR, rule.Port)
+			warnings = append(warnings, fmt.Sprintf("index %d: name=%q cidr=%q port=%d", i, rule.Name, rule.CIDR, rule.Port))
 		}
 	}
-	return rules
+	var err error
+	if len(warnings) > 0 {
+		err = fmt.Errorf("skipped incomplete egress rules: %s", strings.Join(warnings, "; "))
+	}
+	return rules, err
 }
