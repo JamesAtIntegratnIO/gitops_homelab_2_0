@@ -844,3 +844,117 @@ func TestHandleDelete_IngressDisabled(t *testing.T) {
 		t.Error("should not create gateway-route delete when ingress disabled")
 	}
 }
+
+// setNestedValue sets a value at a dot-separated path inside a nested map,
+// creating intermediate maps as needed.
+func setNestedValue(m map[string]interface{}, path string, value interface{}) {
+	keys := strings.Split(path, ".")
+	cur := m
+	for _, k := range keys[:len(keys)-1] {
+		next, ok := cur[k].(map[string]interface{})
+		if !ok {
+			next = map[string]interface{}{}
+			cur[k] = next
+		}
+		cur = next
+	}
+	cur[keys[len(keys)-1]] = value
+}
+
+// validBaseData returns the minimal valid resource data for http-service tests.
+func validBaseData() map[string]interface{} {
+	return map[string]interface{}{
+		"spec": map[string]interface{}{
+			"name": "my-app",
+			"image": map[string]interface{}{
+				"repository": "nginx",
+			},
+		},
+	}
+}
+
+func TestBuildConfig_WrongTypeOptionalFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		value     interface{}
+		wantSubstr string
+	}{
+		{
+			name:       "command is not a slice",
+			path:       "spec.command",
+			value:      42,
+			wantSubstr: "command",
+		},
+		{
+			name:       "args is not a slice",
+			path:       "spec.args",
+			value:      true,
+			wantSubstr: "args",
+		},
+		{
+			name:       "ingress.hostname is not a string",
+			path:       "spec.ingress.hostname",
+			value:      123,
+			wantSubstr: "hostname",
+		},
+		{
+			name:       "secrets is not a slice",
+			path:       "spec.secrets",
+			value:      "not-a-slice",
+			wantSubstr: "secrets",
+		},
+		{
+			name:       "envFromSecrets is not a slice",
+			path:       "spec.envFromSecrets",
+			value:      99,
+			wantSubstr: "envFromSecrets",
+		},
+		{
+			name:       "persistence.storageClass is not a string",
+			path:       "spec.persistence.storageClass",
+			value:      []interface{}{"nfs"},
+			wantSubstr: "storageClass",
+		},
+		{
+			name:       "securityContext.runAsNonRoot is not a bool",
+			path:       "spec.securityContext.runAsNonRoot",
+			value:      "yes",
+			wantSubstr: "runAsNonRoot",
+		},
+		{
+			name:       "securityContext.readOnlyRootFilesystem is not a bool",
+			path:       "spec.securityContext.readOnlyRootFilesystem",
+			value:      "true",
+			wantSubstr: "readOnlyRootFilesystem",
+		},
+		{
+			name:       "securityContext.runAsUser is not numeric",
+			path:       "spec.securityContext.runAsUser",
+			value:      "nobody",
+			wantSubstr: "runAsUser",
+		},
+		{
+			name:       "securityContext.runAsGroup is not numeric",
+			path:       "spec.securityContext.runAsGroup",
+			value:      false,
+			wantSubstr: "runAsGroup",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			data := validBaseData()
+			setNestedValue(data, tc.path, tc.value)
+
+			resource := &ku.MockResource{Data: data}
+			_, err := buildConfig(nil, resource)
+			if err == nil {
+				t.Fatalf("expected error for %s with wrong type", tc.path)
+			}
+			if !strings.Contains(err.Error(), tc.wantSubstr) {
+				t.Errorf("expected error to contain %q, got: %s", tc.wantSubstr, err.Error())
+			}
+		})
+	}
+}

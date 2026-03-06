@@ -108,9 +108,6 @@ type ArgoCDAppConfig struct {
 
 type WorkflowContext struct {
 	ku.WorkflowContext
-	WorkflowAction string
-	WorkflowType   string
-	PipelineName   string
 }
 
 type CertificateSpec struct {

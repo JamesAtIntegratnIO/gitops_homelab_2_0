@@ -22,9 +22,6 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 			WorkflowContext: ku.WorkflowContext{
 				PromiseName: sdk.PromiseName(),
 			},
-			WorkflowAction: sdk.WorkflowAction(),
-			WorkflowType:   sdk.WorkflowType(),
-			PipelineName:   sdk.PipelineName(),
 		},
 	}
 
@@ -59,7 +56,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	// Generate unique job name with reconcile token if present
 	reconcileAt, err := ku.GetOptionalStringValue(resource, "metadata.annotations.platform\\.integratn\\.tech/reconcile-at")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("metadata.annotations.reconcile-at: %w", err)
 	}
 	if reconcileAt != "" {
 		token := strings.Map(func(r rune) rune {
