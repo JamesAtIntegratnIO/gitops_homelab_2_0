@@ -42,7 +42,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	if err != nil {
 		return nil, err
 	}
-	config.Destinations, err = toProjectDestinations(rawDestinations)
+	config.Destinations, err = ku.FromMapSliceE[ku.ProjectDestination](rawDestinations)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	if err != nil {
 		return nil, err
 	}
-	config.ClusterResourceWhitelist, err = toResourceFilters(rawClusterResourceWhitelist)
+	config.ClusterResourceWhitelist, err = ku.FromMapSliceE[ku.ResourceFilter](rawClusterResourceWhitelist)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	if err != nil {
 		return nil, err
 	}
-	config.NamespaceResourceWhitelist, err = toResourceFilters(rawNamespaceResourceWhitelist)
+	config.NamespaceResourceWhitelist, err = ku.FromMapSliceE[ku.ResourceFilter](rawNamespaceResourceWhitelist)
 	if err != nil {
 		return nil, err
 	}
@@ -119,58 +119,4 @@ func handleDelete(sdk *kratix.KratixSDK, config *ProjectConfig) error {
 	}
 
 	return nil
-}
-
-// toProjectDestinations converts untyped maps to typed ProjectDestination values.
-func toProjectDestinations(raw []map[string]interface{}) ([]ku.ProjectDestination, error) {
-	if raw == nil {
-		return nil, nil
-	}
-	result := make([]ku.ProjectDestination, 0, len(raw))
-	for i, m := range raw {
-		d := ku.ProjectDestination{}
-		if v, ok := m["namespace"]; ok {
-			if s, sOk := v.(string); sOk {
-				d.Namespace = s
-			} else {
-				return nil, fmt.Errorf("destination[%d].namespace: expected string, got %T", i, v)
-			}
-		}
-		if v, ok := m["server"]; ok {
-			if s, sOk := v.(string); sOk {
-				d.Server = s
-			} else {
-				return nil, fmt.Errorf("destination[%d].server: expected string, got %T", i, v)
-			}
-		}
-		result = append(result, d)
-	}
-	return result, nil
-}
-
-// toResourceFilters converts untyped maps to typed ResourceFilter values.
-func toResourceFilters(raw []map[string]interface{}) ([]ku.ResourceFilter, error) {
-	if raw == nil {
-		return nil, nil
-	}
-	result := make([]ku.ResourceFilter, 0, len(raw))
-	for i, m := range raw {
-		f := ku.ResourceFilter{}
-		if v, ok := m["group"]; ok {
-			if s, sOk := v.(string); sOk {
-				f.Group = s
-			} else {
-				return nil, fmt.Errorf("resourceFilter[%d].group: expected string, got %T", i, v)
-			}
-		}
-		if v, ok := m["kind"]; ok {
-			if s, sOk := v.(string); sOk {
-				f.Kind = s
-			} else {
-				return nil, fmt.Errorf("resourceFilter[%d].kind: expected string, got %T", i, v)
-			}
-		}
-		result = append(result, f)
-	}
-	return result, nil
 }

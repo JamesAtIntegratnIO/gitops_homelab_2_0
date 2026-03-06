@@ -270,7 +270,7 @@ func TestToProjectDestinations(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := toProjectDestinations(tc.input)
+			got, err := ku.FromMapSliceE[ku.ProjectDestination](tc.input)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -355,7 +355,7 @@ func TestToResourceFilters(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := toResourceFilters(tc.input)
+			got, err := ku.FromMapSliceE[ku.ResourceFilter](tc.input)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")

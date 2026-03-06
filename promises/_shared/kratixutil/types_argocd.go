@@ -1,5 +1,7 @@
 package kratixutil
 
+import "fmt"
+
 // ArgoCDApplicationSpec is the spec for a platform.integratn.tech/v1alpha1
 // ArgoCDApplication sub-ResourceRequest. The argocd-application promise
 // pipeline reads these fields to construct the actual argoproj.io/v1alpha1
@@ -14,6 +16,21 @@ type ArgoCDApplicationSpec struct {
 	Source      AppSource         `json:"source"`
 	Destination Destination       `json:"destination"`
 	SyncPolicy  *SyncPolicy       `json:"syncPolicy,omitempty"`
+}
+
+// Validate checks that required fields are populated.
+// Implements ValidatableSpec.
+func (s *ArgoCDApplicationSpec) Validate() error {
+	if s.Name == "" {
+		return fmt.Errorf("ArgoCDApplicationSpec: name is required")
+	}
+	if s.Source.RepoURL == "" {
+		return fmt.Errorf("ArgoCDApplicationSpec: source.repoURL is required")
+	}
+	if s.Destination.Server == "" {
+		return fmt.Errorf("ArgoCDApplicationSpec: destination.server is required")
+	}
+	return nil
 }
 
 // AppSource defines the source repository for an ArgoCD Application.
@@ -75,6 +92,18 @@ type ArgoCDProjectSpec struct {
 	Destinations               []ProjectDestination  `json:"destinations"`
 	ClusterResourceWhitelist   []ResourceFilter      `json:"clusterResourceWhitelist,omitempty"`
 	NamespaceResourceWhitelist []ResourceFilter      `json:"namespaceResourceWhitelist,omitempty"`
+}
+
+// Validate checks that required fields are populated.
+// Implements ValidatableSpec.
+func (s *ArgoCDProjectSpec) Validate() error {
+	if s.Name == "" {
+		return fmt.Errorf("ArgoCDProjectSpec: name is required")
+	}
+	if s.Namespace == "" {
+		return fmt.Errorf("ArgoCDProjectSpec: namespace is required")
+	}
+	return nil
 }
 
 // ProjectDestination pairs a namespace with a target cluster server URL

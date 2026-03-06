@@ -1,6 +1,7 @@
 package kratixutil
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -197,4 +198,27 @@ func ExtractSecretsE(data map[string]interface{}, key string) ([]SecretRef, erro
 		retErr = fmt.Errorf("key %q: skipped %d non-map item(s)", key, skippedCount)
 	}
 	return secrets, retErr
+}
+
+// FromMapSliceE converts a slice of untyped maps to a typed slice using JSON
+// round-trip (marshal → unmarshal). This eliminates manual per-field type
+// assertion boilerplate for simple struct conversions.
+//
+// Semantics:
+//   - nil input → (nil, nil)
+//   - empty input → (empty slice, nil)
+//   - any marshal/unmarshal failure → (nil, error)
+func FromMapSliceE[T any](raw []map[string]interface{}) ([]T, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("FromMapSliceE: marshal: %w", err)
+	}
+	var result []T
+	if err := json.Unmarshal(b, &result); err != nil {
+		return nil, fmt.Errorf("FromMapSliceE: unmarshal into %T: %w", result, err)
+	}
+	return result, nil
 }

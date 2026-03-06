@@ -28,6 +28,24 @@ type Resource struct {
 	Subjects   []Subject   `json:"subjects,omitempty"`
 }
 
+// ValidatableSpec is an opt-in interface that typed spec structs can implement
+// to provide compile-time validation support. Specs that implement this
+// interface are checked by Resource.Validate(). Pass-through map specs
+// (map[string]interface{}) do not implement this and are silently skipped.
+type ValidatableSpec interface {
+	Validate() error
+}
+
+// Validate checks whether the Resource's Spec implements ValidatableSpec and,
+// if so, delegates to its Validate method. Resources with untyped Spec values
+// (map[string]interface{}) are always valid at the struct level.
+func (r *Resource) Validate() error {
+	if v, ok := r.Spec.(ValidatableSpec); ok {
+		return v.Validate()
+	}
+	return nil
+}
+
 // RoleRef identifies the Role or ClusterRole to bind in a RoleBinding.
 type RoleRef struct {
 	APIGroup string `json:"apiGroup"`
