@@ -197,7 +197,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *VClusterConfig) error {
 	cleanupErr := directCleanup(config)
 
 	if err := stateStoreCleanup(sdk, config); err != nil {
-		return err
+		return errors.Join(err, cleanupErr)
 	}
 
 	if cleanupErr != nil {

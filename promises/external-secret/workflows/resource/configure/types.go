@@ -9,6 +9,7 @@ type ExternalSecretConfig struct {
 	AppName         string
 	Namespace       string
 	OwnerPromise    string
+	PromiseName     string
 	SecretStoreName string
 	SecretStoreKind string
 	Secrets         []ku.SecretRef

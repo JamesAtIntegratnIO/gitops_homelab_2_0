@@ -69,7 +69,9 @@ func minimalConfig() *VClusterConfig {
 		BaseDomain:            "integratn.tech",
 		BaseDomainSanitized:   "integratn-tech",
 		WorkflowContext: WorkflowContext{
-			PromiseName: "vcluster-orchestrator-v2",
+			WorkflowContext: ku.WorkflowContext{
+				PromiseName: "vcluster-orchestrator-v2",
+			},
 		},
 	}
 }
@@ -93,18 +95,28 @@ func TestDefaultVIPFromCIDR_InvalidCIDR(t *testing.T) {
 
 func TestIpInCIDR(t *testing.T) {
 	tests := []struct {
-		name     string
-		ip       string
-		cidr     string
-		expected bool
+		name      string
+		ip        string
+		cidr      string
+		expected  bool
+		expectErr bool
 	}{
-		{"IP in CIDR", "10.0.4.200", "10.0.4.0/24", true},
-		{"IP not in CIDR", "10.0.5.200", "10.0.4.0/24", false},
-		{"invalid IP", "not-an-ip", "10.0.4.0/24", false},
+		{"IP in CIDR", "10.0.4.200", "10.0.4.0/24", true, false},
+		{"IP not in CIDR", "10.0.5.200", "10.0.4.0/24", false, false},
+		{"invalid IP", "not-an-ip", "10.0.4.0/24", false, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ipInCIDR(tt.ip, tt.cidr)
+			got, err := ipInCIDR(tt.ip, tt.cidr)
+			if tt.expectErr {
+				if err == nil {
+					t.Errorf("ipInCIDR(%q, %q) expected error, got nil", tt.ip, tt.cidr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ipInCIDR(%q, %q) unexpected error: %v", tt.ip, tt.cidr, err)
+			}
 			if got != tt.expected {
 				t.Errorf("ipInCIDR(%q, %q) = %v, want %v", tt.ip, tt.cidr, got, tt.expected)
 			}
@@ -1317,5 +1329,75 @@ func TestBuildConfig_MultipleExposureFields(t *testing.T) {
 	}
 	if !sanFound["10.0.4.210"] {
 		t.Error("expected VIP in ProxyExtraSANs")
+	}
+}
+
+func TestBuildConfig_WrongTypeOptionalFields(t *testing.T) {
+	tests := []struct {
+		name   string
+		path   string
+		value  interface{}
+		errSub string
+	}{
+		{"targetNamespace wrong type", "spec.targetNamespace", 123, "targetNamespace"},
+		{"projectName wrong type", "spec.projectName", 123, "projectName"},
+		{"persistence.storageClass wrong type", "spec.vcluster.persistence.storageClass", 123, "storageClass"},
+		{"exposure.hostname wrong type", "spec.exposure.hostname", 123, "hostname"},
+		{"exposure.subnet wrong type", "spec.exposure.subnet", 123, "subnet"},
+		{"exposure.vip wrong type", "spec.exposure.vip", 123, "vip"},
+		{"networkPolicies.enableNFS wrong type", "spec.networkPolicies.enableNFS", "yes", "enableNFS"},
+		{"vcluster.replicas wrong type", "spec.vcluster.replicas", "three", "replicas"},
+		{"vcluster.persistence.enabled wrong type", "spec.vcluster.persistence.enabled", "yes", "persistence"},
+		{"vcluster.coredns.replicas wrong type", "spec.vcluster.coredns.replicas", "two", "coredns"},
+		{"integrations.argocd.environment wrong type", "spec.integrations.argocd.environment", 123, "environment"},
+		{"integrations.argocd.workloadRepo.basePath wrong type", "spec.integrations.argocd.workloadRepo.basePath", 123, "basePath"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sdk, _ := ku.NewTestSDK(t)
+
+			// Build nested data structure from dot-separated path
+			data := map[string]interface{}{
+				"spec": map[string]interface{}{
+					"name": "test-vc",
+				},
+				"metadata": map[string]interface{}{},
+			}
+			setNestedValue(data, tt.path, tt.value)
+
+			resource := &ku.MockResource{
+				Name: "test-vc",
+				Ns:   "default",
+				Data: data,
+			}
+
+			_, err := buildConfig(sdk, resource)
+			if err == nil {
+				t.Fatalf("expected error for wrong-type %s, got nil", tt.path)
+			}
+			if !strings.Contains(err.Error(), tt.errSub) {
+				t.Errorf("expected error to contain %q, got: %s", tt.errSub, err.Error())
+			}
+		})
+	}
+}
+
+// setNestedValue sets a value in a nested map structure given a dot-separated path.
+func setNestedValue(data map[string]interface{}, path string, value interface{}) {
+	parts := strings.Split(path, ".")
+	current := data
+	for i, part := range parts {
+		if i == len(parts)-1 {
+			current[part] = value
+			return
+		}
+		if next, ok := current[part].(map[string]interface{}); ok {
+			current = next
+		} else {
+			next := map[string]interface{}{}
+			current[part] = next
+			current = next
+		}
 	}
 }

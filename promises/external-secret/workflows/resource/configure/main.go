@@ -12,10 +12,11 @@ func main() {
 	ku.RunPromiseWithConfig("External Secret", buildConfig, handleConfigure, handleDelete)
 }
 
-func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ExternalSecretConfig, error) {
+func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*ExternalSecretConfig, error) {
 	config := &ExternalSecretConfig{
 		SecretStoreName: ku.DefaultSecretStoreName,
 		SecretStoreKind: ku.DefaultSecretStoreKind,
+		PromiseName:     sdk.PromiseName(),
 	}
 
 	var err error

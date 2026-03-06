@@ -152,7 +152,7 @@ func buildStakaterValues(config *HTTPServiceConfig) map[string]interface{} {
 
 		"additionalLabels": map[string]string{
 			"app.kubernetes.io/managed-by": "kratix",
-			"kratix.io/promise-name":       "http-service",
+			"kratix.io/promise-name":       config.PromiseName,
 			"app.kubernetes.io/part-of":    config.Name,
 			"app.kubernetes.io/team":       config.Team,
 		},

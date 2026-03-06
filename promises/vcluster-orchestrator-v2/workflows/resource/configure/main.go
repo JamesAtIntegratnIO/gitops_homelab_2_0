@@ -19,9 +19,11 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 		Namespace:  resource.GetNamespace(),
 		KubeClient: InClusterClientFactory{},
 		WorkflowContext: WorkflowContext{
+			WorkflowContext: ku.WorkflowContext{
+				PromiseName: sdk.PromiseName(),
+			},
 			WorkflowAction: sdk.WorkflowAction(),
 			WorkflowType:   sdk.WorkflowType(),
-			PromiseName:    sdk.PromiseName(),
 			PipelineName:   sdk.PipelineName(),
 		},
 	}
@@ -127,6 +129,10 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	if err != nil {
 		return fmt.Errorf("spec.vcluster.backingStore: %w", err)
 	}
+	// Validate backing store internal structure early
+	if _, err := etcdEnabledE(config); err != nil {
+		return fmt.Errorf("spec.vcluster.backingStore: %w", err)
+	}
 
 	config.ExportKubeConfig, err = ku.ExtractMapFromResource(resource, "spec.vcluster.exportKubeConfig")
 	if err != nil {
@@ -179,7 +185,11 @@ func calculateVIP(config *VClusterConfig) error {
 		log.Printf("Calculated default VIP: %s", vip)
 	}
 	if config.VIP != "" && config.Subnet != "" {
-		if !ipInCIDR(config.VIP, config.Subnet) {
+		inCIDR, err := ipInCIDR(config.VIP, config.Subnet)
+		if err != nil {
+			return fmt.Errorf("VIP/subnet validation: %w", err)
+		}
+		if !inCIDR {
 			return fmt.Errorf("VIP %s is not within subnet %s", config.VIP, config.Subnet)
 		}
 	}
@@ -358,12 +368,16 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 	config.ArgoCDDestServer = ku.GetStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
 
 	// Extract sync policy
-	if val, err := resource.GetValue("spec.argocdApplication.syncPolicy"); err == nil && val != nil {
-		parsed, parseErr := ku.ParseSyncPolicyE(val)
+	rawSP, err := ku.ExtractMapFromResource(resource, "spec.argocdApplication.syncPolicy")
+	if err != nil {
+		return fmt.Errorf("argocdApplication.syncPolicy: %w", err)
+	}
+	if rawSP != nil {
+		sp, parseErr := ku.ParseSyncPolicyE(rawSP)
 		if parseErr != nil {
-			return fmt.Errorf("spec.argocdApplication.syncPolicy: %w", parseErr)
+			return fmt.Errorf("argocdApplication.syncPolicy: %w", parseErr)
 		}
-		config.ArgoCDSyncPolicy = parsed
+		config.ArgoCDSyncPolicy = sp
 	}
 
 	defaultSyncPolicy := &ku.SyncPolicy{

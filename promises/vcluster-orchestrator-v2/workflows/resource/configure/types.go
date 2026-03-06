@@ -107,9 +107,9 @@ type ArgoCDAppConfig struct {
 }
 
 type WorkflowContext struct {
+	ku.WorkflowContext
 	WorkflowAction string
 	WorkflowType   string
-	PromiseName    string
 	PipelineName   string
 }
 

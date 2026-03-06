@@ -7,20 +7,40 @@ import (
 	ku "github.com/jamesatintegratnio/gitops_homelab_2_0/promises/_shared/kratixutil"
 )
 
-func etcdEnabled(config *VClusterConfig) bool {
+func etcdEnabledE(config *VClusterConfig) (bool, error) {
 	if config.BackingStore == nil {
-		return false
+		return false, nil
 	}
-	etcd, ok := config.BackingStore["etcd"].(map[string]interface{})
+	raw, ok := config.BackingStore["etcd"]
 	if !ok {
-		return false
+		return false, nil
 	}
-	deploy, ok := etcd["deploy"].(map[string]interface{})
+	etcd, ok := raw.(map[string]interface{})
 	if !ok {
-		return false
+		return false, fmt.Errorf("backingStore.etcd: expected map, got %T", raw)
 	}
-	enabled, ok := deploy["enabled"].(bool)
-	return ok && enabled
+	rawDeploy, ok := etcd["deploy"]
+	if !ok {
+		return false, nil
+	}
+	deploy, ok := rawDeploy.(map[string]interface{})
+	if !ok {
+		return false, fmt.Errorf("backingStore.etcd.deploy: expected map, got %T", rawDeploy)
+	}
+	rawEnabled, ok := deploy["enabled"]
+	if !ok {
+		return false, nil
+	}
+	enabled, ok := rawEnabled.(bool)
+	if !ok {
+		return false, fmt.Errorf("backingStore.etcd.deploy.enabled: expected bool, got %T", rawEnabled)
+	}
+	return enabled, nil
+}
+
+func etcdEnabled(config *VClusterConfig) bool {
+	enabled, _ := etcdEnabledE(config)
+	return enabled
 }
 
 func buildEtcdCertificates(config *VClusterConfig) []ku.Resource {

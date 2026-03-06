@@ -6,9 +6,10 @@ import (
 
 // HTTPServiceConfig holds the fully resolved config from the CR.
 type HTTPServiceConfig struct {
-	Name      string
-	Namespace string
-	Team      string
+	Name        string
+	Namespace   string
+	Team        string
+	PromiseName string
 
 	HTTPImageConfig      // ImageRepository, ImageTag, ImagePullPolicy, Command, Args
 	HTTPResourceConfig   // Replicas, CPURequest, MemoryRequest, CPULimit, MemoryLimit

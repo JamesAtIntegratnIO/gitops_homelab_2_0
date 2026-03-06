@@ -17,7 +17,7 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-secrets", config.Name),
 			Namespace: ku.DefaultPlatformRequestsNamespace,
-			Labels: ku.MergeStringMap(ku.BaseLabels("http-service", config.Name), map[string]string{
+			Labels: ku.MergeStringMap(ku.BaseLabels(config.PromiseName, config.Name), map[string]string{
 				"app.kubernetes.io/part-of": config.Name,
 			}),
 		},
@@ -26,7 +26,7 @@ func buildExternalSecretRequest(config *HTTPServiceConfig) ku.Resource {
 			AppName:         config.Name,
 			SecretStoreName: config.SecretStoreName,
 			SecretStoreKind: config.SecretStoreKind,
-			OwnerPromise:    "http-service",
+			OwnerPromise:    config.PromiseName,
 			Secrets:         config.Secrets,
 		},
 	}
@@ -41,7 +41,7 @@ func buildGatewayRouteRequest(config *HTTPServiceConfig) ku.Resource {
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-route", config.Name),
 			Namespace: ku.DefaultPlatformRequestsNamespace,
-			Labels: ku.MergeStringMap(ku.BaseLabels("http-service", config.Name), map[string]string{
+			Labels: ku.MergeStringMap(ku.BaseLabels(config.PromiseName, config.Name), map[string]string{
 				"app.kubernetes.io/part-of": config.Name,
 			}),
 		},
@@ -59,7 +59,7 @@ func buildGatewayRouteRequest(config *HTTPServiceConfig) ku.Resource {
 				Namespace: config.GatewayNS,
 			},
 			HTTPRedirect: true,
-			OwnerPromise: "http-service",
+			OwnerPromise: config.PromiseName,
 		},
 	}
 }
@@ -78,7 +78,7 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []ku.Resource {
 		Metadata: ku.ObjectMeta{
 			Name:      fmt.Sprintf("%s-allow-gateway", config.Name),
 			Namespace: config.Namespace,
-			Labels: ku.MergeStringMap(ku.BaseLabels("http-service", config.Name), map[string]string{
+			Labels: ku.MergeStringMap(ku.BaseLabels(config.PromiseName, config.Name), map[string]string{
 				"app.kubernetes.io/part-of": config.Name,
 			}),
 			Annotations: map[string]string{
@@ -115,7 +115,7 @@ func buildNetworkPolicies(config *HTTPServiceConfig) []ku.Resource {
 	})
 
 	// Common labels and annotations for network policies
-	netpolLabels := ku.MergeStringMap(ku.BaseLabels("http-service", config.Name), map[string]string{
+	netpolLabels := ku.MergeStringMap(ku.BaseLabels(config.PromiseName, config.Name), map[string]string{
 		"app.kubernetes.io/part-of": config.Name,
 	})
 	syncWaveAnnotations := map[string]string{

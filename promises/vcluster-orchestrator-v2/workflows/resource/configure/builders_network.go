@@ -20,18 +20,18 @@ func defaultVIPFromCIDR(cidr string, offset int) (string, error) {
 	return vip.String(), nil
 }
 
-func ipInCIDR(ipStr, cidr string) bool {
+func ipInCIDR(ipStr, cidr string) (bool, error) {
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
-		return false
+		return false, fmt.Errorf("invalid IP %q", ipStr)
 	}
 
 	_, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("invalid CIDR %q: %w", cidr, err)
 	}
 
-	return ipNet.Contains(ip)
+	return ipNet.Contains(ip), nil
 }
 
 func ipToInt(ip net.IP) uint32 {

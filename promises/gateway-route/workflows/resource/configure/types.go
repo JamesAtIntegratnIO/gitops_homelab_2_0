@@ -12,6 +12,7 @@ type GatewayRouteConfig struct {
 	GatewayNS        string
 	HTTPRedirect      bool
 	OwnerPromise      string
+	PromiseName       string
 	HTTPSSectionName  string
 	HTTPSectionName   string
 }

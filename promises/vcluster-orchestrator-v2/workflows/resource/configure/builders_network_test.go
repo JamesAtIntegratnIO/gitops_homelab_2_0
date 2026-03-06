@@ -51,23 +51,33 @@ func TestDefaultVIPFromCIDR_ErrorCases(t *testing.T) {
 
 func TestIpInCIDR_ExtendedCases(t *testing.T) {
 	tests := []struct {
-		name     string
-		ip       string
-		cidr     string
-		expected bool
+		name      string
+		ip        string
+		cidr      string
+		expected  bool
+		expectErr bool
 	}{
-		{"first IP in range", "10.0.4.0", "10.0.4.0/24", true},
-		{"last IP in range", "10.0.4.255", "10.0.4.0/24", true},
-		{"one past range", "10.0.5.0", "10.0.4.0/24", false},
-		{"wide CIDR", "10.255.255.255", "10.0.0.0/8", true},
-		{"invalid CIDR", "10.0.4.1", "invalid", false},
-		{"empty IP", "", "10.0.4.0/24", false},
-		{"empty CIDR", "10.0.4.1", "", false},
-		{"loopback", "127.0.0.1", "127.0.0.0/8", true},
+		{"first IP in range", "10.0.4.0", "10.0.4.0/24", true, false},
+		{"last IP in range", "10.0.4.255", "10.0.4.0/24", true, false},
+		{"one past range", "10.0.5.0", "10.0.4.0/24", false, false},
+		{"wide CIDR", "10.255.255.255", "10.0.0.0/8", true, false},
+		{"invalid CIDR", "10.0.4.1", "invalid", false, true},
+		{"empty IP", "", "10.0.4.0/24", false, true},
+		{"empty CIDR", "10.0.4.1", "", false, true},
+		{"loopback", "127.0.0.1", "127.0.0.0/8", true, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ipInCIDR(tt.ip, tt.cidr)
+			got, err := ipInCIDR(tt.ip, tt.cidr)
+			if tt.expectErr {
+				if err == nil {
+					t.Errorf("ipInCIDR(%q, %q) expected error, got nil", tt.ip, tt.cidr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ipInCIDR(%q, %q) unexpected error: %v", tt.ip, tt.cidr, err)
+			}
 			if got != tt.expected {
 				t.Errorf("ipInCIDR(%q, %q) = %v, want %v", tt.ip, tt.cidr, got, tt.expected)
 			}

@@ -22,13 +22,14 @@ func main() {
 }
 
 // buildConfig extracts all fields from the CR with sensible defaults.
-func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceConfig, error) {
+func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceConfig, error) {
 	config := &HTTPServiceConfig{
 		BaseDomain:      defaultBaseDomain,
 		GatewayName:     ku.DefaultGatewayName,
 		GatewayNS:       ku.DefaultGatewayNamespace,
 		SecretStoreName: ku.DefaultSecretStoreName,
 		SecretStoreKind: ku.DefaultSecretStoreKind,
+		PromiseName:     sdk.PromiseName(),
 	}
 
 	var err error
@@ -146,7 +147,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 			Name: config.Namespace,
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by":           "kratix",
-				"kratix.io/promise-name":                 "http-service",
+				"kratix.io/promise-name":                 config.PromiseName,
 				"app.kubernetes.io/part-of":              config.Name,
 				"app.kubernetes.io/team":                 config.Team,
 				"platform.integratn.tech/gateway-access": "true",
@@ -171,7 +172,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 	// 3. Build ArgoCDApplication sub-ResourceRequest (delegates to the argocd-application promise)
 	appLabels := map[string]string{
 		"app.kubernetes.io/managed-by": "kratix",
-		"kratix.io/promise-name":       "http-service",
+		"kratix.io/promise-name":       config.PromiseName,
 		"app.kubernetes.io/part-of":    config.Name,
 		"app.kubernetes.io/team":       config.Team,
 	}
@@ -185,7 +186,7 @@ func handleConfigure(sdk *kratix.KratixSDK, config *HTTPServiceConfig) error {
 			Labels: map[string]string{
 				"app.kubernetes.io/managed-by": "kratix",
 				"app.kubernetes.io/name":       "argocd-application",
-				"kratix.io/promise-name":       "http-service",
+				"kratix.io/promise-name":       config.PromiseName,
 				"app.kubernetes.io/part-of":    config.Name,
 				"app.kubernetes.io/team":       config.Team,
 			},

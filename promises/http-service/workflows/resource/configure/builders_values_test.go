@@ -9,9 +9,10 @@ import (
 // newValuesTestConfig returns a fully-populated config for value builder tests.
 func newValuesTestConfig() *HTTPServiceConfig {
 	return &HTTPServiceConfig{
-		Name:      "valapp",
-		Namespace: "valns",
-		Team:      "teamA",
+		Name:        "valapp",
+		Namespace:   "valns",
+		Team:        "teamA",
+		PromiseName: "http-service",
 		HTTPImageConfig: HTTPImageConfig{
 			ImageRepository: "myrepo/valapp",
 			ImageTag:        "v2.0",

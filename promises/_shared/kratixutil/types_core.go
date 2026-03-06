@@ -50,3 +50,10 @@ type ObjectMeta struct {
 	Annotations map[string]string `json:"annotations,omitempty"`
 	Finalizers  []string          `json:"finalizers,omitempty"`
 }
+
+// WorkflowContext holds workflow metadata extracted from Kratix SDK.
+// Each promise module can embed or use this struct to carry promise identity
+// through config builders and handlers.
+type WorkflowContext struct {
+	PromiseName string
+}

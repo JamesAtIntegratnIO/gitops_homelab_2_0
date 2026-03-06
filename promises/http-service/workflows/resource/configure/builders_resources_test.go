@@ -10,9 +10,10 @@ import (
 // newResourceTestConfig returns a config with all fields needed by resource builders.
 func newResourceTestConfig() *HTTPServiceConfig {
 	return &HTTPServiceConfig{
-		Name:      "myapp",
-		Namespace: "production",
-		Team:      "backend",
+		Name:        "myapp",
+		Namespace:   "production",
+		Team:        "backend",
+		PromiseName: "http-service",
 		HTTPNetworkConfig: HTTPNetworkConfig{
 			Port:            8080,
 			IngressEnabled:  true,

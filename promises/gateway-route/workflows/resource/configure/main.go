@@ -17,8 +17,10 @@ func main() {
 	ku.RunPromiseWithConfig("Gateway Route", buildConfig, handleConfigure, handleDelete)
 }
 
-func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*GatewayRouteConfig, error) {
-	config := &GatewayRouteConfig{}
+func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*GatewayRouteConfig, error) {
+	config := &GatewayRouteConfig{
+		PromiseName: sdk.PromiseName(),
+	}
 
 	var err error
 	config.Name, err = ku.GetStringValue(resource, "spec.name")
