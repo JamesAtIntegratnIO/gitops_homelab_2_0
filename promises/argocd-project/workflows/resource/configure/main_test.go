@@ -193,3 +193,22 @@ func TestBuildConfig_DefaultNamespace(t *testing.T) {
 		t.Errorf("expected default namespace 'argocd', got %q", config.Namespace)
 	}
 }
+
+func TestBuildConfig_WrongTypeSourceReposReturnsError(t *testing.T) {
+	resource := &ku.MockResource{
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name":       "my-project",
+				"sourceRepos": "not-a-slice",
+			},
+		},
+	}
+
+	_, err := buildConfig(nil, resource)
+	if err == nil {
+		t.Fatal("expected error for wrong-type sourceRepos")
+	}
+	if !strings.Contains(err.Error(), "sourceRepos") {
+		t.Errorf("error should mention 'sourceRepos', got: %s", err.Error())
+	}
+}

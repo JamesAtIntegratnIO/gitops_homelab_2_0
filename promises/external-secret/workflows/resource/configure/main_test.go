@@ -134,6 +134,25 @@ func TestBuildConfig_NoSecrets(t *testing.T) {
 	}
 }
 
+func TestBuildConfig_WrongTypeSecretsReturnsError(t *testing.T) {
+	resource := &ku.MockResource{
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"namespace": "my-ns",
+				"secrets":   "not-an-array",
+			},
+		},
+	}
+
+	_, err := buildConfig(nil, resource)
+	if err == nil {
+		t.Fatal("expected error for wrong-type secrets")
+	}
+	if !strings.Contains(err.Error(), "secrets") {
+		t.Errorf("error should mention 'secrets', got: %s", err.Error())
+	}
+}
+
 func TestBuildExternalSecrets_SingleSecret(t *testing.T) {
 	config := &ExternalSecretConfig{
 		AppName:         "my-app",

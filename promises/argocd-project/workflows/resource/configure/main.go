@@ -23,12 +23,33 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 
 	config.Namespace = ku.GetStringValueWithDefault(resource, "spec.namespace", "argocd")
 	config.Description, _ = ku.GetStringValue(resource, "spec.description")
-	config.Annotations = ku.ExtractStringMap(resource, "spec.annotations")
-	config.Labels = ku.ExtractStringMap(resource, "spec.labels")
-	config.SourceRepos = ku.ExtractStringSlice(resource, "spec.sourceRepos")
-	config.Destinations = toProjectDestinations(ku.ExtractObjectSlice(resource, "spec.destinations"))
-	config.ClusterResourceWhitelist = toResourceFilters(ku.ExtractObjectSlice(resource, "spec.clusterResourceWhitelist"))
-	config.NamespaceResourceWhitelist = toResourceFilters(ku.ExtractObjectSlice(resource, "spec.namespaceResourceWhitelist"))
+	config.Annotations, err = ku.ExtractStringMapFromResource(resource, "spec.annotations")
+	if err != nil {
+		return nil, err
+	}
+	config.Labels, err = ku.ExtractStringMapFromResource(resource, "spec.labels")
+	if err != nil {
+		return nil, err
+	}
+	config.SourceRepos, err = ku.ExtractStringSliceFromResource(resource, "spec.sourceRepos")
+	if err != nil {
+		return nil, err
+	}
+	rawDestinations, err := ku.ExtractObjectSliceFromResource(resource, "spec.destinations")
+	if err != nil {
+		return nil, err
+	}
+	config.Destinations = toProjectDestinations(rawDestinations)
+	rawClusterResourceWhitelist, err := ku.ExtractObjectSliceFromResource(resource, "spec.clusterResourceWhitelist")
+	if err != nil {
+		return nil, err
+	}
+	config.ClusterResourceWhitelist = toResourceFilters(rawClusterResourceWhitelist)
+	rawNamespaceResourceWhitelist, err := ku.ExtractObjectSliceFromResource(resource, "spec.namespaceResourceWhitelist")
+	if err != nil {
+		return nil, err
+	}
+	config.NamespaceResourceWhitelist = toResourceFilters(rawNamespaceResourceWhitelist)
 
 	return config, nil
 }

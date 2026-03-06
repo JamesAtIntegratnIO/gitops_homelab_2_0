@@ -28,9 +28,18 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*AppConfig, err
 		return nil, fmt.Errorf("spec.project is required: %w", err)
 	}
 
-	config.Annotations = ku.ExtractStringMap(resource, "spec.annotations")
-	config.Labels = ku.ExtractStringMap(resource, "spec.labels")
-	config.Finalizers = ku.ExtractStringSlice(resource, "spec.finalizers")
+	config.Annotations, err = ku.ExtractStringMapFromResource(resource, "spec.annotations")
+	if err != nil {
+		return nil, err
+	}
+	config.Labels, err = ku.ExtractStringMapFromResource(resource, "spec.labels")
+	if err != nil {
+		return nil, err
+	}
+	config.Finalizers, err = ku.ExtractStringSliceFromResource(resource, "spec.finalizers")
+	if err != nil {
+		return nil, err
+	}
 
 	// Extract source
 	repoURL, err := ku.GetStringValue(resource, "spec.source.repoURL")

@@ -1,6 +1,7 @@
 package kratixutil
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -571,5 +572,155 @@ func TestExtractSecrets_SkipsNonMapItems(t *testing.T) {
 	}
 	if secrets[0].Name != "good" {
 		t.Errorf("expected name 'good', got %q", secrets[0].Name)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests for Resource-level typed extraction helpers
+// ---------------------------------------------------------------------------
+
+func TestExtractStringMapFromResource(t *testing.T) {
+	tests := []struct {
+		name    string
+		spec    map[string]interface{}
+		path    string
+		want    map[string]string
+		wantErr bool
+	}{
+		{"present and valid", map[string]interface{}{"spec": map[string]interface{}{"labels": map[string]interface{}{"a": "b"}}}, "spec.labels", map[string]string{"a": "b"}, false},
+		{"absent returns nil", map[string]interface{}{}, "spec.labels", nil, false},
+		{"wrong type returns error", map[string]interface{}{"spec": map[string]interface{}{"labels": "not-a-map"}}, "spec.labels", nil, true},
+		{"empty map", map[string]interface{}{"spec": map[string]interface{}{"labels": map[string]interface{}{}}}, "spec.labels", map[string]string{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.spec)
+			got, err := ExtractStringMapFromResource(r, tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("error = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractStringSliceFromResource(t *testing.T) {
+	tests := []struct {
+		name    string
+		spec    map[string]interface{}
+		path    string
+		want    []string
+		wantErr bool
+	}{
+		{"present and valid", map[string]interface{}{"spec": map[string]interface{}{"repos": []interface{}{"a", "b"}}}, "spec.repos", []string{"a", "b"}, false},
+		{"absent returns nil", map[string]interface{}{}, "spec.repos", nil, false},
+		{"wrong type returns error", map[string]interface{}{"spec": map[string]interface{}{"repos": "not-a-slice"}}, "spec.repos", nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.spec)
+			got, err := ExtractStringSliceFromResource(r, tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("error = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractObjectSliceFromResource(t *testing.T) {
+	tests := []struct {
+		name    string
+		spec    map[string]interface{}
+		path    string
+		want    []map[string]interface{}
+		wantErr bool
+	}{
+		{"present and valid", map[string]interface{}{"spec": map[string]interface{}{"items": []interface{}{map[string]interface{}{"k": "v"}}}}, "spec.items", []map[string]interface{}{{"k": "v"}}, false},
+		{"absent returns nil", map[string]interface{}{}, "spec.items", nil, false},
+		{"wrong type returns error", map[string]interface{}{"spec": map[string]interface{}{"items": "not-a-slice"}}, "spec.items", nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.spec)
+			got, err := ExtractObjectSliceFromResource(r, tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("error = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractSecretsFromResource(t *testing.T) {
+	tests := []struct {
+		name    string
+		spec    map[string]interface{}
+		path    string
+		want    []SecretRef
+		wantErr bool
+	}{
+		{
+			"present and valid",
+			map[string]interface{}{
+				"spec": map[string]interface{}{
+					"secrets": []interface{}{
+						map[string]interface{}{
+							"name":            "db",
+							"onePasswordItem": "item",
+						},
+					},
+				},
+			},
+			"spec.secrets",
+			[]SecretRef{{Name: "db", OnePasswordItem: "item"}},
+			false,
+		},
+		{"absent returns nil", map[string]interface{}{}, "spec.secrets", nil, false},
+		{"wrong type returns error", map[string]interface{}{"spec": map[string]interface{}{"secrets": "not-an-array"}}, "spec.secrets", nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.spec)
+			got, err := ExtractSecretsFromResource(r, tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("error = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractMapFromResource(t *testing.T) {
+	tests := []struct {
+		name    string
+		spec    map[string]interface{}
+		path    string
+		want    map[string]interface{}
+		wantErr bool
+	}{
+		{"present and valid", map[string]interface{}{"spec": map[string]interface{}{"data": map[string]interface{}{"key": "val"}}}, "spec.data", map[string]interface{}{"key": "val"}, false},
+		{"absent returns nil", map[string]interface{}{}, "spec.data", nil, false},
+		{"wrong type returns error", map[string]interface{}{"spec": map[string]interface{}{"data": "not-a-map"}}, "spec.data", nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newMockResource(tt.spec)
+			got, err := ExtractMapFromResource(r, tt.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("error = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

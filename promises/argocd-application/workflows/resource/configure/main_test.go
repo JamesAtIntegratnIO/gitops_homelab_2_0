@@ -296,3 +296,31 @@ func TestBuildConfig_DefaultNamespace(t *testing.T) {
 		t.Errorf("expected default namespace 'argocd', got %q", config.Namespace)
 	}
 }
+
+func TestBuildConfig_WrongTypeAnnotationsReturnsError(t *testing.T) {
+	resource := &ku.MockResource{
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name":        "my-app",
+				"project":     "default",
+				"annotations": "not-a-map",
+				"source": map[string]interface{}{
+					"repoURL":        "https://example.com",
+					"targetRevision": "1.0.0",
+				},
+				"destination": map[string]interface{}{
+					"server":    "https://kubernetes.default.svc",
+					"namespace": "production",
+				},
+			},
+		},
+	}
+
+	_, err := buildConfig(nil, resource)
+	if err == nil {
+		t.Fatal("expected error for wrong-type annotations")
+	}
+	if !strings.Contains(err.Error(), "annotations") {
+		t.Errorf("error should mention 'annotations', got: %s", err.Error())
+	}
+}

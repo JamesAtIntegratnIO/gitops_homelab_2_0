@@ -219,6 +219,50 @@ func TestBuildConfig_MissingImageRepository(t *testing.T) {
 	}
 }
 
+func TestBuildConfig_WrongTypeEnvReturnsError(t *testing.T) {
+	resource := &ku.MockResource{
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "my-app",
+				"image": map[string]interface{}{
+					"repository": "nginx",
+				},
+				"env": "not-a-map",
+			},
+		},
+	}
+
+	_, err := buildConfig(nil, resource)
+	if err == nil {
+		t.Fatal("expected error for wrong-type env")
+	}
+	if !strings.Contains(err.Error(), "env") {
+		t.Errorf("error should mention 'env', got: %s", err.Error())
+	}
+}
+
+func TestBuildConfig_WrongTypeHelmOverridesReturnsError(t *testing.T) {
+	resource := &ku.MockResource{
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "my-app",
+				"image": map[string]interface{}{
+					"repository": "nginx",
+				},
+				"helmOverrides": "not-a-map",
+			},
+		},
+	}
+
+	_, err := buildConfig(nil, resource)
+	if err == nil {
+		t.Fatal("expected error for wrong-type helmOverrides")
+	}
+	if !strings.Contains(err.Error(), "helmOverrides") {
+		t.Errorf("error should mention 'helmOverrides', got: %s", err.Error())
+	}
+}
+
 func TestBuildSecurityContext_Defaults(t *testing.T) {
 	config := &HTTPServiceConfig{}
 	ctx := buildSecurityContext(config)

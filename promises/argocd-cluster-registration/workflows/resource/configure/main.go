@@ -51,8 +51,14 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*Registration
 		syncJobName = fmt.Sprintf("%s-kubeconfig-sync", name)
 	}
 
-	clusterLabels := ku.ExtractStringMap(resource, "spec.clusterLabels")
-	clusterAnnotations := ku.ExtractStringMap(resource, "spec.clusterAnnotations")
+	clusterLabels, err := ku.ExtractStringMapFromResource(resource, "spec.clusterLabels")
+	if err != nil {
+		return nil, err
+	}
+	clusterAnnotations, err := ku.ExtractStringMapFromResource(resource, "spec.clusterAnnotations")
+	if err != nil {
+		return nil, err
+	}
 
 	return &RegistrationConfig{
 		Name:                   name,

@@ -47,8 +47,14 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceCon
 	}
 	config.ImageTag = ku.GetStringValueWithDefault(resource, "spec.image.tag", "latest")
 	config.ImagePullPolicy = ku.GetStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
-	config.Command = ku.ExtractStringSlice(resource, "spec.command")
-	config.Args = ku.ExtractStringSlice(resource, "spec.args")
+	config.Command, err = ku.ExtractStringSliceFromResource(resource, "spec.command")
+	if err != nil {
+		return nil, err
+	}
+	config.Args, err = ku.ExtractStringSliceFromResource(resource, "spec.args")
+	if err != nil {
+		return nil, err
+	}
 
 	// Scaling
 	config.Replicas = ku.GetIntValueWithDefault(resource, "spec.replicas", 1)
@@ -67,11 +73,20 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceCon
 	config.IngressPath = ku.GetStringValueWithDefault(resource, "spec.ingress.path", "/")
 
 	// Secrets
-	config.Secrets = ku.ExtractSecrets(resource, "spec.secrets")
+	config.Secrets, err = ku.ExtractSecretsFromResource(resource, "spec.secrets")
+	if err != nil {
+		return nil, err
+	}
 
 	// Environment
-	config.Env = ku.ExtractStringMap(resource, "spec.env")
-	config.EnvFromSecrets = ku.ExtractStringSlice(resource, "spec.envFromSecrets")
+	config.Env, err = ku.ExtractStringMapFromResource(resource, "spec.env")
+	if err != nil {
+		return nil, err
+	}
+	config.EnvFromSecrets, err = ku.ExtractStringSliceFromResource(resource, "spec.envFromSecrets")
+	if err != nil {
+		return nil, err
+	}
 
 	// Health checks
 	config.HealthCheckPath = ku.GetStringValueWithDefault(resource, "spec.healthCheck.path", "/")
@@ -105,10 +120,9 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceCon
 	}
 
 	// Helm overrides
-	if val, err := resource.GetValue("spec.helmOverrides"); err == nil && val != nil {
-		if m, ok := val.(map[string]interface{}); ok {
-			config.HelmOverrides = m
-		}
+	config.HelmOverrides, err = ku.ExtractMapFromResource(resource, "spec.helmOverrides")
+	if err != nil {
+		return nil, err
 	}
 
 	return config, nil

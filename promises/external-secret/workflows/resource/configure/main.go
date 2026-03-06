@@ -36,7 +36,10 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ExternalSecret
 		config.SecretStoreKind = v
 	}
 
-	config.Secrets = ku.ExtractSecrets(resource, "spec.secrets")
+	config.Secrets, err = ku.ExtractSecretsFromResource(resource, "spec.secrets")
+	if err != nil {
+		return nil, err
+	}
 	if len(config.Secrets) == 0 {
 		return nil, fmt.Errorf("spec.secrets must contain at least one entry")
 	}

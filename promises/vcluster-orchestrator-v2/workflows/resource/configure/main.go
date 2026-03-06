@@ -32,7 +32,9 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	if err := configureExposure(config, resource); err != nil {
 		return nil, err
 	}
-	configureIntegrations(config, resource)
+	if err := configureIntegrations(config, resource); err != nil {
+		return nil, err
+	}
 	if err := configureArgoCD(config, resource); err != nil {
 		return nil, err
 	}
@@ -106,22 +108,19 @@ func extractCoreConfig(config *VClusterConfig, resource kratix.Resource) error {
 	applyPresetDefaults(config, resource)
 
 	// Extract backing store and helm overrides
-	if val, err := resource.GetValue("spec.vcluster.backingStore"); err == nil && val != nil {
-		if m, ok := val.(map[string]interface{}); ok {
-			config.BackingStore = m
-		}
+	config.BackingStore, err = ku.ExtractMapFromResource(resource, "spec.vcluster.backingStore")
+	if err != nil {
+		return err
 	}
 
-	if val, err := resource.GetValue("spec.vcluster.exportKubeConfig"); err == nil && val != nil {
-		if m, ok := val.(map[string]interface{}); ok {
-			config.ExportKubeConfig = m
-		}
+	config.ExportKubeConfig, err = ku.ExtractMapFromResource(resource, "spec.vcluster.exportKubeConfig")
+	if err != nil {
+		return err
 	}
 
-	if val, err := resource.GetValue("spec.vcluster.helmOverrides"); err == nil && val != nil {
-		if m, ok := val.(map[string]interface{}); ok {
-			config.HelmOverrides = m
-		}
+	config.HelmOverrides, err = ku.ExtractMapFromResource(resource, "spec.vcluster.helmOverrides")
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -201,28 +200,45 @@ func resolveExposureDefaults(config *VClusterConfig) {
 
 // configureIntegrations sets up cert-manager, external-secrets, and ArgoCD integration
 // configuration including cluster labels, annotations, and workload repo settings.
-func configureIntegrations(config *VClusterConfig, resource kratix.Resource) {
-	configureCertManager(config, resource)
-	configureExternalSecrets(config, resource)
+func configureIntegrations(config *VClusterConfig, resource kratix.Resource) error {
+	if err := configureCertManager(config, resource); err != nil {
+		return err
+	}
+	if err := configureExternalSecrets(config, resource); err != nil {
+		return err
+	}
 	configureArgoCDEnvironment(config, resource)
-	configureWorkloadRepo(config, resource)
+	if err := configureWorkloadRepo(config, resource); err != nil {
+		return err
+	}
 	configureClusterMetadata(config)
+	return nil
 }
 
 // configureCertManager extracts cert-manager issuer selector labels with a default.
-func configureCertManager(config *VClusterConfig, resource kratix.Resource) {
-	config.CertManagerIssuerLabels = ku.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
+func configureCertManager(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.CertManagerIssuerLabels, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
+	if err != nil {
+		return err
+	}
 	if len(config.CertManagerIssuerLabels) == 0 {
 		config.CertManagerIssuerLabels = map[string]string{ku.DefaultCertManagerIssuerLabel: ku.DefaultCertManagerIssuer}
 	}
+	return nil
 }
 
 // configureExternalSecrets extracts external-secrets store selector labels with a default.
-func configureExternalSecrets(config *VClusterConfig, resource kratix.Resource) {
-	config.ExternalSecretsStoreLabels = ku.ExtractStringMap(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
+func configureExternalSecrets(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.ExternalSecretsStoreLabels, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
+	if err != nil {
+		return err
+	}
 	if len(config.ExternalSecretsStoreLabels) == 0 {
 		config.ExternalSecretsStoreLabels = map[string]string{ku.DefaultExternalSecretsStoreLabel: ku.DefaultExternalSecretsStore}
 	}
+	return nil
 }
 
 // configureArgoCDEnvironment resolves the ArgoCD environment label from the resource
@@ -240,14 +256,22 @@ func configureArgoCDEnvironment(config *VClusterConfig, resource kratix.Resource
 
 // configureWorkloadRepo extracts ArgoCD workload repository settings and user-provided
 // cluster labels/annotations from the resource.
-func configureWorkloadRepo(config *VClusterConfig, resource kratix.Resource) {
-	config.ArgoCDClusterLabels = ku.ExtractStringMap(resource, "spec.integrations.argocd.clusterLabels")
-	config.ArgoCDClusterAnnotations = ku.ExtractStringMap(resource, "spec.integrations.argocd.clusterAnnotations")
+func configureWorkloadRepo(config *VClusterConfig, resource kratix.Resource) error {
+	var err error
+	config.ArgoCDClusterLabels, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.argocd.clusterLabels")
+	if err != nil {
+		return err
+	}
+	config.ArgoCDClusterAnnotations, err = ku.ExtractStringMapFromResource(resource, "spec.integrations.argocd.clusterAnnotations")
+	if err != nil {
+		return err
+	}
 
 	config.WorkloadRepoURL = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.url", ku.PlatformRepoURL)
 	config.WorkloadRepoBasePath, _ = ku.GetStringValue(resource, "spec.integrations.argocd.workloadRepo.basePath")
 	config.WorkloadRepoPath = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.path", "workloads")
 	config.WorkloadRepoRevision = ku.GetStringValueWithDefault(resource, "spec.integrations.argocd.workloadRepo.revision", "main")
+	return nil
 }
 
 // configureClusterMetadata merges user-provided cluster labels/annotations with defaults
@@ -329,7 +353,10 @@ func configureArgoCD(config *VClusterConfig, resource kratix.Resource) error {
 }
 
 func extractExtraEgress(resource kratix.Resource) ([]ExtraEgressRule, error) {
-	raw := ku.ExtractObjectSlice(resource, "spec.networkPolicies.extraEgress")
+	raw, extractErr := ku.ExtractObjectSliceFromResource(resource, "spec.networkPolicies.extraEgress")
+	if extractErr != nil {
+		return nil, extractErr
+	}
 	if raw == nil {
 		return nil, nil
 	}

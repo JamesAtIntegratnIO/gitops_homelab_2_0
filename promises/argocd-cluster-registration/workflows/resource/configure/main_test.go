@@ -176,6 +176,29 @@ func TestBuildConfig_MissingExternalServerURL(t *testing.T) {
 	}
 }
 
+func TestBuildConfig_WrongTypeClusterLabelsReturnsError(t *testing.T) {
+	sdk := kratix.New()
+	resource := &ku.MockResource{
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name":              "dev-cluster",
+				"targetNamespace":   "vcluster-dev",
+				"kubeconfigSecret":  "dev-kubeconfig",
+				"externalServerURL": "https://dev.example.com:6443",
+				"clusterLabels":     "not-a-map",
+			},
+		},
+	}
+
+	_, err := buildConfig(sdk, resource)
+	if err == nil {
+		t.Fatal("expected error for wrong-type clusterLabels")
+	}
+	if !strings.Contains(err.Error(), "clusterLabels") {
+		t.Errorf("error should mention 'clusterLabels', got: %s", err.Error())
+	}
+}
+
 func newTestConfig() *RegistrationConfig {
 	return &RegistrationConfig{
 		Name:                   "test-cluster",

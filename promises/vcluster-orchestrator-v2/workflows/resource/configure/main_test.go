@@ -1107,7 +1107,7 @@ func TestBuildConfig_MissingK8sVersionUsesDefault(t *testing.T) {
 	}
 }
 
-func TestBuildConfig_InvalidBackingStoreTypeIgnored(t *testing.T) {
+func TestBuildConfig_InvalidBackingStoreTypeError(t *testing.T) {
 	sdk, _ := ku.NewTestSDK(t)
 	resource := &ku.MockResource{
 		Name: "test-vc",
@@ -1116,7 +1116,7 @@ func TestBuildConfig_InvalidBackingStoreTypeIgnored(t *testing.T) {
 			"spec": map[string]interface{}{
 				"name": "test-vc",
 				"vcluster": map[string]interface{}{
-					// backingStore is a string instead of a map — should be ignored
+					// backingStore is a string instead of a map — should return error
 					"backingStore": "invalid-string-value",
 				},
 			},
@@ -1124,13 +1124,37 @@ func TestBuildConfig_InvalidBackingStoreTypeIgnored(t *testing.T) {
 		},
 	}
 
-	config, err := buildConfig(sdk, resource)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	_, err := buildConfig(sdk, resource)
+	if err == nil {
+		t.Fatal("expected error for wrong-type backingStore")
 	}
-	// Invalid backing store type should result in nil (silently ignored)
-	if config.BackingStore != nil {
-		t.Errorf("expected nil BackingStore for non-map value, got %v", config.BackingStore)
+	if !strings.Contains(err.Error(), "backingStore") {
+		t.Errorf("error should mention 'backingStore', got: %s", err.Error())
+	}
+}
+
+func TestBuildConfig_WrongTypeHelmOverridesReturnsError(t *testing.T) {
+	sdk, _ := ku.NewTestSDK(t)
+	resource := &ku.MockResource{
+		Name: "test-vc",
+		Ns:   "default",
+		Data: map[string]interface{}{
+			"spec": map[string]interface{}{
+				"name": "test-vc",
+				"vcluster": map[string]interface{}{
+					"helmOverrides": "not-a-map",
+				},
+			},
+			"metadata": map[string]interface{}{},
+		},
+	}
+
+	_, err := buildConfig(sdk, resource)
+	if err == nil {
+		t.Fatal("expected error for wrong-type helmOverrides")
+	}
+	if !strings.Contains(err.Error(), "helmOverrides") {
+		t.Errorf("error should mention 'helmOverrides', got: %s", err.Error())
 	}
 }
 
