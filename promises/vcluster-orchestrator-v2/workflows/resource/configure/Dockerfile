@@ -15,8 +15,9 @@ COPY vcluster-orchestrator-v2/workflows/resource/configure/go.mod vcluster-orche
 WORKDIR /workspace/vcluster-orchestrator-v2/workflows/resource/configure
 RUN go mod download
 
-# Copy source code
+# Copy source code and embedded assets
 COPY vcluster-orchestrator-v2/workflows/resource/configure/*.go ./
+COPY vcluster-orchestrator-v2/workflows/resource/configure/scripts/ ./scripts/
 
 # Build static binary
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
