@@ -40,6 +40,7 @@ func etcdEnabledE(config *VClusterConfig) (bool, error) {
 
 // etcdEnabled returns whether etcd backing store is enabled.
 // The backing store structure must be validated first by buildConfig (via etcdEnabledE).
+// This is a convenience wrapper that silently returns false on error.
 func etcdEnabled(config *VClusterConfig) bool {
 	enabled, _ := etcdEnabledE(config)
 	return enabled

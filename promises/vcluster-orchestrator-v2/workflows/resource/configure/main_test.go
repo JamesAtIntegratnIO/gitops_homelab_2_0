@@ -327,7 +327,7 @@ func TestExtractExtraEgress_DefaultProtocol(t *testing.T) {
 	}
 }
 
-func TestExtractExtraEgress_IncompleteSkipped(t *testing.T) {
+func TestExtractExtraEgress_IncompleteReturnsError(t *testing.T) {
 	resource := &ku.MockResource{
 		Data: map[string]interface{}{
 			"spec": map[string]interface{}{
@@ -343,12 +343,12 @@ func TestExtractExtraEgress_IncompleteSkipped(t *testing.T) {
 		},
 	}
 
-	rules, err := extractExtraEgress(resource)
-	if err != nil {
-		t.Errorf("expected nil error (warnings logged), got: %v", err)
+	_, err := extractExtraEgress(resource)
+	if err == nil {
+		t.Fatal("expected error for incomplete egress rule, got nil")
 	}
-	if len(rules) != 0 {
-		t.Errorf("expected 0 rules for incomplete entry, got %d", len(rules))
+	if !strings.Contains(err.Error(), "missing required fields") {
+		t.Errorf("expected error about missing required fields, got: %v", err)
 	}
 }
 

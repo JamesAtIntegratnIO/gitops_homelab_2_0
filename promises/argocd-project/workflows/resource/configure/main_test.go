@@ -218,6 +218,7 @@ func TestToProjectDestinations(t *testing.T) {
 		name     string
 		input    []map[string]interface{}
 		expected []ku.ProjectDestination
+		wantErr  bool
 	}{
 		{
 			name:     "nil returns nil",
@@ -252,28 +253,33 @@ func TestToProjectDestinations(t *testing.T) {
 			},
 		},
 		{
-			name: "wrong-type values silently skipped",
+			name: "wrong-type values return error",
 			input: []map[string]interface{}{
 				{"namespace": 42, "server": true},
 			},
-			expected: []ku.ProjectDestination{
-				{Namespace: "", Server: ""},
-			},
+			wantErr: true,
 		},
 		{
 			name: "wrong-type namespace with valid server",
 			input: []map[string]interface{}{
 				{"namespace": 42, "server": "https://kubernetes.default.svc"},
 			},
-			expected: []ku.ProjectDestination{
-				{Namespace: "", Server: "https://kubernetes.default.svc"},
-			},
+			wantErr: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := toProjectDestinations(tc.input)
+			got, err := toProjectDestinations(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if tc.expected == nil {
 				if got != nil {
 					t.Fatalf("expected nil, got %v", got)
@@ -297,6 +303,7 @@ func TestToResourceFilters(t *testing.T) {
 		name     string
 		input    []map[string]interface{}
 		expected []ku.ResourceFilter
+		wantErr  bool
 	}{
 		{
 			name:     "nil returns nil",
@@ -331,28 +338,33 @@ func TestToResourceFilters(t *testing.T) {
 			},
 		},
 		{
-			name: "wrong-type values silently skipped",
+			name: "wrong-type values return error",
 			input: []map[string]interface{}{
 				{"group": 42, "kind": []string{"a", "b"}},
 			},
-			expected: []ku.ResourceFilter{
-				{Group: "", Kind: ""},
-			},
+			wantErr: true,
 		},
 		{
 			name: "wrong-type kind with valid group",
 			input: []map[string]interface{}{
 				{"group": "apps", "kind": 42},
 			},
-			expected: []ku.ResourceFilter{
-				{Group: "apps", Kind: ""},
-			},
+			wantErr: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := toResourceFilters(tc.input)
+			got, err := toResourceFilters(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 			if tc.expected == nil {
 				if got != nil {
 					t.Fatalf("expected nil, got %v", got)

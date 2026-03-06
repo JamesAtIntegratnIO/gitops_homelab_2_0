@@ -41,90 +41,25 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceC
 	config.Namespace = ku.GetStringValueWithDefault(resource, "spec.namespace", config.Name)
 	config.Team = ku.GetStringValueWithDefault(resource, "spec.team", "platform")
 
-	// Image
-	config.ImageRepository, err = ku.GetStringValue(resource, "spec.image.repository")
-	if err != nil {
-		return nil, fmt.Errorf("spec.image.repository is required: %w", err)
-	}
-	config.ImageTag = ku.GetStringValueWithDefault(resource, "spec.image.tag", "latest")
-	config.ImagePullPolicy = ku.GetStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
-	config.Command, err = ku.ExtractStringSliceFromResource(resource, "spec.command")
-	if err != nil {
+	if err := extractImageConfig(resource, config); err != nil {
 		return nil, err
 	}
-	config.Args, err = ku.ExtractStringSliceFromResource(resource, "spec.args")
-	if err != nil {
+	if err := extractScalingConfig(resource, config); err != nil {
 		return nil, err
 	}
-
-	// Scaling
-	config.Replicas = ku.GetIntValueWithDefault(resource, "spec.replicas", 1)
-	config.CPURequest = ku.GetStringValueWithDefault(resource, "spec.resources.requests.cpu", "100m")
-	config.MemoryRequest = ku.GetStringValueWithDefault(resource, "spec.resources.requests.memory", "128Mi")
-	config.CPULimit = ku.GetStringValueWithDefault(resource, "spec.resources.limits.cpu", "500m")
-	config.MemoryLimit = ku.GetStringValueWithDefault(resource, "spec.resources.limits.memory", "256Mi")
-
-	// Networking
-	config.Port = ku.GetIntValueWithDefault(resource, "spec.port", 8080)
-	config.IngressEnabled = ku.GetBoolValueWithDefault(resource, "spec.ingress.enabled", true)
-	config.IngressHostname, err = ku.GetOptionalStringValue(resource, "spec.ingress.hostname")
-	if err != nil {
+	if err := extractNetworkConfig(resource, config); err != nil {
 		return nil, err
 	}
-	if config.IngressHostname == "" {
-		config.IngressHostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
-	}
-	config.IngressPath = ku.GetStringValueWithDefault(resource, "spec.ingress.path", "/")
-
-	// Secrets
-	config.Secrets, err = ku.ExtractSecretsFromResource(resource, "spec.secrets")
-	if err != nil {
+	if err := extractSecretConfig(resource, config); err != nil {
 		return nil, err
 	}
-
-	// Environment
-	config.Env, err = ku.ExtractStringMapFromResource(resource, "spec.env")
-	if err != nil {
+	if err := extractMonitoringConfig(resource, config); err != nil {
 		return nil, err
 	}
-	config.EnvFromSecrets, err = ku.ExtractStringSliceFromResource(resource, "spec.envFromSecrets")
-	if err != nil {
+	if err := extractStorageConfig(resource, config); err != nil {
 		return nil, err
 	}
-
-	// Health checks
-	config.HealthCheckPath = ku.GetStringValueWithDefault(resource, "spec.healthCheck.path", "/")
-	config.HealthCheckPort = ku.GetIntValueWithDefault(resource, "spec.healthCheck.port", config.Port)
-
-	// Monitoring
-	config.MonitoringEnabled = ku.GetBoolValueWithDefault(resource, "spec.monitoring.enabled", false)
-	config.MonitoringPath = ku.GetStringValueWithDefault(resource, "spec.monitoring.path", "/metrics")
-	config.MonitoringInterval = ku.GetStringValueWithDefault(resource, "spec.monitoring.interval", "30s")
-
-	// Storage
-	config.PersistenceEnabled = ku.GetBoolValueWithDefault(resource, "spec.persistence.enabled", false)
-	config.PersistenceSize = ku.GetStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
-	config.PersistenceClass, err = ku.GetOptionalStringValue(resource, "spec.persistence.storageClass")
-	if err != nil {
-		return nil, err
-	}
-	config.PersistenceMountPath = ku.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
-
-	// Security context — use pointer accessors to distinguish absent from false/zero.
-	config.RunAsNonRoot, err = ku.GetOptionalBoolPtr(resource, "spec.securityContext.runAsNonRoot")
-	if err != nil {
-		return nil, err
-	}
-	config.ReadOnlyRootFilesystem, err = ku.GetOptionalBoolPtr(resource, "spec.securityContext.readOnlyRootFilesystem")
-	if err != nil {
-		return nil, err
-	}
-	config.RunAsUser, err = ku.GetOptionalIntPtr(resource, "spec.securityContext.runAsUser")
-	if err != nil {
-		return nil, err
-	}
-	config.RunAsGroup, err = ku.GetOptionalIntPtr(resource, "spec.securityContext.runAsGroup")
-	if err != nil {
+	if err := extractSecurityConfig(resource, config); err != nil {
 		return nil, err
 	}
 
@@ -135,6 +70,115 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*HTTPServiceC
 	}
 
 	return config, nil
+}
+
+// extractImageConfig extracts container image settings from the resource.
+func extractImageConfig(resource kratix.Resource, config *HTTPServiceConfig) error {
+	var err error
+	config.ImageRepository, err = ku.GetStringValue(resource, "spec.image.repository")
+	if err != nil {
+		return fmt.Errorf("spec.image.repository is required: %w", err)
+	}
+	config.ImageTag = ku.GetStringValueWithDefault(resource, "spec.image.tag", "latest")
+	config.ImagePullPolicy = ku.GetStringValueWithDefault(resource, "spec.image.pullPolicy", "IfNotPresent")
+	config.Command, err = ku.ExtractStringSliceFromResource(resource, "spec.command")
+	if err != nil {
+		return err
+	}
+	config.Args, err = ku.ExtractStringSliceFromResource(resource, "spec.args")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// extractScalingConfig extracts replica count and resource limits from the resource.
+func extractScalingConfig(resource kratix.Resource, config *HTTPServiceConfig) error {
+	config.Replicas = ku.GetIntValueWithDefault(resource, "spec.replicas", 1)
+	config.CPURequest = ku.GetStringValueWithDefault(resource, "spec.resources.requests.cpu", "100m")
+	config.MemoryRequest = ku.GetStringValueWithDefault(resource, "spec.resources.requests.memory", "128Mi")
+	config.CPULimit = ku.GetStringValueWithDefault(resource, "spec.resources.limits.cpu", "500m")
+	config.MemoryLimit = ku.GetStringValueWithDefault(resource, "spec.resources.limits.memory", "256Mi")
+	return nil
+}
+
+// extractNetworkConfig extracts port, ingress, and hostname settings from the resource.
+func extractNetworkConfig(resource kratix.Resource, config *HTTPServiceConfig) error {
+	var err error
+	config.Port = ku.GetIntValueWithDefault(resource, "spec.port", 8080)
+	config.IngressEnabled = ku.GetBoolValueWithDefault(resource, "spec.ingress.enabled", true)
+	config.IngressHostname, err = ku.GetOptionalStringValue(resource, "spec.ingress.hostname")
+	if err != nil {
+		return err
+	}
+	if config.IngressHostname == "" {
+		config.IngressHostname = fmt.Sprintf("%s.%s", config.Name, config.BaseDomain)
+	}
+	config.IngressPath = ku.GetStringValueWithDefault(resource, "spec.ingress.path", "/")
+	return nil
+}
+
+// extractSecretConfig extracts secrets, environment variables, and envFromSecrets from the resource.
+func extractSecretConfig(resource kratix.Resource, config *HTTPServiceConfig) error {
+	var err error
+	config.Secrets, err = ku.ExtractSecretsFromResource(resource, "spec.secrets")
+	if err != nil {
+		return err
+	}
+	config.Env, err = ku.ExtractStringMapFromResource(resource, "spec.env")
+	if err != nil {
+		return err
+	}
+	config.EnvFromSecrets, err = ku.ExtractStringSliceFromResource(resource, "spec.envFromSecrets")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// extractMonitoringConfig extracts health check and monitoring settings from the resource.
+func extractMonitoringConfig(resource kratix.Resource, config *HTTPServiceConfig) error {
+	config.HealthCheckPath = ku.GetStringValueWithDefault(resource, "spec.healthCheck.path", "/")
+	config.HealthCheckPort = ku.GetIntValueWithDefault(resource, "spec.healthCheck.port", config.Port)
+	config.MonitoringEnabled = ku.GetBoolValueWithDefault(resource, "spec.monitoring.enabled", false)
+	config.MonitoringPath = ku.GetStringValueWithDefault(resource, "spec.monitoring.path", "/metrics")
+	config.MonitoringInterval = ku.GetStringValueWithDefault(resource, "spec.monitoring.interval", "30s")
+	return nil
+}
+
+// extractStorageConfig extracts persistence settings from the resource.
+func extractStorageConfig(resource kratix.Resource, config *HTTPServiceConfig) error {
+	var err error
+	config.PersistenceEnabled = ku.GetBoolValueWithDefault(resource, "spec.persistence.enabled", false)
+	config.PersistenceSize = ku.GetStringValueWithDefault(resource, "spec.persistence.size", "1Gi")
+	config.PersistenceClass, err = ku.GetOptionalStringValue(resource, "spec.persistence.storageClass")
+	if err != nil {
+		return err
+	}
+	config.PersistenceMountPath = ku.GetStringValueWithDefault(resource, "spec.persistence.mountPath", "/data")
+	return nil
+}
+
+// extractSecurityConfig extracts security context settings from the resource.
+func extractSecurityConfig(resource kratix.Resource, config *HTTPServiceConfig) error {
+	var err error
+	config.RunAsNonRoot, err = ku.GetOptionalBoolPtr(resource, "spec.securityContext.runAsNonRoot")
+	if err != nil {
+		return err
+	}
+	config.ReadOnlyRootFilesystem, err = ku.GetOptionalBoolPtr(resource, "spec.securityContext.readOnlyRootFilesystem")
+	if err != nil {
+		return err
+	}
+	config.RunAsUser, err = ku.GetOptionalIntPtr(resource, "spec.securityContext.runAsUser")
+	if err != nil {
+		return err
+	}
+	config.RunAsGroup, err = ku.GetOptionalIntPtr(resource, "spec.securityContext.runAsGroup")
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // handleConfigure generates the Namespace + ArgoCD app + sub-ResourceRequests + NetworkPolicies.

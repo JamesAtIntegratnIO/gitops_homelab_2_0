@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	kratix "github.com/syntasso/kratix-go"
 
@@ -43,17 +42,26 @@ func buildConfig(_ *kratix.KratixSDK, resource kratix.Resource) (*ProjectConfig,
 	if err != nil {
 		return nil, err
 	}
-	config.Destinations = toProjectDestinations(rawDestinations)
+	config.Destinations, err = toProjectDestinations(rawDestinations)
+	if err != nil {
+		return nil, err
+	}
 	rawClusterResourceWhitelist, err := ku.ExtractObjectSliceFromResource(resource, "spec.clusterResourceWhitelist")
 	if err != nil {
 		return nil, err
 	}
-	config.ClusterResourceWhitelist = toResourceFilters(rawClusterResourceWhitelist)
+	config.ClusterResourceWhitelist, err = toResourceFilters(rawClusterResourceWhitelist)
+	if err != nil {
+		return nil, err
+	}
 	rawNamespaceResourceWhitelist, err := ku.ExtractObjectSliceFromResource(resource, "spec.namespaceResourceWhitelist")
 	if err != nil {
 		return nil, err
 	}
-	config.NamespaceResourceWhitelist = toResourceFilters(rawNamespaceResourceWhitelist)
+	config.NamespaceResourceWhitelist, err = toResourceFilters(rawNamespaceResourceWhitelist)
+	if err != nil {
+		return nil, err
+	}
 
 	return config, nil
 }
@@ -114,9 +122,9 @@ func handleDelete(sdk *kratix.KratixSDK, config *ProjectConfig) error {
 }
 
 // toProjectDestinations converts untyped maps to typed ProjectDestination values.
-func toProjectDestinations(raw []map[string]interface{}) []ku.ProjectDestination {
+func toProjectDestinations(raw []map[string]interface{}) ([]ku.ProjectDestination, error) {
 	if raw == nil {
-		return nil
+		return nil, nil
 	}
 	result := make([]ku.ProjectDestination, 0, len(raw))
 	for i, m := range raw {
@@ -125,25 +133,25 @@ func toProjectDestinations(raw []map[string]interface{}) []ku.ProjectDestination
 			if s, sOk := v.(string); sOk {
 				d.Namespace = s
 			} else {
-				log.Printf("WARNING: spec.destinations[%d].namespace: expected string, got %T — skipping field", i, v)
+				return nil, fmt.Errorf("destination[%d].namespace: expected string, got %T", i, v)
 			}
 		}
 		if v, ok := m["server"]; ok {
 			if s, sOk := v.(string); sOk {
 				d.Server = s
 			} else {
-				log.Printf("WARNING: spec.destinations[%d].server: expected string, got %T — skipping field", i, v)
+				return nil, fmt.Errorf("destination[%d].server: expected string, got %T", i, v)
 			}
 		}
 		result = append(result, d)
 	}
-	return result
+	return result, nil
 }
 
 // toResourceFilters converts untyped maps to typed ResourceFilter values.
-func toResourceFilters(raw []map[string]interface{}) []ku.ResourceFilter {
+func toResourceFilters(raw []map[string]interface{}) ([]ku.ResourceFilter, error) {
 	if raw == nil {
-		return nil
+		return nil, nil
 	}
 	result := make([]ku.ResourceFilter, 0, len(raw))
 	for i, m := range raw {
@@ -152,17 +160,17 @@ func toResourceFilters(raw []map[string]interface{}) []ku.ResourceFilter {
 			if s, sOk := v.(string); sOk {
 				f.Group = s
 			} else {
-				log.Printf("WARNING: resourceFilter[%d].group: expected string, got %T — skipping field", i, v)
+				return nil, fmt.Errorf("resourceFilter[%d].group: expected string, got %T", i, v)
 			}
 		}
 		if v, ok := m["kind"]; ok {
 			if s, sOk := v.(string); sOk {
 				f.Kind = s
 			} else {
-				log.Printf("WARNING: resourceFilter[%d].kind: expected string, got %T — skipping field", i, v)
+				return nil, fmt.Errorf("resourceFilter[%d].kind: expected string, got %T", i, v)
 			}
 		}
 		result = append(result, f)
 	}
-	return result
+	return result, nil
 }

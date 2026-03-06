@@ -424,11 +424,10 @@ func extractExtraEgress(resource kratix.Resource) ([]ExtraEgressRule, error) {
 		if v, ok := m["protocol"].(string); ok && v != "" {
 			rule.Protocol = v
 		}
-		if rule.Name != "" && rule.CIDR != "" && rule.Port > 0 {
-			rules = append(rules, rule)
-		} else {
-			log.Printf("WARNING: skipping incomplete egress rule at index %d: name=%q cidr=%q port=%d", i, rule.Name, rule.CIDR, rule.Port)
+		if rule.Name == "" || rule.CIDR == "" || rule.Port == 0 {
+			return nil, fmt.Errorf("egress rule at index %d: missing required fields (name=%q cidr=%q port=%d)", i, rule.Name, rule.CIDR, rule.Port)
 		}
+		rules = append(rules, rule)
 	}
 	return rules, nil
 }
