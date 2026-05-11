@@ -428,7 +428,11 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Allow Open WebUI pod egress to llmkube inference in llmkube-system
+# Allow Open WebUI pod egress to llmkube inference service in llmkube-system.
+# Cilium performs DNAT (service ClusterIP → backend endpoint) BEFORE policy evaluation,
+# so the policy sees the post-DNAT destination: 10.0.1.x:ephemeral-port (bare-metal Mac).
+# Neither K8s NetworkPolicy namespaceSelector nor CiliumNetworkPolicy toServices work here.
+# Must use ipBlock covering the LAN subnet + the ephemeral port range llama-server binds to.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -442,12 +446,12 @@ spec:
     - Egress
   egress:
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: llmkube-system
+        - ipBlock:
+            cidr: 10.0.0.0/9
       ports:
         - protocol: TCP
-          port: 8080
+          port: 49152
+          endPort: 65535
 ---
 # Allow Prometheus scraping from monitoring namespace
 apiVersion: networking.k8s.io/v1
