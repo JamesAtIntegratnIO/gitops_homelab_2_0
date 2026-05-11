@@ -67,11 +67,11 @@ extraEnvVars:
       secretKeyRef:
         name: open-webui-secrets
         key: openai-api-key
-  # OpenAI (ChatGPT) as OpenAI-compatible backend
+  # OpenAI-compatible backends: OpenAI + llmkube inference service
   - name: OPENAI_API_BASE_URLS
-    value: "https://api.openai.com/v1"
+    value: "https://api.openai.com/v1;http://llama-3-1-8b.llmkube-system.svc.cluster.local:8080/v1"
   - name: OPENAI_API_KEYS
-    value: "$(OPENAI_API_KEY_OPENAI)"
+    value: "$(OPENAI_API_KEY_OPENAI);llmkube"
   # OIDC / Authentik SSO
   - name: ENABLE_OAUTH_SIGNUP
     value: "true"
@@ -111,7 +111,7 @@ extraEnvVars:
   - name: ENABLE_MODEL_FILTER
     value: "true"
   - name: MODEL_FILTER_LIST
-    value: "qwen3:4b;llama3.2:latest;llama3.1:latest;mistral:7b;gpt-4o;gpt-4o-mini;gpt-4.1;gpt-4.1-mini;gpt-4.1-nano;gpt-5.2;gpt-5.2-pro;gpt-5.2-with-tools"
+    value: "llama-3-1-8b;qwen3:4b;llama3.2:latest;llama3.1:latest;mistral:7b;gpt-4o;gpt-4o-mini;gpt-4.1;gpt-4.1-mini;gpt-4.1-nano;gpt-5.2;gpt-5.2-pro;gpt-5.2-with-tools"
   - name: DEFAULT_MODELS
     value: "gpt-5.2-with-tools"
   # Vector DB — use the shared Qdrant instance instead of default ChromaDB
