@@ -79,6 +79,8 @@ llmkube:
   chartRepository: "https://defilantech.github.io/LLMKube"
   defaultVersion: "0.7.6"
   project: platform-services
+  selectorMatchLabels:
+    cluster_role: control-plane
   syncPolicy:
     automated:
       selfHeal: true
