@@ -102,6 +102,31 @@ spec:
         - protocol: TCP
           port: 443
 ---
+# Allow metal agent egress to local inference hosts (Mac/bare-metal on LAN)
+# Metal agent registers llama-server endpoints on the host IP; controller must
+# reach those endpoints to proxy inference traffic.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-metal-agent-egress
+  namespace: llmkube-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/9
+      ports:
+        # Ephemeral ports used by llama-server (registered dynamically by metal agent)
+        - protocol: TCP
+          port: 49152
+          endPort: 65535
+        # Metal agent health server
+        - protocol: TCP
+          port: 9090
+---
 # Allow NFS egress for model/cache volumes
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
