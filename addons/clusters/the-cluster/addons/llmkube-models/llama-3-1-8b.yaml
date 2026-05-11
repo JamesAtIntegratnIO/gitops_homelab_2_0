@@ -21,11 +21,11 @@ metadata:
 spec:
   modelRef: llama-3-1-8b
   replicas: 1
-  contextSize: 8192
+  contextSize: 32768
   endpoint:
     port: 8080
     type: ClusterIP
   resources:
     gpu: 0
     cpu: "4"
-    memory: "8Gi"
+    memory: "12Gi"
