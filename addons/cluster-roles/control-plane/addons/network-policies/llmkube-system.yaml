@@ -58,6 +58,25 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: llmkube-system
 ---
+# Allow ingress from nginx-gateway (for HTTPRoute at llm.cluster.integratn.tech)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-ingress
+  namespace: llmkube-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+---
 # Allow Open WebUI traffic from ai namespace to llmkube inference endpoints
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

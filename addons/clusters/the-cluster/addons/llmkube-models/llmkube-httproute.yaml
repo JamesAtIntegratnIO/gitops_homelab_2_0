@@ -1,0 +1,62 @@
+---
+# LLMKube inference gateway at llm.cluster.integratn.tech
+#
+# Pattern: one rule per model, path prefix = model name, URL rewrite strips prefix.
+# OpenAI-compatible base URL: https://llm.cluster.integratn.tech/<model-name>/v1
+#
+# To add a new model:
+#   1. Add its Model + InferenceService in a new yaml in this directory
+#   2. Add a rule block below matching /model-name, pointing to its Service on port 8080
+#   3. Add allow-gateway-ingress NetworkPolicy in llmkube-system.yaml if not already present
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: llmkube-inference
+  namespace: llmkube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - llm.cluster.integratn.tech
+  rules:
+    # --- llama-3-1-8b ---
+    # https://llm.cluster.integratn.tech/llama-3-1-8b/v1
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /llama-3-1-8b
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: llama-3-1-8b
+          port: 8080
+---
+# HTTP -> HTTPS redirect
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: llmkube-inference-http-redirect
+  namespace: llmkube-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - llm.cluster.integratn.tech
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301

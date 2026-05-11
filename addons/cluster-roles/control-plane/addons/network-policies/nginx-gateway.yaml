@@ -188,6 +188,16 @@ spec:
       ports:
         - protocol: TCP
           port: 6333
+    # LLMKube inference backends (bare-metal/metal agent on LAN).
+    # Cilium DNATs service ClusterIP → Mac endpoint before policy evaluation,
+    # so the post-DNAT destination is 10.0.x.x:ephemeral — ipBlock is required.
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.0/9
+      ports:
+        - protocol: TCP
+          port: 49152
+          endPort: 65535
     # Control plane pod for config reload (pod listens on 8443, service maps 443→8443)
     - to:
         - podSelector:
