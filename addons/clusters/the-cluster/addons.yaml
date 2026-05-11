@@ -71,3 +71,22 @@ qdrant:
       kind: SnippetsFilter
       jqPathExpressions:
         - .status
+
+llmkube:
+  enabled: true
+  namespace: llmkube-system
+  chartName: llmkube
+  chartRepository: "https://defilantech.github.io/LLMKube"
+  defaultVersion: "0.7.6"
+  project: platform-services
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  additionalResources:
+    type: manifests
+    path: clusters
+    manifestPath: addons/llmkube-models

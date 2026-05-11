@@ -1,0 +1,31 @@
+metrics:
+  secure: false  # Plain HTTP; avoids ServiceAccount token auth complexity
+
+modelCache:
+  storageClass: config-nfs-client
+  size: 50Gi  # Models stored locally on metal agent; controller only needs metadata
+
+priorityClasses:
+  enabled: false  # No GPU scheduling needed
+
+prometheus:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    additionalLabels:
+      release: kube-prometheus-stack
+  inferencePodMonitor:
+    enabled: true  # Scrapes llama.cpp /metrics from inference pods
+    interval: 30s
+    additionalLabels:
+      release: kube-prometheus-stack
+  prometheusRule:
+    enabled: true
+    namespace: monitoring
+    additionalLabels:
+      release: kube-prometheus-stack
+    rules:
+      gpu:
+        enabled: false  # No GPUs in this cluster
+      inference:
+        enabled: true
