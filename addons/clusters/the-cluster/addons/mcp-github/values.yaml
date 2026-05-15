@@ -15,8 +15,9 @@ extraObjects:
         creationPolicy: Owner
       data:
         - secretKey: GITHUB_TOKEN
-          remoteKey: mcp-github-token
-          property: GITHUB_TOKEN
+          remoteRef:
+            key: mcp-github-token
+            property: GITHUB_TOKEN
 deployment:
   securityContext:
     runAsNonRoot: true

@@ -15,8 +15,9 @@ extraObjects:
         creationPolicy: Owner
       data:
         - secretKey: GRAFANA_TOKEN
-          remoteKey: mcp-grafana-token
-          property: GRAFANA_TOKEN
+          remoteRef:
+            key: mcp-grafana-token
+            property: GRAFANA_TOKEN
 deployment:
   securityContext:
     runAsNonRoot: true
