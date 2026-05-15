@@ -109,7 +109,6 @@ mcp-kubernetes:
       prune: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
 
 mcp-github:
   enabled: true
@@ -127,7 +126,6 @@ mcp-github:
       prune: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
 
 mcp-sequential-thinking:
   enabled: true
@@ -145,7 +143,6 @@ mcp-sequential-thinking:
       prune: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
 
 mcp-grafana:
   enabled: true
@@ -163,4 +160,3 @@ mcp-grafana:
       prune: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
