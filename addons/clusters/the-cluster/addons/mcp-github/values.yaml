@@ -1,0 +1,83 @@
+applicationName: mcp-github
+extraObjects:
+  - apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: mcp-github-token
+      namespace: mcp-system
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: onepassword-store
+      target:
+        name: mcp-github-token
+        creationPolicy: Owner
+      data:
+        - secretKey: GITHUB_TOKEN
+          remoteKey: mcp-github-token
+          property: GITHUB_TOKEN
+deployment:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  image:
+    repository: acuvity/mcp-server-github
+    tag: latest
+    pullPolicy: IfNotPresent
+  ports:
+    - name: http
+      containerPort: 3000
+      protocol: TCP
+  env:
+    GITHUB_PERSONAL_ACCESS_TOKEN:
+      valueFrom:
+        secretKeyRef:
+          name: mcp-github-token
+          key: GITHUB_TOKEN
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  volumes:
+    tmp:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 32Mi
+  volumeMounts:
+    tmp:
+      mountPath: /tmp
+service:
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - mcp.cluster.integratn.tech
+  rules:
+    - backendRefs:
+        - name: mcp-github
+          port: 3000
+      matches:
+        - path:
+            type: PathPrefix
+            value: /github/

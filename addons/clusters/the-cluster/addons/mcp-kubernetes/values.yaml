@@ -1,0 +1,93 @@
+applicationName: mcp-kubernetes
+extraObjects:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: mcp-system
+      labels:
+        app.kubernetes.io/part-of: mcp-tools
+        app.kubernetes.io/managed-by: argocd
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ServiceAccount
+    metadata:
+      name: mcp-kubernetes
+      namespace: mcp-system
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: mcp-kubernetes
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "services", "namespaces", "nodes", "configmaps", "persistentvolumeclaims"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["apps"]
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["batch"]
+        resources: ["jobs", "cronjobs"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["networking.k8s.io"]
+        resources: ["ingresses", "networkpolicies"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: ["gateway.networking.k8s.io"]
+        resources: ["httproutes", "gateways"]
+        verbs: ["get", "list", "watch"]
+deployment:
+  serviceAccountName: mcp-kubernetes
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  image:
+    repository: acuvity/mcp-server-kubernetes
+    tag: latest
+    pullPolicy: IfNotPresent
+  ports:
+    - name: http
+      containerPort: 3000
+      protocol: TCP
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  volumes:
+    tmp:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 32Mi
+  volumeMounts:
+    tmp:
+      mountPath: /tmp
+service:
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - mcp.cluster.integratn.tech
+  rules:
+    - backendRefs:
+        - name: mcp-kubernetes
+          port: 3000
+      matches:
+        - path:
+            type: PathPrefix
+            value: /kubernetes/

@@ -1,0 +1,85 @@
+applicationName: mcp-grafana
+extraObjects:
+  - apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: mcp-grafana-credentials
+      namespace: mcp-system
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: onepassword-store
+      target:
+        name: mcp-grafana-credentials
+        creationPolicy: Owner
+      data:
+        - secretKey: GRAFANA_TOKEN
+          remoteKey: mcp-grafana-token
+          property: GRAFANA_TOKEN
+deployment:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  image:
+    repository: grafana/mcp-grafana
+    tag: latest
+    pullPolicy: IfNotPresent
+  ports:
+    - name: http
+      containerPort: 3000
+      protocol: TCP
+  env:
+    GRAFANA_URL:
+      value: "http://kube-prometheus-stack-grafana.kube-prometheus-stack.svc.cluster.local:80"
+    GRAFANA_TOKEN:
+      valueFrom:
+        secretKeyRef:
+          name: mcp-grafana-credentials
+          key: GRAFANA_TOKEN
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  volumes:
+    tmp:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 32Mi
+  volumeMounts:
+    tmp:
+      mountPath: /tmp
+service:
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - mcp.cluster.integratn.tech
+  rules:
+    - backendRefs:
+        - name: mcp-grafana
+          port: 3000
+      matches:
+        - path:
+            type: PathPrefix
+            value: /grafana/

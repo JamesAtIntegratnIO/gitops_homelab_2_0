@@ -1,0 +1,83 @@
+applicationName: mcp-brave-search
+extraObjects:
+  - apiVersion: external-secrets.io/v1beta1
+    kind: ExternalSecret
+    metadata:
+      name: mcp-brave-search-api-key
+      namespace: mcp-system
+    spec:
+      refreshInterval: 1h
+      secretStoreRef:
+        kind: ClusterSecretStore
+        name: onepassword-store
+      target:
+        name: mcp-brave-search-api-key
+        creationPolicy: Owner
+      data:
+        - secretKey: BRAVE_API_KEY
+          remoteKey: mcp-brave-search-api-key
+          property: BRAVE_API_KEY
+deployment:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  image:
+    repository: acuvity/mcp-server-brave-search
+    tag: latest
+    pullPolicy: IfNotPresent
+  ports:
+    - name: http
+      containerPort: 3000
+      protocol: TCP
+  env:
+    BRAVE_API_KEY:
+      valueFrom:
+        secretKeyRef:
+          name: mcp-brave-search-api-key
+          key: BRAVE_API_KEY
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  volumes:
+    tmp:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 32Mi
+  volumeMounts:
+    tmp:
+      mountPath: /tmp
+service:
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - mcp.cluster.integratn.tech
+  rules:
+    - backendRefs:
+        - name: mcp-brave-search
+          port: 3000
+      matches:
+        - path:
+            type: PathPrefix
+            value: /brave-search/

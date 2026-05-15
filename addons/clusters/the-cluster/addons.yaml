@@ -92,3 +92,88 @@ llmkube:
     type: manifests
     path: clusters
     manifestPath: addons/llmkube-models
+
+mcp-kubernetes:
+  enabled: true
+  namespace: mcp-system
+  chartName: application
+  chartRepository: "https://stakater.github.io/stakater-charts"
+  defaultVersion: "8.1.2"
+  project: platform-services
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+mcp-github:
+  enabled: true
+  namespace: mcp-system
+  chartName: application
+  chartRepository: "https://stakater.github.io/stakater-charts"
+  defaultVersion: "8.1.2"
+  project: platform-services
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+mcp-sequential-thinking:
+  enabled: true
+  namespace: mcp-system
+  chartName: application
+  chartRepository: "https://stakater.github.io/stakater-charts"
+  defaultVersion: "8.1.2"
+  project: platform-services
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+mcp-brave-search:
+  enabled: true
+  namespace: mcp-system
+  chartName: application
+  chartRepository: "https://stakater.github.io/stakater-charts"
+  defaultVersion: "8.1.2"
+  project: platform-services
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+mcp-grafana:
+  enabled: true
+  namespace: mcp-system
+  chartName: application
+  chartRepository: "https://stakater.github.io/stakater-charts"
+  defaultVersion: "8.1.2"
+  project: platform-services
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

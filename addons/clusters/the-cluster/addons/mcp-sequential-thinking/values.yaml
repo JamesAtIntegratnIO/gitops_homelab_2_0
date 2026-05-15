@@ -1,0 +1,59 @@
+applicationName: mcp-sequential-thinking
+deployment:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  image:
+    repository: acuvity/mcp-server-sequential-thinking
+    tag: latest
+    pullPolicy: IfNotPresent
+  ports:
+    - name: http
+      containerPort: 3000
+      protocol: TCP
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  volumes:
+    tmp:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 32Mi
+  volumeMounts:
+    tmp:
+      mountPath: /tmp
+service:
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - mcp.cluster.integratn.tech
+  rules:
+    - backendRefs:
+        - name: mcp-sequential-thinking
+          port: 3000
+      matches:
+        - path:
+            type: PathPrefix
+            value: /sequential-thinking/
