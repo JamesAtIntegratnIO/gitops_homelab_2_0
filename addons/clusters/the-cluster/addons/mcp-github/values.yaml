@@ -41,6 +41,8 @@ deployment:
       containerPort: 3000
       protocol: TCP
   env:
+    XDG_CONFIG_HOME: /tmp
+    XDG_DATA_HOME: /tmp
     GITHUB_PERSONAL_ACCESS_TOKEN:
       valueFrom:
         secretKeyRef:

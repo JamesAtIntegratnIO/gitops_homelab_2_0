@@ -41,6 +41,8 @@ deployment:
       containerPort: 3000
       protocol: TCP
   env:
+    XDG_CONFIG_HOME: /tmp
+    XDG_DATA_HOME: /tmp
     GRAFANA_URL:
       value: "http://kube-prometheus-stack-grafana.kube-prometheus-stack.svc.cluster.local:80"
     GRAFANA_TOKEN:

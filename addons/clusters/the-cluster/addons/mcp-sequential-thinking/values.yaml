@@ -17,6 +17,9 @@ deployment:
     repository: acuvity/mcp-server-sequential-thinking
     tag: latest
     pullPolicy: IfNotPresent
+  env:
+    XDG_CONFIG_HOME: /tmp
+    XDG_DATA_HOME: /tmp
   ports:
     - name: http
       containerPort: 3000
