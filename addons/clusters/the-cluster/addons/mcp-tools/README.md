@@ -4,7 +4,7 @@ Model Context Protocol (MCP) servers deployed to the cluster, providing external
 
 ## Overview
 
-This addon deploys 5 MCP servers in the `mcp-system` namespace, each exposed via the NGINX Gateway under a unified hostname with path-based routing.
+This addon deploys 4 MCP servers in the `mcp-system` namespace, each exposed via the NGINX Gateway under a unified hostname with path-based routing.
 
 ## Deployed Servers
 
@@ -13,7 +13,6 @@ This addon deploys 5 MCP servers in the `mcp-system` namespace, each exposed via
 | Kubernetes | acuvity/mcp-server-kubernetes | Cluster operations, pod/service management | `https://mcp.cluster.integratn.tech/kubernetes/sse` |
 | GitHub | acuvity/mcp-server-github | Repository operations, PRs, issues | `https://mcp.cluster.integratn.tech/github/sse` |
 | Sequential Thinking | acuvity/mcp-server-sequential-thinking | Reasoning and problem solving | `https://mcp.cluster.integratn.tech/sequential-thinking/sse` |
-| Brave Search | acuvity/mcp-server-brave-search | Web search | `https://mcp.cluster.integratn.tech/brave-search/sse` |
 | Grafana | grafana/mcp-grafana | Monitoring and observability | `https://mcp.cluster.integratn.tech/grafana/sse` |
 
 ## Prerequisites - 1Password Secrets
@@ -21,8 +20,7 @@ This addon deploys 5 MCP servers in the `mcp-system` namespace, each exposed via
 Before deploying, create these secrets in 1Password:
 
 1. `mcp-github-token` with property `GITHUB_TOKEN` - GitHub Personal Access Token with repo/org scope
-2. `mcp-brave-search-api-key` with property `BRAVE_API_KEY` - Brave Search API key
-3. `mcp-grafana-token` with property `GRAFANA_TOKEN` - Grafana service account token
+2. `mcp-grafana-token` with property `GRAFANA_TOKEN` - Grafana service account token
 
 ## Configuration
 
@@ -73,9 +71,6 @@ mcp:
     sequential-thinking:
       transport: sse
       url: https://mcp.cluster.integratn.tech/sequential-thinking/sse
-    brave-search:
-      transport: sse
-      url: https://mcp.cluster.integratn.tech/brave-search/sse
     grafana:
       transport: sse
       url: https://mcp.cluster.integratn.tech/grafana/sse
@@ -87,7 +82,6 @@ Or configure via CLI:
 hermes mcp add kubernetes --transport sse --url https://mcp.cluster.integratn.tech/kubernetes/sse
 hermes mcp add github --transport sse --url https://mcp.cluster.integratn.tech/github/sse
 hermes mcp add sequential-thinking --transport sse --url https://mcp.cluster.integratn.tech/sequential-thinking/sse
-hermes mcp add brave-search --transport sse --url https://mcp.cluster.integratn.tech/brave-search/sse
 hermes mcp add grafana --transport sse --url https://mcp.cluster.integratn.tech/grafana/sse
 ```
 
@@ -113,9 +107,6 @@ For LM Studio's built-in MCP client, configure each server with the SSE endpoint
     "sequential-thinking": {
       "url": "https://mcp.cluster.integratn.tech/sequential-thinking/sse"
     },
-    "brave-search": {
-      "url": "https://mcp.cluster.integratn.tech/brave-search/sse"
-    },
     "grafana": {
       "url": "https://mcp.cluster.integratn.tech/grafana/sse"
     }
@@ -132,11 +123,10 @@ LLM Client (Hermes / LM Studio)
     v
 NGINX Gateway (mcp.cluster.integratn.tech)
     |
-    +-- /kubernetes/sse     --> mcp-kubernetes:3000
-    +-- /github/sse         --> mcp-github:3000
+    +-- /kubernetes/sse        --> mcp-kubernetes:3000
+    +-- /github/sse            --> mcp-github:3000
     +-- /sequential-thinking/sse --> mcp-sequential-thinking:3000
-    +-- /brave-search/sse   --> mcp-brave-search:3000
-    +-- /grafana/sse        --> mcp-grafana:3000
+    +-- /grafana/sse           --> mcp-grafana:3000
     |
     v
 mcp-system namespace

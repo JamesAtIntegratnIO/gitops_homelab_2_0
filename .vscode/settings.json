@@ -156,5 +156,13 @@
   },
   "chat.mcp.gallery.enabled": true,
   "chat.agent.maxRequests": 1000,
-  "chat.agent.thinking.collapsedTools": "off"
+  "chat.agent.thinking.collapsedTools": "off",
+  "github.copilot.chat.customOAIModels": [
+    {
+      "id": "llmkube/qwen3-coder",
+      "name": "Qwen3 Coder via llmkube",
+      "baseUrl": "https://llmkube.your-domain.example/v1",
+      "apiKeySettingId": "llmkube"
+    }
+  ]
 }
