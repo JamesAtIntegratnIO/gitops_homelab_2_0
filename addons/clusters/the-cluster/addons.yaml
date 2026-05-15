@@ -97,6 +97,7 @@ mcp-kubernetes:
   enabled: true
   namespace: mcp-system
   chartName: application
+  valuesFolderName: mcp-kubernetes
   chartRepository: "https://stakater.github.io/stakater-charts"
   defaultVersion: "8.1.2"
   project: platform-services
@@ -114,6 +115,7 @@ mcp-github:
   enabled: true
   namespace: mcp-system
   chartName: application
+  valuesFolderName: mcp-github
   chartRepository: "https://stakater.github.io/stakater-charts"
   defaultVersion: "8.1.2"
   project: platform-services
@@ -131,6 +133,7 @@ mcp-sequential-thinking:
   enabled: true
   namespace: mcp-system
   chartName: application
+  valuesFolderName: mcp-sequential-thinking
   chartRepository: "https://stakater.github.io/stakater-charts"
   defaultVersion: "8.1.2"
   project: platform-services
@@ -148,6 +151,7 @@ mcp-grafana:
   enabled: true
   namespace: mcp-system
   chartName: application
+  valuesFolderName: mcp-grafana
   chartRepository: "https://stakater.github.io/stakater-charts"
   defaultVersion: "8.1.2"
   project: platform-services
