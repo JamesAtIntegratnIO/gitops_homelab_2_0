@@ -103,7 +103,7 @@ spec:
               SA_NAME="mcp-readonly"
               SECRET_NAME="grafana-mcp-secrets"
               SECRET_KEY="service-account-token"
-              NAMESPACE="ai"
+              NAMESPACE="mcp-system"
 
               # Helper: extract JSON value by key (simple flat objects only)
               json_val() { echo "$1" | grep -o "\"$2\":[^,}]*" | head -1 | sed 's/.*://;s/^"//;s/"$//;s/^ *//'; }
