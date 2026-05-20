@@ -1,12 +1,8 @@
-# NetworkPolicies for ai namespace (RAG platform stack)
----
-# Create namespace so default-deny exists before app sync
 apiVersion: v1
 kind: Namespace
 metadata:
   name: ai
 ---
-# Allow DNS resolution
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -30,7 +26,6 @@ spec:
         - protocol: TCP
           port: 53
 ---
-# Allow kube-apiserver access (ExternalSecrets, service discovery)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -42,7 +37,6 @@ spec:
     - toEntities:
         - kube-apiserver
 ---
-# Allow intra-namespace communication (Open WebUI <-> Qdrant, Pipelines <-> Qdrant, etc.)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -64,7 +58,6 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: ai
 ---
-# Allow egress to external Ollama (10.0.3.4:11434)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -82,7 +75,6 @@ spec:
         - protocol: TCP
           port: 11434
 ---
-# Allow egress to GitHub (HTTPS for git clone in indexer)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -106,7 +98,6 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Allow pipelines pod HTTPS egress (download pipelines from GitHub, pip install deps)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -130,7 +121,6 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Allow egress to NFS server (for PVC mounts)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -150,7 +140,6 @@ spec:
         - protocol: UDP
           port: 2049
 ---
-# Allow ingress from nginx-gateway (for Open WebUI HTTPRoute)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -171,7 +160,6 @@ spec:
         - protocol: TCP
           port: 8080
 ---
-# Allow ingress from nginx-gateway to Qdrant (for Qdrant Dashboard HTTPRoute)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -192,9 +180,6 @@ spec:
         - protocol: TCP
           port: 6333
 ---
-# Allow egress to nginx-gateway pods (for OIDC/OAuth2 to Authentik via auth.cluster.integratn.tech)
-# Uses CiliumNetworkPolicy toEndpoints because traffic to LoadBalancer IPs gets DNAT'd
-# to the gateway pod IPs — toServices doesn't reliably match this path.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -213,7 +198,6 @@ spec:
         - ports:
             - port: "443"
 ---
-# Allow pipelines pod egress to Prometheus, Alertmanager (monitoring ns), and Loki gateway (loki ns)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -226,7 +210,6 @@ spec:
   policyTypes:
     - Egress
   egress:
-    # Prometheus (PromQL queries)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -237,7 +220,6 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
-    # Alertmanager (firing alerts API)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -248,7 +230,6 @@ spec:
       ports:
         - protocol: TCP
           port: 9093
-    # Loki gateway (LogQL queries)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -262,7 +243,6 @@ spec:
         - protocol: TCP
           port: 8080
 ---
-# Allow MCPO pod egress to Prometheus (for prometheus-mcp-server subprocess)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -275,7 +255,6 @@ spec:
   policyTypes:
     - Egress
   egress:
-    # Prometheus (prometheus-mcp-server queries)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -287,7 +266,6 @@ spec:
         - protocol: TCP
           port: 9090
 ---
-# Allow MCPO pod HTTPS egress (uvx downloads prometheus-mcp-server from PyPI on startup)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -311,10 +289,6 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Allow grafana-mcp + SA-creator job egress to Grafana in monitoring namespace
-# Must use CiliumNetworkPolicy toServices because Cilium evaluates egress before DNAT,
-# so K8s NetworkPolicy namespaceSelector+podSelector doesn't match ClusterIP traffic.
-# Also keep a standard NetworkPolicy for the SA-creator job (it uses pod IP directly).
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -327,7 +301,7 @@ spec:
         operator: In
         values:
           - grafana-mcp
-          - grafana-mcp-sa-creator
+          - grafuna-mcp-sa-creator
   egress:
     - toServices:
         - k8sService:
@@ -344,7 +318,6 @@ spec:
         - ports:
             - port: "3000"
 ---
-# Allow github-mcp pod HTTPS egress (GitHub API)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -353,7 +326,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      app: github-mcp
+      app: github-mcap
   policyTypes:
     - Egress
   egress:
@@ -368,7 +341,6 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Allow argocd-mcp pod egress to ArgoCD server + HTTPS (npm downloads)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -381,7 +353,6 @@ spec:
   policyTypes:
     - Egress
   egress:
-    # ArgoCD API server
     - to:
         - namespaceSelector:
             matchLabels:
@@ -392,7 +363,6 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-    # External HTTPS (npx package download from npm registry)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -404,7 +374,6 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Allow Open WebUI pod HTTPS egress to OpenAI API (api.openai.com)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -412,7 +381,7 @@ metadata:
   namespace: ai
 spec:
   podSelector:
-    matchLabels:
+    matchLoads:
       app.kubernetes.io/name: open-webui
   policyTypes:
     - Egress
@@ -428,11 +397,6 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Allow Open WebUI pod egress to llmkube inference service in llmkube-system.
-# Cilium performs DNAT (service ClusterIP → backend endpoint) BEFORE policy evaluation,
-# so the policy sees the post-DNAT destination: 10.0.1.x:ephemeral-port (bare-metal Mac).
-# Neither K8s NetworkPolicy namespaceSelector nor CiliumNetworkPolicy toServices work here.
-# Must use ipBlock covering the LAN subnet + the ephemeral port range llama-server binds to.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -453,7 +417,6 @@ spec:
           port: 49152
           endPort: 65535
 ---
-# Allow Prometheus scraping from monitoring namespace
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -468,3 +431,24 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mcp-internet-egress
+  namespace: ai
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
