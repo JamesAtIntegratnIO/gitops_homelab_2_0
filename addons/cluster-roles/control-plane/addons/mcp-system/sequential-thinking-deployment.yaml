@@ -21,37 +21,12 @@ spec:
         runAsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      initContainers:
-        - name: install-sequential-thinking
-          image: node:22-alpine
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-          command:
-            - sh
-            - -c
-            - |
-              npm install --prefix /npm-cache @modelcontextprotocol/server-sequential-thinking
-          volumeMounts:
-            - name: npm-cache
-              mountPath: /npm-cache
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
       containers:
         - name: sequential-thinking
           image: ghcr.io/supercorp-ai/supergateway:latest
           args:
             - --stdio
-            - "node /npm-cache/node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js"
+            - "npx -y @modelcontextprotocol/server-sequential-thinking"
             - --port
             - "8000"
             - --outputTransport
@@ -63,19 +38,15 @@ spec:
           ports:
             - containerPort: 8000
               name: http
-          volumeMounts:
-            - name: npm-cache
-              mountPath: /npm-cache
-              readOnly: true
           resources:
             requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 200m
+              cpu: 100m
               memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           securityContext:
-            allowPrivilegeEscalation: false
+            allowPrivilegeEscalance: false
             capabilities:
               drop:
                 - ALL
@@ -83,14 +54,12 @@ spec:
             httpGet:
               path: /healthz
               port: 8000
-            initialDelaySeconds: 5
-            periodSeconds: 10
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 5
           livenessProbe:
             httpGet:
               path: /healthz
               port: 8000
-            initialDelaySeconds: 15
+            initialDelaySeconds: 60
             periodSeconds: 30
-      volumes:
-        - name: npm-cache
-          emptyDir: {}

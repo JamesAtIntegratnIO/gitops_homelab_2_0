@@ -135,6 +135,30 @@ spec:
         - protocol: TCP
           port: 3000
 ---
+# Allow sequential-thinking to reach npm registry for package installation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-npm-egress
+  namespace: mcp-system
+spec:
+  podSelector:
+    matchLabels:
+      app: sequential-thinking
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+---
 # Allow intra-namespace ingress (gateway, mcpo, etc. -> backends)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
