@@ -7,7 +7,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: grafana-mcp
-  namespace: ai
+  namespace: mcp-system
   labels:
     app: grafana-mcp
 spec:
@@ -78,7 +78,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: grafana-mcp
-  namespace: ai
+  namespace: mcp-system
   labels:
     app: grafana-mcp
 spec:

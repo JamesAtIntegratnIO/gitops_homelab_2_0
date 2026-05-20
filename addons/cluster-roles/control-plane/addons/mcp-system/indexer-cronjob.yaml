@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: git-indexer
-  namespace: ai
+  namespace: mcp-system
   labels:
     app: git-indexer
 spec:

@@ -5,7 +5,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kubernetes-mcp
-  namespace: ai
+  namespace: mcp-system
   labels:
     app: kubernetes-mcp
 spec:
@@ -63,7 +63,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kubernetes-mcp
-  namespace: ai
+  namespace: mcp-system
   labels:
     app: kubernetes-mcp
 spec:

@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: kubernetes-mcp
-  namespace: ai
+  namespace: mcp-system
   labels:
     app: kubernetes-mcp
 ---
@@ -156,4 +156,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: kubernetes-mcp
-    namespace: ai
+    namespace: mcp-system
