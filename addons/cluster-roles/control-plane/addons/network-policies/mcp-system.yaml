@@ -1,12 +1,8 @@
-# NetworkPolicies for mcp-system namespace (MCP infrastructure)
-# This file allows DNS resolution and Kubernetes API access, preventing the 'default-deny-all' policy from breaking the MCP servers.
----
 apiVersion: v1
 kind: Namespace
 metadata:
   name: mcp-system
 ---
-# Allow DNS resolution
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -30,7 +26,6 @@ spec:
         - protocol: TCP
           port: 53
 ---
-# Allow access to Kubernetes API server (for all MCP pods)
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -42,7 +37,6 @@ spec:
     - toEntities:
         - kube-apiserver
 ---
-# Allow egress for GitHub access (for github-mcp)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
