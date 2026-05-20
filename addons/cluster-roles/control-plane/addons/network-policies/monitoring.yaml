@@ -172,11 +172,11 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
-    # AI platform grafana-mcp + SA-creator job query Grafana API
+    # MCP system grafana-mcp + SA-creator job query Grafana API
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: ai
+              kubernetes.io/metadata.name: mcp-system
           podSelector:
             matchExpressions:
               - key: app
