@@ -544,7 +544,9 @@ open-webui:
       - CreateNamespace=true
 
 ai-platform:
-  enabled: true
+  enabled: false
+  # MCP servers migrated to mcp-system namespace, managed by mcp-system-app.
+  # ai namespace tools (open-webui, qdrant) have their own dedicated Helm apps.
   type: manifest
   namespace: ai
   project: platform-services
