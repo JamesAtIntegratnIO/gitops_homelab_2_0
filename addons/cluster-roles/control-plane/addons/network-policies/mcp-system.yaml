@@ -109,3 +109,46 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+---
+# Allow NGINX Gateway Fabric to reach all MCP server pods (ingress)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-ingress
+  namespace: mcp-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 8000
+        - protocol: TCP
+          port: 3000
+---
+# Allow intra-namespace ingress (gateway, mcpo, etc. -> backends)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+  namespace: mcp-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - podSelector: {}
