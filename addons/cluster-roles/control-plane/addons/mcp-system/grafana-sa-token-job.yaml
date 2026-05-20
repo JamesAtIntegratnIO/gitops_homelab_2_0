@@ -86,7 +86,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: create-token
-          image: bitnami/kubectl:latest
+          image: registry.k8s.io/kubectl:v1.33.0
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
