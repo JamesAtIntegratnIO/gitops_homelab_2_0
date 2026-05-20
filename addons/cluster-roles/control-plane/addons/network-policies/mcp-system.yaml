@@ -37,6 +37,56 @@ spec:
     - toEntities:
         - kube-apiserver
 ---
+# Allow MCP servers to reach monitoring namespace (Prometheus, Grafana)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring-egress
+  namespace: mcp-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 3000
+---
+# Allow ArgoCD MCP to reach the argocd namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argocd-egress
+  namespace: mcp-system
+spec:
+  podSelector:
+    matchLabels:
+      app: argocd-mcp
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8080
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
