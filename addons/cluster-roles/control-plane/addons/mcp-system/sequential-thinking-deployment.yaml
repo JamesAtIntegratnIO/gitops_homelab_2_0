@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sequential-thinking
+  namespace: mcp-system
+  labels:
+    app: sequential-thinking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sequential-thinking
+  template:
+    metadata:
+      labels:
+        app: sequential-thinking
+    spec:
+      containers:
+      containers:
+        - name: sequential-thinking
+          image: ghcr.io/modelcontextprotocol/sequentialthinking:latest
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
