@@ -381,7 +381,7 @@ metadata:
   namespace: ai
 spec:
   podSelector:
-    matchLoads:
+    matchLabels:
       app.kubernetes.io/name: open-webui
   policyTypes:
     - Egress
