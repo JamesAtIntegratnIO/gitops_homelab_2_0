@@ -16,28 +16,33 @@ spec:
         app: sequential-thinking
     spec:
       containers:
-      containers:
         - name: sequential-thinking
-          image: ghcr.io/modelcontextprotocol/sequentialthinking:latest
+          # supergateway wraps the stdio MCP server and exposes it as streamable-http
+          image: ghcr.io/supercorp-ai/supergateway:latest
+          args:
+            - --stdio
+            - "npx -y @modelcontextprotocol/server-sequential-thinking"
+            - --port
+            - "8000"
+            - --path
+            - /mcp
           ports:
             - containerPort: 8000
               name: http
           resources:
             requests:
               cpu: 100m
-              memory: 128Mi
+              memory: 256Mi
             limits:
               cpu: 500m
               memory: 512Mi
           readinessProbe:
-            httpGet:
-              path: /healthz
+            tcpSocket:
               port: 8000
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /healthz
+            tcpSocket:
               port: 8000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 20
             periodSeconds: 30

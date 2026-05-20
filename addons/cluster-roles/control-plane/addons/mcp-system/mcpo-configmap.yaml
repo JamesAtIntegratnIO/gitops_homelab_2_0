@@ -45,6 +45,10 @@ data:
         "fetch": {
           "command": "uvx",
           "args": ["mcp-server-fetch"]
+        },
+        "sequential-thinking": {
+          "type": "streamable-http",
+          "url": "http://sequential-thinking.mcp-system.svc.cluster.local:8000/mcp"
         }
       }
     }
