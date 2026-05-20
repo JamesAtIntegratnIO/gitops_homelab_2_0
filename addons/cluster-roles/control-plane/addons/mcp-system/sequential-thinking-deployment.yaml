@@ -24,6 +24,8 @@ spec:
             - "npx -y @modelcontextprotocol/server-sequential-thinking"
             - --port
             - "8000"
+            - --outputTransport
+            - streamable-http
             - --path
             - /mcp
           ports:
