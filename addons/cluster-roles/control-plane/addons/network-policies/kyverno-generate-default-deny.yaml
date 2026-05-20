@@ -34,6 +34,7 @@ spec:
                 - kube-node-lease
                 - cilium-secrets
                 - kratix-worker-system
+                - mcp-system
       generate:
         synchronize: true
         apiVersion: networking.k8s.io/v1
