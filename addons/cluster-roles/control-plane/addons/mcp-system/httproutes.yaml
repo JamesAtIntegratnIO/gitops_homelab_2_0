@@ -125,7 +125,7 @@ spec:
     - mcp.cluster.integratn.tech
   rules:
     - backendRefs:
-        - name: mcpo
+        - name: sequential-thinking
           port: 8000
       matches:
         - path:
