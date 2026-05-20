@@ -15,6 +15,12 @@ spec:
       labels:
         app: sequential-thinking
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: sequential-thinking
           # supergateway wraps the stdio MCP server and exposes it as streamable-http
@@ -40,6 +46,11 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           readinessProbe:
             httpGet:
               path: /healthz
