@@ -93,70 +93,16 @@ llmkube:
     path: clusters
     manifestPath: addons/llmkube-models
 
+# MCP servers are managed by mcp-system-app (addons/cluster-roles/control-plane/addons/mcp-system/)
+# These Helm-chart-based MCP apps are disabled to avoid duplication.
 mcp-kubernetes:
-  enabled: true
-  namespace: mcp-system
-  chartName: application
-  valuesFolderName: mcp-kubernetes
-  chartRepository: "https://stakater.github.io/stakater-charts"
-  defaultVersion: "8.1.2"
-  project: platform-services
-  selectorMatchLabels:
-    cluster_role: control-plane
-  syncPolicy:
-    automated:
-      selfHeal: true
-      prune: true
-    syncOptions:
-      - CreateNamespace=true
+  enabled: false
 
 mcp-github:
-  enabled: true
-  namespace: mcp-system
-  chartName: application
-  valuesFolderName: mcp-github
-  chartRepository: "https://stakater.github.io/stakater-charts"
-  defaultVersion: "8.1.2"
-  project: platform-services
-  selectorMatchLabels:
-    cluster_role: control-plane
-  syncPolicy:
-    automated:
-      selfHeal: true
-      prune: true
-    syncOptions:
-      - CreateNamespace=true
+  enabled: false
 
 mcp-sequential-thinking:
-  enabled: true
-  namespace: mcp-system
-  chartName: application
-  valuesFolderName: mcp-sequential-thinking
-  chartRepository: "https://stakater.github.io/stakater-charts"
-  defaultVersion: "8.1.2"
-  project: platform-services
-  selectorMatchLabels:
-    cluster_role: control-plane
-  syncPolicy:
-    automated:
-      selfHeal: true
-      prune: true
-    syncOptions:
-      - CreateNamespace=true
+  enabled: false
 
 mcp-grafana:
-  enabled: true
-  namespace: mcp-system
-  chartName: application
-  valuesFolderName: mcp-grafana
-  chartRepository: "https://stakater.github.io/stakater-charts"
-  defaultVersion: "8.1.2"
-  project: platform-services
-  selectorMatchLabels:
-    cluster_role: control-plane
-  syncPolicy:
-    automated:
-      selfHeal: true
-      prune: true
-    syncOptions:
-      - CreateNamespace=true
+  enabled: false
