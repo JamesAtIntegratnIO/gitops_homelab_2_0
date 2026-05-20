@@ -25,9 +25,11 @@ spec:
             - --port
             - "8000"
             - --outputTransport
-            - streamable-http
+            - streamableHttp
             - --path
             - /mcp
+            - --healthEndpoint
+            - /healthz
           ports:
             - containerPort: 8000
               name: http
@@ -39,12 +41,14 @@ spec:
               cpu: 500m
               memory: 512Mi
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /healthz
               port: 8000
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /healthz
               port: 8000
             initialDelaySeconds: 20
             periodSeconds: 30
