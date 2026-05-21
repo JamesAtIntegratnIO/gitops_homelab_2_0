@@ -73,10 +73,10 @@ qdrant:
         - .status
 
 llmkube:
-  enabled: true
+  enabled: false
   namespace: llmkube-system
   chartName: llmkube
-  chartRepository: "https://defilantech.github.io/LLMKube"
+  manifestPath: addons/llmkube-models
   defaultVersion: "0.7.6"
   project: platform-services
   selectorMatchLabels:
