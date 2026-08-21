@@ -322,3 +322,124 @@ func TestContainsHelper(t *testing.T) {
 		}
 	}
 }
+
+// --- write-loop regression tests -------------------------------------------
+//
+// These cover the defect found on 2026-08-21: the reconciler rewrote .status on
+// every 60s pass even in a steady state, which woke Kratix's watch and fed a
+// two-controller write loop running at ~9.5 writes/second.
+
+func TestCarryTransitionTimeKeepsTimestampWhenStatusUnchanged(t *testing.T) {
+	existing := []Condition{
+		{Type: "Ready", Status: "True", LastTransitionTime: "2026-08-01T00:00:00Z"},
+	}
+	fresh := []Condition{
+		{Type: "Ready", Status: "True", LastTransitionTime: "2026-08-21T16:34:18Z"},
+	}
+	got := CarryTransitionTime(fresh, existing)
+	if got[0].LastTransitionTime != "2026-08-01T00:00:00Z" {
+		t.Errorf("steady-state condition re-stamped: got %q, want the original timestamp",
+			got[0].LastTransitionTime)
+	}
+}
+
+func TestCarryTransitionTimeStampsOnRealTransition(t *testing.T) {
+	existing := []Condition{
+		{Type: "Ready", Status: "True", LastTransitionTime: "2026-08-01T00:00:00Z"},
+	}
+	fresh := []Condition{
+		{Type: "Ready", Status: "False", LastTransitionTime: "2026-08-21T16:34:18Z"},
+	}
+	got := CarryTransitionTime(fresh, existing)
+	if got[0].LastTransitionTime != "2026-08-21T16:34:18Z" {
+		t.Errorf("a real True->False transition must re-stamp: got %q", got[0].LastTransitionTime)
+	}
+}
+
+func TestCarryTransitionTimeHandlesNewCondition(t *testing.T) {
+	fresh := []Condition{{Type: "PodsReady", Status: "True", LastTransitionTime: "2026-08-21T16:34:18Z"}}
+	got := CarryTransitionTime(fresh, nil)
+	if len(got) != 1 || got[0].LastTransitionTime != "2026-08-21T16:34:18Z" {
+		t.Errorf("a condition with no predecessor should keep its fresh timestamp: %+v", got)
+	}
+}
+
+func TestMergeForeignConditionsPreservesOtherControllers(t *testing.T) {
+	// Kratix owns WorksSucceeded on the same resource. A merge patch replaces the
+	// conditions list wholesale, so without this the reconciler deleted it on
+	// every write and Kratix put it straight back.
+	ours := []Condition{
+		{Type: "Ready", Status: "True"},
+		{Type: "PodsReady", Status: "True"},
+	}
+	existing := []Condition{
+		{Type: "Ready", Status: "True"},
+		{Type: "WorksSucceeded", Status: "True", Reason: "WorksSucceeded"},
+	}
+	got := MergeForeignConditions(ours, existing)
+	var found bool
+	for _, c := range got {
+		if c.Type == "WorksSucceeded" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("WorksSucceeded was dropped; got %+v", got)
+	}
+	if len(got) != 3 {
+		t.Errorf("expected our 2 conditions plus 1 foreign, got %d: %+v", len(got), got)
+	}
+}
+
+func TestMergeForeignConditionsDoesNotDuplicateOurOwn(t *testing.T) {
+	ours := []Condition{{Type: "Ready", Status: "False", Reason: "New"}}
+	existing := []Condition{{Type: "Ready", Status: "True", Reason: "Old"}}
+	got := MergeForeignConditions(ours, existing)
+	if len(got) != 1 {
+		t.Fatalf("our condition must win, not duplicate: %+v", got)
+	}
+	if got[0].Reason != "New" {
+		t.Errorf("expected our value to win, got %q", got[0].Reason)
+	}
+}
+
+func TestStatusUnchangedIgnoresLastReconciled(t *testing.T) {
+	vcr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"status": map[string]interface{}{
+			"phase":          "Ready",
+			"lastReconciled": "2026-08-21T16:33:17Z",
+		},
+	}}
+	next := map[string]interface{}{
+		"phase":          "Ready",
+		"lastReconciled": "2026-08-21T16:34:17Z",
+	}
+	if !statusUnchanged(vcr, next) {
+		t.Error("a pass that only advances lastReconciled must not trigger a write")
+	}
+}
+
+func TestStatusUnchangedDetectsRealChange(t *testing.T) {
+	vcr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"status": map[string]interface{}{"phase": "Ready"},
+	}}
+	next := map[string]interface{}{"phase": "Degraded"}
+	if statusUnchanged(vcr, next) {
+		t.Error("a phase change must be written")
+	}
+}
+
+func TestStatusUnchangedIgnoresFieldsWeDoNotSend(t *testing.T) {
+	// The pipeline owns endpoints/credentials. A merge patch only asserts the
+	// keys it carries, so their presence must not read as drift.
+	vcr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"status": map[string]interface{}{
+			"phase":     "Ready",
+			"endpoints": map[string]interface{}{"api": "https://media.integratn.tech:443"},
+		},
+	}}
+	next := map[string]interface{}{"phase": "Ready"}
+	if !statusUnchanged(vcr, next) {
+		t.Error("pipeline-owned fields we never send must not count as a change")
+	}
+}
