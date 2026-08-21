@@ -42,7 +42,7 @@ differs meaningfully, it's noted — the running image is the truth.
 | llmkube controller | 0.7.6 (orphaned) | |
 | MCP servers | argocd-mcp v0.5.0; github/grafana/kubernetes/supergateway/mcpo on floating tags | several `:latest`/`:main` |
 | platform-status-reconciler | ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:latest | built from `images/` in this repo |
-| hello-world | nginx-unprivileged:latest | |
+| ~~hello-world~~ | — | removed 2026-08-21 |
 
 Dev-shell tool versions (Nix, same date): kubectl 1.34.1, helm 3.19.0,
 talosctl 1.11.3, argocd CLI 3.1.9, opentofu 1.10.6, go 1.25.2.

@@ -61,7 +61,7 @@ client → Cloudflare DNS (A record → 10.0.4.205)
   `-http-redirect` (301) twin. Notable hostnames: argocd, grafana, prometheus,
   alertmanager, loki, prom-remote (vcluster remote-write ingest), auth
   (authentik), chat (open-webui), qdrant, hubble, goldilocks, trivy, llm,
-  hello-world, and `mcp.cluster.integratn.tech` with path-prefix routing to
+  and `mcp.cluster.integratn.tech` with path-prefix routing to
   five MCP servers (`/kubernetes`, `/argocd`, `/github`, `/grafana`,
   `/sequential-thinking`).[^live-net]
 - **DNS**: Terraform manages a few static records + wildcard; external-dns

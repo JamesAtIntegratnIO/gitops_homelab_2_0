@@ -31,8 +31,8 @@ the same two-route pattern used hand-written across the cluster (grafana,
 argocd, etc. — see [networking](/platform/networking.md)).[^pipeline-src]
 
 Consumed by [http-service](/promises/http-service.md). Uses
-`_shared/kratixutil`. Live example: `hello-world-route` → HTTPRoute
-`hello-world` in namespace `hello-world`.
+`_shared/kratixutil`. No live instances as of 2026-08-21 — the `hello-world-route`
+example went with the hello-world HTTPService.
 
 [^promise-yaml]: promise.yaml
 [^pipeline-src]: Pipeline source
