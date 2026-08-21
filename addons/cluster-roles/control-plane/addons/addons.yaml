@@ -296,10 +296,12 @@ platform-scheduling:
     syncOptions:
       - CreateNamespace=false
 
-# PodDisruptionBudgets for components whose chart offers no hook for one.
-# Control-plane only, unlike the PriorityClasses above: the only entry is the
-# CoreDNS PDB, and a vcluster on the dev preset runs a single CoreDNS replica,
-# where minAvailable: 1 would block every drain forever.
+# PodDisruptionBudgets for components whose chart offers no hook for one:
+# CoreDNS (a Talos bootstrap manifest) and the vcluster-media etcd StatefulSet
+# (the promise renders a PDB for the vcluster pods but not for its etcd).
+# Control-plane only, unlike the PriorityClasses above: a vcluster on the dev
+# preset runs a single CoreDNS replica, where minAvailable: 1 would block
+# every drain forever.
 platform-disruption:
   enabled: true
   type: manifest
@@ -312,6 +314,42 @@ platform-disruption:
       - key: cluster_role
         operator: NotIn
         values: ['vcluster']
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+
+# ── Backups: the recovery layer ────────────────────────────────────────
+# Nightly etcd snapshots of both clusters onto the Unraid share. Two entries
+# because the host-cluster one depends on a Talos machine-config patch that
+# has to be applied by hand -- see the files for the full reasoning and
+# docs/okf/platform/backups.md for the design and restore paths.
+platform-backups:
+  enabled: true
+  type: manifest
+  namespace: vcluster-media
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/platform-backups
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+
+# DISABLED until matchbox/talos-machineconfigs/all.yaml is applied on every
+# node: the talos.dev/v1alpha1 ServiceAccount it contains is a kind Talos only
+# serves once kubernetesTalosAPIAccess is on, and an Application that cannot
+# create one of its resources never reaches Synced. Flip to true once
+# `kubectl get crd serviceaccounts.talos.dev` succeeds.
+platform-backups-talos:
+  enabled: false
+  type: manifest
+  namespace: talos-backup
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/talos-etcd-backup
+  selectorMatchLabels:
+    cluster_role: control-plane
   syncPolicy:
     syncOptions:
       - CreateNamespace=false

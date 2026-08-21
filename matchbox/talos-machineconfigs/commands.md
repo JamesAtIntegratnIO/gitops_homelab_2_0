@@ -44,6 +44,10 @@ talosctl -n 10.0.4.101 read /sys/class/watchdog/watchdog0/timeleft
 #    applying them here keeps the live cluster and git in agreement.
 talosctl -n 10.0.4.101 patch mc --patch-file all.yaml
 talosctl -n 10.0.4.101 patch mc --patch-file cp.yaml
+#    Once all.yaml is on every node, `kubectl get crd serviceaccounts.talos.dev`
+#    succeeds and the host etcd backup can be switched on: set
+#    platform-backups-talos.enabled to true in
+#    addons/cluster-roles/control-plane/addons/addons.yaml (one-line PR).
 
 # 3. Second upstream resolver. Read the two pre-checks at the top of dns.yaml
 #    first -- this patch REPLACES the DHCP-supplied resolver list, and the

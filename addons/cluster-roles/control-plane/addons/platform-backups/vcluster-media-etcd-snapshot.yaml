@@ -1,0 +1,148 @@
+# Nightly etcd snapshot of the vcluster-media control plane.
+#
+# WHY
+# ---
+# Everything that makes vcluster-media a cluster -- every Deployment, Secret,
+# PVC binding and Argo Application inside it -- lives in the three
+# `vcluster-media-etcd-*` pods, on NFS-backed PVCs that the storage concept
+# itself describes as unsuitable for heavy-write databases. Those pods have
+# restarted 61 / 15 / 7 times in their lifetime. Until this CronJob existed
+# there was no copy of that data anywhere: a corrupt etcd meant re-creating
+# the tenant from the promise request and losing whatever was not in git.
+#
+# HOW
+# ---
+# A plain `etcdctl snapshot save` against the etcd client Service, using the
+# very same PKI the etcd pods mount (`vcluster-media-certs`, the vcluster
+# chart's own secret) -- so if etcd accepts its own health-check client cert,
+# it accepts this one. The snapshot is written straight onto the Unraid share
+# at a fixed path, off the nodes, and survives a host-cluster rebuild.
+#
+# vcluster 0.31 has a native `vcluster snapshot create`, but in that release
+# it is processed by a controller inside the vcluster pod and its
+# `container://` target is the vcluster's OWN data PVC -- the thing being
+# backed up. The etcd-native snapshot is the one that lands somewhere else.
+#
+# Restore procedure: docs/operations.md, "Restore vcluster-media etcd".
+#
+# Two containers because the etcd image has no shell and the alpine image has
+# no etcdctl: the init container takes the snapshot to a `.partial` name, the
+# main container stamps it with the date, checks it is not empty, and prunes
+# anything older than the retention window.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vcluster-media-etcd-snapshot
+  namespace: vcluster-media
+  labels:
+    app.kubernetes.io/name: vcluster-media-etcd-snapshot
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: platform
+spec:
+  # 03:45 UTC, after the host etcd snapshot at 03:15 and before the morning.
+  schedule: "45 3 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: vcluster-media-etcd-snapshot
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          priorityClassName: platform-batch
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: snapshot
+              # Kept on the same minor as the etcd the vcluster runs
+              # (platform/vclusters: registry.k8s.io/etcd:3.6.x); Kargo tracks
+              # this line under addons.targets.vcluster-etcd-snapshot-client.
+              image: registry.k8s.io/etcd:3.6.8-0
+              args:
+                - etcdctl
+                - --endpoints=https://vcluster-media-etcd.vcluster-media.svc:2379
+                - --cacert=/pki/etcd-ca.crt
+                - --cert=/pki/etcd-healthcheck-client.crt
+                - --key=/pki/etcd-healthcheck-client.key
+                - --command-timeout=300s
+                - snapshot
+                - save
+                - /backups/vcluster-media-etcd.partial
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: pki
+                  mountPath: /pki
+                  readOnly: true
+                - name: backups
+                  mountPath: /backups
+                  subPath: backups/vcluster-media-etcd
+          containers:
+            - name: finalize
+              image: docker.io/alpine/k8s:1.35.6@sha256:b7a12c5ddf261994c33d2eaaa06fd69a0803ff6b38683bfa3d30a76dcdf92807
+              command: [/bin/sh, -euo, pipefail, -c]
+              args:
+                - |
+                  cd /backups
+                  name="vcluster-media-etcd-$(date -u +%Y-%m-%dT%H%MZ).db"
+                  test -s vcluster-media-etcd.partial || { echo "snapshot is empty"; exit 1; }
+                  mv vcluster-media-etcd.partial "$name"
+                  echo "wrote $name ($(stat -c %s "$name") bytes)"
+                  # Retention: keep the last RETENTION_DAYS of nightlies.
+                  find . -maxdepth 1 -name 'vcluster-media-etcd-*.db' -mtime +"$RETENTION_DAYS" -print -delete | sed 's/^/pruned /'
+                  echo "retained:"; ls -l vcluster-media-etcd-*.db
+              env:
+                - name: RETENTION_DAYS
+                  value: "14"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                  subPath: backups/vcluster-media-etcd
+          volumes:
+            - name: pki
+              secret:
+                secretName: vcluster-media-certs
+                items:
+                  - key: etcd-ca.crt
+                    path: etcd-ca.crt
+                  - key: etcd-healthcheck-client.crt
+                    path: etcd-healthcheck-client.crt
+                  - key: etcd-healthcheck-client.key
+                    path: etcd-healthcheck-client.key
+            # The same export the NFS provisioners use, mounted directly rather
+            # than through a PVC so the path is fixed and nothing about it lives
+            # in etcd -- the backup must not depend on the thing it backs up.
+            # Mounting is done by the kubelet in the host network namespace, so
+            # no NetworkPolicy egress is needed for it.
+            - name: backups
+              nfs:
+                server: 10.0.0.12
+                path: /mnt/user/kube_storage

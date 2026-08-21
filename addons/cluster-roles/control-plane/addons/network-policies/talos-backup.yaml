@@ -1,0 +1,37 @@
+# talos-backup: nightly host etcd snapshots over the Talos API.
+#
+# The namespace gets its default-deny from the Kyverno generate policy like
+# any other. The only thing the snapshot pod talks to is the Talos apid on
+# its own node (port 50000, node IPs 10.0.4.101-103). It needs neither DNS
+# (the node IP comes from status.hostIP) nor the Kubernetes API, and the NFS
+# volume is mounted by the kubelet outside the pod's network namespace.
+#
+# The Namespace lives here rather than in the talos-etcd-backup addon so that
+# this policy never targets a namespace that does not exist yet -- that addon
+# ships disabled until the Talos API access patch is applied.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: talos-backup
+  labels:
+    app.kubernetes.io/part-of: platform
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-talos-api
+  namespace: talos-backup
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: talos-etcd-snapshot
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.4.0/24
+      ports:
+        - protocol: TCP
+          port: 50000
