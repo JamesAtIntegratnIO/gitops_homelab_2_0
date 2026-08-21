@@ -734,37 +734,30 @@ kargo:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
 
-# Only the three *analysis* CRDs from Argo Rollouts: Kargo re-uses
-# AnalysisTemplate/AnalysisRun for post-merge verification and runs the
-# analysis itself. No Rollouts controller, no Rollout/Experiment CRDs. The
-# directory source is forced (kustomization.yaml sits in that folder) and
-# filtered to those three files. Kargo tracks this version too
-# (kargo-projects target argo-rollouts-crds); it rewrites both pins below.
-argo-rollouts-crds:
+# Argo Rollouts, controller only, because Kargo's post-merge verification
+# needs it: Kargo builds the AnalysisRuns, Argo Rollouts' controller executes
+# them (the first attempt installed just the analysis CRDs and 23 runs sat
+# with no measurements). No Rollout objects exist here; the chart owns its
+# five CRDs. Kargo tracks the chart version (kargo-projects target
+# argo-rollouts). Control-plane only.
+argo-rollouts:
   enabled: true
-  type: manifest
-  namespace: kargo
+  namespace: argo-rollouts
+  releaseName: argo-rollouts
+  chartName: argo-rollouts
   project: platform-services
-  defaultVersion: v1.9.1
+  chartRepository: https://argoproj.github.io/argo-helm
+  defaultVersion: "2.41.1"
   annotationsApp:
     argocd.argoproj.io/sync-wave: "-1"
   selectorMatchLabels:
     cluster_role: control-plane
-  generatorValues:
-    argoRolloutsRevision: v1.9.1
-  manifestSource:
-    repoURL: https://github.com/argoproj/argo-rollouts.git
-    path: manifests/crds
-    directory:
-      include: '{analysis-run-crd.yaml,analysis-template-crd.yaml,cluster-analysis-template-crd.yaml}'
-    targetRevisionFromValue: argoRolloutsRevision
   syncPolicy:
     automated:
-      # Never prune: removing a CRD cascade-deletes every AnalysisRun and
-      # AnalysisTemplate with it.
-      prune: false
+      selfHeal: true
+      prune: true
     syncOptions:
-      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
       - ServerSideApply=true
 
 # The target list lives in kargo-projects/values.yaml next to this file.

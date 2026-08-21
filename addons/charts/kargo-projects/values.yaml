@@ -60,10 +60,10 @@ verification:
   # `verification` against the AnalysisTemplate `argocd-apps-healthy`, which
   # this chart renders into every Project that needs it: after the PR merges
   # and ArgoCD has had time to sync, Prometheus is asked whether every named
-  # ArgoCD Application is Synced and Healthy. Needs the Argo Rollouts
-  # analysis CRDs (the argo-rollouts-crds addon) and
-  # controller.rollouts.integrationEnabled on the Kargo chart; Kargo runs
-  # the analysis itself, no Rollouts controller is involved.
+  # ArgoCD Application is Synced and Healthy. Needs Argo Rollouts (the
+  # argo-rollouts addon: its CRDs and the controller that actually executes
+  # AnalysisRuns -- Kargo only creates them) and
+  # controller.rollouts.integrationEnabled on the Kargo chart.
   prometheus: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
   # ArgoCD polls main every 60s, then syncs and the rollout progresses.
   initialDelay: 3m

@@ -65,7 +65,7 @@ registry / chart repo ─poll─▶ Warehouse ─▶ Freight ─auto-promote─�
 | Route | `kargo.cluster.integratn.tech` → `kargo-api:80` (TLS at the gateway, `api.tls.terminatedUpstream: true`) | external-dns publishes it |
 | Network | default-deny from Kyverno; explicit: DNS, kube-apiserver, webhook ingress on 9443, gateway → API 8080, monitoring → 9090, controller → internet 443, API → nginx-gateway pod 443 for OIDC discovery[^netpol] | Cilium DNATs before policy, so the OIDC rule names the gateway pod, not the VIP |
 | Metrics | ServiceMonitors for controller, management-controller, webhooks-server | scraped by kube-prometheus-stack |
-| Verification | `argo-rollouts-crds` addon (three analysis CRDs from `argoproj/argo-rollouts` v1.9.1, itself a Kargo git-tag target); AnalysisTemplate `argocd-apps-healthy` per Project; `verify.apps` on every `addons`/`promises` target | Kargo's controller runs the AnalysisRuns; no Rollouts controller. Prometheus query over `argocd_app_info` 3m after the merge, 5×1m, 2 failures allowed. `autoRollback` available but off |
+| Verification | `argo-rollouts` addon (chart 2.41.1: CRDs + the controller, one replica, no dashboard, itself a Kargo target); AnalysisTemplate `argocd-apps-healthy` per Project; `verify.apps` on every `addons`/`promises` target | Kargo creates the AnalysisRuns, the Argo Rollouts controller executes them. Prometheus query over `argocd_app_info` 3m after the merge, 5×1m, 2 failures allowed. `autoRollback` available but off |
 
 Post-merge verification exists for the `addons` and `promises` projects only:
 the vcluster's ArgoCD is not scraped by the host Prometheus, so `workloads`
@@ -142,6 +142,14 @@ Two defects surfaced and were fixed the same hour:
   `cilium 1.21.0-pre.0` (both manual-merge, so nothing landed). Chart and git
   subscriptions now default to `>=0.0.0`, which excludes prereleases.
 
+- **Verification never ran.** The first design installed only the three
+  Rollouts *analysis* CRDs on the belief that Kargo executes AnalysisRuns
+  itself. It does not — Kargo v1.11.2 has an AnalysisRun *builder*
+  (`pkg/rollouts/analysis_run_builder.go`) and no reconciler; its controller
+  runs `promotion`, `stage`, `warehouse` only. Twenty-three runs sat with no
+  phase for fifteen minutes. Fixed by replacing the CRD-only addon with the
+  `argo-rollouts` chart (controller, no dashboard).
+
 Also observed: GitHub reports `mergeable: UNKNOWN` for a minute or two after
 each merge to `main` moves every other PR's base; `git-merge-pr` with
 `wait: true` simply retries until it clears.
@@ -155,6 +163,8 @@ each merge to `main` moves every other PR's base; `git-merge-pr` with
    tags for `authentik-redis`.~~ Verified day one (PR #49).
 3. ~~The Kargo API starts against Authentik.~~ Verified day one; what
    happens if Authentik is down at startup is still unobserved.
+3b. ~~Kargo runs AnalysisRuns itself; only the Rollouts CRDs are needed.~~
+   **Wrong** — see day one. The Rollouts controller is required.
 4. `autoRollback` is deliberately off: whether Kargo would re-promote the
    newer (failed) Freight over a rollback has not been observed.
 5. GitHub's "Automatically delete head branches" is the intended cleanup for
