@@ -34,6 +34,9 @@ kind: Job
 metadata:
   name: etcd-secret-writer
   namespace: monitoring
+  annotations:
+    # Job pod templates are immutable — recreate on any change instead of patching
+    argocd.argoproj.io/sync-options: Force=true,Replace=true
 spec:
   template:
     spec:
@@ -48,7 +51,7 @@ spec:
                     operator: Exists
       containers:
         - name: kubectl
-          image: bitnami/kubectl:latest
+          image: docker.io/alpine/k8s:1.33.0
           command: ["/bin/sh"]
           args:
             - "-c"
@@ -68,6 +71,10 @@ spec:
               name: tmp
           securityContext:
             privileged: true
+            # privileged implies escalation; set explicitly so the Kyverno
+            # mutate-restrict-escalation +() anchor doesn't inject `false`
+            # and produce an invalid privileged+noEscalation combination
+            allowPrivilegeEscalation: true
             readOnlyRootFilesystem: true
             runAsUser: 0
             seccompProfile:

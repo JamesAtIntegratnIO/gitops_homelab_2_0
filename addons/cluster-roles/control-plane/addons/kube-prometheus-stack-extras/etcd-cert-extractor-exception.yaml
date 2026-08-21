@@ -12,12 +12,16 @@ spec:
     - policyName: disallow-privileged-containers
       ruleNames:
         - deny-privileged-containers
+        # Kyverno autogen applies the same rule to the Job's pod template
+        - autogen-deny-privileged-containers
   match:
     any:
       - resources:
           kinds:
             - Pod
+            - Job
           namespaces:
             - monitoring
           names:
+            - etcd-secret-writer
             - etcd-secret-writer-*
