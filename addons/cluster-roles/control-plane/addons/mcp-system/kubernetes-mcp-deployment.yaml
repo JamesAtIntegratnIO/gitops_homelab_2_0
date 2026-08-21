@@ -28,7 +28,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: kubernetes-mcp
-          image: quay.io/containers/kubernetes_mcp_server:latest@sha256:167b2dd662c2e961a8b6e313004518af057d6d9c1e40963e13b5d47da7a2c10c
+          image: quay.io/containers/kubernetes_mcp_server:v0.0.66@sha256:6d650f4bd6ac303ad82713c997e73a2d001602f9bf17392c9b9a0e30e29c6423
           args:
             - "--port"
             - "8080"
