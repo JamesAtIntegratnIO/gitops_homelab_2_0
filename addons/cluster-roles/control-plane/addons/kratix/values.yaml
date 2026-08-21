@@ -118,6 +118,13 @@ additionalResources:
           jsonPointers:
             - /spec
             - /status
+        # GatewayRoute CRD defaults sectionName/httpSectionName on admission;
+        # pipeline output omits them, which otherwise diffs forever
+        - group: platform.integratn.tech
+          kind: GatewayRoute
+          jsonPointers:
+            - /spec/sectionName
+            - /spec/httpSectionName
         - group: argoproj.io
           kind: Application
           namespace: argocd
