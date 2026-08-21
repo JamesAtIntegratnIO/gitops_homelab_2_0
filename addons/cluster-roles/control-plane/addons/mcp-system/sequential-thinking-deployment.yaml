@@ -25,7 +25,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sequential-thinking
-          image: ghcr.io/supercorp-ai/supergateway:latest@sha256:095acf4471e142553c1a5514aa5e480abbc5885d00549d4a3481cc70eac53889
+          image: ghcr.io/supercorp-ai/supergateway:3.4.3@sha256:095acf4471e142553c1a5514aa5e480abbc5885d00549d4a3481cc70eac53889
           args:
             - --stdio
             - "npx -y @modelcontextprotocol/server-sequential-thinking"
