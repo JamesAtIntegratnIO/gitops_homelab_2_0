@@ -45,8 +45,8 @@ api:
       "": https://argocd.cluster.integratn.tech
   rollouts:
     # Lets the UI show the AnalysisTemplates/AnalysisRuns behind Stage
-    # verification. Only the three Argo Rollouts analysis CRDs exist here
-    # (argo-rollouts-crds addon); there is no Rollouts controller.
+    # verification (the argo-rollouts addon provides the CRDs and the
+    # controller that executes the runs).
     integrationEnabled: true
   tls:
     # TLS terminates at nginx-gateway with the wildcard cert. The API listens
@@ -65,10 +65,10 @@ controller:
   argocd:
     integrationEnabled: true
   rollouts:
-    # Kargo's controller reconciles AnalysisRuns itself; this is what runs
-    # the post-merge verification (kargo-projects `verify.apps`). If the
-    # CRDs are missing at startup it degrades to "disabled" rather than
-    # failing.
+    # Post-merge verification (kargo-projects `verify.apps`): Kargo builds
+    # the AnalysisRuns from the templates, Argo Rollouts' controller executes
+    # them. If the CRDs are missing at startup this degrades to "disabled"
+    # rather than failing.
     integrationEnabled: true
   metrics:
     enabled: true

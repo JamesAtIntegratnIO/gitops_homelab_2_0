@@ -29,7 +29,7 @@ registry / chart repo ──poll──▶ Warehouse ──▶ Freight ──auto
 | `kargo-extras/` | [kargo-extras/](../addons/cluster-roles/control-plane/addons/kargo-extras/) | Attached to the `kargo` app as an extra source: the two ExternalSecrets and the HTTPRoute for `kargo.cluster.integratn.tech` |
 | `kargo-projects` addon | local chart [addons/charts/kargo-projects](../addons/charts/kargo-projects/), targets in [kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml) | Renders the Projects, Warehouses and Stages from the target list |
 | Network policy | [network-policies/kargo.yaml](../addons/cluster-roles/control-plane/addons/network-policies/kargo.yaml) | DNS, kube-apiserver, webhook ingress, gateway → API, controller → internet:443 and → Prometheus:9090, API → Authentik |
-| `argo-rollouts-crds` addon | [addons.yaml](../addons/cluster-roles/control-plane/addons/addons.yaml) | Only the three *analysis* CRDs from `argoproj/argo-rollouts` v1.9.1 — Kargo reuses `AnalysisTemplate`/`AnalysisRun` for post-merge verification and runs the analysis itself; no Rollouts controller |
+| `argo-rollouts` addon | [addons.yaml](../addons/cluster-roles/control-plane/addons/addons.yaml), values in [argo-rollouts/values.yaml](../addons/cluster-roles/control-plane/addons/argo-rollouts/values.yaml) | Argo Rollouts controller (chart 2.41.1, one replica, no dashboard) — Kargo *creates* the verification `AnalysisRun`s, this is what *executes* them; its netpol is [network-policies/argo-rollouts.yaml](../addons/cluster-roles/control-plane/addons/network-policies/argo-rollouts.yaml) |
 | Authentik blueprint | `07-kargo-provider.yaml` in [authentik-blueprints-configmap.yaml](../addons/clusters/the-cluster/addons/authentik/authentik-blueprints-configmap.yaml) | OIDC login for the UI/CLI — a PKCE *public* client, so no client secret exists anywhere |
 
 Three Kargo Projects, each a namespace of the same name, mirror the repo's
@@ -37,7 +37,7 @@ top-level areas:
 
 | Project | Covers | Targets |
 |---|---|---|
-| `addons` | chart versions in every `addons.yaml` (host *and* the vcluster copies, moved together), the Argo Rollouts CRD tag, and the images in raw-manifest addons (`mcp-system`, reconciler, Jobs, nfs, authentik-redis, open-webui image, our own kubectl image) | 35 |
+| `addons` | chart versions in every `addons.yaml` (host *and* the vcluster copies, moved together, Argo Rollouts included) and the images in raw-manifest addons (`mcp-system`, reconciler, Jobs, nfs, authentik-redis, open-webui image, our own kubectl image) | 35 |
 | `promises` | the `*-configure` pipeline images in `promises/*/promise.yaml`, pinned to `main-<sha>` | 7 |
 | `workloads` | the media apps in `workloads/vcluster-media/` | 6 |
 
@@ -102,10 +102,12 @@ revert PR — but it stays **off** until the interaction with auto-promotion
 has been watched on a real failure (a newer Freight could be re-promoted on
 top of the rollback).
 
-The mechanics come from Argo Rollouts: only its three analysis CRDs are
-installed (the `argo-rollouts-crds` addon), Kargo's controller reconciles
-the `AnalysisRun`s, and the Rollouts controller is not installed. Templates
-use Rollouts' `{{args.x}}` syntax, not Kargo's `${{ }}`.
+The mechanics come from Argo Rollouts, and the division of labour matters:
+Kargo only *builds* the `AnalysisRun` from the template (there is no run
+reconciler in Kargo — day one proved it, with 23 runs sitting at no phase);
+the Argo Rollouts controller (`argo-rollouts` addon, no Rollout objects, no
+dashboard) executes the measurements. Templates use Rollouts' `{{args.x}}`
+syntax, not Kargo's `${{ }}`.
 
 The `workloads` project has no verification: the vcluster's ArgoCD is not
 scraped by the host Prometheus, so there is no `argocd_app_info` to ask.
@@ -115,9 +117,10 @@ scraped by the host Prometheus, so there is no `argocd_app_info` to ask.
 | Strategy | Targets | Notes |
 |---|---|---|
 | `SemVer` | most images, all charts | `allowTags` regexes keep out `-alpine`, per-arch and `git-*` tags; `alpine/k8s` is constrained to the cluster's minor ±1 |
-| `SemVer` on git tags | `argo-rollouts-crds` | a `git` subscription following the repo's release tags (blobless clone), rewriting both the addon's `defaultVersion` and its `generatorValues` revision |
 | `NewestBuild` | `main-<sha>` images, linuxserver `A.B.C.D-lsNNN` tags | Kargo reads each candidate's build time; `discoveryLimit` is kept at 5 and `platform: linux/amd64` set |
 | `Digest` | `mcpo:main` | follows the tag's digest |
+
+(The chart also supports `git` targets that follow a repository's release tags; nothing uses one today.)
 
 Polling: images 6h, our own build images 15m, linuxserver 12h, charts 24h.
 `cacheByTag` is on for every immutable-tag strategy, so a registry is only
@@ -265,7 +268,8 @@ trigger.
 | API pod CrashLoopBackOff | OIDC discovery against Authentik failing; `kubectl -n kargo logs deploy/kargo-api`, then the `allow-api-oidc` CiliumNetworkPolicy |
 | UI login loops back | the Authentik `kargo` application/provider (blueprint `07-kargo-provider.yaml`) — check `kubectl -n authentik logs deploy/authentik-server \| grep -i blueprint` |
 | Webhook timeouts creating Projects/Stages | `allow-webhooks-server` / `allow-kube-api` in the network policy; the webhooks server listens on 9443 |
-| Stage verification `Error` | `kubectl -n <project> get analysisrun` then `describe` — Prometheus unreachable (`allow-controller-prometheus-egress` here, the kargo rule in `monitoring.yaml` there) or the AnalysisTemplate CRD missing (`argo-rollouts-crds-the-cluster`) |
+| AnalysisRuns exist but never get a phase or a measurement | the Argo Rollouts controller is not running — `kubectl -n argo-rollouts get pods`, `argo-rollouts-the-cluster` in ArgoCD. Kargo creates runs, Rollouts executes them |
+| Stage verification `Error` | `kubectl -n <project> get analysisrun` then `describe` — Prometheus unreachable from the Rollouts controller (`allow-prometheus-egress` in `network-policies/argo-rollouts.yaml`, the argo-rollouts rule in `monitoring.yaml`) |
 | Stage verification `Failed` | one of the `verify.apps` is not Synced/Healthy three minutes after the merge — look at that Application in ArgoCD; re-verify from the Kargo UI once it recovers |
 
 ## See also

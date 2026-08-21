@@ -1,0 +1,26 @@
+# Argo Rollouts -- the controller only, and only because Kargo's post-merge
+# verification needs it: Kargo builds AnalysisRuns, Argo Rollouts executes
+# them (observed on day one: 23 runs sat with no measurements until this
+# existed). No Rollout objects exist in this cluster; the controller idles
+# apart from analysis. The chart owns the CRDs (all five, analysis included).
+keepCRDs: true
+
+controller:
+  # A single replica; the default is two with leader election, which buys
+  # nothing for a controller whose only job is a few AnalysisRuns a day.
+  replicas: 1
+  # Developer tooling tier, like Kargo itself.
+  priorityClassName: platform-batch
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 192Mi
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+dashboard:
+  enabled: false

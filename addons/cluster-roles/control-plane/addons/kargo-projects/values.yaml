@@ -418,21 +418,17 @@ projects:
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [kargo.defaultVersion]
-      argo-rollouts-crds:
-        # The analysis CRDs behind Stage verification, pulled straight from
-        # the argo-rollouts repo at a release tag; both pins move together.
-        git:
-          repoURL: https://github.com/argoproj/argo-rollouts.git
-          allowTags: ['^v\d+\.\d+\.\d+$']
+      argo-rollouts:
+        # The controller that executes Stage verification; a bad bump here
+        # makes every verification fail, so patch-only.
+        chart: { repoURL: https://argoproj.github.io/argo-helm, name: argo-rollouts }
         autoMerge: patch
         verify:
           apps:
-            - argo-rollouts-crds-the-cluster
+            - argo-rollouts-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
-            keys:
-              - argo-rollouts-crds.defaultVersion
-              - argo-rollouts-crds.generatorValues.argoRolloutsRevision
+            keys: [argo-rollouts.defaultVersion]
 
   # ───────────────────────────────────────────────────────────────────────
   promises:

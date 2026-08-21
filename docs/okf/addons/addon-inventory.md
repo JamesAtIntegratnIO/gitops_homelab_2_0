@@ -65,7 +65,7 @@ kro, kro-resource-groups.[^env-prod]
 | qdrant / open-webui | ai | @ 1.17.0 / 12.5.0 | [AI stack](/platform/ai-stack.md) |
 | platform-status-reconciler | platform-status-reconciler | manifest | Custom status controller |
 | kargo | kargo | kargo @ 1.11.2 (OCI, +kargo-extras: ExternalSecrets, HTTPRoute) | [Kargo](/platform/kargo.md) — version-bump bot; control-plane only |
-| argo-rollouts-crds | kargo (cluster-scoped) | manifest: three analysis CRDs from argoproj/argo-rollouts @ v1.9.1 | AnalysisTemplate/AnalysisRun for Kargo verification; no Rollouts controller |
+| argo-rollouts | argo-rollouts | argo-rollouts @ 2.41.1 (controller only, no dashboard) | Executes Kargo's verification AnalysisRuns; no Rollout objects exist |
 | kargo-projects | kargo (resources land in `addons`, `promises`, `workloads`) | local chart `addons/charts/kargo-projects` | 3 Projects, 48 Warehouse/Stage pairs from one target list |
 
 Disabled: ai-platform (superseded by mcp-system; its path no longer exists).[^role-cp]
