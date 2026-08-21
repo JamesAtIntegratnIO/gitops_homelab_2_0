@@ -38,7 +38,7 @@ sources:
 - **Observability**: monitoring, loki, promtail, goldilocks
 - **Storage**: nfs-provisioner
 - **AI**: ai, mcp-system, llmkube-system (orphaned)
-- **Apps/tenants**: hello-world, vcluster-media, default (has llmkube
+- **Apps/tenants**: vcluster-media (hello-world removed 2026-08-21), default (has llmkube
   leftovers), kube-public, kube-node-lease
 
 # Access

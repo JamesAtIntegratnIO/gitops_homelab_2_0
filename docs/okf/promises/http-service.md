@@ -13,9 +13,6 @@ sources:
   - id: pipeline-src
     resource: ../../../promises/http-service/workflows/resource/configure/main.go
     title: Pipeline source
-  - id: live-instance
-    resource: ../../../platform/http-services/hello-world.yaml
-    title: hello-world HTTPService request
 ---
 
 # API
@@ -58,13 +55,15 @@ mutation still wins).
 
 # Live instance
 
-`hello-world` (`nginx-unprivileged:latest`, hello-world.cluster.integratn.tech),
-requested from [platform/http-services/hello-world.yaml](../../../platform/http-services/hello-world.yaml)
-via the `platform-http-services` addon. Status on cluster: Reconciled.[^live-instance]
+There are **no live instances** as of 2026-08-21. The `hello-world` request that
+served as the promise's smoke test was removed that day — it cost three
+pipelines (http-service → gateway-route → argocd-application) re-running every
+~10h on Kratix's reconciliation interval for nothing. The README's example still
+uses the name `hello-world`; that is documentation of the promise, not a
+deployment.
 
 Delete: writes stubs removing the three sub-requests (children cascade); the
 Namespace and inline NetworkPolicies get no delete stub — a known gap.
 
 [^promise-yaml]: promise.yaml
 [^pipeline-src]: Pipeline source
-[^live-instance]: hello-world HTTPService request
