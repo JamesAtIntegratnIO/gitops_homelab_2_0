@@ -43,6 +43,10 @@ This folder is the **comprehensive, deep-dive knowledge base** for the homelab p
   - Includes: Pipeline mechanics, secret management rules, image builds
   - External refs: Kratix docs, Kubernetes Jobs
 
+- **[MCP Servers](mcp.md)**: In-cluster Model Context Protocol tool servers for LLM agents
+  - Includes: the `mcp-system` addon, mcpo→Open WebUI bridge, NetworkPolicy model, adding a server
+  - External refs: Model Context Protocol, Open WebUI, mcpo
+
 ### Observability
 - **[Observability](observability.md)**: Metrics, logs, dashboards, alerting
   - Includes: Data flow diagrams, PromQL/LogQL examples, troubleshooting scenarios
@@ -64,6 +68,7 @@ This folder is the **comprehensive, deep-dive knowledge base** for the homelab p
 - **Develop a new Kratix promise**: See [Promises](promises.md)
 - **View metrics and logs**: See [Observability](observability.md)
 - **Troubleshoot an issue**: See [Operations](operations.md)
+- **Give an LLM agent tools against this cluster**: See [MCP Servers](mcp.md)
 - **Provision infrastructure**: See [Terraform](terraform.md)
 
 ## Key Concepts
@@ -81,6 +86,7 @@ Host cluster runs full Prometheus + Grafana + Loki. vClusters run Prometheus age
 All secrets live in 1Password. ExternalSecrets Operator pulls them into Kubernetes as Secret resources.
 
 ## Repository Anchors
+- Agent operating manual: [../CLAUDE.md](../CLAUDE.md)
 - Root overview: [../README.md](../README.md)
 - Promise directory: [../promises/](../promises/)
 - Addons directory: [../addons/](../addons/)
