@@ -222,6 +222,10 @@ additionalResources:
   # --- Pipeline Cleanup ---
 
   # ServiceAccount for pipeline cleanup CronJob
+
+  # --- Kratix Observability ---
+
+  # ServiceAccount for Prometheus to authenticate to the metrics endpoint
   - apiVersion: v1
     kind: ServiceAccount
     metadata:
