@@ -1,0 +1,498 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# platform-alerts — the single source of truth for homegrown alerting rules.
+#
+# Everything NOT shipped by kube-prometheus-stack's own defaultRules lives here.
+# Before this file existed the same conditions were defined in five different
+# places (argocd-dashboard, matrix-alertmanager-receiver, kratix, trivy-dashboard,
+# platform-status-reconciler), which produced duplicate Matrix messages for a
+# single event.
+#
+# SEVERITY MODEL — this is a contract with the Alertmanager routing tiers in
+# addons/cluster-roles/control-plane/addons/kube-prometheus-stack/values.yaml:
+#
+#   critical  Something is broken NOW and is user-visible or threatens data.
+#             Pages Matrix immediately, repeats hourly, notifies on resolve.
+#
+#   warning   Needs attention today, not this minute. Batched into the digest
+#             route: 5m group wait, 30m group interval, 24h repeat, and NO
+#             resolved notification (a warning that fixed itself is not news).
+#
+#   info      Awareness only — trends and standing state. Never messaged;
+#             visible in Grafana and the Alertmanager UI.
+#
+# RULES OF THUMB when adding an alert here:
+#   1. Never use min_over_time()/max_over_time() on argocd_app_info. Its
+#      sync_status/health_status/operation labels are MUTABLE, so a range
+#      function resurrects every historical label combination as its own
+#      firing alert. Aggregate with `max by (...)` instead — see below.
+#   2. Do not reimplement a kube-prometheus-stack default rule. Check
+#      `kubectl get prometheusrule -n monitoring` first.
+#   3. Alert on symptoms a human must act on, not on standing configuration.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: platform-alerts
+    app.kubernetes.io/part-of: platform
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # ── ArgoCD ───────────────────────────────────────────────────────────────
+    - name: platform.argocd
+      interval: 30s
+      rules:
+        # `max by (name, project, dest_namespace)` is load-bearing. argocd_app_info
+        # carries health_status and operation as labels, so an app moving
+        # OutOfSync -> Progressing -> Healthy emits three distinct series. Without
+        # the aggregation each one becomes its own alert instance and its own
+        # Matrix message. Aggregating also means the alert resolves the instant
+        # the app syncs, instead of lingering for the length of a range window.
+        #
+        # autosync_enabled="true" scopes this to apps ArgoCD is supposed to be
+        # converging on its own. An app with automation disabled is OutOfSync by
+        # operator intent, not by fault. All 54 apps are automated today, so this
+        # is a guard for the future rather than a behaviour change.
+        - alert: ArgoCDAppOutOfSync
+          expr: |
+            max by (name, project, dest_namespace) (
+              argocd_app_info{sync_status="OutOfSync", autosync_enabled="true"}
+            ) == 1
+          for: 30m
+          labels:
+            severity: warning
+            component: argocd
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} out of sync for 30m+"
+            description: "Application {{ $labels.name }} (project {{ $labels.project }}) has been OutOfSync for over 30 minutes with auto-sync enabled, so it is failing to converge rather than merely drifting. Run `argocd app diff {{ $labels.name }}` to see why."
+            logs_url: "https://grafana.cluster.integratn.tech/d/argocd-overview/argocd-overview"
+
+        # Degraded means the app's own resources are unhealthy, not just drifted.
+        # That is a real outage surface, hence critical.
+        - alert: ArgoCDAppDegraded
+          expr: |
+            max by (name, project, health_status) (
+              argocd_app_info{health_status=~"Degraded|Missing"}
+            ) == 1
+          for: 15m
+          labels:
+            severity: critical
+            component: argocd
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} is {{ $labels.health_status }}"
+            description: "Application {{ $labels.name }} (project {{ $labels.project }}) has been {{ $labels.health_status }} for 15+ minutes. Its workloads are crashing, unschedulable, or absent."
+            logs_url: "https://grafana.cluster.integratn.tech/d/argocd-overview/argocd-overview"
+
+        # Replaces the old ArgoCDSyncFailed (fired on a single failure) and
+        # ArgoCDHighSyncFailureRate (a ratio that spikes on low-volume apps).
+        # A repeatedly-failing sync is the actionable signal; one transient
+        # failure that self-heals on the next attempt is not.
+        - alert: ArgoCDAppSyncFailing
+          expr: |
+            sum by (name) (increase(argocd_app_sync_total{phase=~"Error|Failed"}[1h])) > 3
+          for: 15m
+          labels:
+            severity: warning
+            component: argocd
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} sync failing repeatedly"
+            description: "Application {{ $labels.name }} has failed {{ $value | printf \"%.0f\" }} sync attempts in the last hour. Check the app's conditions for an admission or templating error."
+            logs_url: "https://grafana.cluster.integratn.tech/d/argocd-overview/argocd-overview"
+
+    # ── TLS certificates ─────────────────────────────────────────────────────
+    # Added 2026-08-21 after the *.cluster.integratn.tech wildcard was served
+    # EXPIRED for 12 days (2026-08-09 -> 08-21) with zero alerting. cert-manager's
+    # Certificate Ready condition still read "has not expired" the whole time, so
+    # the condition is NOT a monitoring signal. These rules watch the actual
+    # expiry timestamp instead. Requires the cert-manager ServiceMonitor, enabled
+    # in addons/environments/production/addons/addons.yaml.
+    - name: platform.certificates
+      interval: 60s
+      rules:
+        - alert: CertificateExpired
+          expr: |
+            certmanager_certificate_expiration_timestamp_seconds - time() <= 0
+          for: 5m
+          labels:
+            severity: critical
+            component: cert-manager
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} has EXPIRED"
+            description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expired and is still being served. Every TLS client for this hostname is now failing verification. Check `kubectl describe certificate {{ $labels.name }} -n {{ $labels.namespace }}` and the CertificateRequest/Order chain."
+            runbook_url: "https://github.com/jamesatintegratnio/gitops_homelab_2_0/blob/main/docs/okf/cluster/known-issues.md"
+
+        - alert: CertificateExpiringCritical
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 3
+          for: 15m
+          labels:
+            severity: critical
+            component: cert-manager
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in <3 days"
+            description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in {{ $value | printf \"%.1f\" }} days and has not renewed. Renewal normally happens at 1/3 of lifetime remaining, so this means renewal is stuck."
+            runbook_url: "https://github.com/jamesatintegratnio/gitops_homelab_2_0/blob/main/docs/okf/cluster/known-issues.md"
+
+        # 14 days is the real safety net. cert-manager schedules renewal ~30 days
+        # out for a 90-day Let's Encrypt cert, so if we are inside 14 days the
+        # renewal has already failed several times and there is still ample time
+        # to fix it by hand.
+        - alert: CertificateExpiringSoon
+          expr: |
+            (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 14
+          for: 1h
+          labels:
+            severity: warning
+            component: cert-manager
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in <14 days"
+            description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in {{ $value | printf \"%.1f\" }} days. Scheduled renewal should already have run — investigate the Order/Challenge chain now, not at expiry."
+            runbook_url: "https://github.com/jamesatintegratnio/gitops_homelab_2_0/blob/main/docs/okf/cluster/known-issues.md"
+
+        - alert: CertificateNotReady
+          expr: |
+            certmanager_certificate_ready_status{condition="True"} == 0
+          for: 1h
+          labels:
+            severity: warning
+            component: cert-manager
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} not Ready"
+            description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} has not been Ready for an hour. Note that Ready=True does NOT imply unexpired — CertificateExpiringSoon is the authoritative expiry signal."
+
+        # Meta-alert. The 12-day expiry outage was invisible because cert-manager
+        # metrics were never scraped at all. If the series vanishes again, say so
+        # instead of silently going blind.
+        - alert: CertManagerMetricsMissing
+          expr: |
+            absent(certmanager_certificate_expiration_timestamp_seconds)
+          for: 30m
+          labels:
+            severity: warning
+            component: cert-manager
+          annotations:
+            summary: "cert-manager certificate metrics are not being scraped"
+            description: "No certmanager_certificate_expiration_timestamp_seconds series exists. Certificate expiry monitoring is BLIND. Check the cert-manager ServiceMonitor and the allow-cert-manager NetworkPolicy (ingress from monitoring on port 9402)."
+
+    # ── Kratix ───────────────────────────────────────────────────────────────
+    - name: platform.kratix
+      interval: 30s
+      rules:
+        - alert: KratixPipelineFailed
+          expr: |
+            kube_pod_status_phase{namespace="platform-requests", phase="Failed"} == 1
+          for: 15m
+          labels:
+            severity: warning
+            component: kratix
+          annotations:
+            summary: "Kratix pipeline pod {{ $labels.pod }} failed"
+            description: "Pipeline pod {{ $labels.pod }} in platform-requests has been Failed for 15+ minutes. Kratix retries pipelines, so a pod still Failed after 15 minutes needs a look."
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22platform-requests%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
+
+        - alert: KratixPipelineStuck
+          expr: |
+            (kube_pod_status_phase{namespace="platform-requests", phase=~"Pending|Running"} == 1)
+            * on(pod, namespace) group_left()
+            (time() - kube_pod_start_time{namespace="platform-requests"} > 900)
+          for: 5m
+          labels:
+            severity: warning
+            component: kratix
+          annotations:
+            summary: "Kratix pipeline pod {{ $labels.pod }} stuck"
+            description: "Pipeline pod {{ $labels.pod }} has been running for over 15 minutes. Promise pipelines normally complete in under a minute."
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22platform-requests%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
+
+        # Warning, not critical: controller-runtime counts benign optimistic-lock
+        # conflicts as reconcile errors, and they self-heal on the next attempt.
+        - alert: KratixReconcileErrors
+          expr: |
+            (
+              sum by (controller) (rate(controller_runtime_reconcile_errors_total{job=~".*kratix.*"}[10m]))
+              /
+              clamp_min(sum by (controller) (rate(controller_runtime_reconcile_total{job=~".*kratix.*"}[10m])), 0.001)
+            ) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+            component: kratix
+          annotations:
+            summary: "Kratix controller {{ $labels.controller }} reconcile error rate >5%"
+            description: "Controller {{ $labels.controller }} has a reconcile error rate of {{ $value | humanizePercentage }} over 10 minutes."
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22kratix-platform-system%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
+
+        # Critical: a wedged queue means no promise request gets fulfilled at all.
+        - alert: KratixWorkQueueStuck
+          expr: |
+            workqueue_unfinished_work_seconds{job=~".*kratix.*"} > 300
+          for: 5m
+          labels:
+            severity: critical
+            component: kratix
+          annotations:
+            summary: "Kratix work queue {{ $labels.name }} stuck"
+            description: "Work queue {{ $labels.name }} has had unfinished work for 5+ minutes. Platform provisioning is stalled."
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22kratix-platform-system%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
+
+        - alert: KratixReconcileStuck
+          expr: |
+            workqueue_longest_running_processor_seconds{job=~".*kratix.*"} > 300
+          for: 5m
+          labels:
+            severity: warning
+            component: kratix
+          annotations:
+            summary: "Kratix reconciliation stuck on queue {{ $labels.name }}"
+            description: "Queue {{ $labels.name }} has a processor running for {{ $value | humanizeDuration }}. A reconcile may be hung on an external dependency."
+
+        # Replaces KratixGoroutineLeak, which was a STATIC `go_goroutines > 500`
+        # while its description promised trend detection. Measured 2026-08-21:
+        # 501 goroutines at 7d, 6h and 24h ago, 504 now — dead flat, parked four
+        # over the threshold, firing forever. A leak is a sustained slope, so
+        # measure the slope. ~0.005/s is roughly +2 goroutines/minute.
+        - alert: KratixGoroutineGrowth
+          expr: |
+            deriv(go_goroutines{job=~".*kratix.*"}[6h]) > 0.005
+          for: 6h
+          labels:
+            severity: info
+            component: kratix
+          annotations:
+            summary: "Kratix goroutine count trending up"
+            description: "Kratix goroutines have been growing steadily for 6 hours (currently {{ $value | humanize }}/s). Sustained growth with no plateau suggests a leak."
+
+        - alert: KratixMemoryGrowth
+          expr: |
+            deriv(process_resident_memory_bytes{job=~".*kratix.*"}[6h]) > 10000
+          for: 6h
+          labels:
+            severity: info
+            component: kratix
+          annotations:
+            summary: "Kratix controller memory trending up"
+            description: "Kratix RSS has grown steadily for 6 hours. Sustained growth suggests a cache or goroutine leak."
+
+    # ── vcluster tenants ─────────────────────────────────────────────────────
+    - name: platform.vcluster
+      interval: 60s
+      rules:
+        - alert: VClusterNotReady
+          expr: platform_vcluster_ready == 0
+          for: 15m
+          labels:
+            severity: critical
+            component: vcluster
+          annotations:
+            summary: "VCluster {{ $labels.name }} not Ready"
+            description: "VCluster {{ $labels.name }} in namespace {{ $labels.namespace }} has not been Ready for 15+ minutes. Tenant workloads are unreachable."
+            runbook_url: "https://github.com/jamesatintegratnio/gitops_homelab_2_0/blob/main/docs/kratix-troubleshooting.md"
+
+        - alert: VClusterPodsUnhealthy
+          expr: |
+            (platform_vcluster_pods_ready / platform_vcluster_pods_total) < 0.5
+            and platform_vcluster_pods_total > 0
+          for: 10m
+          labels:
+            severity: warning
+            component: vcluster
+          annotations:
+            summary: "VCluster {{ $labels.name }} has <50% pods ready"
+            description: "VCluster {{ $labels.name }} has {{ $value | humanizePercentage }} of pods ready."
+
+        # The pod regex is anchored to `-etcd-<ordinal>` so it matches ONLY
+        # StatefulSet members. The previous pattern `.*-etcd-.*` also matched the
+        # one-shot Job pod vcluster-media-etcd-certs-merge-<hash>, which sits in
+        # Succeeded forever with Ready=false — a permanently firing false positive.
+        - alert: VClusterEtcdPodNotReady
+          expr: |
+            kube_pod_status_ready{namespace=~"vcluster-.+", pod=~".+-etcd-[0-9]+$", condition="true"} == 0
+          for: 5m
+          labels:
+            severity: warning
+            component: vcluster
+          annotations:
+            summary: "VCluster etcd member {{ $labels.pod }} not Ready"
+            description: "etcd member {{ $labels.pod }} in {{ $labels.namespace }} has not been Ready for 5 minutes. This causes hidden API server degradation (gRPC connect failures) even while ArgoCD reports the vcluster Healthy."
+            runbook_url: "https://github.com/jamesatintegratnio/gitops_homelab_2_0/blob/main/docs/kratix-troubleshooting.md"
+
+        - alert: VClusterEtcdHighRestarts
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace=~"vcluster-.+", pod=~".+-etcd-[0-9]+$"}[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+            component: vcluster
+          annotations:
+            summary: "VCluster etcd member {{ $labels.pod }} restarting frequently"
+            description: "etcd member {{ $labels.pod }} restarted {{ $value | printf \"%.0f\" }} times in the last hour, causing transient gRPC failures from the vcluster API server."
+
+        # Fires when the cluster is down to bare quorum: one more failure loses
+        # the API server. For a 3-member set that means 3 -> 2 ready.
+        - alert: VClusterEtcdQuorumAtRisk
+          expr: |
+            count by (namespace) (
+              kube_pod_status_ready{namespace=~"vcluster-.+", pod=~".+-etcd-[0-9]+$", condition="true"} == 1
+            )
+            < ceil(
+              count by (namespace) (
+                kube_pod_status_ready{namespace=~"vcluster-.+", pod=~".+-etcd-[0-9]+$", condition="true"}
+              ) / 2 + 1
+            )
+          for: 2m
+          labels:
+            severity: critical
+            component: vcluster
+          annotations:
+            summary: "VCluster etcd quorum at risk in {{ $labels.namespace }}"
+            description: "etcd in {{ $labels.namespace }} is down to bare quorum. One more member failure takes the vcluster API server offline."
+
+        - alert: PlatformReconcilerDown
+          expr: absent(up{job="platform-status-reconciler"} == 1)
+          for: 5m
+          labels:
+            severity: warning
+            component: platform
+          annotations:
+            summary: "platform-status-reconciler is not running"
+            description: "platform-status-reconciler is not serving metrics, so vcluster status and the platform_vcluster_* alerts above are stale."
+
+    # ── Storage ──────────────────────────────────────────────────────────────
+    # Only conditions kube-prometheus-stack does NOT already cover. Volume
+    # fill/inode alerts come from the upstream kubernetes-storage group.
+    - name: platform.storage
+      interval: 60s
+      rules:
+        - alert: PVCPending
+          expr: |
+            kube_persistentvolumeclaim_status_phase{phase="Pending"} == 1
+          for: 15m
+          labels:
+            severity: warning
+            component: storage
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} stuck Pending"
+            description: "PersistentVolumeClaim {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has been Pending for 15+ minutes. Check the NFS provisioner and that the requested StorageClass exists."
+            logs_url: 'https://grafana.cluster.integratn.tech/explore?orgId=1&left=%7B%22datasource%22%3A%22loki%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22expr%22%3A%22%7Bnamespace%3D%5C%22nfs-provisioner%5C%22%7D%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D'
+
+        - alert: NFSMountErrors
+          expr: |
+            increase(node_nfs_rpc_retransmissions_total[15m]) > 100
+          for: 10m
+          labels:
+            severity: warning
+            component: storage
+          annotations:
+            summary: "NFS RPC retransmissions on {{ $labels.instance }}"
+            description: "Node {{ $labels.instance }} logged {{ $value | printf \"%.0f\" }} NFS RPC retransmissions in 15 minutes. All cluster PVs are NFS-backed, so this degrades everything with a volume."
+
+    # ── etcd (host control plane) ────────────────────────────────────────────
+    # Fragmentation is intentionally NOT alerted here — upstream ships
+    # etcdDatabaseHighFragmentationRatio and the local copy both duplicated it
+    # and had a broken description template. Quota headroom has no upstream
+    # equivalent, so it stays.
+    - name: platform.etcd
+      interval: 60s
+      rules:
+        - alert: EtcdDBSizeApproachingQuota
+          expr: |
+            etcd_mvcc_db_total_size_in_bytes > 1.5 * 1024 * 1024 * 1024
+          for: 5m
+          labels:
+            severity: critical
+            component: etcd
+          annotations:
+            summary: "etcd database above 1.5GB (2GB quota)"
+            description: "etcd DB on {{ $labels.instance }} is {{ $value | humanize1024 }}B, approaching the 2GB default quota. At quota the cluster goes READ-ONLY. Investigate resource churn or run `etcdctl defrag`."
+
+    # ── Security scanning ────────────────────────────────────────────────────
+    - name: platform.security
+      interval: 5m
+      rules:
+        - alert: TrivyOperatorDown
+          expr: absent(up{job=~".*trivy-operator.*"} == 1)
+          for: 15m
+          labels:
+            severity: warning
+            component: trivy
+          annotations:
+            summary: "Trivy Operator is not running"
+            description: "The Trivy Operator metrics endpoint has been unreachable for 15 minutes. Image vulnerability scanning is not running."
+
+        # Recalibrated 2026-08-21. The old threshold (>300, severity warning) was
+        # set against a "~200 baseline" measured while scanning was broken — three
+        # scan jobs had been deadlocked for 88 days and zero reports existed. With
+        # scanning restored the true baseline is 348, so the old rule fired the
+        # moment it started working and could never clear. A standing CVE count is
+        # a dashboard number, not a page: severity info, threshold above baseline.
+        - alert: TrivyCriticalVulnerabilityRegression
+          expr: sum(trivy_image_vulnerabilities{severity="Critical"}) > 450
+          for: 6h
+          labels:
+            severity: info
+            component: trivy
+          annotations:
+            summary: "Critical CVE count above baseline"
+            description: "{{ $value | printf \"%.0f\" }} critical vulnerabilities across cluster images, against a 2026-08-21 baseline of 348. Triage in the Trivy Operator dashboard."
+            runbook_url: "https://grafana.cluster.integratn.tech/d/trivy-operator/trivy-operator-dashboard"
+
+    # ── The alerting path itself ─────────────────────────────────────────────
+    # Critical by definition: if this breaks, no other alert in this file can
+    # reach anyone.
+    - name: platform.alerting
+      interval: 60s
+      rules:
+        - alert: MatrixReceiverDown
+          expr: up{job="matrix-alertmanager-receiver"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            component: alerting
+          annotations:
+            summary: "Matrix alert receiver is down"
+            description: "matrix-alertmanager-receiver is unreachable. NO alerts are reaching Matrix. Check Alertmanager's UI directly."
+
+        - alert: MatrixReceiverSendFailures
+          expr: |
+            increase(matrix_alertmanager_receiver_send_failure_total[15m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+            component: alerting
+          annotations:
+            summary: "Matrix alert receiver failing to send"
+            description: "matrix-alertmanager-receiver logged {{ $value | printf \"%.0f\" }} send failures in 15 minutes. Alerts are being dropped — check the access token and homeserver reachability."
+
+    # ── Capacity headroom ────────────────────────────────────────────────────
+    # Info-tier: on a 3-node homelab these are planning inputs, not incidents.
+    # Upstream KubeCPUOvercommit is muted in the Alertmanager routes for the
+    # same reason — see the kube-prometheus-stack values.
+    - name: platform.capacity
+      interval: 60s
+      rules:
+        - alert: ClusterCPUHighUtilization
+          expr: |
+            (sum(rate(container_cpu_usage_seconds_total{container!=""}[5m]))
+             / sum(kube_node_status_allocatable{resource="cpu"})) > 0.85
+          for: 30m
+          labels:
+            severity: info
+            component: cluster
+          annotations:
+            summary: "Cluster CPU utilization above 85%"
+            description: "Cluster is using {{ $value | humanizePercentage }} of allocatable CPU. Consider adding a node or trimming requests."
+
+        # Memory stays at warning: unlike CPU, exhaustion means OOM kills.
+        - alert: ClusterMemoryHighUtilization
+          expr: |
+            (sum(container_memory_working_set_bytes{container!=""})
+             / sum(kube_node_status_allocatable{resource="memory"})) > 0.85
+          for: 30m
+          labels:
+            severity: warning
+            component: cluster
+          annotations:
+            summary: "Cluster memory utilization above 85%"
+            description: "Cluster is using {{ $value | humanizePercentage }} of allocatable memory. Sustained pressure leads to OOM kills."
