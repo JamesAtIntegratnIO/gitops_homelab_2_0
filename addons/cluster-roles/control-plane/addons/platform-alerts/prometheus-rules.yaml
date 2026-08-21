@@ -467,8 +467,8 @@ spec:
 
     # ── Capacity headroom ────────────────────────────────────────────────────
     # Info-tier: on a 3-node homelab these are planning inputs, not incidents.
-    # Upstream KubeCPUOvercommit is muted in the Alertmanager routes for the
-    # same reason — see the kube-prometheus-stack values.
+    # Upstream KubeCPUOvercommit is the N+1 check and is deliberately NOT muted
+    # (since 2026-08-21) — see the kube-prometheus-stack values.
     - name: platform.capacity
       interval: 60s
       rules:
@@ -496,3 +496,50 @@ spec:
           annotations:
             summary: "Cluster memory utilization above 85%"
             description: "Cluster is using {{ $value | humanizePercentage }} of allocatable memory. Sustained pressure leads to OOM kills."
+
+    # ── Backups ─────────────────────────────────────────────────────────────
+    # The etcd snapshot CronJobs in platform-backups / talos-etcd-backup. A
+    # failed run is already covered by upstream KubeJobFailed; these catch the
+    # quieter failures -- a CronJob that silently stopped being scheduled, or
+    # one that has never succeeded at all.
+    - name: platform.backups
+      interval: 5m
+      rules:
+        - alert: EtcdSnapshotStale
+          expr: |
+            (time() - max by (namespace, cronjob) (kube_cronjob_status_last_successful_time{cronjob=~".*-etcd-snapshot"})) > 36 * 3600
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "No successful {{ $labels.cronjob }} run in {{ $value | humanizeDuration }}"
+            description: >-
+              The nightly etcd snapshot CronJob {{ $labels.namespace }}/{{ $labels.cronjob }}
+              last succeeded more than 36h ago. Check `kubectl -n {{ $labels.namespace }} get jobs`
+              and the finalize container's log; restore steps are in docs/operations.md.
+        - alert: EtcdSnapshotNeverSucceeded
+          expr: |
+            kube_cronjob_info{cronjob=~".*-etcd-snapshot"}
+              unless on (namespace, cronjob)
+            kube_cronjob_status_last_successful_time{cronjob=~".*-etcd-snapshot"}
+          for: 36h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.cronjob }} has never completed a snapshot"
+            description: >-
+              {{ $labels.namespace }}/{{ $labels.cronjob }} exists but has no successful run on record
+              after 36h. For talos-etcd-snapshot the usual cause is the Talos API access patch
+              (matchbox/talos-machineconfigs/all.yaml) not being applied yet.
+        - alert: HostEtcdBackupMissing
+          expr: |
+            absent(kube_cronjob_info{namespace="talos-backup", cronjob="talos-etcd-snapshot"})
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "the-cluster has no etcd backup job"
+            description: >-
+              The talos-etcd-snapshot CronJob is not deployed, so the host etcd is not being backed up
+              and etcd loss means the full rebuild. It ships disabled until the Talos API access patch
+              is applied; see the platform-backups-talos entry in addons.yaml.

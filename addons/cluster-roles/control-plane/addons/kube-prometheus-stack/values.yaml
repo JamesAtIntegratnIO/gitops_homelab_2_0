@@ -84,14 +84,17 @@ alertmanager:
       routes:
 
       # 1. Muted: permanently true on this cluster by design, tracked in Grafana.
-      #    KubeCPUOvercommit — 10.4 of 11.85 allocatable CPU is requested across
-      #    3 nodes, so "cannot tolerate node failure" is the intended steady
-      #    state, not an incident.
       #    CPUThrottlingHigh — fires for any container that has a CPU limit and
       #    uses it; upstream's own docs call it noisy.
+      #    KubeCPUOvercommit used to be in this list, from when 8.4 of the 7.9
+      #    two-node CPU was requested and "cannot tolerate node failure" was the
+      #    steady state. After the 2026-08-21 right-sizing requests sit near
+      #    6.5, the alert is quiet, and it is exactly the N+1 check in
+      #    docs/game-day.md -- so it now flows to the warning digest and fires
+      #    only when N+1 has regressed. Do not re-mute it; fix the requests.
       - receiver: 'null'
         matchers:
-        - alertname =~ Watchdog|InfoInhibitor|KubeCPUOvercommit|CPUThrottlingHigh
+        - alertname =~ Watchdog|InfoInhibitor|CPUThrottlingHigh
         continue: false
 
       # 2. Info: awareness only, never messaged.
