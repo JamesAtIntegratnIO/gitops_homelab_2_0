@@ -179,8 +179,8 @@ A read-only audit against the live cluster found four things:
 
 1. **Self-heal was the exception.** The environment default was
    `selfHeal: false`, and an addon-level `syncPolicy` *replaced* the default
-   rather than merging, so 16 of 47 rendered Applications had no drift
-   correction and ~30 had no retry policy — cert-manager, Kyverno, MetalLB, the
+   rather than merging, so 16 of 48 rendered Applications had no drift
+   correction and 36 had no retry policy — cert-manager, Kyverno, MetalLB, the
    gateway, the NFS provisioner. Commit 47bbd64 ("selfHeal everywhere") had
    intended otherwise; the addon-system sharp edge silently undid it.
 2. **N+1 did not hold.** 8759m of CPU requests against ~7940m of capacity on any
@@ -196,7 +196,7 @@ A read-only audit against the live cluster found four things:
 
 | Area | Change |
 |---|---|
-| GitOps | `syncPolicy` deep-merges over the chart default; `selfHeal: true` is the environment default; `allowEmpty: false` everywhere. **47/47** apps self-heal with retry. |
+| GitOps | `syncPolicy` deep-merges over the chart default; `selfHeal: true` is the environment default; `allowEmpty: false` everywhere. **50/50** apps self-heal with retry (was 32/48, with retry on only 12). |
 | Capacity | CPU requests right-sized from the VPA recommendations: 8759m → 7199m. Two-node headroom **−819m → +741m**. |
 | Scheduling | `platform-critical` (1000000) and `platform-batch` (−1000) PriorityClasses, assigned across the recovery path and deferrable workloads. |
 | Availability | Kyverno admission 1 → 3 replicas with spread + PDB; NGINX data plane and control plane 1 → 2; PDBs on every component with ≥2 replicas, CoreDNS included. |
@@ -205,7 +205,7 @@ A read-only audit against the live cluster found four things:
 | Node layer | Talos patches **committed but not applied** — hardware watchdog, `os:etcd:backup` API access, apiserver toleration defaults. |
 
 **Acceptance Criteria:**
-- [x] Every rendered Application self-heals and retries _(47/47, verified by rendering both bootstrap ApplicationSets)_
+- [x] Every rendered Application self-heals and retries _(50/50, verified by rendering both bootstrap ApplicationSets)_
 - [x] Total CPU requests fit on any two nodes _(7199m vs ~7940m)_
 - [x] No single-pod dependency can block cluster-wide pod creation _(Kyverno 3 replicas, spread, PDB)_
 - [x] The public VIP survives losing one node _(2 data planes, hostname spread)_
