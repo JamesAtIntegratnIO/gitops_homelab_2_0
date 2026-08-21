@@ -39,9 +39,10 @@ spec:
         {{- with $t.image.platform }}
         platform: {{ . }}
         {{- end }}
-        {{- if eq $n.strategy "SemVer" }}
+        # Emitted for every strategy, not just SemVer: the Kargo webhook
+        # defaults it to true on all image subscriptions, and an absent field
+        # is permanent ArgoCD drift (13 Warehouses on day one).
         strictSemvers: {{ ternary $t.image.strictSemvers true (hasKey $t.image "strictSemvers") }}
-        {{- end }}
         discoveryLimit: {{ $n.discoveryLimit }}
         # Tags are immutable for every strategy except Digest, which exists
         # precisely to follow a mutable tag. Caching by tag spares the

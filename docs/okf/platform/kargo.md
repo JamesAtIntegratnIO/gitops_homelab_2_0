@@ -150,6 +150,17 @@ Two defects surfaced and were fixed the same hour:
   phase for fifteen minutes. Fixed by replacing the CRD-only addon with the
   `argo-rollouts` chart (controller, no dashboard).
 
+- **UI unreachable.** `kargo.cluster.integratn.tech` hung with zero bytes
+  while ArgoCD answered through the same gateway IP in 14 ms. The `kargo`
+  namespace allowed the gateway in, but the gateway data plane's own egress
+  allow-list (`allow-nginx-dataplane`) names backend namespaces one by one
+  and had no `kargo` entry, so nginx's SYN to `kargo-api:8080` was dropped.
+  Same class of trap [docs/mcp.md](../../mcp.md) warns about; both halves
+  are now in the guide's troubleshooting table.
+- **Residual Warehouse drift.** After the duration fix, 13 Warehouses still
+  drifted: the webhook defaults `strictSemvers: true` on *every* image
+  subscription, the chart only emitted it for `SemVer`. Now always emitted.
+
 Also observed: GitHub reports `mergeable: UNKNOWN` for a minute or two after
 each merge to `main` moves every other PR's base; `git-merge-pr` with
 `wait: true` simply retries until it clears.
