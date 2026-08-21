@@ -19,6 +19,8 @@ spec:
       labels:
         app: mcpo
     spec:
+      # Deferrable: developer tooling, not a platform dependency.
+      priorityClassName: platform-batch
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

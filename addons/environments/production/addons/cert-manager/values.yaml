@@ -1,2 +1,7 @@
 crds:
   enabled: true
+
+# Recovery path: without cert-manager, no certificate renews and no webhook
+# CA gets injected.
+global:
+  priorityClassName: platform-critical

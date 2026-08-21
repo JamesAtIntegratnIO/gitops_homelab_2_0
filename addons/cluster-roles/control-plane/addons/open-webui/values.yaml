@@ -15,6 +15,9 @@ pipelines:
 image:
   tag: "v0.8.6"  # Pinned ahead of chart release (chart 12.5.0 ships 0.8.5)
 
+# Deferrable: the AI stack should yield its node to a platform service.
+priorityClassName: platform-batch
+
 resources:
   requests:
     # Live usage 2m; this reserves headroom for a burst, not a baseline.

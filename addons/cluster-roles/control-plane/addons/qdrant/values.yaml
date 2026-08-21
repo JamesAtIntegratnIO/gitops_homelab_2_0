@@ -4,6 +4,9 @@ image:
   repository: qdrant/qdrant
   useUnprivilegedImage: true
 
+# Deferrable: the AI stack should yield its node to a platform service.
+priorityClassName: platform-batch
+
 resources:
   requests:
     # Live usage 2m; this reserves headroom for a burst, not a baseline.

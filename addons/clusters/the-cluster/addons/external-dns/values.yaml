@@ -12,6 +12,9 @@ env:
 
 logLevel: info
 
+# Recovery path: publishes the DNS records every ingress hostname resolves through.
+priorityClassName: platform-critical
+
 domainFilters:
   - integratn.tech
 

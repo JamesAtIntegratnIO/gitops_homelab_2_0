@@ -1,5 +1,7 @@
 global:
   domain: argocd.cluster.integratn.tech
+  # Recovery path: ArgoCD is what puts everything else back.
+  priorityClassName: platform-critical
 
 # -- Horizontal + vertical scaling for the host cluster ArgoCD
 controller:

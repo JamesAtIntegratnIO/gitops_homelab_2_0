@@ -18,6 +18,8 @@ spec:
       labels:
         app: kubernetes-mcp
     spec:
+      # Deferrable: developer tooling, not a platform dependency.
+      priorityClassName: platform-batch
       serviceAccountName: kubernetes-mcp
       securityContext:
         runAsNonRoot: true
