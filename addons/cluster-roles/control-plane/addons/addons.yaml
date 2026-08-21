@@ -348,7 +348,7 @@ authentik:
   chartName: authentik
   project: platform-services
   chartRepository: https://charts.goauthentik.io
-  defaultVersion: "2025.12.4"
+  defaultVersion: 2026.8.0
   selector:
     matchExpressions:
       - key: cluster_role
