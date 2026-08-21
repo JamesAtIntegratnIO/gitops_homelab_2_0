@@ -12,7 +12,7 @@ sources:
     title: kargo-projects factory chart
   - id: targets
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
-    title: target list (49 Warehouse/Stage pairs)
+    title: target list (48 Warehouse/Stage pairs)
   - id: install
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo/values.yaml
     title: Kargo chart values
@@ -60,7 +60,7 @@ registry / chart repo ─poll─▶ Warehouse ─▶ Freight ─auto-promote─�
 |---|---|---|
 | `kargo` addon | control-plane `addons.yaml`, `selectorMatchLabels: cluster_role: control-plane` | OCI chart; `kargo-extras/` attached as an extra source; `api.secret.name` points at an ExternalSecret so the chart renders no Secret of its own[^install] |
 | `kargo-projects` addon | local chart `addons/charts/kargo-projects` | one Namespace + Project + ProjectConfig per project, one Warehouse + Stage per target[^chart] |
-| Projects | `addons` (34 targets), `promises` (7), `workloads` (7) | namespaces pre-created with `kargo.akuity.io/project: "true"` so Kargo adopts rather than races ArgoCD[^targets] |
+| Projects | `addons` (35 targets), `promises` (7), `workloads` (6) | namespaces pre-created with `kargo.akuity.io/project: "true"` so Kargo adopts rather than races ArgoCD[^targets] |
 | Credentials | `kargo-shared-resources/kargo-github-gitops-homelab` (git, PAT), `kargo/kargo-admin-credentials` | both ExternalSecrets from 1Password items `kargo-github-token` and `kargo-admin`[^extras] |
 | Login | Authentik OIDC, PKCE public client `kargo` (blueprint `07-kargo-provider.yaml`); `authentik Admins` → Kargo admins; admin account as break-glass | no client secret exists anywhere |
 | Route | `kargo.cluster.integratn.tech` → `kargo-api:80` (TLS at the gateway, `api.tls.terminatedUpstream: true`) | external-dns publishes it |
@@ -116,9 +116,11 @@ expr-lang cannot dot-access them.
 # Deliberately untracked
 
 `gateway-api-crds` (moves with NGF), the `kratix` chart (placeholder `0.0.1`),
-`bitnami/kubectl:latest` inside the Kratix cleanup CronJob (needs `jq`),
 vcluster-media's etcd tag, the unused development/staging layers, and every
-disabled addon.
+disabled addon. The Kratix pipeline-cleanup CronJob's kubectl image *is*
+tracked (it joined the `kubectl` target once main moved it onto the repo's
+own image), but by list position — `additionalResources.10` — so inserting
+an entry above it in the Kratix values breaks that target loudly.
 
 # Assumptions to verify on first run
 
@@ -148,7 +150,7 @@ disabled addon.
 [^guide]: docs/kargo.md.
 [^install]: Kargo chart values.
 [^chart]: kargo-projects factory chart.
-[^targets]: target list (49 Warehouse/Stage pairs).
+[^targets]: target list (48 Warehouse/Stage pairs).
 [^extras]: ExternalSecrets and HTTPRoute.
 [^netpol]: kargo namespace network policy.
 [^kargo-src]: Kargo v1.11.2 — yaml-update semantics and step schemas.

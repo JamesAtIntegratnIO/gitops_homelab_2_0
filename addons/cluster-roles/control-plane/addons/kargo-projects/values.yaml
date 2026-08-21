@@ -114,9 +114,17 @@ projects:
             - mcp-system-the-cluster
             - kyverno-the-cluster
             - kyverno-vcluster-media.integratn-tech
+            - kratix-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/mcpo-deployment.yaml
             keys: [spec.template.spec.initContainers.0.image]
+          # The Kratix pipeline-cleanup CronJob. Positional: it is the 11th
+          # entry of additionalResources -- inserting an entry above it moves
+          # the index, and the promotion fails loudly rather than editing the
+          # wrong resource (yaml-update refuses a key that is not a scalar).
+          - file: addons/cluster-roles/control-plane/addons/kratix/values.yaml
+            format: image-tag
+            keys: [additionalResources.10.spec.jobTemplate.spec.template.spec.containers.0.image]
           - file: addons/environments/production/addons/kyverno/values.yaml
             format: tag
             keys:
@@ -516,9 +524,8 @@ projects:
   workloads:
     description: >-
       Apps inside vcluster-media (workloads/, reconciled by the vcluster's own
-      ArgoCD) plus the HTTPService requests under platform/. No `verify`
-      here: the vcluster's ArgoCD is not scraped by the host Prometheus, so
-      there is no argocd_app_info to check.
+      ArgoCD). No `verify` here: the vcluster's ArgoCD is not scraped by the
+      host Prometheus, so there is no argocd_app_info to check.
     targets:
       # linuxserver tags are A.B.C.D-lsNNN -- not semver, so there is no
       # minor/major to reason about. These were `latest` before, i.e. they
@@ -581,12 +588,3 @@ projects:
         updates:
           - file: workloads/vcluster-media/addons.yaml
             keys: [mediaAppDefaults.defaultVersion]
-      hello-world:
-        scope: platform
-        image:
-          repoURL: docker.io/nginxinc/nginx-unprivileged
-          allowTags: ['^\d+\.\d+\.\d+$']
-        format: tag
-        updates:
-          - file: platform/http-services/hello-world.yaml
-            keys: [spec.image.tag]
