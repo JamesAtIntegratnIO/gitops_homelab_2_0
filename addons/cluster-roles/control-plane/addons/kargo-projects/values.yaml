@@ -180,6 +180,42 @@ projects:
             keys: [spec.template.spec.containers.0.image]
           - file: addons/cluster-roles/control-plane/addons/mcp-system/grafana-sa-token-job.yaml
             keys: [spec.template.spec.containers.0.image]
+          - file: addons/cluster-roles/control-plane/addons/platform-backups/vcluster-media-etcd-snapshot.yaml
+            keys: [spec.jobTemplate.spec.template.spec.containers.0.image]
+          - file: addons/cluster-roles/control-plane/addons/talos-etcd-backup/talos-etcd-snapshot.yaml
+            keys: [spec.jobTemplate.spec.template.spec.containers.0.image]
+      # ── backups ───────────────────────────────────────────────────────
+      talosctl:
+        scope: images
+        # talosctl must not run ahead of Talos on the nodes (v1.11.5 today),
+        # so the constraint pins the minor; move it with the Talos upgrade.
+        image:
+          repoURL: ghcr.io/siderolabs/talosctl
+          constraint: ">=1.11.0 <1.12.0"
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        verify:
+          apps:
+            - platform-backups-talos-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/talos-etcd-backup/talos-etcd-snapshot.yaml
+            keys: [spec.jobTemplate.spec.template.spec.initContainers.0.image]
+        autoMerge: patch
+      vcluster-etcd-snapshot-client:
+        scope: images
+        # etcdctl for the vcluster-media snapshot. Same minor as the etcd the
+        # vcluster runs (platform/vclusters/vcluster-media.yaml, 3.6.x); move
+        # the constraint together with that tag.
+        image:
+          repoURL: registry.k8s.io/etcd
+          constraint: ">=3.6.0 <3.7.0"
+          allowTags: ['^\d+\.\d+\.\d+-\d+$']
+        verify:
+          apps:
+            - platform-backups-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/platform-backups/vcluster-media-etcd-snapshot.yaml
+            keys: [spec.jobTemplate.spec.template.spec.initContainers.0.image]
+        autoMerge: patch
       authentik-redis:
         scope: authentik
         image:
