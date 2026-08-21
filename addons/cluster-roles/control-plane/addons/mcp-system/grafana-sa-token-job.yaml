@@ -99,6 +99,12 @@ metadata:
     # needing a second restart.
     argocd.argoproj.io/hook: PreSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # A Job's spec.template is immutable, so any change to this Job has to be a
+    # delete-and-recreate rather than a patch. Without this, moving the hook from
+    # PostSync to PreSync left the old PostSync Job in place and the app stuck
+    # OutOfSync, retrying the same failing task. Same reasoning as
+    # etcd-secret-writer in kube-prometheus-stack-extras.
+    argocd.argoproj.io/sync-options: Force=true,Replace=true
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 86400
