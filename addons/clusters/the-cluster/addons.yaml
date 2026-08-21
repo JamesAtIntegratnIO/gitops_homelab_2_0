@@ -72,28 +72,7 @@ qdrant:
       jqPathExpressions:
         - .status
 
-llmkube:
-  enabled: false
-  namespace: llmkube-system
-  chartName: llmkube
-  manifestPath: addons/llmkube-models
-  defaultVersion: "0.7.6"
-  project: platform-services
-  selectorMatchLabels:
-    cluster_role: control-plane
-  syncPolicy:
-    automated:
-      selfHeal: true
-      prune: true
-    syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
-  additionalResources:
-    type: manifests
-    path: clusters
-    manifestPath: addons/llmkube-models
-
-# MCP servers are managed by mcp-system-app (addons/cluster-roles/control-plane/addons/mcp-system/)
+# MCP servers are managed by the mcp-system addon (addons/cluster-roles/control-plane/addons/mcp-system/)
 # These Helm-chart-based MCP apps are disabled to avoid duplication.
 mcp-kubernetes:
   enabled: false

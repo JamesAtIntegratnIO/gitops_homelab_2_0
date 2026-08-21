@@ -78,29 +78,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-github-egress
-  namespace: ai
-spec:
-  podSelector:
-    matchLabels:
-      app: git-indexer
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
-      ports:
-        - protocol: TCP
-          port: 443
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
   name: allow-pipelines-https-egress
   namespace: ai
 spec:
@@ -396,26 +373,6 @@ spec:
       ports:
         - protocol: TCP
           port: 443
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-openwebui-llmkube-egress
-  namespace: ai
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: open-webui
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 10.0.0.0/9
-      ports:
-        - protocol: TCP
-          port: 49152
-          endPort: 65535
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
