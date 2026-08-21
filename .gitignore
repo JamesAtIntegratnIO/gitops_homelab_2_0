@@ -41,3 +41,16 @@ __pycache__/
 # Compiled Go binaries
 images/*/platform-status-reconciler
 cli/bin/
+
+# Claude Code / AI agents
+# Worktrees created by agent sessions live under .claude/worktrees/ and are
+# throwaway checkouts of this same repo -- never commit them.
+.claude/worktrees/
+.claude/settings.local.json
+.claude/*.local.json
+.claude/todos/
+.claude/shell-snapshots/
+# CLAUDE.md and .claude/settings.json ARE tracked -- they are shared guidance.
+
+# OKF bundle render output (regenerate with /okf:visualize)
+docs/okf/viz.html
