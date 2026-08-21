@@ -7,6 +7,11 @@ global:
 controller:
   replicas: 2
   dynamicClusterDistribution: true
+  # The chart ships pdb.enabled: false. With two replicas a drain is free to
+  # take both at once, which stops all reconciliation until they come back.
+  pdb:
+    enabled: true
+    minAvailable: 1
   resources:
     requests:
       # VPA target 361m, upper bound 429m, live 340m on the active replica.
@@ -22,6 +27,9 @@ controller:
     periodSeconds: 20
 
 server:
+  pdb:
+    enabled: true
+    minAvailable: 1
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -62,6 +70,9 @@ server:
             value: https://github.com/mziyabo/argocd-trivy-extension/releases/download/v0.2.0/extension-trivy_checksums.txt
 
 repoServer:
+  pdb:
+    enabled: true
+    minAvailable: 1
   autoscaling:
     enabled: true
     minReplicas: 2
@@ -100,6 +111,9 @@ repoServer:
 
 applicationSet:
   replicas: 2
+  pdb:
+    enabled: true
+    minAvailable: 1
   resources:
     requests:
       # VPA target 15m, live 2-6m.

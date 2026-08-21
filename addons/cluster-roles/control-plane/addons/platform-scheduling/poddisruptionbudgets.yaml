@@ -1,0 +1,24 @@
+# Disruption budgets for components whose chart offers no hook for one.
+#
+# CoreDNS is deployed by Talos as a bootstrap manifest, so its Deployment is not
+# ours to edit -- Talos re-applies bootstrap manifests and would revert changes.
+# A PodDisruptionBudget is a separate object Talos does not manage, so this is
+# the one piece of CoreDNS resilience that can live in git.
+#
+# It matters more than it looks: CoreDNS caching is disabled for cluster.local
+# (`cache 30 { disable success cluster.local }` in the Talos Corefile), so every
+# in-cluster name lookup is a live query against these two pods. Losing both at
+# once -- which a drain is currently free to do, since the anti-affinity is only
+# `preferred` -- takes cluster-internal DNS down entirely.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: coredns
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      k8s-app: kube-dns
