@@ -188,7 +188,16 @@
 
             shellHook = ''
               set -a
-              source ./secrets.env
+              # secrets.env is gitignored, so a fresh clone does not have one.
+              # Sourcing it unconditionally made `nix develop` fail outright on
+              # any checkout that had not been set up yet -- including a
+              # disaster-recovery clone, which is precisely when you least want
+              # the toolchain to be unavailable.
+              if [ -f ./secrets.env ]; then
+                source ./secrets.env
+              else
+                echo "note: ./secrets.env not found; shell is usable, but anything reading those variables will not be." >&2
+              fi
               source <(kubectl completion bash)
               source <(kubecm completion bash)
               source <(helm completion bash)

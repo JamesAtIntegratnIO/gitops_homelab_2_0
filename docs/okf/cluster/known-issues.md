@@ -210,11 +210,18 @@ and the vcluster Prometheus remote-write endpoint were affected.
    shell history exposure). `hack/get-kubeconfig.py` disables TLS verification
    for its ArgoCD calls.
 
-**Broken-on-fresh-clone**
-10. `flake.nix` shellHook sources `./secrets.env` unguarded → `nix develop`
-    errors until the gitignored file is created.
-11. `terraform/cluster/main.tf` reads gitignored `dockerconfig.json` at plan
-    time → `tofu plan` fails on a clean checkout.
+**Broken-on-fresh-clone** — *both fixed 2026-08-21*
+10. ~~`flake.nix` shellHook sources `./secrets.env` unguarded → `nix develop`
+    errors until the gitignored file is created.~~ **Fixed**: the source is
+    guarded and the shell prints a note instead of failing.
+11. ~~`terraform/cluster/main.tf` reads gitignored `dockerconfig.json` at plan
+    time → `tofu plan` fails on a clean checkout.~~ **Fixed**: the secret is
+    created only when the file exists (`count = fileexists(...)`), and the
+    `ghcr_login_secret` output reports which happened.
+
+    Both mattered more than they looked: they are the first two steps of the
+    documented disaster-recovery path, so the DR runbook could not be executed
+    from a clean clone at all. The full path is still unexercised.
 
 **Latent bugs**
 12. hctl: `deploy run`'s git step captures its paths slice before population
