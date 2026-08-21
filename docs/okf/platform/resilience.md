@@ -62,6 +62,22 @@ node loss left ~800m of pods unschedulable).
 This is the check most likely to rot as workloads are added, which is why it is
 the first step of the [game day](../../game-day.md).[^gameday]
 
+**There is already an alert for this, and it is currently muted.**
+`KubeCPUOvercommit` compares
+`namespace_cpu:kube_pod_container_resource_requests:sum` against
+`sum(allocatable) - max(allocatable)` — precisely the N+1 arithmetic above. On
+2026-08-21 it was **firing** (8.399 against a 7.9 threshold), and the alerting
+consolidation of the same day routed it to `null` on the reasoning that
+"cannot tolerate node failure" was the intended steady state. That was true when
+it was written. After the right-sizing it is not: requests land near 6.84, the
+alert stops firing, and it becomes an accurate early warning that N+1 has
+regressed. Worth un-muting once this is merged and confirmed — otherwise the one
+automated check on the number above is switched off.
+
+(The `10.4` figure in that mute's comment is `sum(kube_pod_container_resource_requests)`,
+which counts init containers separately; the alert itself uses the recording
+rule, which was 8.399.)
+
 # What is still outside git's reach
 
 - **Upstream DNS.** CoreDNS forwards to the Talos host resolver at

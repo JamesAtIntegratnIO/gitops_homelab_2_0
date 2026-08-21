@@ -54,7 +54,18 @@ kubectl get nodes -o json | jq -r '
 ```
 
 Second number minus first is your headroom after losing the largest node. It
-should be positive with room to spare. If it has gone negative, stop here and
+should be positive with room to spare.
+
+Prometheus computes the same thing as `KubeCPUOvercommit`. Note that this alert
+is currently routed to `null` — it was muted while the cluster genuinely could
+not tolerate a node failure. If the headroom above is healthy, un-muting it
+turns this manual step into a standing check:
+
+```bash
+curl -s -G http://localhost:9090/api/v1/query --data-urlencode \
+  'query=sum(namespace_cpu:kube_pod_container_resource_requests:sum{}) - (sum(kube_node_status_allocatable{resource="cpu"}) - max(kube_node_status_allocatable{resource="cpu"}))'
+# negative = N+1 holds
+``` If it has gone negative, stop here and
 right-size before doing anything disruptive — otherwise you are about to
 demonstrate a problem you already know about.
 
