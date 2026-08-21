@@ -557,6 +557,8 @@ argocd-projects:
 | **kratix-promises** | Kratix Promise definitions | control-plane | Manifest | N/A (raw YAML) |
 | **platform-vclusters** | vCluster resource requests | control-plane | Manifest | N/A (raw YAML) |
 | **observability-secrets** | Grafana/Alertmanager ExternalSecrets | control-plane | Manifest | N/A (raw YAML) |
+| **platform-backups** | Nightly etcd snapshot of vcluster-media to NFS | control-plane | Manifest | N/A (raw YAML) |
+| **platform-backups-talos** | Nightly host etcd snapshot via the Talos API (disabled until `all.yaml` is applied) | control-plane | Manifest | N/A (raw YAML) |
 | **matrix-alertmanager-receiver** | Alert → Matrix room bridge | control-plane | Manifest | N/A (raw YAML) |
 | **vcluster-coredns-config** | CoreDNS patches for vClusters | vcluster | Manifest | N/A (raw YAML) |
 
