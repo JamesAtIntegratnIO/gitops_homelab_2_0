@@ -28,7 +28,11 @@ spec:
         runAsGroup: 65532
       containers:
         - name: grafana-mcp
-          image: grafana/mcp-grafana
+          # Pinned. Unpinned, this tag silently moved 0.14.0 (2026-05-08) ->
+          # 1.1.0 (2026-08-10) on the first restart in three months, and 1.1.0's
+          # /healthz rejects an unauthenticated Grafana connection where 0.14.0
+          # tolerated it -- turning a stale token into a CrashLoop.
+          image: docker.io/grafana/mcp-grafana:1.1.0@sha256:f21a19cebbfa7c3a76ef1746171e5ffc3601064e432f593e7c6cb526e5216e5f
           args:
             - "-t"
             - "streamable-http"
@@ -61,6 +65,9 @@ spec:
             limits:
               cpu: 200m
               memory: 256Mi
+          # Readiness tracks the dependency: /healthz reports non-200 when the
+          # Grafana connection is unauthorized, so the pod drops out of the
+          # Service until Grafana is reachable and the token is valid.
           readinessProbe:
             httpGet:
               path: /healthz
@@ -68,13 +75,18 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
+          # Liveness only asks "is this process wedged". Pointing it at /healthz
+          # made a *Grafana* problem restart the pod forever: on 2026-08-21 a
+          # stale service-account token put this container into CrashLoopBackOff
+          # with 11 restarts, when the correct behaviour is to sit there
+          # not-ready until the token is repaired.
           livenessProbe:
-            httpGet:
-              path: /healthz
+            tcpSocket:
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 30
             timeoutSeconds: 5
+            failureThreshold: 3
 ---
 apiVersion: v1
 kind: Service

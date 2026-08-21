@@ -1,7 +1,14 @@
-# One-shot Job: creates a Grafana service account + token for the MCP server
-# Idempotent — skips creation if the secret already has a token
-# Uses Grafana admin credentials from monitoring/grafana-admin secret
-# Stores the resulting SA token in ai/grafana-mcp-secrets
+# PostSync hook: makes sure grafana-mcp has a *working* Grafana service-account
+# token, and repairs it when it does not.
+#
+# This used to skip whenever the secret merely had a key, which meant it could
+# never repair a token Grafana had stopped accepting. The token issued
+# 2026-05-20 was rejected with 401 for months; the Job ran, logged "already has
+# key — skipping creation", and exited 0 every time. Now it validates against
+# Grafana and reissues on rejection.
+#
+# Uses Grafana admin credentials from monitoring/grafana-admin.
+# Stores the resulting SA token in mcp-system/grafana-mcp-secrets.
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -24,6 +31,12 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["create"]
+  # A new token only reaches the container through a restart: the token is
+  # injected via secretKeyRef env, which does not hot-reload.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["grafana-mcp"]
+    verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -109,11 +122,27 @@ spec:
               # Helper: extract JSON value by key (simple flat objects only)
               json_val() { echo "$1" | grep -o "\"$2\":[^,}]*" | head -1 | sed 's/.*://;s/^"//;s/"$//;s/^ *//'; }
 
-              # Check if secret already exists with a token
-              EXISTING=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o jsonpath="{.data.$SECRET_KEY}" 2>/dev/null || echo "")
-              if [ -n "$EXISTING" ]; then
-                echo "Secret $SECRET_NAME already has key $SECRET_KEY — skipping creation"
+              # Is Grafana even reachable? If not, this is not our problem to fix:
+              # leave the existing token alone and let the next sync retry, rather
+              # than churning a new one against an API that cannot answer.
+              HEALTH=$(curl -s -o /dev/null -w '%{http_code}' "$GRAFANA_URL/api/health" || echo 000)
+              if [ "$HEALTH" != "200" ]; then
+                echo "Grafana not reachable (/api/health -> $HEALTH) — leaving the existing token untouched"
                 exit 0
+              fi
+
+              # Validate the token we already have rather than assuming a present
+              # key means a working credential.
+              EXISTING=$(kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" -o jsonpath="{.data.$SECRET_KEY}" 2>/dev/null | base64 -d 2>/dev/null || echo "")
+              if [ -n "$EXISTING" ]; then
+                CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $EXISTING" "$GRAFANA_URL/api/org" || echo 000)
+                if [ "$CODE" = "200" ]; then
+                  echo "Existing token is accepted by Grafana (/api/org -> 200) — nothing to do"
+                  exit 0
+                fi
+                echo "Existing token rejected by Grafana (/api/org -> $CODE) — reissuing"
+              else
+                echo "No token stored yet — issuing one"
               fi
 
               # Get Grafana admin credentials from monitoring namespace
@@ -161,7 +190,14 @@ spec:
                 --from-literal="$SECRET_KEY=$TOKEN" \
                 --dry-run=client -o yaml | kubectl apply -f -
 
-              echo "Done! Secret $SECRET_NAME/$SECRET_KEY is ready."
+              echo "Secret $SECRET_NAME/$SECRET_KEY updated."
+
+              # secretKeyRef env is read once at container start, so the running
+              # pod is still holding the rejected token until it restarts.
+              echo "Restarting grafana-mcp to pick up the new token..."
+              kubectl rollout restart deployment/grafana-mcp -n "$NAMESPACE"
+
+              echo "Done."
           resources:
             requests:
               cpu: 50m
