@@ -69,10 +69,25 @@ Fixed by carrying the previous timestamp when nothing transitioned, preserving
 conditions owned by other controllers, and skipping the patch entirely when the
 result is equivalent to what is already stored.
 
-**Still open**: the ~208k events already in etcd will age out slowly; a one-off
-cleanup and a look at kube-apiserver's `--event-ttl` are both worth doing. And
-the underlying disk problem is untouched — reducing write volume helps, but it
-is not the fix.
+**Still open**: the underlying disk problem is untouched — reducing write volume
+helps, but it is not the fix.
+
+*Update 2026-08-21:* the stored-event count fell from ~208k to 26,910 and then
+**stopped falling** — 27,629 at the next measurement, i.e. flat-to-rising. That
+is not slow GC, it is a second write loop still running: the
+`kratix.io/manual-reconciliation: "true"` annotation on
+`vclusterorchestratorv2s/vcluster-media` was set by hand on 2026-08-21T02:19:09Z
+and never cleared, so Kratix re-triggers itself several times a second (8.69
+`PUT/s` against a 0.03 baseline) and produces events as fast as GC removes them.
+Clearing that annotation is the prerequisite; **`--event-ttl` is the wrong thing
+to chase until it is cleared**, because the count is a symptom of the loop rather
+than of retention. The annotation is not in git, so removing it is clearing
+unmanaged manual state:
+
+```bash
+kubectl annotate vclusterorchestratorv2s.platform.integratn.tech \
+  -n platform-requests vcluster-media kratix.io/manual-reconciliation-
+```
 
 # Root cause found (2026-08-21): the vcluster-media restart storms
 
