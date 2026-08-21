@@ -6,8 +6,14 @@ globalSelectors:
   environment: "development"
 syncPolicy:
   automated:
-    selfHeal: false
-    allowEmpty: true
+    # Drift correction is the default. An addon that needs manual sync must say so
+    # explicitly; a partial override no longer silently drops this (see the
+    # application-sets chart template).
+    selfHeal: true
+    # Refuse an automated sync that would leave the app with zero resources: with
+    # prune enabled almost everywhere, a source that renders empty (bad ref, moved
+    # path) would otherwise delete the whole addon.
+    allowEmpty: false
     prune: true
 syncPolicyAppSet:
     preserveResourcesOnDeletion: true

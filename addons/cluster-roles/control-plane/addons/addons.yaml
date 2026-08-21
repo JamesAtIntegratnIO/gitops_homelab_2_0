@@ -13,7 +13,7 @@ kratix:
   syncPolicy:
     automated:
       selfHeal: true
-      allowEmpty: true
+      allowEmpty: false
       prune: true
 
 kratix-promises:

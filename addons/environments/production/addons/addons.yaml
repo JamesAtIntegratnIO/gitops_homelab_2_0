@@ -20,7 +20,7 @@ argocd:
   syncPolicy:
     automated:
       selfHeal: true
-      allowEmpty: true
+      allowEmpty: false
       prune: true
     retry:
       limit: -1
@@ -46,8 +46,7 @@ argocd-projects:
     argocd.argoproj.io/sync-wave: "-2"
   syncPolicy:
     automated:
-      selfHeal: false
-      allowEmpty: true
+      selfHeal: true
       prune: true
     retry:
       limit: -1
@@ -178,7 +177,7 @@ external-secrets:
   syncPolicy:
     automated:
       selfHeal: true
-      allowEmpty: true
+      allowEmpty: false
       prune: true
     retry:
       limit: -1
@@ -417,7 +416,7 @@ kratix:
   syncPolicy:
     automated:
       selfHeal: false
-      allowEmpty: true
+      allowEmpty: false
       prune: false
     retry:
       limit: -1 # number of failed sync attempt retries; unlimited number of attempts if less than 0
