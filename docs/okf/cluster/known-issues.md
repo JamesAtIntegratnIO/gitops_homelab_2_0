@@ -129,19 +129,33 @@ kubectl label vclusterorchestratorv2s.platform.integratn.tech \
 Verify: `status.conditions` gains `ConfigureWorkflowCompleted=True`, VCO PUT/s
 returns to ~0.03, and the event count starts falling.
 
-**Two further defects found on the way, not yet fixed:**
+**Three further defects found on the way — all fixed on the same branch
+(PR #23), two of them pending rollout:**
 
-- The fixed reconciler's `statusUnchanged` guard does not work: it still patches
-  every 60s, and the only key that changes across its write is `lastReconciled`
-  — the one key it claims to ignore. Harmless at 1/min but it is a real defect
-  in a fix that was declared complete; the JSON-string comparison fails on
-  something not visible in stored content. Pruning is ruled out (every field it
-  sends is stored).
-- The Kratix Helm chart is pinned to `0.0.1`, but Syntasso **republishes `0.0.1`
-  with new app versions** (index regenerated 2026-08-21T09:22Z, appVersion
-  1.16.0). Every ArgoCD sync of the kratix app re-resolves it, which is why the
-  controller image changed at 02:37Z and 16:01Z today. This is the grafana-mcp
-  `:latest` hazard in the platform's core controller.
+- **The fixed reconciler's `statusUnchanged` guard did not work.** It patched
+  every 60s with only `lastReconciled` changing. Cause: the patch carried
+  `health.subApps.unhealthy: null` for an empty list; a merge patch treats null
+  as *delete*, so the stored object never had the key while the patch always
+  did, and a byte comparison of the two could never be equal. The guard now
+  applies the patch (RFC 7386 semantics) to the current status and compares the
+  result, after JSON-normalising both sides; a test reproduces the live object
+  shape and fails against the old implementation. **Deploys by bumping the
+  `main-<sha>` pin after merge** — CI builds on push to `main`.
+- **The Kratix Helm chart was effectively unpinned.** `0.0.1` is republished
+  under new app versions (index regenerated 2026-08-21T09:22Z, appVersion
+  1.16.0); the controller image changed at 02:37Z and 16:01Z on ordinary syncs.
+  `image:` is now pinned by digest in the kratix values to the running image, so
+  the sync is a no-op. The pipeline-adapter image is hard-coded in the chart's
+  ConfigMap with no value to override and still tracks the chart; bump the two
+  together.
+- **The nightly `kratix-pipeline-cleanup` CronJob reported success while
+  deleting nothing.** `lastSuccessfulTime` 04:00:46Z, yet 12 succeeded Jobs
+  older than 24h remained. It ran `bitnami/kubectl:latest` and piped into `jq`
+  under `sh -c` with no `pipefail`, so a missing tool produced an empty loop and
+  exit 0. Rewritten on the repo's pinned kubectl image, bash `-euo pipefail`,
+  no `jq` (fixed-width RFC 3339 timestamps make the cutoff a string compare).
+  This is why two completed Jobs per request accumulate — and Job presence is
+  the input the write loop turns on.
 
 # `retry.limit: -1` can wedge an app against its own fix (2026-08-21)
 
