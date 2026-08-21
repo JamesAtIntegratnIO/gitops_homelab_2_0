@@ -273,7 +273,7 @@ spec:
           spec:
             containers:
               - name: configure
-                image: ghcr.io/jamesatintegratnio/http-service-configure:latest
+                image: ghcr.io/jamesatintegratnio/http-service-configure:main-117185a@sha256:0d9f85eb60869d19be30fa27ba803f102a8857fb4f4d82acb7a90b7da483fa0e
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
@@ -292,7 +292,7 @@ spec:
           spec:
             containers:
               - name: delete
-                image: ghcr.io/jamesatintegratnio/http-service-configure:latest
+                image: ghcr.io/jamesatintegratnio/http-service-configure:main-117185a@sha256:0d9f85eb60869d19be30fa27ba803f102a8857fb4f4d82acb7a90b7da483fa0e
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
