@@ -33,6 +33,13 @@ spec:
           # /healthz rejects an unauthenticated Grafana connection where 0.14.0
           # tolerated it -- turning a stale token into a CrashLoop.
           image: docker.io/grafana/mcp-grafana:1.1.0@sha256:f21a19cebbfa7c3a76ef1746171e5ffc3601064e432f593e7c6cb526e5216e5f
+          # These *append* to the image's entrypoint, which already supplies
+          # `--transport sse --address 0.0.0.0:8000`. The running argv therefore
+          # carries --address twice and both transports; Go's flag package takes
+          # the last value, so `-t streamable-http` wins and this works by
+          # last-wins rather than by design. Left as-is deliberately -- untangling
+          # it means overriding `command`, which is a behaviour change worth its
+          # own verification -- but do not assume this list is the whole argv.
           args:
             - "-t"
             - "streamable-http"
@@ -45,6 +52,20 @@ spec:
             - "--disable-clickhouse"
             - "--disable-incident"
             - "--disable-examples"
+            # 1.1.0 validates the Host header and, left unset, allows only
+            # "loopback variants of --address" -- which for 0.0.0.0:8000 means
+            # localhost:8000 and 127.0.0.1:8000 and nothing else. Every real
+            # caller was therefore answered `403 forbidden: host not allowed`:
+            # the kubelet probe (Host: <podIP>:8000), mcpo (the Service FQDN)
+            # and anything arriving through the Gateway. Matching is exact and
+            # includes the port, so bare `localhost` is rejected where
+            # `localhost:8000` is accepted. Extend this list when a new caller
+            # appears; `*` disables validation and is only safe behind a proxy
+            # that rewrites Host, which nginx-gateway does not do -- its
+            # URLRewrite filter on the mcp-grafana HTTPRoute rewrites the path
+            # only, so the original external hostname arrives intact.
+            - "--allowed-hosts"
+            - "grafana-mcp.mcp-system.svc.cluster.local:8000,mcp.cluster.integratn.tech"
           ports:
             - name: http
               containerPort: 8000
@@ -68,10 +89,20 @@ spec:
           # Readiness tracks the dependency: /healthz reports non-200 when the
           # Grafana connection is unauthorized, so the pod drops out of the
           # Service until Grafana is reachable and the token is valid.
+          #
+          # The explicit Host header is required, not cosmetic. The kubelet
+          # addresses the probe to the pod IP, and pod IPs are allocated per
+          # pod, so they cannot be named in --allowed-hosts above. Forcing the
+          # Host to the Service FQDN gives the probe a stable, allowlistable
+          # identity; without it every new pod fails readiness with 403 and the
+          # Deployment never completes its rollout.
           readinessProbe:
             httpGet:
               path: /healthz
               port: 8000
+              httpHeaders:
+                - name: Host
+                  value: grafana-mcp.mcp-system.svc.cluster.local:8000
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
