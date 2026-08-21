@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-08-21
+* **Update**: Added repository-level agent guidance — a root `CLAUDE.md` operating manual, a full [MCP servers reference](../mcp.md), and `.gitignore` coverage for agent worktrees. Corrected the [AI stack](platform/ai-stack.md) concept: `mcp-system` is an addon now, not an out-of-band Application, and its images are digest-pinned. Marked the retired SSE-era `addons/clusters/the-cluster/addons/mcp-tools/README.md` as superseded.
 * **Update**: Post-merge validation of the self-healing rollout surfaced two linked problems, recorded in [known issues](cluster/known-issues.md): etcd is well outside its operating envelope (178ms p99 fsync on talos-xez-xys, 44 leader changes/24h, `/var` sharing one disk with everything), and a status write loop between platform-status-reconciler and Kratix was producing 97% of all cluster events at ~9.5 writes/second. The loop is fixed; the disk is a Talos/hardware change.
 * **Creation**: Added [resilience](platform/resilience.md) — the seven self-healing layers, the automation rule (restart/delete yes, desired-state no), the N+1 arithmetic, and what stays outside git's reach.
 * **Update**: Root-caused the vcluster-media restart storms to Talos host-DNS stalls saturating CoreDNS, with the Loki correlation recorded in [known issues](cluster/known-issues.md); recorded the resilience change set from branch `claude/self-healing-clusters-97da62` / PR #8. Corrected the [addon system](addons/addon-system.md) sharp edge: addon `syncPolicy` now deep-merges rather than replacing.
