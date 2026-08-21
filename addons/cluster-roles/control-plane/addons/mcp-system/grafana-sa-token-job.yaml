@@ -10,75 +10,6 @@
 # Uses Grafana admin credentials from monitoring/grafana-admin.
 # Stores the resulting SA token in mcp-system/grafana-mcp-secrets.
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: grafana-sa-creator
-  namespace: mcp-system
-  labels:
-    app: grafana-mcp
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: grafana-sa-creator
-  namespace: mcp-system
-rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    resourceNames: ["grafana-mcp-secrets"]
-    verbs: ["get", "patch", "update"]
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["create"]
-  # A new token only reaches the container through a restart: the token is
-  # injected via secretKeyRef env, which does not hot-reload. Delete the pods
-  # rather than `rollout restart` -- the latter stamps an annotation into the
-  # Deployment's pod template, which ArgoCD reads as drift and reverts, costing
-  # a second needless rollout.
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["list", "delete"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: grafana-sa-creator
-  namespace: mcp-system
-subjects:
-  - kind: ServiceAccount
-    name: grafana-sa-creator
-    namespace: mcp-system
-roleRef:
-  kind: Role
-  name: grafana-sa-creator
-  apiGroup: rbac.authorization.k8s.io
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: grafana-sa-creator-read-admin
-  namespace: monitoring
-rules:
-  - apiGroups: [""]
-    resources: ["secrets"]
-    resourceNames: ["grafana-admin"]
-    verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: grafana-sa-creator-read-admin
-  namespace: monitoring
-subjects:
-  - kind: ServiceAccount
-    name: grafana-sa-creator
-    namespace: mcp-system
-roleRef:
-  kind: Role
-  name: grafana-sa-creator-read-admin
-  apiGroup: rbac.authorization.k8s.io
----
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -225,3 +156,72 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grafana-sa-creator
+  namespace: mcp-system
+  labels:
+    app: grafana-mcp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-sa-creator
+  namespace: mcp-system
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["grafana-mcp-secrets"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  # A new token only reaches the container through a restart: the token is
+  # injected via secretKeyRef env, which does not hot-reload. Delete the pods
+  # rather than `rollout restart` -- the latter stamps an annotation into the
+  # Deployment's pod template, which ArgoCD reads as drift and reverts, costing
+  # a second needless rollout.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: grafana-sa-creator
+  namespace: mcp-system
+subjects:
+  - kind: ServiceAccount
+    name: grafana-sa-creator
+    namespace: mcp-system
+roleRef:
+  kind: Role
+  name: grafana-sa-creator
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: grafana-sa-creator-read-admin
+  namespace: monitoring
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["grafana-admin"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: grafana-sa-creator-read-admin
+  namespace: monitoring
+subjects:
+  - kind: ServiceAccount
+    name: grafana-sa-creator
+    namespace: mcp-system
+roleRef:
+  kind: Role
+  name: grafana-sa-creator-read-admin
+  apiGroup: rbac.authorization.k8s.io
