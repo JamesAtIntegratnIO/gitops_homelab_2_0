@@ -24,6 +24,7 @@ Start with [Getting started](getting-started.md); consult
 * [Resilience](platform/resilience.md) - how the cluster heals itself: the seven layers, the one rule, and what is still outside git's reach.
 * [Observability](platform/observability.md) - hub-and-spoke metrics, Loki logging, Matrix alerting with log deep-links.
 * [AI stack](platform/ai-stack.md) - Open WebUI, Qdrant, MCP servers, and the retired llmkube/git-indexer.
+* [Kargo version updates](platform/kargo.md) - the version-bump bot: Warehouses watch every pinned image and chart, one Stage each opens a PR against main and merges it by policy.
 
 # Live cluster (the-cluster)
 

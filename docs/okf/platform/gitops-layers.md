@@ -38,6 +38,12 @@ ArgoCD **self-manages**: the `argocd` addon deploys the argo-cd chart onto the
 cluster ArgoCD itself runs in (chart pinned at 9.4.3 in addons.yaml; live
 server image v3.3.1).
 
+The pins themselves have a feedback loop: [Kargo](kargo.md) watches every
+chart repository and image registry referenced from these layers and opens a
+PR against `main` when something newer appears — merged by itself for
+patch/minor changes under a per-target policy, otherwise waiting for a human.
+Kargo only ever writes to git; the layers below see an ordinary commit.
+
 # Layer 2 — platform requests (Kratix)
 
 `platform/vclusters/*.yaml` and `platform/http-services/*.yaml` are synced
