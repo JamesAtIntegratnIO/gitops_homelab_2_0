@@ -1,0 +1,94 @@
+# kargo-projects chart defaults.
+#
+# The real target list lives in the addon values file
+# (addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml); this
+# file documents the schema and carries the defaults every target inherits.
+#
+# One target == one Warehouse + one Stage in a single Kargo Project. There is
+# no dev -> staging -> prod chain: this is a single-environment homelab, and
+# the Stage's only job is to write the new version into `git.branch` through a
+# pull request. See docs/kargo.md for the full picture.
+
+git:
+  # Repository the Stages clone, push branches to, and open PRs against.
+  # Must match the `repoURL` of the git credential Secret Kargo reads.
+  repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+  branch: main
+  provider: github
+
+merge:
+  # Used by git-merge-pr when a Stage is allowed to merge its own PR.
+  method: squash
+  # How often git-merge-pr re-checks a PR that is not mergeable yet.
+  pollInterval: 30s
+  # How often git-wait-for-pr polls a PR that needs a human. Every open,
+  # human-gated PR costs one GitHub API call per interval.
+  waitPollInterval: 5m
+
+defaults:
+  # autoMerge: what the Stage may merge on its own. Anything it may not merge
+  # is still opened as a PR and the promotion waits for a human.
+  #   always -- merge whatever the Warehouse produced
+  #   minor  -- merge patch and metadata changes, plus minor bumps when the
+  #             major is > 0 (0.x minors are treated as breaking, per semver)
+  #   patch  -- merge patch and metadata changes only
+  #   never  -- always wait for a human
+  # For non-semver strategies (Digest, NewestBuild, Lexical) only `always`
+  # and `never` are meaningful; `minor`/`patch` behave as `never`.
+  autoMerge: minor
+  # Whether new Freight is promoted into the Stage automatically. `false`
+  # means someone clicks "Promote" in the Kargo UI first.
+  autoPromotion: true
+  interval:
+    # Registry/repo polling cadence by artifact kind. Kargo enforces a 5m floor.
+    image: 6h
+    chart: 24h
+    # NewestBuild targets -- our own CI images, where a merged change should
+    # reach the cluster promptly.
+    build: 15m
+  discoveryLimit:
+    image: 10
+    chart: 10
+    # NewestBuild inspects every candidate image's config blob; keep it small.
+    build: 5
+
+# projects:
+#   <project name -- becomes the Namespace and Kargo Project>:
+#     description: free text, rendered into the Project's annotations
+#     targets:
+#       <target name -- becomes the Warehouse and Stage name>:
+#         scope: conventional-commit scope for the PR title (default: project)
+#         autoMerge: override of defaults.autoMerge
+#         autoPromotion: override of defaults.autoPromotion
+#         interval: override of the polling interval
+#         format: how the value is written; default `image` for image targets
+#                 and `version` for chart targets
+#           image      -> repo:tag@sha256:digest   (raw manifests)
+#           image-tag  -> repo:tag                 (no digest)
+#           tag        -> tag                      (Helm values `image.tag`)
+#           version    -> chart version            (addons.yaml defaultVersion)
+#         image:                      # exactly one of image / chart
+#           repoURL: string, written verbatim into the file for image/image-tag
+#           strategy: SemVer | Digest | NewestBuild | Lexical (default SemVer)
+#           constraint: semver range (SemVer) or the mutable tag (Digest)
+#           allowTags: [regex, ...]   # tags must match one of these
+#           ignoreTags: [regex, ...]
+#           platform: linux/amd64     # set for NewestBuild
+#           strictSemvers: bool       # default true
+#           discoveryLimit: int
+#         chart:
+#           repoURL: https://... or oci://...
+#           name: chart name          # omit for OCI
+#           constraint: semver range
+#         updates:
+#           - file: path/in/repo.yaml
+#             format: per-file override of the target format
+#             keys:
+#               - sjson-style key path, e.g. spec.template.spec.containers.0.image
+#
+# Constraints on the files being updated (from how Kargo's yaml-update works):
+#   * the key must exist and address a scalar, in the FIRST YAML document of
+#     the file -- later `---` documents are preserved but unreachable;
+#   * the edited line is rewritten from the value onwards, so a trailing
+#     `# comment` on that line is dropped.
+projects: {}

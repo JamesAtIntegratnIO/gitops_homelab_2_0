@@ -1,0 +1,44 @@
+{{- range $projectName, $project := .Values.projects }}
+---
+# Pre-created and labelled so Kargo adopts it instead of racing ArgoCD to
+# create it. Kargo refuses to adopt an unlabelled pre-existing namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $projectName }}
+  labels:
+    kargo.akuity.io/project: "true"
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: {{ $projectName }}
+  labels:
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    {{- with $project.description }}
+    kargo.akuity.io/description: {{ . | quote }}
+    {{- end }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: {{ $projectName }}
+  namespace: {{ $projectName }}
+  labels:
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  promotionPolicies:
+    {{- range $targetName, $t := $project.targets }}
+    {{- $n := include "kp.normalise" (dict "root" $ "project" $projectName "name" $targetName "target" $t) | fromJson }}
+    - stageSelector:
+        name: {{ $targetName }}
+      autoPromotionEnabled: {{ $n.autoPromotion }}
+    {{- end }}
+{{- end }}
