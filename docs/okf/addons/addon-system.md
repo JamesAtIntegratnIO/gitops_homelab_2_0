@@ -84,6 +84,19 @@ default — addons must restate `syncOptions`), `ignoreDifferences`,
   default selfHeal/prune/retry instead of silently dropping them. Lists are still
   replaced wholesale, so an addon that sets `syncOptions` still replaces them.
   Before the change, 16 of 48 Applications had lost `selfHeal` this way.
+- **An addon's values folder is resolved by *chart name*, not addon key.**
+  `cert-manager-vcluster` has `chartName: cert-manager`, so it reads
+  `environments/{env}/addons/cert-manager/values.yaml` — the same file the host
+  cert-manager uses. A host-intended setting placed there silently applies inside
+  every vcluster too. Use `valuesFolderName` to break the tie, or put
+  cluster-role-specific settings in `cluster-roles/{role}/addons/<chart>/values.yaml`,
+  which *is* resolved per target cluster.
+- **Several production-layer addons have no `cluster_role` exclusion** — `kyverno`
+  and `external-secrets` among them — so their ApplicationSets generate an
+  Application for every production cluster including vclusters. Check the
+  selector before assuming an addon is host-only. On 2026-08-21 this combination
+  froze nine Deployments inside vcluster-media, which referenced a PriorityClass
+  that only existed on the host.
 - `additionalResources` on manifest-type addons is a no-op.
 - Values folders contribute **only `values.yaml`** — any other manifest files
   placed there are inert (several exist; see [known issues](/cluster/known-issues.md)).

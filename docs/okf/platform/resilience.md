@@ -48,6 +48,14 @@ part of the policy keeps the rest. Before that, 16 of 48 Applications had
 silently lost `selfHeal` and 36 had no retry — including cert-manager, Kyverno,
 MetalLB and the gateway. See [addon system](/addons/addon-system.md).
 
+**PriorityClasses must exist in every cluster that references them.** They are
+cluster-scoped, and a vcluster has its own set. Three addons that set
+`priorityClassName` also render into vclusters, so `platform-scheduling`
+deliberately targets vclusters too. Note that vcluster's syncer does **not**
+propagate `priorityClassName` to the host pod it creates, so inside a vcluster
+the field satisfies admission but does not affect host scheduling — the classes
+are there so the Deployments can roll, not because they change placement.
+
 **PDBs only where replicas ≥ 2.** `minAvailable: 1` against a single replica
 blocks every node drain forever, and would deadlock any future automated Talos
 upgrade. cert-manager, external-dns, Kratix and Redis deliberately have none.
