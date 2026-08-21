@@ -6,13 +6,13 @@ import (
 
 // StatusResult holds the computed status for a single vcluster.
 type StatusResult struct {
-	Phase          string         `json:"phase"`
-	Message        string         `json:"message"`
-	LastReconciled string         `json:"lastReconciled"`
-	Endpoints      Endpoints      `json:"endpoints,omitempty"`
-	Credentials    Credentials    `json:"credentials,omitempty"`
-	Health         Health         `json:"health"`
-	Conditions     []Condition    `json:"conditions"`
+	Phase          string      `json:"phase"`
+	Message        string      `json:"message"`
+	LastReconciled string      `json:"lastReconciled"`
+	Endpoints      Endpoints   `json:"endpoints,omitempty"`
+	Credentials    Credentials `json:"credentials,omitempty"`
+	Health         Health      `json:"health"`
+	Conditions     []Condition `json:"conditions"`
 }
 
 // Endpoints holds discoverable URLs for the vcluster.
@@ -29,9 +29,9 @@ type Credentials struct {
 
 // Health aggregates health checks across the lifecycle chain.
 type Health struct {
-	ArgoCD    ArgoCDHealth    `json:"argocd"`
-	Workloads WorkloadHealth  `json:"workloads"`
-	SubApps   SubAppHealth    `json:"subApps"`
+	ArgoCD    ArgoCDHealth   `json:"argocd"`
+	Workloads WorkloadHealth `json:"workloads"`
+	SubApps   SubAppHealth   `json:"subApps"`
 }
 
 // ArgoCDHealth reflects the parent ArgoCD Application status.
@@ -56,7 +56,7 @@ type SubAppHealth struct {
 // Condition follows the Kubernetes metav1.Condition convention.
 type Condition struct {
 	Type               string `json:"type"`
-	Status             string `json:"status"`     // "True", "False", "Unknown"
+	Status             string `json:"status"` // "True", "False", "Unknown"
 	Reason             string `json:"reason"`
 	Message            string `json:"message"`
 	LastTransitionTime string `json:"lastTransitionTime"`
