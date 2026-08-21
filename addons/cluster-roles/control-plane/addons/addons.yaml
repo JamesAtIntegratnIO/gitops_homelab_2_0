@@ -136,6 +136,30 @@ matrix-alertmanager-receiver:
     syncOptions:
       - CreateNamespace=true
 
+# Single source of truth for all homegrown alerting rules. Consolidated
+# 2026-08-21 from five separate PrometheusRules (argocd-dashboard,
+# matrix-alertmanager-receiver, kratix, trivy-dashboard,
+# platform-status-reconciler) that defined the same alert names in parallel and
+# produced duplicate Matrix messages for a single event.
+platform-alerts:
+  enabled: true
+  type: manifest
+  namespace: monitoring
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/platform-alerts
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+
 vcluster-dashboard:
   enabled: true
   type: manifest
