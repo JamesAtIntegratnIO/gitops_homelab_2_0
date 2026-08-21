@@ -30,7 +30,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: argocd-mcp
-          image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.5.0
+          image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.9.0@sha256:dffc6c719d8635be2d5f2c8ad1c0178540325da4b40da0b373307e12b4c48f86
           # CMD in Dockerfile is ["node", "dist/index.js", "http"] — no override needed
           ports:
             - name: http
