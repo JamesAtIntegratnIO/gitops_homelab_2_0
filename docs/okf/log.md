@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-08-21
+* **Update**: Quick wins completed end-to-end after PR #2 and #3 merged: Kyverno generate-policy swapped via `kubectl replace --force` (24/24 default-deny coverage preserved, zero gaps), mcp-system adopted by the new addon app and the out-of-band Application retired, llmkube runtime fully torn down (~100Gi reclaimed), etcd-secret-writer re-ran on alpine/k8s, and the state reconciler's GatewayRoute label churn ignored (PR #3). Final state: 54/54 apps Synced; [known issues](cluster/known-issues.md) remediation section updated to reflect completion.
 * **Update**: Applied the quick wins from [known issues](cluster/known-issues.md): 6 GitOps commits on `claude/repo-cluster-learning-8dcc81` (pre-commit hook fix, llmkube/git-indexer config removal, mcp-system addon adoption + secret-ref fix, etcd-secret-writer applyability fix, GatewayRoute ignoreDifferences, generate-policy unblock) plus out-of-band deletion of orphans (git-indexer stack, stuck trivy jobs, stale suspended VCO pipeline job). Trivy scanning and the vcluster-media status contract recovered immediately; remaining steps execute after the branch merges to main. Added a remediation-status section to the known-issues concept.
 
 ## 2026-08-20

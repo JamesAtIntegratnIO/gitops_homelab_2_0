@@ -15,46 +15,48 @@ sources:
     title: Repository review
 ---
 
-# Remediation status (2026-08-21)
+# Remediation status (2026-08-21) — quick wins COMPLETE
 
-The quick wins were applied on 2026-08-20/21 via branch
-`claude/repo-cluster-learning-8dcc81` (6 commits, `e7355c8..943c7a6`) plus
-out-of-band cleanup of unmanaged resources:
+Applied 2026-08-20/21 via PR #2 (8 rebased commits, `f09773c..4d0e7fa`) and
+PR #3 (`16ed316`), plus out-of-band cleanup of unmanaged resources. End
+state verified: **54/54 ArgoCD apps Synced**; the only non-Healthy is
+`nginx-gateway-fabric-the-cluster` (Synced/Progressing), a pre-existing
+condition unrelated to this work.
 
-**Fixed (verified live)**
-- #1 stale VCO status — suspended 170d job deleted, pipeline re-ran Complete
-  in 27s; `Reconciled: Failing` cleared, all conditions True.
-- #3 git-indexer — CronJob, failed Jobs, ConfigMap, ExternalSecret, and the
-  ESO-owned secret all removed from `ai`; the git-indexer netpol and the two
-  mcp-system references to its secret removed in git.
-- #4 trivy — the three stuck scan jobs/pods were deadlocking the operator;
-  deleted, scanning resumed immediately (15 VulnerabilityReports within
-  minutes, from zero for 88 days).
-- #8 pre-commit hook — path filter fixed (`promises/`), store name in the
-  example corrected.
-
-**In git, pending merge to main** (ArgoCD tracks main; commits are on the
-branch awaiting merge — the merge-blocked finale steps are listed in each
-commit message)
-- #2 llmkube — all git leftovers removed; runtime deletion deliberately
-  deferred until the netpol removal merges (otherwise ArgoCD tries to
-  recreate policies in a deleted namespace).
-- #5 OutOfSync apps — root causes fixed in git: etcd-secret-writer was
-  invalid-after-Kyverno-mutation + immutable (image/securityContext/Replace
-  fix), kratix-state-reconciler diffs CRD-defaulted GatewayRoute fields
-  (ignoreDifferences added), network-policies is stuck on Kyverno's
-  immutable-generate-rule rejection of df4994e (generateExisting added +
-  explicit mcp-system default-deny; requires a one-time policy
-  delete+recreate after merge — do NOT delete before merge), and
-  mcp-system-app's drift was a git typo `allowPrivilegeEscalance` on the
-  sequential-thinking deployment — corrected (`b8b1916`), and it matches the
-  Kyverno-mutated live state so it syncs without a rollout.
-- #6 mcp-system — adopted as a proper addon entry; `mcp-system-app.yaml`
-  removed; the live out-of-band Application gets deleted (non-cascading — it
-  has no finalizer) once the addon app exists.
+- #1 stale VCO status — **fixed**: suspended 170d job deleted, pipeline
+  re-ran Complete in 27s; `Reconciled: Failing` cleared, all conditions True.
+- #2 llmkube — **removed entirely**: git leftovers (netpols, addon stanza,
+  llmkube-models) via PR #2; runtime (controller, CRs, CRDs, cluster RBAC,
+  namespace, both 50Gi model-cache PVCs ≈100Gi NFS) deleted after the netpol
+  prune synced.
+- #3 git-indexer — **removed entirely**: CronJob/Jobs/ConfigMap/
+  ExternalSecret/secret from `ai`; netpol and the two mcp-system secret
+  references from git.
+- #4 trivy — **fixed**: the three stuck scan jobs were deadlocking the
+  operator; scanning resumed immediately after deletion (60+
+  VulnerabilityReports within the hour, from zero for 88 days).
+- #5 OutOfSync apps — **all four fixed**: etcd-secret-writer (invalid
+  securityContext after Kyverno mutation + Job immutability → explicit
+  allowPrivilegeEscalation, alpine/k8s image, Force+Replace sync-options,
+  extended PolicyException; re-ran Complete in 6s), network-policies
+  (immutable-generate-rule rejection → `generateExisting: true` + explicit
+  mcp-system default-deny in git, then one-time `kubectl replace --force` of
+  the ClusterPolicy; all 24 default-denies regenerated with zero coverage
+  gap), mcp-system-app (git typo `allowPrivilegeEscalance` corrected),
+  kratix-state-reconciler (ignoreDifferences for CRD-defaulted GatewayRoute
+  spec fields + the kratix.io/promise-name label churn Kratix applies to
+  requests — PR #3, matching the existing ArgoCD* request entries).
+- #6 mcp-system — **adopted**: `mcp-system` is now a manifest addon
+  (`mcp-system-the-cluster` app, Synced); the out-of-band `mcp-system-app`
+  Application was deleted non-cascadingly. github-mcp/mcpo rolled out
+  cleanly on the corrected `mcp-github-token` reference.
+- #8 pre-commit hook — **fixed**: path filter now `promises/`, example store
+  name corrected.
 
 **Still open**: #7 (idle third NFS provisioner), #9–#20 as originally
-described, minus the items above.
+described (portability, latent hctl bugs, doc drift), minus everything
+above. nginx-gateway-fabric's perpetual Progressing health is worth a
+separate look.
 
 # Live cluster findings (as found on 2026-08-20)
 
