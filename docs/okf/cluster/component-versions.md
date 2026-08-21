@@ -21,7 +21,7 @@ differs meaningfully, it's noted — the running image is the truth.
 | Cilium (+ Hubble UI) | 1.17.3 (+0.13.2) | CNI, kube-proxy replacement |
 | ArgoCD | v3.3.1 | chart pin 9.4.3 in addons; docs mentioning 9.0.3/2.x are stale |
 | Kratix | syntasso community image (sha-pinned) | chart 0.0.1 |
-| cert-manager | v1.16.2 | vclusters run v1.19.3 |
+| cert-manager | v1.19.3 | host upgraded 2026-08-21 from v1.16.2 (Cloudflare DNS01 cleanup bug had blocked wildcard renewal); vclusters already v1.19.3 |
 | external-secrets | v0.10.3 | |
 | external-dns | v0.19.0 | |
 | MetalLB | v0.15.3 | |
