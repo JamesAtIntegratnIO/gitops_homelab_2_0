@@ -89,6 +89,62 @@ kubectl annotate vclusterorchestratorv2s.platform.integratn.tech \
   -n platform-requests vcluster-media kratix.io/manual-reconciliation-
 ```
 
+# `retry.limit: -1` can wedge an app against its own fix (2026-08-21)
+
+Found when `mcp-system` stayed `OutOfSync/Degraded` **after** both fixes for it
+had merged to `main`. An hour later the live Job still carried the *old*
+`hook=PostSync` annotation and no `sync-options`, so neither fix had been
+applied.
+
+The cause is not the fixes. ArgoCD's in-flight sync operation hard-pins the
+revision it is applying:
+
+```
+.operation.sync.revisions = ["d397d53c…"]      # the commit from *before* both fixes
+```
+
+and the addon layer sets:
+
+```yaml
+retry:
+  backoff: { duration: 5s, factor: 2, maxDuration: 10m }
+  limit: -1        # unlimited
+```
+
+A retry **resumes the same operation against the same pinned revision** rather
+than re-resolving `HEAD`. With `limit: -1` that operation never reaches a
+terminal state, so auto-sync never starts a new one, so **no newer commit can
+ever be applied**. An app whose sync fails for a persistent reason is therefore
+pinned to the exact revision that is broken, and the commit that would repair it
+is unreachable. Backoff caps at 10m, so it retries forever, roughly every ten
+minutes, on stale manifests.
+
+This is the inverse of self-healing: infinite retry is right for a *transient*
+failure and actively harmful for a *persistent* one.
+
+`limit: -1` is set at `addons/charts/application-sets/values.yaml` and inherited
+widely — **53 of 59 Applications** carry it (1 has `limit: 30`, 5 have none).
+Only `mcp-system` was wedged when this was found, but any of the 53 is exposed.
+
+**Recovery is manual and out-of-band** — terminating a sync operation is runtime
+state, not desired state, so there is nothing to change in git:
+
+```bash
+kubectl -n argocd patch application <app> --type=json -p '[{"op":"remove","path":"/operation"}]'
+# or, with the CLI: argocd app terminate-op <app>
+```
+
+Auto-sync then starts a fresh operation at current `HEAD`.
+
+**Open question:** whether the inherited default should become a finite limit.
+With exponential backoff capped at 10m, a limit of ~10 spends about an hour on
+genuine transients and then gives up, which lets the next commit be tried. The
+cost is that after a terminal failure ArgoCD will not re-attempt the *same*
+revision automatically, so a transient failure that outlasts the limit leaves
+the app `OutOfSync` until a new commit or a manual sync. Not changed here — it
+is a deliberate trade-off across every app, and belongs with the self-healing
+work that set it.
+
 # Root cause found (2026-08-21): the vcluster-media restart storms
 
 Four pods in `vcluster-media` had 676-761 restarts since March, in bursts where
