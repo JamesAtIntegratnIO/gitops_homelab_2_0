@@ -582,3 +582,23 @@ platform-status-reconciler:
       prune: true
     syncOptions:
       - CreateNamespace=true
+
+# MCP servers (kubernetes/argocd/github/grafana/sequential-thinking + mcpo)
+# behind mcp.<domain>. Previously applied out-of-band as a standalone
+# Application (mcp-system-app); adopted into the addon framework so a cluster
+# rebuild recreates it from git.
+mcp-system:
+  enabled: true
+  type: manifest
+  namespace: mcp-system
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/mcp-system
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
