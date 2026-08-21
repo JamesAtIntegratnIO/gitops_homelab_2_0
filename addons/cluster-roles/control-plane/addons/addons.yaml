@@ -595,7 +595,7 @@ qdrant:
   namespace: ai
   chartName: qdrant
   chartRepository: "https://qdrant.github.io/qdrant-helm"
-  defaultVersion: "1.17.0"
+  defaultVersion: 1.19.0
   project: platform-services
   selector:
     matchExpressions:
