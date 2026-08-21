@@ -15,6 +15,65 @@ sources:
     title: Repository review
 ---
 
+# etcd is unhealthy, and a status write loop is feeding it (2026-08-21)
+
+Found while validating the self-healing rollout. Two linked problems.
+
+## etcd is well outside its operating envelope
+
+| metric | 10.0.4.101 | 10.0.4.102 | 10.0.4.103 | target |
+|---|---|---|---|---|
+| p99 WAL fsync | **178 ms** | 62 ms | 15 ms | < 10 ms |
+| p99 backend commit | **1.48 s** | 64 ms | 27 ms | < 25 ms |
+| leader changes / 24h | 44 | 37 | 43 | ~0 |
+| proposal failures / 24h | 118 | 48 | 53 | 0 |
+| DB in-use (fragmentation) | 73% | 79% | 71% | — |
+| apiserver etcd request p99 | **4.56 s** cluster-wide | | | |
+
+All three nodes put `/var` — and therefore `/var/lib/etcd` — on the single
+`sda` alongside the OS, containerd images and logs. `talos-xez-xys`
+(10.0.4.101) is **72% busy with 85 ms average write latency**. Giving etcd its
+own fast device is a Talos/hardware change; see the
+[Talos runbook](../../../matchbox/talos-machineconfigs/commands.md).
+
+This is not cosmetic. It is the direct cause of the NFS provisioner's restarts:
+
+```
+E0821 12:54:44 Failed to update lock: etcdserver: request timed out, possibly
+                due to previous leader failure
+F0821 16:15:57 leaderelection lost
+```
+
+Any leader-elected controller can lose its lease this way, and several have.
+
+## A status write loop was making it worse
+
+**202,435 of the 209,527 events in the cluster — 97% — were
+`ReconcileStarted`** from Kratix's ResourceRequestController against the single
+`vcluster-media` resource, with `vclusterorchestratorv2s PUT` running at
+**9.45/second** against that one object.
+
+Two defects in `platform-status-reconciler` rewrote `.status` on every 60s pass
+even in a steady state, and each write woke Kratix's watch:
+
+1. `lastTransitionTime` was re-stamped with `time.Now()` every pass. It means
+   *when the condition last changed state*, not *when we last looked*. Two reads
+   six seconds apart were byte-identical apart from five timestamps advancing
+   exactly 60s.
+2. The conditions array was replaced wholesale. A JSON merge patch replaces a
+   list, and Kratix owns `WorksSucceeded` on the same resource — so every write
+   deleted it and Kratix put it straight back. Neither side could converge,
+   because each rewrote the array with its own timestamps.
+
+Fixed by carrying the previous timestamp when nothing transitioned, preserving
+conditions owned by other controllers, and skipping the patch entirely when the
+result is equivalent to what is already stored.
+
+**Still open**: the ~208k events already in etcd will age out slowly; a one-off
+cleanup and a look at kube-apiserver's `--event-ttl` are both worth doing. And
+the underlying disk problem is untouched — reducing write volume helps, but it
+is not the fix.
+
 # Root cause found (2026-08-21): the vcluster-media restart storms
 
 Four pods in `vcluster-media` had 676-761 restarts since March, in bursts where
