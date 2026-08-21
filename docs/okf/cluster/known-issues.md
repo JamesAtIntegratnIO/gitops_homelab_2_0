@@ -115,13 +115,37 @@ separate object Talos does not manage and has been added, which at least stops a
 drain from taking both CoreDNS pods.
 
 **The real fixes are Talos-side** (see
-[commands.md](../../../matchbox/talos-machineconfigs/commands.md)):
-`talosctl get resolvers` to see what host DNS forwards to — if it is a single
-home router, adding a second independent nameserver under
-`machine.network.nameservers` is the cheap fix. Owning CoreDNS outright
-(`cluster.coreDNS.disabled: true` plus a CoreDNS addon) would allow re-enabling
-`cluster.local` caching and raising the CPU limit, which would make the whole
-chain far less brittle.
+[commands.md](../../../matchbox/talos-machineconfigs/commands.md)).
+
+*Update 2026-08-21: the single-upstream hypothesis is now measured, not assumed.*
+Scraping both CoreDNS replicas directly on `:9153` shows exactly one forward
+target and no fallback behind it:
+
+| counter | `…-f2tlz` | `…-gsh7d` |
+|---|---|---|
+| `coredns_proxy_healthcheck_failures_total{to="169.254.116.108:53"}` | 2,036 | 2,169 |
+| `coredns_forward_healthcheck_broken_total` | 4,192 | 4,673 |
+
+Only one `to=` label exists across either replica, so those two counters describe
+the same event: *the* upstream being unhealthy **is** having no healthy upstream,
+and CoreDNS falls back to forwarding blind. Both replicas agree to within ~10%
+over ~5 months of uptime, which puts the fault upstream rather than in either
+pod. The host resolver's own upstream list could not be read from here — that
+needs `talosctl get resolvers` — but the nodes set no
+`machine.network.nameservers` anywhere in `matchbox/talos-machineconfigs/`, so it
+is whatever DHCP hands out, and the default gateway on `eno1` is `10.0.0.1`.
+
+A second independent resolver is therefore queued as
+[`dns.yaml`](../../../matchbox/talos-machineconfigs/dns.yaml), unapplied — it
+needs `talosctl`, and it carries two pre-checks, because the field *replaces* the
+DHCP list and Talos distributes queries across upstreams rather than treating
+later ones as failover-only.
+
+Owning CoreDNS outright (`cluster.coreDNS.disabled: true` plus a CoreDNS addon)
+would additionally allow re-enabling `cluster.local` caching and raising the CPU
+limit, which would make the whole chain far less brittle. Worth noting for that
+work: 39% of everything CoreDNS forwards upstream (1.48M of 3.79M queries)
+returns NXDOMAIN, which is search-domain expansion leaving the cluster.
 
 # Resilience work (2026-08-21)
 
