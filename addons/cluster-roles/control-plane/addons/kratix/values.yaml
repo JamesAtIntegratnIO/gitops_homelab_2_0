@@ -118,13 +118,19 @@ additionalResources:
           jsonPointers:
             - /spec
             - /status
-        # GatewayRoute CRD defaults sectionName/httpSectionName on admission;
-        # pipeline output omits them, which otherwise diffs forever
+        # GatewayRoute CRD defaults sectionName/httpSectionName on admission,
+        # and Kratix relabels the request with the owning promise name
+        # (kratix.io/promise-name: gateway-route) while the parent http-service
+        # pipeline emits its own — same label churn the ArgoCD* request kinds
+        # below already ignore.
         - group: platform.integratn.tech
           kind: GatewayRoute
           jsonPointers:
             - /spec/sectionName
             - /spec/httpSectionName
+            - /metadata/annotations/argocd.argoproj.io~1tracking-id
+            - /metadata/annotations/kubectl.kubernetes.io~1last-applied-configuration
+            - /metadata/labels
         - group: argoproj.io
           kind: Application
           namespace: argocd
