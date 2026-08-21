@@ -112,6 +112,13 @@ condition, so the VCO **stopped re-running on Kratix's 10h reconciliation
 interval** — every other request has Jobs at ~10h spacing; the VCO has none
 between 02:18Z and the ArgoCD-driven 15:41Z run.
 
+**Resolved 2026-08-21T18:46Z.** The manual-reconciliation label was applied; a
+new pipeline Job ran (`…-f1582`, created 18:46:21Z, succeeded); Kratix rewrote
+`ConfigureWorkflowCompleted` and `Reconciled`, removed the label itself, and VCO
+`PUT`/s fell from ~10 to **0**. `workflowsSucceeded` is stable at 1. The
+stored-event count (46k at that moment) drains from here. Kept below for the
+record.
+
 **Fix: make Kratix re-establish the condition by completing a pipeline run.**
 Set the manual-reconciliation **label** (Kratix `main` reads labels —
 `isManualReconciliation(obj.GetLabels())`; `hctl reconcile` does exactly this,
@@ -139,8 +146,9 @@ returns to ~0.03, and the event count starts falling.
   did, and a byte comparison of the two could never be equal. The guard now
   applies the patch (RFC 7386 semantics) to the current status and compares the
   result, after JSON-normalising both sides; a test reproduces the live object
-  shape and fails against the old implementation. **Deploys by bumping the
-  `main-<sha>` pin after merge** — CI builds on push to `main`.
+  shape and fails against the old implementation. Merged in PR #23 (`946f6d4`); the pin bump to `main-55400cb` is PR #25 — once
+  synced, the `reconciler` managedFields time on the VCO should stop advancing
+  every minute.
 - **The Kratix Helm chart was effectively unpinned.** `0.0.1` is republished
   under new app versions (index regenerated 2026-08-21T09:22Z, appVersion
   1.16.0); the controller image changed at 02:37Z and 16:01Z on ordinary syncs.
