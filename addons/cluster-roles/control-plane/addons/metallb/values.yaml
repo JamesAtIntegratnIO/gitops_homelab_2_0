@@ -12,6 +12,21 @@
 # gateway address and the vcluster API endpoint.
 controller:
   priorityClassName: platform-critical
+  # Default is 300s: a pod sits on a dead node for five minutes before the
+  # scheduler may move it, which is most of the outage for a single-replica
+  # component. 60s still absorbs a brief network blip. The cluster-wide version
+  # of this is --default-*-toleration-seconds on kube-apiserver, which needs a
+  # Talos machine-config change; until then it is set per workload on the
+  # recovery path.
+  tolerations:
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 60
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 60
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault

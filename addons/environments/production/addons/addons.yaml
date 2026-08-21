@@ -155,10 +155,21 @@ external-secrets:
     installCRDs: true
     # Recovery path: every workload that needs a credential waits on these.
     priorityClassName: platform-critical
+    tolerations: &fastFailover
+      - key: node.kubernetes.io/not-ready
+        operator: Exists
+        effect: NoExecute
+        tolerationSeconds: 60
+      - key: node.kubernetes.io/unreachable
+        operator: Exists
+        effect: NoExecute
+        tolerationSeconds: 60
     webhook:
       priorityClassName: platform-critical
+      tolerations: *fastFailover
     certController:
       priorityClassName: platform-critical
+      tolerations: *fastFailover
     serviceAccount:
       name: "external-secrets-sa"
     extraObjects:
