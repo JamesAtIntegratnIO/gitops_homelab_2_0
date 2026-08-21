@@ -1,0 +1,32 @@
+# The chart renders no PodDisruptionBudget (grep its templates -- there is no
+# pdb.yaml), so a drain is free to take both replicas of either component at
+# once and leave the public VIP with no endpoints. Both run 2 replicas as of the
+# replica bump, so minAvailable: 1 is safe: it permits a rolling drain and
+# blocks a simultaneous one.
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nginx-gateway-nginx
+  namespace: nginx-gateway
+  labels:
+    app.kubernetes.io/part-of: platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-gateway-nginx
+      gateway.networking.k8s.io/gateway-name: nginx-gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nginx-gateway-fabric
+  namespace: nginx-gateway
+  labels:
+    app.kubernetes.io/part-of: platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-gateway-fabric
