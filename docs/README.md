@@ -91,6 +91,10 @@ All secrets live in 1Password. ExternalSecrets Operator pulls them into Kubernet
 - **[Kratix Troubleshooting](kratix-troubleshooting.md)**: Kratix-specific debugging guide
 - **[Phase 2 Verification](phase2-verification.md)**: Platform phase 2 verification checklist
 
+## Knowledge Bundle (OKF)
+
+[okf/](okf/index.md) is a machine- and human-readable [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog) bundle covering the repository **and** the live cluster — concept-per-file with provenance, freshness dates, and cross-links. Start at [okf/index.md](okf/index.md); the [known issues & drift](okf/cluster/known-issues.md) concept catalogs where docs, git, and the running cluster currently disagree.
+
 ## Non‑Negotiables
 
 These are hard rules enforced by pre-commit hooks, CI, or operational practice:
