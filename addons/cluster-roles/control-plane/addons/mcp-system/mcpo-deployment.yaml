@@ -28,7 +28,8 @@ spec:
         fsGroup: 1000
       initContainers:
         - name: render-config
-          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/kubectl:latest
+          # First-party, but :latest drifts on every CI build of the image.
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/kubectl:v1.34.1@sha256:2de503a9fc20271a9981abf91f1e1bbbd11ebd4dc461a046c97e6ca04fd44cdb
           command:
             - /bin/bash
             - -c
@@ -63,7 +64,7 @@ spec:
               type: RuntimeDefault
       containers:
         - name: mcpo
-          image: ghcr.io/open-webui/mcpo:main
+          image: ghcr.io/open-webui/mcpo:main@sha256:1e82c9555c19e50b80745705f32b47a2647589f35279527b5118ecd3a71bd467
           args:
             - "--config"
             - "/config-rendered/config.json"
