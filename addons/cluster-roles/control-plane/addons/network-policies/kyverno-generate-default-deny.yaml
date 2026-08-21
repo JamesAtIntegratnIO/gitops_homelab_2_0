@@ -17,6 +17,11 @@ spec:
   admission: true
   background: true
   validationFailureAction: Audit
+  # Generate for namespaces that already exist, not just new ones. Required so
+  # the delete+recreate cycle (Kyverno forbids in-place edits of generate
+  # rules) immediately re-covers every existing namespace, and so a cluster
+  # rebuild converges without namespace-creation ordering luck.
+  generateExisting: true
   rules:
     - name: generate-default-deny
       skipBackgroundRequests: true
