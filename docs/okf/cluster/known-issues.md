@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-21T01:30:00Z }
+generated: { by: claude-code/claude-fable-5, at: 2026-08-21T05:30:00Z }
 stale_after: 2026-09-20
 sources:
   - id: live-cluster
@@ -19,9 +19,9 @@ sources:
 
 Applied 2026-08-20/21 via PR #2 (8 rebased commits, `f09773c..4d0e7fa`) and
 PR #3 (`16ed316`), plus out-of-band cleanup of unmanaged resources. End
-state verified: **54/54 ArgoCD apps Synced**; the only non-Healthy is
-`nginx-gateway-fabric-the-cluster` (Synced/Progressing), a pre-existing
-condition unrelated to this work.
+state verified: **54/54 ArgoCD apps Synced and Healthy** (the last holdout,
+`nginx-gateway-fabric-the-cluster`, turned out to be an expired wildcard
+certificate — see the follow-up finding below).
 
 - #1 stale VCO status — **fixed**: suspended 170d job deleted, pipeline
   re-ran Complete in 27s; `Reconciled: Failing` cleared, all conditions True.
@@ -55,8 +55,39 @@ condition unrelated to this work.
 
 **Still open**: #7 (idle third NFS provisioner), #9–#20 as originally
 described (portability, latent hctl bugs, doc drift), minus everything
-above. nginx-gateway-fabric's perpetual Progressing health is worth a
-separate look.
+above.
+
+# Follow-up finding (2026-08-21): the wildcard certificate had EXPIRED
+
+Investigating `nginx-gateway-fabric-the-cluster`'s "Progressing" health
+(ArgoCD's Certificate check reports Progressing while `Issuing=True`) revealed
+that **`*.cluster.integratn.tech` had been served expired since 2026-08-09** —
+12 days — with cert-manager's `Ready=True "has not expired"` condition stale
+and misleading. Every platform UI (ArgoCD, Grafana, Authentik, Open WebUI…)
+and the vcluster Prometheus remote-write endpoint were affected.
+
+- **Root cause**: renewal (scheduled 2026-07-10) was stuck on the Cloudflare
+  DNS01 solver's cleanup step — `DELETE /zones//dns_records/…` → Cloudflare
+  error 7003 — because cert-manager ≤1.16.3 read `zone_id` from the DNS-record
+  listing, which the Cloudflare API stopped returning. The wildcard challenge
+  validated but could never finish cleanup, so the order stayed pending forever.
+  Upstream fix: cert-manager PR #7549 (1.16.4+ / 1.17.1+); the host ran v1.16.2
+  while the vcluster layer already ran v1.19.3.
+- **Fix**: PR #5 bumped the control-plane cert-manager addon to **v1.19.3**
+  (same values shape as the vcluster layer); after rollout, the stuck
+  `CertificateRequest …-2` was deleted to open a fresh ACME order, which issued
+  in ~150s. One v1.16-chart leftover (`RoleBinding cert-manager-cert-manager-
+  tokenrequest`) was pruned by hand because the addon intentionally runs
+  without auto-prune.
+- **Verified**: served cert now `notBefore 2026-08-21 / notAfter 2026-11-19`
+  on all hostnames; both apps Synced/Healthy.
+- **Residue**: one orphaned `_acme-challenge.cluster.integratn.tech` TXT record
+  (id `caa61977…`) remains in the Cloudflare zone from the failed cleanups —
+  harmless, remove manually.
+- **Lesson**: cert-manager's Ready condition is not a monitoring signal. The
+  `certmanager_certificate_expiration_timestamp_seconds` metric (scraped via the
+  chart's ServiceMonitor) should back a `CertificateExpiringSoon` alert — an
+  open follow-up.
 
 # Live cluster findings (as found on 2026-08-20)
 
