@@ -153,6 +153,12 @@ external-secrets:
         values: ['true']
   valuesObject:
     installCRDs: true
+    # Recovery path: every workload that needs a credential waits on these.
+    priorityClassName: platform-critical
+    webhook:
+      priorityClassName: platform-critical
+    certController:
+      priorityClassName: platform-critical
     serviceAccount:
       name: "external-secrets-sa"
     extraObjects:

@@ -20,6 +20,8 @@ spec:
       labels:
         app: grafana-mcp
     spec:
+      # Deferrable: developer tooling, not a platform dependency.
+      priorityClassName: platform-batch
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532

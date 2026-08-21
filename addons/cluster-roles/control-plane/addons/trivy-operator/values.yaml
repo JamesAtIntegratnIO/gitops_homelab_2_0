@@ -34,7 +34,11 @@ operator:
   # Clean up completed scan jobs after 30s
   scanJobTTL: 30s
 
+# Deferrable: a vulnerability scan must never cost a running service its node.
+priorityClassName: platform-batch
+
 trivy:
+  priorityClassName: platform-batch
   # Standalone mode — no Trivy server needed
   mode: Standalone
   # Only report actionable severities

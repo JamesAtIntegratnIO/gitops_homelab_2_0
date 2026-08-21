@@ -8,7 +8,10 @@
 #   - SYS_ADMIN capability  (FRR routing namespace operations)
 #   - NET_ADMIN capability  (FRR routing table management)
 
+# Recovery path: the speaker owns every LoadBalancer VIP, including the public
+# gateway address and the vcluster API endpoint.
 controller:
+  priorityClassName: platform-critical
   podSecurityContext:
     seccompProfile:
       type: RuntimeDefault
@@ -22,6 +25,7 @@ controller:
 
 # Speaker init container and sidecar resource limits
 speaker:
+  priorityClassName: platform-critical
   frr:
     resources:
       requests:
