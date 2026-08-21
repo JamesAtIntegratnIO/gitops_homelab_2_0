@@ -39,7 +39,7 @@ top-level areas:
 |---|---|---|
 | `addons` | chart versions in every `addons.yaml` (host *and* the vcluster copies, moved together), the Argo Rollouts CRD tag, and the images in raw-manifest addons (`mcp-system`, reconciler, Jobs, nfs, authentik-redis, open-webui image, our own kubectl image) | 35 |
 | `promises` | the `*-configure` pipeline images in `promises/*/promise.yaml`, pinned to `main-<sha>` | 7 |
-| `workloads` | the media apps in `workloads/vcluster-media/` and `platform/http-services/hello-world.yaml` | 7 |
+| `workloads` | the media apps in `workloads/vcluster-media/` | 6 |
 
 The UI is at <https://kargo.cluster.integratn.tech>; ArgoCD deep-links are
 wired to <https://argocd.cluster.integratn.tech>.
@@ -211,7 +211,6 @@ helm template kargo-projects addons/charts/kargo-projects \
 |---|---|
 | `gateway-api-crds` (`v1.4.0`) | Gateway API must move in step with NGINX Gateway Fabric; bump both by hand |
 | `kratix` chart `0.0.1` | placeholder version; the images inside are sha-pinned by Syntasso's chart |
-| `bitnami/kubectl:latest` in the Kratix cleanup CronJob | needs `jq`, which our kubectl image lacks; swap to `alpine/k8s` (has both, but runs as root) is its own change |
 | vcluster-media's etcd `3.6.8-0` | coupled to the vcluster/Kubernetes version |
 | `environments/development` and `staging` | no clusters use them |
 | the disabled `mcp-*`, `ai-platform`, ACK addons | disabled |
