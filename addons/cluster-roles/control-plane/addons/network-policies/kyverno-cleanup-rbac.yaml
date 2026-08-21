@@ -1,0 +1,28 @@
+# Kyverno's cleanup controller follows least privilege: its ClusterRole grants
+# only what it needs to read policies, and nothing to delete the resources those
+# policies target. Rather than editing the chart's ClusterRole, aggregate into it
+# -- kyverno:cleanup-controller selects on these three labels.
+#
+# Scope is deliberately narrow: Pods and Jobs. Both are recreatable by their
+# owning controller, which is the line this platform draws for automation --
+# restarting and deleting ephemeral objects is fair game, changing desired state
+# is not.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyverno:cleanup-controller:platform-stale-resources
+  annotations:
+    # Must exist before the policies: Kyverno's admission webhook rejects a
+    # cleanup policy whose target kind the controller cannot delete.
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+    app.kubernetes.io/component: cleanup-controller
+    app.kubernetes.io/instance: kyverno
+    app.kubernetes.io/part-of: kyverno
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "delete"]
