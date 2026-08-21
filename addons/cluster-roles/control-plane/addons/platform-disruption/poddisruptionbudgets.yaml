@@ -22,3 +22,22 @@ spec:
   selector:
     matchLabels:
       k8s-app: kube-dns
+---
+# vcluster-media's etcd. The vcluster-orchestrator-v2 promise renders a PDB for
+# the three vcluster control-plane pods (app=vcluster) but nothing for the
+# three-member etcd StatefulSet behind them, which is the one piece whose loss
+# of quorum takes the whole tenant down. Same selector labels the StatefulSet
+# uses; minAvailable 2 keeps quorum through any single disruption.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vcluster-media-etcd
+  namespace: vcluster-media
+  labels:
+    app.kubernetes.io/part-of: platform
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: vcluster-etcd
+      release: vcluster-media
