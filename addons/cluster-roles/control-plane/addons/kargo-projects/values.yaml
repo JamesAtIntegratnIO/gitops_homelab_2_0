@@ -534,7 +534,7 @@ projects:
       radarr:
         scope: vcluster-media
         image: { <<: *linuxserverImage, repoURL: ghcr.io/linuxserver/radarr }
-        interval: 12h
+        interval: 12h0m0s
         format: tag
         autoMerge: always
         updates:
@@ -543,7 +543,7 @@ projects:
       sonarr:
         scope: vcluster-media
         image: { <<: *linuxserverImage, repoURL: linuxserver/sonarr }
-        interval: 12h
+        interval: 12h0m0s
         format: tag
         autoMerge: always
         updates:
@@ -555,7 +555,7 @@ projects:
           <<: *linuxserverImage
           repoURL: ghcr.io/linuxserver/sabnzbd
           allowTags: ['^\d+\.\d+\.\d+-ls\d+$']
-        interval: 12h
+        interval: 12h0m0s
         format: tag
         autoMerge: always
         updates:
