@@ -1,0 +1,26 @@
+# Hardware watchdog timer.
+#
+# A separate machine-config document (Talos multi-doc config), so it is applied
+# with its own --config-patch rather than merged into all.yaml.
+#
+# Why: Talos already reboots itself on a kernel panic (the `panic` kernel
+# parameter defaults to an automatic reboot). What it cannot do is recover from
+# a hang where nothing panics -- a wedged kernel, a hardware fault, a stuck
+# driver. The node stays Ready-but-useless until someone walks over to it. With
+# the watchdog armed, the machine resets itself after `timeout` without a
+# heartbeat and rejoins on its own.
+#
+# Check the device exists before applying:
+#   talosctl -n 10.0.4.101 list /dev | grep watchdog
+# If /dev/watchdog0 is absent the board exposes no watchdog and Talos can fall
+# back to the softdog kernel module, which catches software hangs but not a
+# hard hardware fault.
+#
+# Default timeout is 1m, minimum 10s. 2m is chosen to sit comfortably above the
+# 60s toleration above, so the watchdog is the second line of defence rather
+# than racing pod eviction.
+---
+apiVersion: v1alpha1
+kind: WatchdogTimerConfig
+device: /dev/watchdog0
+timeout: 2m0s

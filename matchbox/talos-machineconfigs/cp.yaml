@@ -12,6 +12,16 @@ machine:
         ip: 10.0.4.100
 cluster:
   allowSchedulingOnControlPlanes: true
+  apiServer:
+    extraArgs:
+      # Default is 300s: after a node goes away its pods sit there for five
+      # minutes before the scheduler may move them. 60s is the cluster-wide
+      # version of the per-workload tolerations set on the recovery-path addons,
+      # and it also covers pods from charts we do not control -- vcluster-synced
+      # pods, Kratix pipeline Jobs. Not lower than ~45s: below that a brief
+      # network blip starts evicting pods that were never really gone.
+      default-not-ready-toleration-seconds: "60"
+      default-unreachable-toleration-seconds: "60"
   controllerManager:
     extraArgs:
       bind-address: "0.0.0.0"

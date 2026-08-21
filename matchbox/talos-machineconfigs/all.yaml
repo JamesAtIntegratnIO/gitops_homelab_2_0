@@ -7,3 +7,15 @@ machine:
       - reboot=k
   certSANs:
     - 10.0.4.100
+  features:
+    # Lets a Pod in the talos-backup namespace call the Talos API, scoped to the
+    # single os:etcd:backup role -- enough to take an etcd snapshot and nothing
+    # else. This is the prerequisite for scheduled off-cluster etcd backups;
+    # today the only recovery from etcd loss is the 2-3 hour rebuild in
+    # docs/operations.md.
+    kubernetesTalosAPIAccess:
+      enabled: true
+      allowedRoles:
+        - os:etcd:backup
+      allowedKubernetesNamespaces:
+        - talos-backup
