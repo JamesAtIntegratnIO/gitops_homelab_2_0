@@ -4,8 +4,8 @@ title: AI stack — Open WebUI, Qdrant, MCP servers, (retired) llmkube & git-ind
 description: The self-hosted AI assistant layer over the platform — chat UI, vector store, MCP tool servers behind one gateway host, and the parts that have been retired.
 tags: [ai, open-webui, qdrant, mcp, rag, llm]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
-stale_after: 2026-11-20
+generated: { by: claude-code/claude-opus-5, at: 2026-08-21T18:00:00Z }
+stale_after: 2026-11-21
 sources:
   - id: mcp-dir
     resource: ../../../addons/cluster-roles/control-plane/addons/mcp-system/
@@ -42,10 +42,15 @@ path-routed on `mcp.cluster.integratn.tech`:[^mcp-dir]
 Recent git history is dominated by hardening this stack (routing rewrites,
 egress policies, securityContexts, supergateway transport fixes).[^git-log]
 
-⚠️ Deployment mechanism: `mcp-system-app.yaml` is a plain ArgoCD Application
-manifest that **no addon or kustomization applies** — it was applied
-out-of-band and self-manages from there. See
-[known issues](/cluster/known-issues.md).
+Deployment mechanism: the stack is now the `mcp-system` addon
+(`type: manifest`, control-plane only) declared in
+`addons/cluster-roles/control-plane/addons/addons.yaml`, so a cluster rebuild
+recreates it from git. The out-of-band `mcp-system-app` Application it replaced
+has been retired. Every image is digest-pinned after an unpinned `:latest`
+carried grafana-mcp 0.14.0 → 1.1.0 on an unrelated rollout, and grafana-mcp's
+liveness probe is a `tcpSocket` check — pointing it at `/healthz` made a stale
+Grafana token restart-loop the pod. Full reference:
+[docs/mcp.md](../../mcp.md).
 
 # Retired components (with live remnants)
 
