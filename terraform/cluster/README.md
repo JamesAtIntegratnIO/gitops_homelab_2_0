@@ -70,7 +70,7 @@ The following patterns are ignored by git to prevent accidental commits:
 - `*.tfstate*` - State files (using Postgres backend)
 - `*.tfvars` - Variable files (may contain secrets)
 - `backend.hcl` - Backend configuration (environment-specific)
-- `dockerconfig.json` - Docker credentials
+- `dockerconfig.json` - Docker credentials (**optional**: when absent the GHCR pull secret is skipped and `tofu apply` still completes, so a fresh clone can bootstrap. The `ghcr_login_secret` output says which happened. Add the file and re-apply to create it.)
 
 ## Validation
 

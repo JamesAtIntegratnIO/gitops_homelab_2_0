@@ -96,9 +96,9 @@ rule, which was 8.399.)
   See [known issues](/cluster/known-issues.md) and the Talos runbook.[^talos-cmds]
 - **etcd snapshots.** The Talos API access that enables them is committed as a
   machine-config patch but not applied; nothing backs etcd up today.
-- **Rebuild from git.** Blocked by two fresh-clone bugs (`secrets.env`,
-  `dockerconfig.json`). The DR path in [operations](../../operations.md) has
-  never been exercised.
+- **Rebuild from git.** The two fresh-clone bugs (`secrets.env`,
+  `dockerconfig.json`) are fixed, but the DR path in
+  [operations](../../operations.md) has still never been exercised end to end.
 - **NFS server loss.** Single point of failure for every PV, by accepted design
   — see [storage](/platform/storage.md).
 

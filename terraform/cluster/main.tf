@@ -71,7 +71,16 @@ module "argocd" {
 
 }
 
+# dockerconfig.json is gitignored. Reading it unconditionally meant `tofu plan`
+# failed on a clean checkout before it could show anything -- file() errors at
+# evaluation time, not apply time. That made the documented disaster-recovery
+# path (clone the repo, tofu apply) impossible to even dry-run.
+#
+# Skipped when the file is absent, so bootstrap proceeds and the registry
+# credential can be added afterwards. See the ghcr_login_secret output.
 resource "kubernetes_secret" "docker-config" {
+  count = fileexists("${path.module}/dockerconfig.json") ? 1 : 0
+
   metadata {
     name      = "ghcr-login-secret"
     namespace = "argocd"
@@ -84,4 +93,9 @@ resource "kubernetes_secret" "docker-config" {
   type = "kubernetes.io/dockerconfigjson"
 
   depends_on = [module.argocd]
+}
+
+output "ghcr_login_secret" {
+  description = "Whether the GHCR pull secret was created from dockerconfig.json."
+  value       = fileexists("${path.module}/dockerconfig.json") ? "created" : "SKIPPED - dockerconfig.json not present; private-registry pulls will fail until it is added and tofu apply is re-run"
 }

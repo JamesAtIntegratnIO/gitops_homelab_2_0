@@ -171,10 +171,11 @@ earned:
 
 - **Two nodes at once.** Nothing here survives that: etcd loses quorum. That is
   a rebuild, and the rebuild path is untested (see below).
-- **Rebuild from git.** Blocked today by two known issues: `flake.nix` sources
-  a gitignored `secrets.env` unguarded, and `terraform/cluster/main.tf` reads a
-  gitignored `dockerconfig.json` at plan time. Both break a fresh clone. Worth
-  fixing before anyone needs the DR path in anger.
+- **Rebuild from git.** The two fresh-clone blockers are fixed -- `nix develop`
+  no longer requires a `secrets.env`, and `tofu plan` no longer requires a
+  `dockerconfig.json` -- but the full path has still never been exercised
+  end to end. Doing that on a throwaway machine is the one test that would
+  actually validate disaster recovery.
 - **etcd loss.** There are no off-cluster etcd snapshots yet; the Talos API
   access that enables them is committed but not applied.
 - **NFS server loss.** Every PV lives on it. `hack/restart-nfs-pods.sh` recovers
