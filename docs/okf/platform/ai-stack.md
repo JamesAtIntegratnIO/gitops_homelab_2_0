@@ -52,6 +52,28 @@ liveness probe is a `tcpSocket` check — pointing it at `/healthz` made a stale
 Grafana token restart-loop the pod. Full reference:
 [docs/mcp.md](../../mcp.md).
 
+That single unpinned-tag jump has now caused **three** distinct failures, the
+last of which was misdiagnosed twice:
+
+1. `/healthz` in 1.1.0 rejects an unauthenticated Grafana connection where
+   0.14.0 tolerated it — a stale token became a CrashLoop (liveness fix).
+2. The token Job could not repair the token because it validated only the
+   presence of a key, not its acceptance (PreSync + `Force=true,Replace=true`).
+3. **1.1.0 added Host-header validation**, and `--allowed-hosts` defaults to
+   "loopback variants of `--address`" — for `0.0.0.0:8000` that is exactly
+   `localhost:8000` and `127.0.0.1:8000`. Every real caller got
+   `403 forbidden: host not allowed`: the kubelet probe (Host is the pod IP),
+   mcpo (the Service FQDN), and anything arriving through the Gateway. This was
+   predicted to be a Grafana *authorization* problem — Viewer vs Admin on
+   `GET /api/datasources` — and it was not; Grafana was never in the path, and
+   escalating the service account would have changed nothing. Fixed by
+   allowlisting the real callers and giving the readiness probe an explicit
+   `Host` header, because pod IPs are per-pod and cannot be allowlisted.
+
+The general lesson is narrower than "pin images": a pinned *major* jump still
+arrives with new default-deny security behaviour, and a 403 is worth reading the
+body of before assuming which system produced it.
+
 # Retired components (with live remnants)
 
 - **git-indexer** — a Python RAG indexer (still in `images/git-indexer/`;
