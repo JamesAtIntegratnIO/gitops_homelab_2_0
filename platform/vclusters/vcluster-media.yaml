@@ -42,6 +42,13 @@ spec:
           enabled: false
     resources:
       requests:
+        # The prod preset reserves 500m per control-plane replica (1.5 CPU across
+        # the three). Live usage is 47m/141m/120m and this is the single largest
+        # block of over-reservation on the cluster: with it, total requests do not
+        # fit on two nodes, so losing one leaves pods Pending. The 2-CPU limit is
+        # unchanged, so burst headroom is unaffected -- this only changes
+        # scheduling.
+        cpu: "250m"
         memory: "2Gi"
       limits:
         memory: "2Gi"

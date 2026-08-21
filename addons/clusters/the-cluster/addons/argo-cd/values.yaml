@@ -7,7 +7,8 @@ controller:
   dynamicClusterDistribution: true
   resources:
     requests:
-      cpu: 500m
+      # VPA target 361m, upper bound 429m, live 340m on the active replica.
+      cpu: 400m
       memory: 2Gi
     limits:
       cpu: "2"
@@ -99,7 +100,8 @@ applicationSet:
   replicas: 2
   resources:
     requests:
-      cpu: 100m
+      # VPA target 15m, live 2-6m.
+      cpu: 50m
       memory: 128Mi
     limits:
       cpu: 500m
@@ -108,7 +110,8 @@ applicationSet:
 redis:
   resources:
     requests:
-      cpu: 100m
+      # VPA target 28m, live 11m.
+      cpu: 50m
       memory: 256Mi
     limits:
       cpu: 500m
