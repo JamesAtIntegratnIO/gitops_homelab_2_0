@@ -41,7 +41,7 @@ spec:
           # The workflow publishes `main-<sha>` alongside `latest` (see
           # .github/workflows/build-platform-status-reconciler-image.yaml), so
           # bumping this line is what deploys new reconciler code.
-          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:main-d2c1d56@sha256:c818a3a2b6fc33f77c82113639c07bfdfc90f4640e5380804efa25d3a1919e28
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:main-55400cb@sha256:0ea05f1278b73bfbb712535c73e14c1b4443c59f8ac36283641b81eb517b5fd1
           imagePullPolicy: Always
           env:
             - name: RECONCILE_INTERVAL
