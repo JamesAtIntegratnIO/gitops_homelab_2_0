@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: receiver
-          image: metio/matrix-alertmanager-receiver:2026.2.11
+          image: metio/matrix-alertmanager-receiver:2026.8.5@sha256:aa6feed0cb9b6b36d4f9821d32f02d8959dca9f345fe0d7539cb28ac2203d541
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
