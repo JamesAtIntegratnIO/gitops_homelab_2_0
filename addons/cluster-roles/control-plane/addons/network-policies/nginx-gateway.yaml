@@ -202,6 +202,19 @@ spec:
       ports:
         - protocol: TCP
           port: 6333
+    # Kargo UI/API (docs/kargo.md). Without this entry the kargo side's
+    # allow-gateway-ingress is moot: nginx's SYN is dropped here and the
+    # request hangs with zero bytes -- day-one symptom "the UI doesn't load".
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kargo
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: api
+      ports:
+        - protocol: TCP
+          port: 8080
     # LLMKube inference backends (bare-metal/metal agent on LAN).
     # Cilium DNATs service ClusterIP → Mac endpoint before policy evaluation,
     # so the post-DNAT destination is 10.0.x.x:ephemeral — ipBlock is required.

@@ -122,6 +122,12 @@ Addon value files resolve `environments/{env}` → `cluster-roles/{role}` →
 - **Pin images.** An unpinned `:latest` in `mcp-system` silently jumped
   grafana-mcp 0.14.0 → 1.1.0 on a rollout. Everything is digest-pinned now; keep
   it that way. And never point a *liveness* probe at an external dependency.
+- **A new service behind the gateway needs *two* NetworkPolicy halves.** The
+  service's namespace must admit `nginx-gateway`, *and* the gateway data
+  plane's egress allow-list in
+  [network-policies/nginx-gateway.yaml](addons/cluster-roles/control-plane/addons/network-policies/nginx-gateway.yaml)
+  must name the new namespace/port. Missing the second half looks like a
+  hang with zero bytes, not an error — Kargo's UI shipped that way.
 - **Kargo rewrites pinned lines in place.** Every pin it tracks is listed in
   [kargo-projects/values.yaml](addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml).
   A tracked key must stay in the *first* YAML document of its file, stay a
