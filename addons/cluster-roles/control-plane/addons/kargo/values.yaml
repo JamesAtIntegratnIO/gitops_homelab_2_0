@@ -1,0 +1,112 @@
+# Kargo (chart 1.11.2) -- used here as the version-bump bot for this repo:
+# Warehouses watch registries and chart repos, Stages open PRs against main.
+# Projects/Warehouses/Stages come from the kargo-projects addon; credentials
+# and the route from kargo-extras/. Full picture: docs/kargo.md.
+
+global:
+  # Developer tooling, evictable ahead of platform components (like mcp-system).
+  priorityClassName: platform-batch
+  sharedResources:
+    # Holds the one GitHub credential every Project reads
+    # (kargo-extras/externalsecret-github.yaml). Chart default, stated here
+    # because the ExternalSecret hard-codes it.
+    namespace: kargo-shared-resources
+
+api:
+  host: kargo.cluster.integratn.tech
+  # Credentials are GitOps-managed ExternalSecrets; the UI never needs to
+  # create or edit Secrets, so remove that capability from its surface.
+  secretManagementEnabled: false
+  secret:
+    # ADMIN_ACCOUNT_PASSWORD_HASH + ADMIN_ACCOUNT_TOKEN_SIGNING_KEY, from
+    # 1Password via kargo-extras/externalsecret-admin.yaml. Setting this stops
+    # the chart rendering its own Secret from api.adminAccount.*.
+    name: kargo-admin-credentials
+  adminAccount:
+    enabled: true
+    tokenTTL: 24h
+  oidc:
+    # Authentik public (PKCE) client declared as a blueprint next to the
+    # ArgoCD and Grafana providers; no client secret exists anywhere.
+    enabled: true
+    issuerURL: https://auth.cluster.integratn.tech/application/o/kargo/
+    clientID: kargo
+    cliClientID: kargo
+    additionalScopes:
+      - groups
+    usernameClaim: email
+    admins:
+      claims:
+        groups:
+          - authentik Admins
+  argocd:
+    # Deep links from Stages to the Applications they affect.
+    urls:
+      "": https://argocd.cluster.integratn.tech
+  rollouts:
+    integrationEnabled: false
+  tls:
+    # TLS terminates at nginx-gateway with the wildcard cert. The API listens
+    # on plain HTTP (Service port 80 -> 8080) behind the HTTPRoute, but must
+    # still advertise https:// URLs for the OIDC callback and the CLI.
+    enabled: false
+    terminatedUpstream: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 96Mi
+    limits:
+      memory: 256Mi
+
+controller:
+  argocd:
+    integrationEnabled: true
+  rollouts:
+    integrationEnabled: false
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+managementController:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+webhooksServer:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+# Inbound webhooks (GitHub, registries) would let Warehouses refresh on push
+# instead of polling. Nothing is exposed for that, so keep the server off.
+externalWebhooksServer:
+  enabled: false
+
+garbageCollector:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
