@@ -62,7 +62,11 @@ type Condition struct {
 	LastTransitionTime string `json:"lastTransitionTime"`
 }
 
-// NewCondition creates a Condition with the current timestamp.
+// NewCondition creates a Condition stamped with the current time.
+//
+// Callers that are refreshing an existing condition must run the result through
+// CarryTransitionTime, or the timestamp churns on every pass -- see the comment
+// there for why that matters.
 func NewCondition(condType, status, reason, message string) Condition {
 	return Condition{
 		Type:               condType,
@@ -71,4 +75,54 @@ func NewCondition(condType, status, reason, message string) Condition {
 		Message:            message,
 		LastTransitionTime: time.Now().UTC().Format(time.RFC3339),
 	}
+}
+
+// CarryTransitionTime restores lastTransitionTime from the matching existing
+// condition whenever the status has not actually transitioned.
+//
+// lastTransitionTime means "when this condition last changed state", not "when
+// we last looked". Re-stamping it every pass made the reconciler rewrite .status
+// on every cycle even when nothing had changed, which:
+//
+//   - woke Kratix's ResourceRequestController on its watch, once per cycle;
+//   - and, because each side then rewrote the conditions array with its own
+//     timestamps, the two controllers never converged.
+//
+// On 2026-08-21 that loop was running at ~9.5 writes/second against a single
+// object and had produced 202,435 ReconcileStarted events -- 97% of every event
+// in the cluster -- against etcd already struggling with 178ms p99 fsync.
+func CarryTransitionTime(fresh []Condition, existing []Condition) []Condition {
+	prev := make(map[string]Condition, len(existing))
+	for _, c := range existing {
+		prev[c.Type] = c
+	}
+	out := make([]Condition, 0, len(fresh))
+	for _, c := range fresh {
+		if old, ok := prev[c.Type]; ok && old.Status == c.Status && old.LastTransitionTime != "" {
+			c.LastTransitionTime = old.LastTransitionTime
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// MergeForeignConditions appends conditions owned by other controllers, which a
+// merge patch on the conditions array would otherwise drop.
+//
+// The reconciler patches .status.conditions as a whole list, and a JSON merge
+// patch replaces a list rather than merging it. Kratix sets its own
+// WorksSucceeded condition on the same resource, so every write deleted it and
+// Kratix immediately put it back -- the other half of the write loop.
+func MergeForeignConditions(ours []Condition, existing []Condition) []Condition {
+	owned := make(map[string]bool, len(ours))
+	for _, c := range ours {
+		owned[c.Type] = true
+	}
+	out := append([]Condition{}, ours...)
+	for _, c := range existing {
+		if !owned[c.Type] {
+			out = append(out, c)
+		}
+	}
+	return out
 }

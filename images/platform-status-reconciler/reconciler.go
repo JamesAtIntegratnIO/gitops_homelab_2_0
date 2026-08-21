@@ -421,9 +421,19 @@ func (r *Reconciler) patchStatus(ctx context.Context, vcr *unstructured.Unstruct
 		},
 	}
 
-	// Conditions
+	// Reconcile our conditions against what is already on the object:
+	//   - keep lastTransitionTime where the status has not actually changed, so a
+	//     steady state does not look like a fresh transition every pass;
+	//   - keep conditions owned by other controllers (Kratix's WorksSucceeded),
+	//     which a merge patch on this list would otherwise drop.
+	existingConds := readConditions(vcr)
+	conds := MergeForeignConditions(
+		CarryTransitionTime(result.Conditions, existingConds),
+		existingConds,
+	)
+
 	condList := []interface{}{}
-	for _, c := range result.Conditions {
+	for _, c := range conds {
 		condList = append(condList, map[string]interface{}{
 			"type":               c.Type,
 			"status":             c.Status,
@@ -433,6 +443,16 @@ func (r *Reconciler) patchStatus(ctx context.Context, vcr *unstructured.Unstruct
 		})
 	}
 	statusMap["conditions"] = condList
+
+	// Nothing to say? Then say nothing. Every write here wakes Kratix's watch on
+	// this resource, so an unconditional heartbeat is not free: it cost ~9.5
+	// writes/second and 202k events before this check existed. lastReconciled is
+	// deliberately excluded from the comparison -- it changes every pass by
+	// definition, and reconciler liveness is already exposed as a metric and
+	// alerted on by PlatformReconcilerDown.
+	if statusUnchanged(vcr, statusMap) {
+		return nil
+	}
 
 	patch := map[string]interface{}{
 		"status": statusMap,
@@ -456,6 +476,68 @@ func (r *Reconciler) patchStatus(ctx context.Context, vcr *unstructured.Unstruct
 	}
 
 	return nil
+}
+
+// readConditions pulls the conditions already recorded on the resource.
+func readConditions(vcr *unstructured.Unstructured) []Condition {
+	raw, found, err := unstructured.NestedSlice(vcr.Object, "status", "conditions")
+	if err != nil || !found {
+		return nil
+	}
+	out := make([]Condition, 0, len(raw))
+	for _, item := range raw {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		str := func(k string) string {
+			v, _ := m[k].(string)
+			return v
+		}
+		out = append(out, Condition{
+			Type:               str("type"),
+			Status:             str("status"),
+			Reason:             str("reason"),
+			Message:            str("message"),
+			LastTransitionTime: str("lastTransitionTime"),
+		})
+	}
+	return out
+}
+
+// statusUnchanged reports whether the status we are about to write is
+// equivalent to what is already there, ignoring lastReconciled.
+func statusUnchanged(vcr *unstructured.Unstructured, next map[string]interface{}) bool {
+	current, found, err := unstructured.NestedMap(vcr.Object, "status")
+	if err != nil || !found {
+		return false
+	}
+	strip := func(m map[string]interface{}) map[string]interface{} {
+		c := make(map[string]interface{}, len(m))
+		for k, v := range m {
+			if k == "lastReconciled" {
+				continue
+			}
+			c[k] = v
+		}
+		return c
+	}
+	// A merge patch only asserts the keys it carries, so compare on those keys
+	// alone: fields the pipeline owns and we never send must not count as drift.
+	a := strip(next)
+	b := map[string]interface{}{}
+	cur := strip(current)
+	for k := range a {
+		if v, ok := cur[k]; ok {
+			b[k] = v
+		}
+	}
+	x, err1 := json.Marshal(a)
+	y, err2 := json.Marshal(b)
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	return string(x) == string(y)
 }
 
 // contains checks if s contains substr.
