@@ -185,7 +185,7 @@ var diagnoseCmd = &cobra.Command{
 var reconcileCmd = &cobra.Command{
 	Use:   "reconcile [resource]",
 	Short: "Force re-reconciliation of a resource",
-	Long:  "Sets the reconcile-at annotation to trigger Kratix pipeline re-execution.",
+	Long:  "Sets the kratix.io/manual-reconciliation=true label, which Kratix reads (labels, not annotations) to re-run the configure pipeline and then removes itself.",
 	Args:  cobra.ExactArgs(1),
 	RunE:  runReconcile,
 }
