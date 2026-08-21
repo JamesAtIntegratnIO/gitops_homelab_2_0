@@ -3,6 +3,19 @@ kind: Namespace
 metadata:
   name: mcp-system
 ---
+# Explicit default-deny: mcp-system is excluded from the Kyverno
+# generate-default-deny-netpol policy, so the baseline must be managed here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: mcp-system
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
