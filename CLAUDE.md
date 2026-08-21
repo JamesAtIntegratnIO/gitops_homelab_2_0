@@ -20,7 +20,6 @@ the cluster until it lands on main. Plan verification accordingly.
 
 | When | Read |
 |---|---|
-| **Picking up in-flight work** | **[docs/handoff-2026-08-21.md](docs/handoff-2026-08-21.md)** — what is open, what needs a human, and the numbers to re-measure |
 | First time in the repo | [README.md](README.md) → [AGENTS.md](AGENTS.md) |
 | Anything about the live cluster | [docs/okf/](docs/okf/index.md) — the knowledge bundle |
 | Before touching a broken thing | [docs/okf/cluster/known-issues.md](docs/okf/cluster/known-issues.md) |
