@@ -166,6 +166,79 @@ This plan captures the current maturity of the platform across seven production 
 
 ---
 
+## Phase 2.6: Self-Healing & Failure Tolerance — COMPLETE (git side)
+
+**Goal:** Make the cluster survive the loss of one node without human help, and
+stop it blocking its own recovery.
+**Effort:** Medium | **Impact:** High
+**Completed:** August 21, 2026 (branch `claude/self-healing-clusters-97da62`)
+
+### What was wrong
+
+A read-only audit against the live cluster found four things:
+
+1. **Self-heal was the exception.** The environment default was
+   `selfHeal: false`, and an addon-level `syncPolicy` *replaced* the default
+   rather than merging, so 16 of 47 rendered Applications had no drift
+   correction and ~30 had no retry policy — cert-manager, Kyverno, MetalLB, the
+   gateway, the NFS provisioner. Commit 47bbd64 ("selfHeal everywhere") had
+   intended otherwise; the addon-system sharp edge silently undid it.
+2. **N+1 did not hold.** 8759m of CPU requests against ~7940m of capacity on any
+   two nodes, so losing one left ~800m of pods unschedulable — with no
+   PriorityClasses to decide which.
+3. **Two components could block recovery.** A single NGINX data plane behind the
+   only public VIP, and Kyverno's single-replica `failurePolicy: Fail` webhooks,
+   which reject *all* pod creation cluster-wide while that pod is down.
+4. **Nothing cleaned up after itself.** Two of the last six months' incidents
+   were leftover objects rather than real failures.
+
+### What was done
+
+| Area | Change |
+|---|---|
+| GitOps | `syncPolicy` deep-merges over the chart default; `selfHeal: true` is the environment default; `allowEmpty: false` everywhere. **47/47** apps self-heal with retry. |
+| Capacity | CPU requests right-sized from the VPA recommendations: 8759m → 7199m. Two-node headroom **−819m → +741m**. |
+| Scheduling | `platform-critical` (1000000) and `platform-batch` (−1000) PriorityClasses, assigned across the recovery path and deferrable workloads. |
+| Availability | Kyverno admission 1 → 3 replicas with spread + PDB; NGINX data plane and control plane 1 → 2; PDBs on every component with ≥2 replicas, CoreDNS included. |
+| Failover | 60s not-ready/unreachable tolerations on the recovery path (was the 300s default). |
+| Hygiene | Kyverno `ClusterCleanupPolicy` ×3 (suspended Jobs, long-failed Jobs, terminal Pods); descheduler every 30m for post-recovery imbalance and restart loops. |
+| Node layer | Talos patches **committed but not applied** — hardware watchdog, `os:etcd:backup` API access, apiserver toleration defaults. |
+
+**Acceptance Criteria:**
+- [x] Every rendered Application self-heals and retries _(47/47, verified by rendering both bootstrap ApplicationSets)_
+- [x] Total CPU requests fit on any two nodes _(7199m vs ~7940m)_
+- [x] No single-pod dependency can block cluster-wide pod creation _(Kyverno 3 replicas, spread, PDB)_
+- [x] The public VIP survives losing one node _(2 data planes, hostname spread)_
+- [x] PodDisruptionBudgets wherever replicas allow one _(and deliberately nowhere else)_
+- [ ] Talos machine-config patches applied to the live cluster _(needs `talosctl` + talosconfig)_
+- [ ] Verified by an actual node reboot _(see [game-day.md](game-day.md))_
+
+### Root cause found along the way
+
+The `vcluster-media` restart storms — four pods past 670 restarts since March —
+are **not** an etcd or storage problem. Talos host DNS (`169.254.116.108`)
+stalls, CoreDNS saturates behind it, cluster-internal name resolution fails, and
+the vcluster apiserver loses etcd and takes every in-vcluster controller with it.
+52/299/407 CoreDNS upstream timeouts during the three crash bursts against 0 in
+every quiet window. Talos owns CoreDNS as a bootstrap manifest, so the fix is at
+the Talos layer — see
+[matchbox/talos-machineconfigs/commands.md](../matchbox/talos-machineconfigs/commands.md)
+and [docs/okf/cluster/known-issues.md](okf/cluster/known-issues.md).
+
+### Deliberately not done
+
+- **Widening Kyverno's webhook namespace exclusions.** It would fix the same
+  deadlock by dropping enforcement in the namespaces that most need it; Phase 1.3
+  worked to turn that on. HA is the cheaper half of the trade.
+- **Re-enabling VPA Auto mode.** The March rollback (commit d7c2b8c) was a real
+  conflict with HPA and ArgoCD drift. VPA 1.4.1 is running and K8s 1.34 supports
+  in-place resize, so `InPlaceOrRecreate` on non-HPA workloads is viable later.
+- **§5.2's manual approval gates.** Drift tolerance is the wrong place to buy
+  change safety; CI validation on PRs protects the same thing without giving up
+  drift correction.
+
+---
+
 ## Phase 3: Resource Governance
 
 **Goal:** Prevent noisy-neighbor problems and establish resource boundaries.
@@ -448,3 +521,4 @@ Use GitHub Issues to track each phase. Suggested labels:
 | 2026-02-18 | Phase 1.1 complete: Cilium enforce mode active, 5 NetworkPolicy gaps fixed | — |
 | 2026-02-18 | Phase 1.2 complete: Trivy Operator deployed with dashboard + alerts | — |
 | 2026-02-19 | Phase 1.3 complete: 3 enforce-mode + 1 audit-mode Kyverno policies deployed | — |
+| 2026-08-21 | Phase 2.6 complete (git side): self-healing & failure tolerance; vcluster restart storms root-caused to host DNS | — |

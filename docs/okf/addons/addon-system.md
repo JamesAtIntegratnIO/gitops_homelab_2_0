@@ -79,8 +79,11 @@ default — addons must restate `syncOptions`), `ignoreDifferences`,
 
 ## Sharp edges to remember
 
-- Addon-level `syncPolicy` replaces (not merges) the default — losing default
-  retry/CreateNamespace unless restated.
+- Addon-level `syncPolicy` **deep-merges over** the default (changed 2026-08-21).
+  A partial override — `automated: {}`, or a bare `syncOptions` list — keeps the
+  default selfHeal/prune/retry instead of silently dropping them. Lists are still
+  replaced wholesale, so an addon that sets `syncOptions` still replaces them.
+  Before the change, 16 of 47 Applications had lost `selfHeal` this way.
 - `additionalResources` on manifest-type addons is a no-op.
 - Values folders contribute **only `values.yaml`** — any other manifest files
   placed there are inert (several exist; see [known issues](/cluster/known-issues.md)).
