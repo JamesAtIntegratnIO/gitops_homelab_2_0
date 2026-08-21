@@ -153,6 +153,7 @@ See [docs/operations.md](docs/operations.md) for full runbooks.
 | [Operations](docs/operations.md) | Runbooks, troubleshooting, common tasks |
 | [Terraform](docs/terraform.md) | IaC workflow for cluster bootstrap |
 | [MCP Servers](docs/mcp.md) | In-cluster MCP tool servers for LLM agents |
+| [Kargo](docs/kargo.md) | Automated image and chart version updates — PR bot with per-target merge policy |
 | [CLAUDE.md](CLAUDE.md) | Operating manual for coding agents working in this repo |
 | [Knowledge bundle](docs/okf/index.md) | OKF concepts covering the repo *and* the live cluster |
 

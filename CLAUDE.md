@@ -27,6 +27,7 @@ the cluster until it lands on main. Plan verification accordingly.
 | Addons / ApplicationSets | [docs/addons.md](docs/addons.md), [addons/README.md](addons/README.md) |
 | Kratix promises | [docs/promises.md](docs/promises.md) |
 | MCP servers | [docs/mcp.md](docs/mcp.md) |
+| Image / chart version pins, Kargo | [docs/kargo.md](docs/kargo.md) |
 | Runbooks | [docs/operations.md](docs/operations.md), [docs/game-day.md](docs/game-day.md) |
 
 `docs/` is the hand-written deep-dive documentation. `docs/okf/` is the
@@ -45,7 +46,10 @@ and the *live* cluster. When the two disagree, the OKF bundle is usually newer.
    reconciles. Direct `kubectl` mutation is reserved for orphans — resources
    nothing in git manages any more — and you say so explicitly when you do it.
 3. **Never push to `main`.** Push a branch and hand the merge to James. The repo
-   is otherwise trunk-based and single-committer.
+   is otherwise trunk-based and single-committer. The one sanctioned exception
+   is Kargo, which merges its own version-bump PRs under the per-target policy
+   in [kargo-projects/values.yaml](addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml)
+   — see [docs/kargo.md](docs/kargo.md).
 4. **Never read or print `secrets.env`.** It is gitignored and contains live
    credentials.
 5. **Gateway API, not Ingress.** HTTPRoute everywhere.
@@ -118,6 +122,12 @@ Addon value files resolve `environments/{env}` → `cluster-roles/{role}` →
 - **Pin images.** An unpinned `:latest` in `mcp-system` silently jumped
   grafana-mcp 0.14.0 → 1.1.0 on a rollout. Everything is digest-pinned now; keep
   it that way. And never point a *liveness* probe at an external dependency.
+- **Kargo rewrites pinned lines in place.** Every pin it tracks is listed in
+  [kargo-projects/values.yaml](addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml).
+  A tracked key must stay in the *first* YAML document of its file, stay a
+  scalar, and carry no trailing `# comment` — reordering documents, renaming
+  the file, or commenting the line breaks the target silently (the promotion
+  fails, the pin goes stale). Add new pins to that list; do not let them rot.
 
 ## Working with the OKF bundle
 
@@ -160,6 +170,10 @@ the flake directly.
 ```bash
 # render an addon's ApplicationSet the way ArgoCD will
 helm template addons/charts/application-sets -f <values...>
+
+# Kargo Warehouses/Stages from the target list
+helm template addons/charts/kargo-projects \
+  -f addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
 
 # promise pipelines (Go) -- no tests here, so it is a build gate
 cd promises/vcluster-orchestrator-v2/workflows/resource/configure && go build ./...
