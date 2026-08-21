@@ -92,18 +92,74 @@ cleanupJobs:
       seccompProfile:
         type: RuntimeDefault
 
+# The admission controller is the one component whose absence blocks recovery:
+# both resource webhooks are failurePolicy: Fail with a 10s timeout and exclude
+# only kube-system and kyverno itself, so while it is down no pod can be created
+# anywhere else -- ArgoCD cannot roll anything, the gateway cannot reschedule,
+# cert-manager cannot restart. Run it HA (3 is Kyverno's documented HA count)
+# across all three nodes so losing a node cannot take admission with it.
+#
+# Deliberately NOT widening the webhook namespace exclusions to the recovery
+# path: that would fix the same deadlock by dropping disallow-privileged /
+# seccomp / capability enforcement in exactly the namespaces that most need it.
+# Availability is the cheaper half of that trade.
 admissionController:
+  replicas: 3
+  priorityClassName: system-cluster-critical
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: admission-controller
+          app.kubernetes.io/part-of: kyverno
+  # NB: the admission controller takes resources under `container`, unlike the
+  # other three controllers which take a top-level `resources`.
+  container:
+    resources:
+      requests:
+        # VPA target is 28m/128Mi for a single replica; three of these together
+        # still cost less than the 100m the single replica reserved before.
+        cpu: 30m
+        memory: 128Mi
+      limits:
+        memory: 384Mi
   serviceMonitor:
     enabled: true
 
 backgroundController:
+  priorityClassName: platform-critical
+  resources:
+    requests:
+      cpu: 20m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
   serviceMonitor:
     enabled: true
 
 cleanupController:
+  priorityClassName: platform-critical
+  resources:
+    requests:
+      cpu: 20m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
   serviceMonitor:
     enabled: true
 
 reportsController:
+  priorityClassName: platform-critical
+  resources:
+    requests:
+      cpu: 60m
+      memory: 192Mi
+    limits:
+      memory: 512Mi
   serviceMonitor:
     enabled: true
