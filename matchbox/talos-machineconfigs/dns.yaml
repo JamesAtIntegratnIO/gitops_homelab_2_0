@@ -1,0 +1,55 @@
+# Upstream DNS resolvers for the Talos host DNS proxy.
+#
+# WHY
+# ---
+# Nothing in this directory sets `machine.network.nameservers`, so every node
+# takes its resolvers from DHCP -- in practice the single home router at the
+# default gateway. Talos runs a host DNS proxy on 169.254.116.108:53 in front of
+# whatever that list contains, and the CoreDNS Corefile forwards *everything* it
+# cannot answer to that one address.
+#
+# That makes the router a single point of failure for cluster-internal DNS, not
+# just for external names. Measured on both CoreDNS replicas, 2026-08-21:
+#
+#   coredns_proxy_healthcheck_failures_total{to="169.254.116.108:53"}  2036 / 2169
+#   coredns_forward_healthcheck_broken_total                           4192 / 4673
+#
+# With exactly one upstream those two counters describe the same event: "the
+# upstream is unhealthy" *is* "no healthy upstream exists", so CoreDNS has no
+# fallback and starts forwarding blind. Its queue backs up, cluster-internal
+# lookups queue behind the stalled external ones, and the vcluster-media syncer
+# loses its own etcd -- the documented cause of the restart storms in
+# docs/okf/cluster/known-issues.md.
+#
+# Adding a second, independent resolver decouples those two counters. It does not
+# make the router faster; it means the router stalling stops taking cluster DNS
+# down with it.
+#
+# BEFORE APPLYING -- two things to confirm
+# ----------------------------------------
+# 1. What the nodes resolve against today. `10.0.0.1` below is the default
+#    gateway read from the host routing table, which is the usual DHCP answer,
+#    but it was never confirmed directly (this workstation has no talosconfig):
+#
+#      talosctl -n 10.0.4.101 get resolvers
+#
+#    If the real upstream is something else -- a Pi-hole, a separate LAN
+#    resolver -- put that address first instead. Setting this field REPLACES the
+#    DHCP-supplied list; getting the primary wrong breaks DNS on the node.
+#
+# 2. Whether that resolver serves any internal-only zone. Talos's host DNS proxy
+#    distributes queries across the upstreams rather than treating later entries
+#    as strictly-on-failure fallbacks, so a name that only the router knows about
+#    would start intermittently NXDOMAIN-ing once a public resolver is in the
+#    list. The platform's own names (`media.integratn.tech`,
+#    `mcp.cluster.integratn.tech`) are public Cloudflare records and are not
+#    affected -- but a LAN-only zone would be. If one exists, do not add public
+#    resolvers here; add a second *internal* resolver instead.
+#
+# Apply per-node and confirm before moving on -- see commands.md.
+machine:
+  network:
+    nameservers:
+      - 10.0.0.1
+      - 1.1.1.1
+      - 9.9.9.9
