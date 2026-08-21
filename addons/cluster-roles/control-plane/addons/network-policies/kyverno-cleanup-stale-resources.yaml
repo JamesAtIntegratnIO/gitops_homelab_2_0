@@ -1,0 +1,107 @@
+# Garbage that looks like failure.
+#
+# Two incidents in the last six months were caused by leftover objects rather
+# than by anything actually broken:
+#   * a suspended 170-day-old VCO pipeline Job made vcluster-media report
+#     "Reconciled: Failing" for five months while every pod ran fine;
+#   * three Trivy scan Jobs stuck in Init:Error deadlocked the operator for 88
+#     days, during which zero VulnerabilityReports were produced.
+# Both were cleared by deleting the leftover and letting the owning controller
+# make a new one. These policies do that on a schedule instead.
+#
+# The cleanup controller needs the delete permissions granted in
+# kyverno-cleanup-rbac.yaml; Kyverno validates that when the policy is admitted.
+---
+apiVersion: kyverno.io/v2
+kind: ClusterCleanupPolicy
+metadata:
+  name: cleanup-suspended-pipeline-jobs
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    policies.kyverno.io/title: Delete suspended Kratix pipeline Jobs
+    policies.kyverno.io/subject: Job
+    policies.kyverno.io/description: >-
+      Kratix suspends a pipeline Job rather than deleting it when a workflow is
+      superseded. The kratix-pipeline-cleanup CronJob only prunes *succeeded*
+      Jobs, so suspended ones accumulate and keep the request's Reconciled
+      condition Failing. Anything still suspended after 24h is finished with.
+spec:
+  match:
+    any:
+      - resources:
+          kinds:
+            - Job
+          namespaces:
+            - platform-requests
+  conditions:
+    all:
+      - key: "{{ target.spec.suspend || `false` }}"
+        operator: Equals
+        value: true
+      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
+        operator: GreaterThan
+        value: 24h
+  schedule: "17 * * * *"
+---
+apiVersion: kyverno.io/v2
+kind: ClusterCleanupPolicy
+metadata:
+  name: cleanup-failed-jobs
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    policies.kyverno.io/title: Delete long-failed Jobs
+    policies.kyverno.io/subject: Job
+    policies.kyverno.io/description: >-
+      A Job still marked failed 24h later has exhausted its backoffLimit and will
+      never retry on its own. Deleting it lets the owner -- a CronJob, the Trivy
+      operator, or Kratix -- create a fresh one, which is exactly the manual fix
+      in docs/kratix-troubleshooting.md and the one that recovered Trivy.
+      Failures stay visible through the existing alert rules; this only stops a
+      dead Job from blocking its successor.
+spec:
+  match:
+    any:
+      - resources:
+          kinds:
+            - Job
+  conditions:
+    all:
+      - key: "{{ target.status.failed || `0` }}"
+        operator: GreaterThan
+        value: 0
+      - key: "{{ target.status.active || `0` }}"
+        operator: Equals
+        value: 0
+      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
+        operator: GreaterThan
+        value: 24h
+  schedule: "23 * * * *"
+---
+apiVersion: kyverno.io/v2
+kind: ClusterCleanupPolicy
+metadata:
+  name: cleanup-failed-pods
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    policies.kyverno.io/title: Delete Failed and Evicted Pods
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Terminal Pods (Failed phase, which covers Evicted and node-shutdown) are
+      not garbage collected until the per-namespace terminated-pod threshold is
+      reached. They accumulate after a node loss and make `kubectl get pods -A`
+      unreadable exactly when it matters most.
+spec:
+  match:
+    any:
+      - resources:
+          kinds:
+            - Pod
+  conditions:
+    all:
+      - key: "{{ target.status.phase }}"
+        operator: Equals
+        value: Failed
+      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
+        operator: GreaterThan
+        value: 24h
+  schedule: "41 * * * *"
