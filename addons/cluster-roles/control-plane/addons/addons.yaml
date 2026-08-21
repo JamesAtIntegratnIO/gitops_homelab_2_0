@@ -429,7 +429,7 @@ loki:
   chartName: loki
   project: platform-services
   chartRepository: https://grafana.github.io/helm-charts
-  defaultVersion: "6.49.0"
+  defaultVersion: 7.3.0
   selector:
     matchExpressions:
       - key: cluster_role
