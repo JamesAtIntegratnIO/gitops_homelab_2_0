@@ -161,6 +161,15 @@ Two defects surfaced and were fixed the same hour:
   drifted: the webhook defaults `strictSemvers: true` on *every* image
   subscription, the chart only emitted it for `SemVer`. Now always emitted.
 
+With the Argo Rollouts controller in place (20:13Z) the backlog drained at
+once: **25 of 26 AnalysisRuns Successful within eight minutes**, five
+measurements each, every Prometheus result equal to the expected app count
+(`kubectl` → 4, `alpine-k8s` → 2). Verification is working as designed. One
+harmless artefact of a fresh install: the Rollouts pod restarted once because
+its namespace's NetworkPolicies (the separate `network-policies` app) landed a
+few seconds after the pod, so its first kube-API call hit Kyverno's
+default-deny — the same race any new namespace can hit on day one.
+
 Also observed: GitHub reports `mergeable: UNKNOWN` for a minute or two after
 each merge to `main` moves every other PR's base; `git-merge-pr` with
 `wait: true` simply retries until it clears.
