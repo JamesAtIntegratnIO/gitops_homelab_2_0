@@ -115,7 +115,7 @@ spec:
           spec:
             containers:
               - name: configure
-                image: ghcr.io/jamesatintegratnio/gateway-route-configure:latest
+                image: ghcr.io/jamesatintegratnio/gateway-route-configure:main-117185a@sha256:bb7cd100b007a2e141a1eefb5941554cdbb282cdef22498d793cdc0b5145c816
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
@@ -134,7 +134,7 @@ spec:
           spec:
             containers:
               - name: delete
-                image: ghcr.io/jamesatintegratnio/gateway-route-configure:latest
+                image: ghcr.io/jamesatintegratnio/gateway-route-configure:main-117185a@sha256:bb7cd100b007a2e141a1eefb5941554cdbb282cdef22498d793cdc0b5145c816
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
