@@ -21,6 +21,7 @@ Start with [Getting started](getting-started.md); consult
 * [Networking](platform/networking.md) - Cilium, MetalLB, Gateway API, DNS, TLS, and the full address plan.
 * [Storage](platform/storage.md) - NFS-backed storage classes, who uses them, accepted limits.
 * [Security posture](platform/security-posture.md) - enforced policies, scanning, SSO, resource governance.
+* [Resilience](platform/resilience.md) - how the cluster heals itself: the seven layers, the one rule, and what is still outside git's reach.
 * [Observability](platform/observability.md) - hub-and-spoke metrics, Loki logging, Matrix alerting with log deep-links.
 * [AI stack](platform/ai-stack.md) - Open WebUI, Qdrant, MCP servers, and the retired llmkube/git-indexer.
 

@@ -15,6 +15,78 @@ sources:
     title: Repository review
 ---
 
+# Root cause found (2026-08-21): the vcluster-media restart storms
+
+Four pods in `vcluster-media` had 676-761 restarts since March, in bursts where
+a dozen containers die within ~30 seconds of each other. Loki shows the chain:
+
+1. CoreDNS logs a flood of `read udp …->169.254.116.108:53: i/o timeout` — the
+   **Talos host DNS resolver**, which is CoreDNS's `forward . /etc/resolv.conf`
+   upstream, stops answering.
+2. CoreDNS saturates. Because the Talos Corefile disables `cluster.local`
+   caching (`cache 30 { disable success cluster.local; disable denial
+   cluster.local }`) every internal lookup is a live query, and the pods carry a
+   200m CPU limit, so throttling delays even the queries CoreDNS could answer
+   locally.
+3. The vcluster syncer fails to resolve its own etcd:
+   `dial tcp: lookup vcluster-media-etcd: operation was canceled`.
+4. The vcluster apiserver loses etcd, `leaderelection lost`, and **every**
+   controller running inside the vcluster shuts down together — which is why the
+   restarts look synchronised across kyverno, cert-manager, KSM, argocd and the
+   gateway inside the tenant.
+
+Correlation across windows (Loki, count of the CoreDNS upstream-timeout line):
+
+| Window | Crash burst? | CoreDNS upstream timeouts |
+|---|---|---|
+| 2026-08-05 09:00-09:20 | yes | 52 |
+| 2026-08-09 06:50-07:10 | yes | 299 |
+| 2026-08-16 06:35-06:55 | yes | 407 |
+| 2026-08-18 04:20-04:40 | no | 0 |
+| 2026-08-19 12:00-12:20 | no | 0 |
+| 2026-08-20 18:00-18:20 | no | 0 |
+
+Not etcd-on-NFS, which was the obvious first guess — the etcd PVCs are on
+`config-nfs-client`, but the failure is name resolution, not storage latency.
+
+**What can be fixed from git: almost nothing.** Talos owns the CoreDNS
+Deployment and ConfigMap as bootstrap manifests and re-applies them, so replicas,
+anti-affinity and the Corefile are not ours. A `PodDisruptionBudget` is a
+separate object Talos does not manage and has been added, which at least stops a
+drain from taking both CoreDNS pods.
+
+**The real fixes are Talos-side** (see
+[commands.md](../../../matchbox/talos-machineconfigs/commands.md)):
+`talosctl get resolvers` to see what host DNS forwards to — if it is a single
+home router, adding a second independent nameserver under
+`machine.network.nameservers` is the cheap fix. Owning CoreDNS outright
+(`cluster.coreDNS.disabled: true` plus a CoreDNS addon) would allow re-enabling
+`cluster.local` caching and raising the CPU limit, which would make the whole
+chain far less brittle.
+
+# Resilience work (2026-08-21)
+
+Branch `claude/self-healing-clusters-97da62`. Addresses the self-healing gaps
+found alongside the items below; see
+[resilience](/platform/resilience.md) for the resulting design and
+[game day](../../game-day.md) for how to verify it.
+
+- ArgoCD `syncPolicy` now deep-merges over the chart default: **47/47** rendered
+  Applications self-heal with a retry policy, up from 31/47. `allowEmpty` is
+  false everywhere now that prune covers 45 of 47.
+- CPU requests right-sized from the VPA recommendations: 8759m -> 7199m, so
+  two-node headroom goes from **-819m to +741m**.
+- `platform-critical` / `platform-batch` PriorityClasses, assigned across the
+  recovery path and the deferrable workloads.
+- Kyverno admission controller 1 -> 3 replicas (its `failurePolicy: Fail`
+  webhooks were a single-pod dependency for *all* pod creation), gateway data
+  plane 1 -> 2, PDBs on everything running two or more.
+- 60s node-failure tolerations in place of the 300s default.
+- Kyverno `ClusterCleanupPolicy` for the leftovers behind items #1 and #4 below;
+  descheduler for post-recovery imbalance and permanent restart loops.
+- Talos patches committed (watchdog, `os:etcd:backup` API access, apiserver
+  toleration defaults) — **not applied**, they need `talosctl`.
+
 # Remediation status (2026-08-21) — quick wins COMPLETE
 
 Applied 2026-08-20/21 via PR #2 (8 rebased commits, `f09773c..4d0e7fa`) and
