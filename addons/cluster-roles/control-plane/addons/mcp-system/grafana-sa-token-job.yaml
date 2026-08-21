@@ -32,11 +32,13 @@ rules:
     resources: ["secrets"]
     verbs: ["create"]
   # A new token only reaches the container through a restart: the token is
-  # injected via secretKeyRef env, which does not hot-reload.
-  - apiGroups: ["apps"]
-    resources: ["deployments"]
-    resourceNames: ["grafana-mcp"]
-    verbs: ["get", "patch"]
+  # injected via secretKeyRef env, which does not hot-reload. Delete the pods
+  # rather than `rollout restart` -- the latter stamps an annotation into the
+  # Deployment's pod template, which ArgoCD reads as drift and reverts, costing
+  # a second needless rollout.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -85,7 +87,17 @@ metadata:
   labels:
     app: grafana-mcp
   annotations:
-    argocd.argoproj.io/hook: PostSync
+    # PreSync, not PostSync. PostSync waits for every resource in the app to
+    # report healthy first -- but grafana-mcp's readiness probe reports on the
+    # Grafana connection, so it cannot go healthy while the token is rejected,
+    # and the token cannot be repaired until this Job runs. That is a deadlock,
+    # and it is exactly the state the app was left in on 2026-08-21: "Synced /
+    # Progressing, waiting for healthy state of apps/Deployment/grafana-mcp".
+    #
+    # Running before the sync also means a fresh token is in place before the
+    # Deployment rolls, so new pods start with a working credential instead of
+    # needing a second restart.
+    argocd.argoproj.io/hook: PreSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   backoffLimit: 0
@@ -192,10 +204,12 @@ spec:
 
               echo "Secret $SECRET_NAME/$SECRET_KEY updated."
 
-              # secretKeyRef env is read once at container start, so the running
-              # pod is still holding the rejected token until it restarts.
-              echo "Restarting grafana-mcp to pick up the new token..."
-              kubectl rollout restart deployment/grafana-mcp -n "$NAMESPACE"
+              # secretKeyRef env is read once at container start, so any running
+              # pod is still holding the rejected token. Delete the pods rather
+              # than restarting the Deployment: the ReplicaSet recreates them
+              # with the new secret and nothing git-managed is modified.
+              echo "Replacing grafana-mcp pods so they pick up the new token..."
+              kubectl delete pod -n "$NAMESPACE" -l app=grafana-mcp --ignore-not-found
 
               echo "Done."
           resources:

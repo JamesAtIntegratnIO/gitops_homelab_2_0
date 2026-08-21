@@ -29,7 +29,19 @@ spec:
         fsGroup: 65532
       containers:
         - name: reconciler
-          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:latest
+          # Pinned to the CI-built tag rather than :latest.
+          #
+          # With :latest, a merged code change never reached the cluster: the
+          # manifest was unchanged, so ArgoCD had nothing to sync and the pod
+          # kept running whatever it started with. On 2026-08-21 that pod was
+          # from 2026-02-28 -- six months of fixes built and published but never
+          # deployed, and the write-loop fix in 9878067 needed a manual
+          # `kubectl rollout restart` to land.
+          #
+          # The workflow publishes `main-<sha>` alongside `latest` (see
+          # .github/workflows/build-platform-status-reconciler-image.yaml), so
+          # bumping this line is what deploys new reconciler code.
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:main-d2c1d56@sha256:c818a3a2b6fc33f77c82113639c07bfdfc90f4640e5380804efa25d3a1919e28
           imagePullPolicy: Always
           env:
             - name: RECONCILE_INTERVAL
