@@ -37,6 +37,25 @@ operator:
 # Deferrable: a vulnerability scan must never cost a running service its node.
 priorityClassName: platform-batch
 
+trivyOperator:
+  # Kratix ships from a gated community registry that Trivy cannot authenticate
+  # to. Trivy resolves the reference back to registry-1.docker.io and gets
+  # UNAUTHORIZED, so the scan Job fails, is retried, and reports
+  # BackoffLimitExceeded -- 30+ warning events on 2026-08-21 against an
+  # otherwise healthy scanner (149 VulnerabilityReports, newest that minute).
+  #
+  #   unable to find the specified image
+  #   "syntasso-community.docker.reo.dev/syntasso/kratix-platform@sha256:..."
+  #   remote error: GET https://registry-1.docker.io/v2/syntasso/kratix-platform/
+  #   manifests/... UNAUTHORIZED: authentication required
+  #
+  # Excluding it is honest about what is happening: the image is not being
+  # scanned either way, and this stops the retry loop from burying real scan
+  # failures. It does leave the Kratix controller image unscanned -- worth
+  # revisiting if Syntasso publishes to a registry we can read, or if a pull
+  # secret becomes available.
+  excludeImages: "syntasso-community.docker.reo.dev/*"
+
 trivy:
   priorityClassName: platform-batch
   # Standalone mode — no Trivy server needed
