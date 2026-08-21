@@ -176,7 +176,10 @@ earned:
   `dockerconfig.json` -- but the full path has still never been exercised
   end to end. Doing that on a throwaway machine is the one test that would
   actually validate disaster recovery.
-- **etcd loss.** There are no off-cluster etcd snapshots yet; the Talos API
-  access that enables them is committed but not applied.
+- **etcd loss.** vcluster-media's etcd is snapshotted nightly; the host
+  cluster's snapshot job is in git but disabled until the Talos API access
+  patch is applied. Neither restore path has been rehearsed -- see
+  [operations.md](operations.md#backup-and-recovery) and run the vcluster
+  one against a throwaway tenant before trusting it.
 - **NFS server loss.** Every PV lives on it. `hack/restart-nfs-pods.sh` recovers
   stale mounts after it comes back; nothing covers it being gone.

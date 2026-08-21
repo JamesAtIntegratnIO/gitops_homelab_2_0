@@ -46,6 +46,23 @@ F0821 16:15:57 leaderelection lost
 
 Any leader-elected controller can lose its lease this way, and several have.
 
+## The database is 82% empty space (found 2026-08-21T20:00Z)
+
+After the 208k-event storm was drained, `etcd_mvcc_db_total_size_in_bytes` sits
+at **584–635 MB per member** while `etcd_mvcc_db_total_size_in_use_in_bytes` is
+**~114 MB** on all three. bbolt never returns freed pages to the OS without a
+defragmentation, so every backend commit is still working through a file five
+times larger than its contents. This is the cheap part of the etcd problem:
+
+```bash
+talosctl -n 10.0.4.103 etcd defrag   # one member at a time, least-loaded first
+talosctl -n 10.0.4.102 etcd defrag
+talosctl -n 10.0.4.101 etcd defrag
+```
+
+Defrag blocks that member for the duration (seconds at this size); do the
+leader last. It needs `talosctl`, like everything else on the node layer.
+
 ## A status write loop was making it worse
 
 **202,435 of the 209,527 events in the cluster — 97% — were

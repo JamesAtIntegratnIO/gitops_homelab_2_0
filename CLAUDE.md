@@ -27,7 +27,7 @@ the cluster until it lands on main. Plan verification accordingly.
 | Kratix promises | [docs/promises.md](docs/promises.md) |
 | MCP servers | [docs/mcp.md](docs/mcp.md) |
 | Image / chart version pins, Kargo | [docs/kargo.md](docs/kargo.md) |
-| Runbooks | [docs/operations.md](docs/operations.md), [docs/game-day.md](docs/game-day.md) |
+| Runbooks, backup + restore | [docs/operations.md](docs/operations.md), [docs/game-day.md](docs/game-day.md), [docs/okf/platform/backups.md](docs/okf/platform/backups.md) |
 
 `docs/` is the hand-written deep-dive documentation. `docs/okf/` is the
 [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog) knowledge bundle
