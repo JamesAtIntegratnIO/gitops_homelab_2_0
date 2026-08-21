@@ -734,6 +734,39 @@ kargo:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
 
+# Only the three *analysis* CRDs from Argo Rollouts: Kargo re-uses
+# AnalysisTemplate/AnalysisRun for post-merge verification and runs the
+# analysis itself. No Rollouts controller, no Rollout/Experiment CRDs. The
+# directory source is forced (kustomization.yaml sits in that folder) and
+# filtered to those three files. Kargo tracks this version too
+# (kargo-projects target argo-rollouts-crds); it rewrites both pins below.
+argo-rollouts-crds:
+  enabled: true
+  type: manifest
+  namespace: kargo
+  project: platform-services
+  defaultVersion: v1.9.1
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "-1"
+  selectorMatchLabels:
+    cluster_role: control-plane
+  generatorValues:
+    argoRolloutsRevision: v1.9.1
+  manifestSource:
+    repoURL: https://github.com/argoproj/argo-rollouts.git
+    path: manifests/crds
+    directory:
+      include: '{analysis-run-crd.yaml,analysis-template-crd.yaml,cluster-analysis-template-crd.yaml}'
+    targetRevisionFromValue: argoRolloutsRevision
+  syncPolicy:
+    automated:
+      # Never prune: removing a CRD cascade-deletes every AnalysisRun and
+      # AnalysisTemplate with it.
+      prune: false
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - ServerSideApply=true
+
 # The target list lives in kargo-projects/values.yaml next to this file.
 kargo-projects:
   enabled: true

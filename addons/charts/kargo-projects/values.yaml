@@ -52,22 +52,45 @@ defaults:
     # NewestBuild inspects every candidate image's config blob; keep it small.
     build: 5
 
+verification:
+  # Post-merge check. A target that lists `verify.apps` gets a Stage
+  # `verification` against the AnalysisTemplate `argocd-apps-healthy`, which
+  # this chart renders into every Project that needs it: after the PR merges
+  # and ArgoCD has had time to sync, Prometheus is asked whether every named
+  # ArgoCD Application is Synced and Healthy. Needs the Argo Rollouts
+  # analysis CRDs (the argo-rollouts-crds addon) and
+  # controller.rollouts.integrationEnabled on the Kargo chart; Kargo runs
+  # the analysis itself, no Rollouts controller is involved.
+  prometheus: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+  # ArgoCD polls main every 60s, then syncs and the rollout progresses.
+  initialDelay: 3m
+  interval: 1m
+  count: 5
+  # Up to this many of `count` measurements may fail before the run fails.
+  failureLimit: 2
+
 # projects:
 #   <project name -- becomes the Namespace and Kargo Project>:
 #     description: free text, rendered into the Project's annotations
+#     autoRollback: false  # when true, a failed verification promotes the
+#                          # previously verified Freight back (another PR).
+#                          # Off by default: see docs/kargo.md before enabling.
 #     targets:
 #       <target name -- becomes the Warehouse and Stage name>:
 #         scope: conventional-commit scope for the PR title (default: project)
 #         autoMerge: override of defaults.autoMerge
 #         autoPromotion: override of defaults.autoPromotion
 #         interval: override of the polling interval
-#         format: how the value is written; default `image` for image targets
-#                 and `version` for chart targets
+#         format: how the value is written; default `image` for image targets,
+#                 `version` for chart targets, `tag` for git targets
 #           image      -> repo:tag@sha256:digest   (raw manifests)
 #           image-tag  -> repo:tag                 (no digest)
 #           tag        -> tag                      (Helm values `image.tag`)
 #           version    -> chart version            (addons.yaml defaultVersion)
-#         image:                      # exactly one of image / chart
+#         verify:
+#           apps: [ArgoCD Application names that must be Synced+Healthy
+#                  after the merge; omit to skip verification]
+#         image:                      # exactly one of image / chart / git
 #           repoURL: string, written verbatim into the file for image/image-tag
 #           strategy: SemVer | Digest | NewestBuild | Lexical (default SemVer)
 #           constraint: semver range (SemVer) or the mutable tag (Digest)
@@ -80,6 +103,11 @@ defaults:
 #           repoURL: https://... or oci://...
 #           name: chart name          # omit for OCI
 #           constraint: semver range
+#         git:                        # follow a repository's semver tags
+#           repoURL: https://github.com/org/repo.git
+#           constraint: semver range
+#           allowTags: [regex, ...]
+#           ignoreTags: [regex, ...]
 #         updates:
 #           - file: path/in/repo.yaml
 #             format: per-file override of the target format

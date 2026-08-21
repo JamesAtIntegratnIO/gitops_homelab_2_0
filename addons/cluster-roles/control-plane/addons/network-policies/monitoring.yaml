@@ -121,6 +121,18 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+    # Kargo controller: post-merge verification (AnalysisTemplate prometheus
+    # provider) checks that the bumped ArgoCD Applications are Synced+Healthy
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kargo
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: controller
+      ports:
+        - protocol: TCP
+          port: 9090
   egress:
     # Scrape targets in all namespaces (wide egress required)
     - to:

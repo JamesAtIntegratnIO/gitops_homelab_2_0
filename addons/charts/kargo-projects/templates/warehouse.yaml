@@ -44,6 +44,28 @@ spec:
         # precisely to follow a mutable tag. Caching by tag spares the
         # registry a manifest fetch per tag per poll.
         cacheByTag: {{ ne $n.strategy "Digest" }}
+    {{- else if $n.isGit }}
+    - git:
+        repoURL: {{ $t.git.repoURL }}
+        commitSelectionStrategy: SemVer
+        {{- with $t.git.constraint }}
+        semverConstraint: {{ . | quote }}
+        {{- end }}
+        {{- with $t.git.allowTags }}
+        allowTagsRegexes:
+          {{- range . }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- end }}
+        {{- with $t.git.ignoreTags }}
+        ignoreTagsRegexes:
+          {{- range . }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- end }}
+        discoveryLimit: {{ $n.discoveryLimit }}
+        # Only tags are inspected; no need to fetch the repository's blobs.
+        blobless: true
     {{- else }}
     - chart:
         repoURL: {{ $t.chart.repoURL }}
