@@ -1,0 +1,88 @@
+# Descheduler: puts the cluster back in shape after it has healed.
+#
+# Two gaps it closes.
+#
+# 1. Nothing ever moves a pod back. After a node failure everything lands on the
+#    survivors and stays there when the node returns, so the next failure hits a
+#    cluster that is already lopsided. The 63/70/87% per-node request spread is
+#    most likely the residue of exactly that.
+# 2. Nothing evicts a container that is restarting forever. Four pods in
+#    vcluster-media passed 670 restarts without anything acting on it.
+#
+# Runs as a CronJob rather than a Deployment: this is periodic maintenance, and a
+# CronJob leaves an auditable Job per run.
+
+kind: CronJob
+# Chart default is every 2 minutes, which is far too eager for a 3-node cluster
+# -- rebalancing is not urgent and each pass is an eviction storm risk.
+schedule: "*/30 * * * *"
+suspend: false
+
+# Maintenance, not a platform dependency: it should run reliably but must never
+# preempt the things it exists to look after. (The chart default here is
+# system-cluster-critical, which is far too strong for a rebalancing job.)
+priorityClassName: platform-critical
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+deschedulerPolicy:
+  # Blast-radius caps: a bad pass costs at most a few pods, not the cluster.
+  maxNoOfPodsToEvictPerNode: 3
+  maxNoOfPodsToEvictPerNamespace: 2
+
+  profiles:
+    - name: default
+      pluginConfig:
+        - name: DefaultEvictor
+          args:
+            # Chart default, kept verbatim. PodsWithPVC protection is what keeps
+            # the descheduler away from the vcluster etcd members and the media
+            # stack's NFS-backed config volumes.
+            podProtections:
+              defaultDisabled:
+                - "PodsWithLocalStorage"
+              extraEnabled:
+                - "PodsWithPVC"
+        - name: RemovePodsHavingTooManyRestarts
+          args:
+            # Chart default is 100. Anything past 50 is not recovering on its
+            # own; move it and see whether a different node behaves better.
+            podRestartThreshold: 50
+            includingInitContainers: true
+        - name: RemovePodsViolatingNodeTaints
+        - name: RemovePodsViolatingNodeAffinity
+          args:
+            nodeAffinityType:
+              - requiredDuringSchedulingIgnoredDuringExecution
+        - name: RemovePodsViolatingInterPodAntiAffinity
+        - name: RemovePodsViolatingTopologySpreadConstraint
+        - name: LowNodeUtilization
+          args:
+            thresholds:
+              cpu: 20
+              memory: 20
+              pods: 20
+            targetThresholds:
+              cpu: 50
+              memory: 50
+              pods: 50
+      plugins:
+        balance:
+          enabled:
+            - RemovePodsViolatingTopologySpreadConstraint
+            - LowNodeUtilization
+        deschedule:
+          enabled:
+            - RemovePodsHavingTooManyRestarts
+            - RemovePodsViolatingNodeTaints
+            - RemovePodsViolatingNodeAffinity
+            - RemovePodsViolatingInterPodAntiAffinity
+
+# RemoveDuplicates is deliberately left out of the chart's default set: on three
+# nodes it churns replicas for little benefit, and topology spread constraints
+# already express the placement we actually want.

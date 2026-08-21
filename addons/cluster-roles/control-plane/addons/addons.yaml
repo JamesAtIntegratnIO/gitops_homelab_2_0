@@ -255,6 +255,24 @@ platform-landing-zone:
     syncOptions:
       - CreateNamespace=true
 
+descheduler:
+  enabled: true
+  namespace: descheduler
+  releaseName: descheduler
+  chartName: descheduler
+  project: platform-services
+  chartRepository: https://kubernetes-sigs.github.io/descheduler/
+  defaultVersion: "0.36.0"
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
 # Cluster-scoped PriorityClasses used by the platform addons. Applied ahead of
 # the workloads that reference them (sync-wave -10): a pod naming a
 # PriorityClass that does not exist yet is rejected at admission.
