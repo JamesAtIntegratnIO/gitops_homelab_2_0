@@ -115,7 +115,7 @@ spec:
           spec:
             containers:
               - name: configure
-                image: ghcr.io/jamesatintegratnio/argocd-application-configure:latest
+                image: ghcr.io/jamesatintegratnio/argocd-application-configure:main-117185a@sha256:0dd6e636c4c8a79a09a0912fb750f1f199f5ecdc2986b691843c7514d9b3ac73
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
@@ -134,7 +134,7 @@ spec:
           spec:
             containers:
               - name: delete
-                image: ghcr.io/jamesatintegratnio/argocd-application-configure:latest
+                image: ghcr.io/jamesatintegratnio/argocd-application-configure:main-117185a@sha256:0dd6e636c4c8a79a09a0912fb750f1f199f5ecdc2986b691843c7514d9b3ac73
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
