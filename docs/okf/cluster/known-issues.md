@@ -72,9 +72,11 @@ result is equivalent to what is already stored.
 **Still open**: the underlying disk problem is untouched — reducing write volume
 helps, but it is not the fix.
 
-*Update 2026-08-21:* the stored-event count fell from ~208k to 26,910 and then
-**stopped falling** — 27,629 at the next measurement, i.e. flat-to-rising. That
-is not slow GC, it is a second write loop still running: the
+*Update 2026-08-21:* the stored-event count fell from ~208k to 26,910, then
+**stopped falling and began climbing** — 27,629, then **47,670 about an hour
+later**. It is not draining at all; the loop now outpaces GC by roughly 20k
+events per hour, consistent with the measured ~8 events/s. That is not slow GC,
+it is a second write loop still running: the
 `kratix.io/manual-reconciliation: "true"` annotation on
 `vclusterorchestratorv2s/vcluster-media` was set by hand on 2026-08-21T02:19:09Z
 and never cleared, so Kratix re-triggers itself several times a second (8.69
