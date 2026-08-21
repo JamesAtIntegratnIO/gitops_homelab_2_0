@@ -1,0 +1,59 @@
+{{- range $projectName, $project := .Values.projects }}
+{{- range $targetName, $t := $project.targets }}
+{{- $n := include "kp.normalise" (dict "root" $ "project" $projectName "name" $targetName "target" $t) | fromJson }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: {{ $targetName }}
+  namespace: {{ $projectName }}
+  labels:
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  interval: {{ $n.interval }}
+  subscriptions:
+    {{- if $n.isImage }}
+    - image:
+        repoURL: {{ $t.image.repoURL }}
+        imageSelectionStrategy: {{ $n.strategy }}
+        {{- with $t.image.constraint }}
+        constraint: {{ . | quote }}
+        {{- end }}
+        {{- with $t.image.allowTags }}
+        allowTagsRegexes:
+          {{- range . }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- end }}
+        {{- with $t.image.ignoreTags }}
+        ignoreTagsRegexes:
+          {{- range . }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- end }}
+        {{- with $t.image.platform }}
+        platform: {{ . }}
+        {{- end }}
+        {{- if eq $n.strategy "SemVer" }}
+        strictSemvers: {{ ternary $t.image.strictSemvers true (hasKey $t.image "strictSemvers") }}
+        {{- end }}
+        discoveryLimit: {{ $n.discoveryLimit }}
+        # Tags are immutable for every strategy except Digest, which exists
+        # precisely to follow a mutable tag. Caching by tag spares the
+        # registry a manifest fetch per tag per poll.
+        cacheByTag: {{ ne $n.strategy "Digest" }}
+    {{- else }}
+    - chart:
+        repoURL: {{ $t.chart.repoURL }}
+        {{- with $t.chart.name }}
+        name: {{ . }}
+        {{- end }}
+        {{- with $t.chart.constraint }}
+        semverConstraint: {{ . | quote }}
+        {{- end }}
+        discoveryLimit: {{ $n.discoveryLimit }}
+    {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,128 @@
+{{- range $projectName, $project := .Values.projects }}
+{{- range $targetName, $t := $project.targets }}
+{{- $n := include "kp.normalise" (dict "root" $ "project" $projectName "name" $targetName "target" $t) | fromJson }}
+{{- $first := index $t.updates 0 }}
+{{- $firstFormat := default $n.format $first.format }}
+{{- $firstKey := index $first.keys 0 }}
+{{- $changed := include "kp.changedExpr" (dict "target" $t "norm" $n) }}
+{{- $auto := include "kp.autoMergeExpr" (dict "target" $t "norm" $n) }}
+{{- $subject := include "kp.subject" (dict "target" $t "name" $targetName "norm" $n) }}
+{{- $artifact := ternary (dig "image" "repoURL" "" $t) (printf "%s %s" (dig "chart" "repoURL" "" $t) (dig "chart" "name" "" $t) | trim) $n.isImage }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: {{ $targetName }}
+  namespace: {{ $projectName }}
+  labels:
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: {{ $targetName }}
+      sources:
+        direct: true
+  promotionTemplate:
+    spec:
+      vars:
+        - name: repoURL
+          value: {{ $.Values.git.repoURL | quote }}
+        - name: branch
+          value: {{ $.Values.git.branch | quote }}
+      steps:
+        - uses: git-clone
+          config:
+            repoURL: {{ include "kp.expr" "vars.repoURL" | quote }}
+            checkout:
+              - branch: {{ include "kp.expr" "vars.branch" | quote }}
+                path: ./repo
+        # Read what is pinned today so the promotion can decide whether there
+        # is anything to do, and whether the change is small enough to merge
+        # unattended.
+        - uses: yaml-parse
+          as: read
+          config:
+            path: ./repo/{{ $first.file }}
+            outputs:
+              - name: current
+                fromExpression: {{ include "kp.exprPath" $firstKey | quote }}
+              - name: currentVersion
+                fromExpression: {{ include "kp.currentVersionExpr" (dict "path" (include "kp.exprPath" $firstKey) "format" $firstFormat) | quote }}
+        {{- range $u := $t.updates }}
+        {{- $format := default $n.format $u.format }}
+        - uses: yaml-update
+          if: {{ include "kp.expr" $changed | quote }}
+          config:
+            path: ./repo/{{ $u.file }}
+            updates:
+              {{- range $key := $u.keys }}
+              - key: {{ $key | quote }}
+                value: {{ include "kp.expr" (include "kp.newValueExpr" (dict "target" $t "format" $format)) | quote }}
+              {{- end }}
+        {{- end }}
+        - uses: git-commit
+          as: commit
+          if: {{ include "kp.expr" $changed | quote }}
+          config:
+            path: ./repo
+            message: {{ $subject | quote }}
+        - uses: git-push
+          as: push
+          if: {{ include "kp.expr" $changed | quote }}
+          config:
+            path: ./repo
+            # kargo/promotion/<promotion name>: unique per promotion, so a
+            # stale branch from an earlier PR can never cause a
+            # non-fast-forward push.
+            generateTargetBranch: true
+        - uses: git-open-pr
+          as: pr
+          if: {{ include "kp.expr" $changed | quote }}
+          config:
+            repoURL: {{ include "kp.expr" "vars.repoURL" | quote }}
+            provider: {{ $.Values.git.provider }}
+            sourceBranch: {{ include "kp.expr" "outputs.push.branch" | quote }}
+            targetBranch: {{ include "kp.expr" "vars.branch" | quote }}
+            title: {{ $subject | quote }}
+            {{- /* Assembled from strings so the ${{ }} never meet Helm's parser. */}}
+            {{- $lines := list
+                  (printf "Automated by Kargo -- project `%s`, stage `%s`." $projectName $targetName)
+                  ""
+                  "| | |"
+                  "|---|---|"
+                  (printf "| Artifact | `%s` |" $artifact)
+                  (printf "| From | `%s` |" (include "kp.expr" "outputs.read.currentVersion"))
+                  (printf "| To | `%s` |" (include "kp.expr" (include "kp.newVersionDisplayExpr" $t))) }}
+            {{- if $n.semver }}
+            {{- $lines = append $lines (printf "| Change | `%s` |" (include "kp.expr" (printf "semverDiff(%s, outputs.read.currentVersion)" (include "kp.newVersionExpr" $t)))) }}
+            {{- end }}
+            {{- $lines = concat $lines (list (printf "| Merge policy | `%s` |" $n.autoMerge) "" "Files:") }}
+            {{- range $u := $t.updates }}
+            {{- $lines = append $lines (printf "- `%s`" $u.file) }}
+            {{- end }}
+            {{- $lines = concat $lines (list "" (printf "Kargo: %s/project/%s/stage/%s" (include "kp.expr" "ctx.uiBaseUrl") (include "kp.expr" "ctx.project") (include "kp.expr" "ctx.stage"))) }}
+            description: |
+              {{- join "\n" $lines | nindent 14 }}
+        # Exactly one of the next two runs. Either the policy lets the Stage
+        # merge its own PR, or the promotion parks here until a human does.
+        - uses: git-merge-pr
+          if: {{ include "kp.expr" (printf "(%s) && (%s)" $changed $auto) | quote }}
+          config:
+            repoURL: {{ include "kp.expr" "vars.repoURL" | quote }}
+            provider: {{ $.Values.git.provider }}
+            prNumber: {{ include "kp.expr" "outputs.pr.pr.id" | quote }}
+            mergeMethod: {{ $.Values.merge.method }}
+            wait: true
+            pollInterval: {{ $.Values.merge.pollInterval }}
+        - uses: git-wait-for-pr
+          if: {{ include "kp.expr" (printf "(%s) && !(%s)" $changed $auto) | quote }}
+          config:
+            repoURL: {{ include "kp.expr" "vars.repoURL" | quote }}
+            provider: {{ $.Values.git.provider }}
+            prNumber: {{ include "kp.expr" "outputs.pr.pr.id" | quote }}
+            pollInterval: {{ $.Values.merge.waitPollInterval }}
+{{- end }}
+{{- end }}
