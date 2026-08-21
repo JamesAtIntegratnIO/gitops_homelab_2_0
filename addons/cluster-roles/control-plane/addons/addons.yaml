@@ -276,6 +276,13 @@ descheduler:
 # Cluster-scoped PriorityClasses used by the platform addons. Applied ahead of
 # the workloads that reference them (sync-wave -10): a pod naming a
 # PriorityClass that does not exist yet is rejected at admission.
+#
+# Deliberately NOT excluding vclusters. Three addons that set priorityClassName
+# also render into every vcluster -- kyverno and external-secrets have no
+# cluster_role exclusion, and cert-manager-vcluster resolves its values folder by
+# chart name, so it reads the host cert-manager values file. A PriorityClass is
+# cluster-scoped, so a vcluster has its own; without this, nine Deployments in
+# vcluster-media could not create pods.
 platform-scheduling:
   enabled: true
   type: manifest
@@ -285,6 +292,21 @@ platform-scheduling:
   path: addons/cluster-roles/control-plane/addons/platform-scheduling
   annotationsApp:
     argocd.argoproj.io/sync-wave: "-10"
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+
+# PodDisruptionBudgets for components whose chart offers no hook for one.
+# Control-plane only, unlike the PriorityClasses above: the only entry is the
+# CoreDNS PDB, and a vcluster on the dev preset runs a single CoreDNS replica,
+# where minAvailable: 1 would block every drain forever.
+platform-disruption:
+  enabled: true
+  type: manifest
+  namespace: default
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/platform-disruption
   selector:
     matchExpressions:
       - key: cluster_role
