@@ -13,6 +13,9 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
 spec:
   interval: {{ $n.interval }}
+  # Stated explicitly: the Kargo webhook defaults it, and an absent field is
+  # permanent drift to ArgoCD.
+  freightCreationPolicy: Automatic
   subscriptions:
     {{- if $n.isImage }}
     - image:
@@ -48,9 +51,9 @@ spec:
     - git:
         repoURL: {{ $t.git.repoURL }}
         commitSelectionStrategy: SemVer
-        {{- with $t.git.constraint }}
-        semverConstraint: {{ . | quote }}
-        {{- end }}
+        # A constraint without a prerelease part never matches prerelease
+        # tags (Masterminds semver), which is the point of the default.
+        semverConstraint: {{ default ">=0.0.0" $t.git.constraint | quote }}
         {{- with $t.git.allowTags }}
         allowTagsRegexes:
           {{- range . }}
@@ -72,9 +75,10 @@ spec:
         {{- with $t.chart.name }}
         name: {{ . }}
         {{- end }}
-        {{- with $t.chart.constraint }}
-        semverConstraint: {{ . | quote }}
-        {{- end }}
+        # Same default as for git: without it the greatest version wins,
+        # and on day one that was open-webui 16.0.1-dev.203.1 and cilium
+        # 1.21.0-pre.0.
+        semverConstraint: {{ default ">=0.0.0" $t.chart.constraint | quote }}
         discoveryLimit: {{ $n.discoveryLimit }}
     {{- end }}
 {{- end }}

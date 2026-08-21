@@ -41,11 +41,14 @@ defaults:
   autoPromotion: true
   interval:
     # Registry/repo polling cadence by artifact kind. Kargo enforces a 5m floor.
-    image: 6h
-    chart: 24h
+    # Write durations in Go's canonical form (6h0m0s, not 6h): Kargo's webhook
+    # stores them normalised, and anything else shows up as permanent ArgoCD
+    # drift -- 48 Warehouses re-synced every minute, observed on day one.
+    image: 6h0m0s
+    chart: 24h0m0s
     # NewestBuild targets -- our own CI images, where a merged change should
     # reach the cluster promptly.
-    build: 15m
+    build: 15m0s
   discoveryLimit:
     image: 10
     chart: 10
@@ -80,7 +83,7 @@ verification:
 #         scope: conventional-commit scope for the PR title (default: project)
 #         autoMerge: override of defaults.autoMerge
 #         autoPromotion: override of defaults.autoPromotion
-#         interval: override of the polling interval
+#         interval: override of the polling interval (canonical form, e.g. 12h0m0s)
 #         format: how the value is written; default `image` for image targets,
 #                 `version` for chart targets, `tag` for git targets
 #           image      -> repo:tag@sha256:digest   (raw manifests)
@@ -102,7 +105,8 @@ verification:
 #         chart:
 #           repoURL: https://... or oci://...
 #           name: chart name          # omit for OCI
-#           constraint: semver range
+#           constraint: semver range  # default >=0.0.0, which also excludes
+#                                     # prereleases (16.0.1-dev.3, 1.21.0-pre.0)
 #         git:                        # follow a repository's semver tags
 #           repoURL: https://github.com/org/repo.git
 #           constraint: semver range

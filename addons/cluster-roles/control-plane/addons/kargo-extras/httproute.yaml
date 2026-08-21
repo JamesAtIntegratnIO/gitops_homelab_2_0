@@ -35,7 +35,13 @@ spec:
   hostnames:
     - kargo.cluster.integratn.tech
   rules:
-    - filters:
+    # Explicit: the API defaults this match, and ArgoCD then reports the
+    # defaulted field as drift.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             scheme: https
