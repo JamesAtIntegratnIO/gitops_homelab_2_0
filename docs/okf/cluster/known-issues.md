@@ -71,9 +71,9 @@ found alongside the items below; see
 [resilience](/platform/resilience.md) for the resulting design and
 [game day](../../game-day.md) for how to verify it.
 
-- ArgoCD `syncPolicy` now deep-merges over the chart default: **47/47** rendered
-  Applications self-heal with a retry policy, up from 31/47. `allowEmpty` is
-  false everywhere now that prune covers 45 of 47.
+- ArgoCD `syncPolicy` now deep-merges over the chart default: **50/50** rendered
+  Applications self-heal with a retry policy, up from 32/48 self-healing and only
+  12 with retry. `allowEmpty` is false everywhere now that prune covers 48 of 50.
 - CPU requests right-sized from the VPA recommendations: 8759m -> 7199m, so
   two-node headroom goes from **-819m to +741m**.
 - `platform-critical` / `platform-batch` PriorityClasses, assigned across the

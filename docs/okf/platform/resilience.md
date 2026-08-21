@@ -29,7 +29,7 @@ different failure and they fail independently.
 | Network | Cilium kube-proxy replacement; MetalLB speaker on every node; 2 NGINX data planes spread across hosts | VIP failover, ingress pod loss |
 | Scheduling | `platform-critical` / `platform-batch` PriorityClasses; topology spread on gateway + Kyverno admission; 60s failover tolerations | capacity shortfall, slow rescheduling |
 | Disruption | PodDisruptionBudgets on every component running ≥2 replicas, CoreDNS included | drains and rolling updates |
-| GitOps | ArgoCD `selfHeal` + `prune` + unlimited retry on **all 47** rendered Applications; 60s reconciliation; `kratix-state-reconciler` | config drift, manual edits, failed syncs |
+| GitOps | ArgoCD `selfHeal` + `prune` + unlimited retry on **all 50** rendered Applications; 60s reconciliation; `kratix-state-reconciler` | config drift, manual edits, failed syncs |
 | Hygiene | Kyverno `ClusterCleanupPolicy` for suspended Jobs, long-failed Jobs, terminal Pods; descheduler every 30m | leftovers that look like failure, post-recovery imbalance, restart loops |
 | Observability | see [observability](/platform/observability.md) | detection |
 
@@ -44,8 +44,8 @@ owner — and why there is no auto-remediation that edits desired state.
 
 **Self-heal is the default, not per-addon.** The addon `syncPolicy` deep-merges
 over the chart default rather than replacing it, so an addon that overrides only
-part of the policy keeps the rest. Before that, 16 of 47 Applications had
-silently lost `selfHeal` and ~30 had no retry — including cert-manager, Kyverno,
+part of the policy keeps the rest. Before that, 16 of 48 Applications had
+silently lost `selfHeal` and 36 had no retry — including cert-manager, Kyverno,
 MetalLB and the gateway. See [addon system](/addons/addon-system.md).
 
 **PDBs only where replicas ≥ 2.** `minAvailable: 1` against a single replica

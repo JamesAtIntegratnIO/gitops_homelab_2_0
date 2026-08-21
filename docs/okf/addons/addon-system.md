@@ -83,7 +83,7 @@ default — addons must restate `syncOptions`), `ignoreDifferences`,
   A partial override — `automated: {}`, or a bare `syncOptions` list — keeps the
   default selfHeal/prune/retry instead of silently dropping them. Lists are still
   replaced wholesale, so an addon that sets `syncOptions` still replaces them.
-  Before the change, 16 of 47 Applications had lost `selfHeal` this way.
+  Before the change, 16 of 48 Applications had lost `selfHeal` this way.
 - `additionalResources` on manifest-type addons is a no-op.
 - Values folders contribute **only `values.yaml`** — any other manifest files
   placed there are inert (several exist; see [known issues](/cluster/known-issues.md)).
