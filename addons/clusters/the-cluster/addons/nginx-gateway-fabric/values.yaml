@@ -1,9 +1,69 @@
+# Every public hostname under *.cluster.integratn.tech terminates on the NGINX
+# data plane. With a single replica, losing its node meant MetalLB re-announcing
+# 10.0.4.205 within seconds to a Service with no endpoints, and staying that way
+# for the ~6 minutes it takes to evict, reschedule and start the replacement.
+# Two replicas, one per node. externalTrafficPolicy is already Cluster, so any
+# node can forward to either replica and nothing else has to change.
 nginx:
+  replicas: 2
+  pod:
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: nginx-gateway-nginx
+    # Default is 300s: the pod sits on a dead node for five minutes before the
+    # scheduler is allowed to move it. 60s still absorbs a brief network blip.
+    tolerations:
+      - key: node.kubernetes.io/not-ready
+        operator: Exists
+        effect: NoExecute
+        tolerationSeconds: 60
+      - key: node.kubernetes.io/unreachable
+        operator: Exists
+        effect: NoExecute
+        tolerationSeconds: 60
+  # NginxProxy.spec…deployment.pod has no priorityClassName field, so the data
+  # plane gets its priority through a Deployment patch instead.
+  patches:
+    - type: StrategicMerge
+      value:
+        spec:
+          template:
+            spec:
+              priorityClassName: platform-critical
   service:
     loadBalancerIP: 10.0.4.205
     externalTrafficPolicy: Cluster
 
+# The control plane is leader-elected (nginxGateway.leaderElection.enable
+# defaults to true), so a second replica is a warm standby rather than a split
+# brain. It has also restarted 49 times since March.
+# The chart exposes no priorityClassName for the control plane (grep the chart:
+# the key does not exist and would be silently ignored), so this one stays at
+# default priority. Less pressing than the data plane -- it configures NGINX
+# rather than serving traffic, and existing config keeps serving while it is
+# away.
 nginxGateway:
+  replicas: 2
+  tolerations:
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 60
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 60
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: nginx-gateway-fabric
+          topologyKey: kubernetes.io/hostname
   snippetsFilters:
     enable: true
 
