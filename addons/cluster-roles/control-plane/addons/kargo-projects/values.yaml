@@ -1,0 +1,442 @@
+# Every version pin Kargo keeps current, grouped into one Kargo Project per
+# top-level repo area. One entry == one Warehouse + one Stage; the Stage opens
+# a PR that rewrites the listed keys and merges it when `autoMerge` allows.
+#
+# Schema and defaults: addons/charts/kargo-projects/values.yaml.
+# Rationale, policies and how to add an entry: docs/kargo.md.
+#
+# Merge policy in one line: `patch` for anything a bad minor could take the
+# cluster down with (CNI, the deployer, admission, certs, the gateway),
+# `minor` for apps and tooling, `always` for our own CI images, `never` where
+# there is no version to judge by (digest of a mutable tag).
+
+# Shared shapes -- YAML anchors are resolved before Helm sees the file.
+x-promise-image: &promiseImage
+  strategy: NewestBuild
+  allowTags: ['^main-[0-9a-f]{7}$']
+  platform: linux/amd64
+
+x-linuxserver-image: &linuxserverImage
+  strategy: NewestBuild
+  allowTags: ['^\d+\.\d+\.\d+\.\d+-ls\d+$']
+  platform: linux/amd64
+
+projects:
+  # ───────────────────────────────────────────────────────────────────────
+  addons:
+    description: >-
+      Everything pinned under addons/: host-cluster addon charts (the
+      defaultVersion in each addons.yaml) and the images carried by
+      raw-manifest addons.
+    targets:
+      # ── mcp-system: raw manifests, digest-pinned ─────────────────────
+      argocd-mcp:
+        scope: mcp-system
+        image:
+          repoURL: ghcr.io/argoproj-labs/mcp-for-argocd
+          allowTags: ['^v\d+\.\d+\.\d+$']   # the same releases also exist unprefixed
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/argocd-mcp-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+      github-mcp:
+        scope: mcp-system
+        image:
+          repoURL: ghcr.io/github/github-mcp-server
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/github-mcp-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+      grafana-mcp:
+        scope: mcp-system
+        image:
+          repoURL: docker.io/grafana/mcp-grafana
+          allowTags: ['^\d+\.\d+\.\d+$']     # not the -alpine variants
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/grafana-mcp-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+      kubernetes-mcp:
+        scope: mcp-system
+        image:
+          repoURL: quay.io/containers/kubernetes_mcp_server
+          allowTags: ['^v\d+\.\d+\.\d+$']   # not the per-arch vX.Y.Z-linux-* tags
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/kubernetes-mcp-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+      mcpo:
+        scope: mcp-system
+        # mcpo publishes no release tags -- only a moving `main`. Follow its
+        # digest, but never merge unattended: there is no version to judge.
+        image:
+          repoURL: ghcr.io/open-webui/mcpo
+          strategy: Digest
+          constraint: main
+        autoMerge: never
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/mcpo-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+      sequential-thinking:
+        scope: mcp-system
+        image:
+          repoURL: ghcr.io/supercorp-ai/supergateway
+          allowTags: ['^v?\d+\.\d+\.\d+$']  # v2.x was prefixed, 3.x is not
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/sequential-thinking-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+
+      # ── our own images (images/, built by GitHub Actions) ────────────
+      kubectl:
+        scope: images
+        # Built on demand with a kubectl_version input; only the vX.Y.Z tag
+        # is tracked, never `latest` or the main-<sha> build tags.
+        image:
+          repoURL: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/kubectl
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/mcpo-deployment.yaml
+            keys: [spec.template.spec.initContainers.0.image]
+          - file: addons/environments/production/addons/kyverno/values.yaml
+            format: tag
+            keys:
+              - webhooksCleanup.image.tag
+              - policyReportsCleanup.image.tag
+              - cleanupJobs.admissionReports.image.tag
+              - cleanupJobs.clusterAdmissionReports.image.tag
+              - cleanupJobs.ephemeralReports.image.tag
+              - cleanupJobs.clusterEphemeralReports.image.tag
+              - cleanupJobs.updateRequests.image.tag
+      platform-status-reconciler:
+        scope: platform-status-reconciler
+        # Every merge to main that touches images/platform-status-reconciler
+        # publishes main-<sha>; bumping this pin is what deploys it.
+        image:
+          <<: *promiseImage
+          repoURL: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler
+        autoMerge: always
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/platform-status-reconciler/deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+
+      # ── other raw-manifest images ────────────────────────────────────
+      matrix-alertmanager-receiver:
+        scope: monitoring
+        image:
+          repoURL: metio/matrix-alertmanager-receiver
+          allowTags: ['^\d{4}\.\d+\.\d+$']   # calver: YYYY.M.D
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/matrix-alertmanager-receiver/deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+      alpine-k8s:
+        scope: images
+        # kubectl carrier for the two one-shot Jobs. Tracks the cluster's
+        # minor (+1 is within kubectl's supported skew); bump the constraint
+        # when Kubernetes is upgraded.
+        image:
+          repoURL: docker.io/alpine/k8s
+          constraint: ">=1.34.0 <1.36.0"
+          allowTags: ['^\d+\.\d+\.\d+$']
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/kube-prometheus-stack-extras/etcd-cert-extractor.yaml
+            keys: [spec.template.spec.containers.0.image]
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/grafana-sa-token-job.yaml
+            keys: [spec.template.spec.containers.0.image]
+      authentik-redis:
+        scope: authentik
+        image:
+          repoURL: redis
+          allowTags: ['^7\.\d+\.\d+-alpine$']
+        updates:
+          - file: addons/clusters/the-cluster/addons/authentik/authentik-redis.yaml
+            keys: [spec.template.spec.containers.0.image]
+      nfs-subdir-external-provisioner-image:
+        scope: nfs-provisioner
+        image:
+          repoURL: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        updates:
+          - file: addons/environments/production/addons/nfs-subdir-external-provisioner/config_deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+          - file: addons/environments/production/addons/nfs-subdir-external-provisioner/data_deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+      open-webui-image:
+        scope: ai
+        # The chart's appVersion lags upstream; the image is pinned ahead of
+        # it in the addon values, so track the image separately.
+        image:
+          repoURL: ghcr.io/open-webui/open-webui
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        format: tag
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/open-webui/values.yaml
+            keys: [image.tag]
+
+      # ── Helm charts: environments/production ─────────────────────────
+      # Host and vcluster copies of the same chart move together, on purpose.
+      argo-cd:
+        chart: { repoURL: https://argoproj.github.io/argo-helm, name: argo-cd }
+        autoMerge: patch
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [argocd.defaultVersion]
+          - file: addons/cluster-roles/vcluster/addons/addons.yaml
+            keys: [argocd-vcluster.defaultVersion]
+      external-secrets:
+        chart: { repoURL: https://charts.external-secrets.io, name: external-secrets }
+        autoMerge: patch
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [external-secrets.defaultVersion]
+      metrics-server:
+        chart: { repoURL: https://kubernetes-sigs.github.io/metrics-server, name: metrics-server }
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [metrics-server.defaultVersion]
+      nfs-subdir-external-provisioner:
+        chart: { repoURL: https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner, name: nfs-subdir-external-provisioner }
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [nfs-subdir-external-provisioner.defaultVersion]
+      external-dns:
+        chart: { repoURL: https://kubernetes-sigs.github.io/external-dns, name: external-dns }
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [external-dns.defaultVersion]
+          - file: addons/cluster-roles/vcluster/addons/addons.yaml
+            keys: [external-dns-vcluster.defaultVersion]
+      cert-manager:
+        chart: { repoURL: https://charts.jetstack.io, name: cert-manager }
+        autoMerge: patch
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [cert-manager.defaultVersion]
+          - file: addons/cluster-roles/vcluster/addons/addons.yaml
+            keys: [cert-manager-vcluster.defaultVersion]
+      metallb:
+        chart: { repoURL: https://metallb.github.io/metallb, name: metallb }
+        autoMerge: patch
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [metallb.defaultVersion]
+      nginx-gateway-fabric:
+        chart: { repoURL: oci://ghcr.io/nginx/charts/nginx-gateway-fabric }
+        autoMerge: patch
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [nginx-gateway-fabric.defaultVersion]
+          - file: addons/cluster-roles/vcluster/addons/addons.yaml
+            keys: [nginx-gateway-fabric-vcluster.defaultVersion]
+      kyverno:
+        chart: { repoURL: https://kyverno.github.io/kyverno, name: kyverno }
+        autoMerge: patch
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [kyverno.defaultVersion]
+      cilium:
+        chart: { repoURL: https://helm.cilium.io, name: cilium }
+        autoMerge: patch
+        updates:
+          - file: addons/environments/production/addons/addons.yaml
+            keys: [cilium.defaultVersion]
+
+      # ── Helm charts: cluster-roles/control-plane ─────────────────────
+      descheduler:
+        chart: { repoURL: https://kubernetes-sigs.github.io/descheduler, name: descheduler }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [descheduler.defaultVersion]
+      authentik:
+        chart: { repoURL: https://charts.goauthentik.io, name: authentik }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [authentik.defaultVersion]
+      kube-prometheus-stack:
+        chart: { repoURL: https://prometheus-community.github.io/helm-charts, name: kube-prometheus-stack }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [kube-prometheus-stack.defaultVersion]
+          - file: addons/cluster-roles/vcluster/addons/addons.yaml
+            keys: [kube-prometheus-stack-agent.defaultVersion]
+      loki:
+        chart: { repoURL: https://grafana.github.io/helm-charts, name: loki }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [loki.defaultVersion]
+      promtail:
+        chart: { repoURL: https://grafana.github.io/helm-charts, name: promtail }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [promtail.defaultVersion]
+          - file: addons/cluster-roles/vcluster/addons/addons.yaml
+            keys: [promtail-vcluster.defaultVersion]
+      goldilocks:
+        chart: { repoURL: https://charts.fairwinds.com/stable, name: goldilocks }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [goldilocks.defaultVersion]
+      trivy-operator:
+        chart: { repoURL: https://aquasecurity.github.io/helm-charts, name: trivy-operator }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [trivy-operator.defaultVersion]
+      trivy-operator-explorer:
+        chart: { repoURL: https://starttoaster.github.io/trivy-operator-explorer, name: trivy-operator-explorer }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [trivy-explorer.defaultVersion]
+      qdrant:
+        chart: { repoURL: https://qdrant.github.io/qdrant-helm, name: qdrant }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [qdrant.defaultVersion]
+      open-webui:
+        chart: { repoURL: https://helm.openwebui.com, name: open-webui }
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [open-webui.defaultVersion]
+      kargo:
+        chart: { repoURL: oci://ghcr.io/akuity/kargo-charts/kargo }
+        autoMerge: patch
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [kargo.defaultVersion]
+
+  # ───────────────────────────────────────────────────────────────────────
+  promises:
+    description: >-
+      Kratix pipeline images referenced by promises/*/promise.yaml. Built by
+      the Build Go SDK Promise Pipelines workflow on every merge to main that
+      touches promises/; pinning the main-<sha> tag is what rolls new
+      pipeline code out (Kratix re-runs the workflows when a Promise changes).
+    targets:
+      argocd-application:
+        image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/argocd-application-configure }
+        autoMerge: always
+        updates:
+          - file: promises/argocd-application/promise.yaml
+            keys:
+              - spec.workflows.resource.configure.0.spec.containers.0.image
+              - spec.workflows.resource.delete.0.spec.containers.0.image
+      argocd-cluster-registration:
+        image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/argocd-cluster-registration-configure }
+        autoMerge: always
+        updates:
+          - file: promises/argocd-cluster-registration/promise.yaml
+            keys:
+              - spec.workflows.resource.configure.0.spec.containers.0.image
+              - spec.workflows.resource.delete.0.spec.containers.0.image
+      argocd-project:
+        image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/argocd-project-configure }
+        autoMerge: always
+        updates:
+          - file: promises/argocd-project/promise.yaml
+            keys:
+              - spec.workflows.resource.configure.0.spec.containers.0.image
+              - spec.workflows.resource.delete.0.spec.containers.0.image
+      external-secret:
+        image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/external-secret-configure }
+        autoMerge: always
+        updates:
+          - file: promises/external-secret/promise.yaml
+            keys:
+              - spec.workflows.resource.configure.0.spec.containers.0.image
+              - spec.workflows.resource.delete.0.spec.containers.0.image
+      gateway-route:
+        image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/gateway-route-configure }
+        autoMerge: always
+        updates:
+          - file: promises/gateway-route/promise.yaml
+            keys:
+              - spec.workflows.resource.configure.0.spec.containers.0.image
+              - spec.workflows.resource.delete.0.spec.containers.0.image
+      http-service:
+        image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/http-service-configure }
+        autoMerge: always
+        updates:
+          - file: promises/http-service/promise.yaml
+            keys:
+              - spec.workflows.resource.configure.0.spec.containers.0.image
+              - spec.workflows.resource.delete.0.spec.containers.0.image
+      vcluster-orchestrator-v2:
+        image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure }
+        autoMerge: always
+        updates:
+          - file: promises/vcluster-orchestrator-v2/promise.yaml
+            keys:
+              - spec.workflows.resource.configure.0.spec.containers.0.image
+              - spec.workflows.resource.delete.0.spec.containers.0.image
+
+  # ───────────────────────────────────────────────────────────────────────
+  workloads:
+    description: >-
+      Apps inside vcluster-media (workloads/, reconciled by the vcluster's own
+      ArgoCD) plus the HTTPService requests under platform/.
+    targets:
+      # linuxserver tags are A.B.C.D-lsNNN -- not semver, so there is no
+      # minor/major to reason about. These were `latest` before, i.e. they
+      # already updated themselves on every restart; `always` keeps that
+      # behaviour but makes each update a visible, revertable commit.
+      radarr:
+        scope: vcluster-media
+        image: { <<: *linuxserverImage, repoURL: ghcr.io/linuxserver/radarr }
+        interval: 12h
+        format: tag
+        autoMerge: always
+        updates:
+          - file: workloads/vcluster-media/addons/radarr/values.yaml
+            keys: [deployment.image.tag]
+      sonarr:
+        scope: vcluster-media
+        image: { <<: *linuxserverImage, repoURL: linuxserver/sonarr }
+        interval: 12h
+        format: tag
+        autoMerge: always
+        updates:
+          - file: workloads/vcluster-media/addons/sonarr/values.yaml
+            keys: [deployment.image.tag]
+      sabnzbd:
+        scope: vcluster-media
+        image:
+          <<: *linuxserverImage
+          repoURL: ghcr.io/linuxserver/sabnzbd
+          allowTags: ['^\d+\.\d+\.\d+-ls\d+$']
+        interval: 12h
+        format: tag
+        autoMerge: always
+        updates:
+          - file: workloads/vcluster-media/addons/sabnzbd/values.yaml
+            keys: [deployment.image.tag]
+      exportarr:
+        scope: vcluster-media
+        image:
+          repoURL: ghcr.io/onedr0p/exportarr
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        updates:
+          - file: workloads/vcluster-media/addons/radarr/values.yaml
+            keys: [deployment.additionalContainers.0.image]
+          - file: workloads/vcluster-media/addons/sonarr/values.yaml
+            keys: [deployment.additionalContainers.0.image]
+          - file: workloads/vcluster-media/addons/sabnzbd/values.yaml
+            keys: [deployment.additionalContainers.0.image]
+      otterwiki:
+        scope: vcluster-media
+        image:
+          repoURL: redimp/otterwiki
+          allowTags: ['^\d+\.\d+\.\d+$']
+        format: tag
+        updates:
+          - file: workloads/vcluster-media/addons/otterwiki/values.yaml
+            keys: [deployment.image.tag]
+      stakater-application:
+        scope: vcluster-media
+        chart: { repoURL: https://stakater.github.io/stakater-charts, name: application }
+        updates:
+          - file: workloads/vcluster-media/addons.yaml
+            keys: [mediaAppDefaults.defaultVersion]
+      hello-world:
+        scope: platform
+        image:
+          repoURL: docker.io/nginxinc/nginx-unprivileged
+          allowTags: ['^\d+\.\d+\.\d+$']
+        format: tag
+        updates:
+          - file: platform/http-services/hello-world.yaml
+            keys: [spec.image.tag]
