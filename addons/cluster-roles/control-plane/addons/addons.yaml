@@ -557,7 +557,7 @@ trivy-explorer:
   chartName: trivy-operator-explorer
   project: platform-services
   chartRepository: https://starttoaster.github.io/trivy-operator-explorer
-  defaultVersion: "0.4.6"
+  defaultVersion: 0.5.1
   selector:
     matchExpressions:
       - key: cluster_role
