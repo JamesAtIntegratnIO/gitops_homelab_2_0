@@ -687,3 +687,69 @@ mcp-system:
       prune: true
     syncOptions:
       - CreateNamespace=true
+
+# ── Kargo: automated version updates ──────────────────────────────────
+# Kargo watches every registry and chart repo this repo pins something from,
+# and opens (and, where the per-target policy allows, merges) PRs that bump
+# the pins. Three pieces: the chart (this entry, with kargo-extras/ attached
+# as an extra source for the ExternalSecrets and HTTPRoute), the
+# Projects/Warehouses/Stages rendered by the local kargo-projects chart
+# below, and network-policies/kargo.yaml. Control-plane only: it must never
+# render into a vcluster. Full picture in docs/kargo.md.
+kargo:
+  enabled: true
+  namespace: kargo
+  releaseName: kargo
+  chartName: kargo
+  project: platform-services
+  chartRepository: oci://ghcr.io/akuity/kargo-charts/kargo
+  defaultVersion: "1.11.2"
+  selectorMatchLabels:
+    cluster_role: control-plane
+  additionalResources:
+    type: manifest
+    path: addons/cluster-roles/control-plane/addons/kargo-extras
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .spec.parentRefs[]?.group
+        - .spec.parentRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+
+# The target list lives in kargo-projects/values.yaml next to this file.
+kargo-projects:
+  enabled: true
+  namespace: kargo
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/charts/kargo-projects
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      # The Kargo CRDs arrive with the kargo app above; do not fail the
+      # dry-run while they are still missing on a fresh cluster.
+      - SkipDryRunOnMissingResource=true
