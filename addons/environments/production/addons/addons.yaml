@@ -552,7 +552,10 @@ gateway-api-crds:
       recurse: true
     targetRevisionFromValue: gatewayAPIRevision
   syncPolicy:
-    automated: {}
+    automated:
+      # Never prune here: the source is the upstream gateway-api repo, and pruning a
+      # Gateway API CRD would cascade-delete every Gateway/HTTPRoute in the cluster.
+      prune: false
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - ServerSideApply=true
