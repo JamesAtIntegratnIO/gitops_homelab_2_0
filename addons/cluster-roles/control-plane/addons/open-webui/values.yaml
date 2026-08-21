@@ -13,7 +13,10 @@ pipelines:
   enabled: false
 
 image:
-  tag: "v0.8.6"  # Pinned ahead of chart release (chart 12.5.0 ships 0.8.5)
+  # Pinned ahead of the chart's appVersion (12.5.0 ships 0.8.5). Kargo keeps
+  # this line current (kargo-projects target open-webui-image) and rewrites
+  # it from the value onwards, so keep comments off the `tag:` line itself.
+  tag: "v0.8.6"
 
 # Deferrable: the AI stack should yield its node to a platform service.
 priorityClassName: platform-batch
