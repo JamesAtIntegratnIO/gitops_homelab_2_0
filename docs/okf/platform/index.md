@@ -8,3 +8,4 @@
 * [Security posture](security-posture.md) - enforced network policy, Kyverno, Trivy, Authentik SSO, VPA governance.
 * [Observability](observability.md) - hub-and-spoke Prometheus, Loki, dashboards, Matrix alerting.
 * [AI stack](ai-stack.md) - Open WebUI, Qdrant, MCP servers, retired components.
+* [Kargo version updates](kargo.md) - how every image and chart pin is kept current: Warehouses, one Stage per artifact, PR-gated merges by policy.
