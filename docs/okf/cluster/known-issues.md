@@ -72,24 +72,76 @@ result is equivalent to what is already stored.
 **Still open**: the underlying disk problem is untouched — reducing write volume
 helps, but it is not the fix.
 
-*Update 2026-08-21:* the stored-event count fell from ~208k to 26,910, then
-**stopped falling and began climbing** — 27,629, then **47,670 about an hour
-later**. It is not draining at all; the loop now outpaces GC by roughly 20k
-events per hour, consistent with the measured ~8 events/s. That is not slow GC,
-it is a second write loop still running: the
-`kratix.io/manual-reconciliation: "true"` annotation on
-`vclusterorchestratorv2s/vcluster-media` was set by hand on 2026-08-21T02:19:09Z
-and never cleared, so Kratix re-triggers itself several times a second (8.69
-`PUT/s` against a 0.03 baseline) and produces events as fast as GC removes them.
-Clearing that annotation is the prerequisite; **`--event-ttl` is the wrong thing
-to chase until it is cleared**, because the count is a symptom of the loop rather
-than of retention. The annotation is not in git, so removing it is clearing
-unmanaged manual state:
+*Update 2026-08-21, corrected after measurement:* the stored-event count fell
+from ~208k to 26,910 and then **climbed again** — 47,670 within an hour — because
+a second write loop is still running at ~10 status `PUT`/s on
+`vclusterorchestratorv2s/vcluster-media`, 100% of them by Kratix itself
+(`manager` in managedFields), alternating `status.workflowsSucceeded` 0→1→0 on
+every single write.
+
+The `kratix.io/manual-reconciliation` annotation was the **trigger, not the
+cause**. Removing it (done 2026-08-21 ~18:00Z) changed nothing; two Kratix image
+rollouts (02:37Z, 16:01Z) changed nothing. The stuck state lives in the object.
+
+**Cause — a Kratix-owned condition was wiped, and two Kratix code paths then
+disagree forever.** Read from Kratix `main` (`internal/controller/
+dynamic_resource_request_controller.go`, `lib/workflow/reconciler.go`):
+
+1. `generateWorkflowsCounterStatus` sets `workflowsSucceeded = 1` **only if the
+   request carries `ConfigureWorkflowCompleted=True`**, otherwise `0`.
+2. `determineWorkflowState` sets it to `1` if the most recent pipeline Job for
+   the current hash is Complete.
+3. Each writes whenever the stored value disagrees with its own answer.
+
+The VCO has **no `ConfigureWorkflowCompleted` and no `Reconciled` condition** —
+exactly the two Kratix sets only on pipeline transitions. Every other resource
+request in the cluster has both. They were removed by the *pre-fix*
+`platform-status-reconciler` (`:latest`, running 2026-02-28 → 2026-08-21T17:08Z),
+which replaced the whole `conditions` list on every 60s pass — its own fix commit
+`9878067` says so. The 15:41Z pipeline completed, the condition was wiped within
+a minute, and the fixed build landed at 17:08Z with nothing left to preserve.
+
+Timeline (Prometheus, 1m resolution): 0.04 PUT/s flat → **2.36 at 02:20Z → 8.4 at
+02:21Z**, i.e. at the manual reconcile, 18 minutes *before* the first Kratix
+rollout. Before it there was no VCO pipeline Job at all (the stale one had been
+deleted out-of-band), so path 1 and path 2 both said 0 and agreed. The manual
+reconcile created a Job; it completed; the disagreement began.
+
+**Second silent consequence:** `shouldForcePipelineRun` returns false on a nil
+condition, so the VCO **stopped re-running on Kratix's 10h reconciliation
+interval** — every other request has Jobs at ~10h spacing; the VCO has none
+between 02:18Z and the ArgoCD-driven 15:41Z run.
+
+**Fix: make Kratix re-establish the condition by completing a pipeline run.**
+Set the manual-reconciliation **label** (Kratix `main` reads labels —
+`isManualReconciliation(obj.GetLabels())`; `hctl reconcile` does exactly this,
+and Kratix removes the label itself afterwards). While the label is set
+`jobToPipelineIndex` returns `(0,false)`, so both paths agree on 0 and the loop
+stops at once; on completion Kratix writes `ConfigureWorkflowCompleted=True`,
+both paths agree on 1, and the fixed reconciler preserves foreign conditions
+(`MergeForeignConditions`). Live write — James:
 
 ```bash
-kubectl annotate vclusterorchestratorv2s.platform.integratn.tech \
-  -n platform-requests vcluster-media kratix.io/manual-reconciliation-
+kubectl label vclusterorchestratorv2s.platform.integratn.tech \
+  -n platform-requests vcluster-media kratix.io/manual-reconciliation=true
 ```
+
+Verify: `status.conditions` gains `ConfigureWorkflowCompleted=True`, VCO PUT/s
+returns to ~0.03, and the event count starts falling.
+
+**Two further defects found on the way, not yet fixed:**
+
+- The fixed reconciler's `statusUnchanged` guard does not work: it still patches
+  every 60s, and the only key that changes across its write is `lastReconciled`
+  — the one key it claims to ignore. Harmless at 1/min but it is a real defect
+  in a fix that was declared complete; the JSON-string comparison fails on
+  something not visible in stored content. Pruning is ruled out (every field it
+  sends is stored).
+- The Kratix Helm chart is pinned to `0.0.1`, but Syntasso **republishes `0.0.1`
+  with new app versions** (index regenerated 2026-08-21T09:22Z, appVersion
+  1.16.0). Every ArgoCD sync of the kratix app re-resolves it, which is why the
+  controller image changed at 02:37Z and 16:01Z today. This is the grafana-mcp
+  `:latest` hazard in the platform's core controller.
 
 # `retry.limit: -1` can wedge an app against its own fix (2026-08-21)
 
