@@ -20,7 +20,15 @@ data:
       user-id: "${MATRIX_USER_ID}"
       access-token: "${MATRIX_ACCESS_TOKEN}"
       room-mapping:
+        # Two receiver paths so Alertmanager can route critical and warning
+        # traffic separately (see the routing tiers in the kube-prometheus-stack
+        # values). Both resolve to the same room today; to split warnings into a
+        # dedicated digest room, add `digest-room-id` to the
+        # matrix-alertmanager-receiver 1Password item, add it to the
+        # ExternalSecret and a MATRIX_DIGEST_ROOM_ID env var on the Deployment,
+        # then swap the variable below. Nothing else changes.
         homelab-alerts: "${MATRIX_ROOM_ID}"
+        homelab-digest: "${MATRIX_ROOM_ID}"
 
     templating:
       firing-template: |

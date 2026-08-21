@@ -18,7 +18,12 @@ alertmanager:
   config:
     global:
       resolve_timeout: 5m
+
+    # ── Inhibitions ────────────────────────────────────────────────────────
+    # Suppress the derivative alerts a single fault fans out into, so one
+    # problem produces one message instead of a family of them.
     inhibit_rules:
+    # A critical for a given alertname+namespace silences its warning/info twins.
     - source_matchers:
       - severity = critical
       target_matchers:
@@ -30,45 +35,116 @@ alertmanager:
       - alertname = InfoInhibitor
       target_matchers:
       - severity = info
-    route:
-      receiver: matrix
-      group_by:
+    # A Degraded app is also OutOfSync. Report the worse condition only.
+    - source_matchers:
+      - alertname = ArgoCDAppDegraded
+      target_matchers:
+      - alertname = ArgoCDAppOutOfSync
+      equal:
+      - name
+    # Certificate expiry is a ladder (expired > <3d > <14d > not-ready). Only
+    # the most severe rung should reach Matrix for a given certificate.
+    - source_matchers:
+      - alertname = CertificateExpired
+      target_matchers:
+      - alertname =~ CertificateExpiring.*|CertificateNotReady
+      equal:
       - namespace
+      - name
+    - source_matchers:
+      - alertname = CertificateExpiringCritical
+      target_matchers:
+      - alertname = CertificateExpiringSoon
+      equal:
+      - namespace
+      - name
+
+    # ── Routing tiers ──────────────────────────────────────────────────────
+    # Severity is a delivery contract, defined alongside the rules in
+    # addons/cluster-roles/control-plane/addons/platform-alerts:
+    #
+    #   critical -> matrix-critical  10s wait, 1h repeat, resolved notices ON
+    #   warning  -> matrix-digest    5m wait, 30m batch, 24h repeat, no resolves
+    #   info     -> dropped          Grafana / Alertmanager UI only
+    #
+    # `name` is in every group_by. Without it, every ArgoCD app shares a single
+    # namespace+alertname group, so one app changing state re-notifies the whole
+    # group on each group_interval — the single biggest source of repeat spam.
+    route:
+      # Unclassified alerts fall through to the quiet digest rather than paging
+      # or vanishing: visible, but never a 3am message.
+      receiver: matrix-digest
+      group_by:
       - alertname
-      group_wait: 30s
-      group_interval: 5m
-      repeat_interval: 4h
+      - namespace
+      - name
+      group_wait: 5m
+      group_interval: 30m
+      repeat_interval: 24h
       routes:
-      - receiver: matrix
+
+      # 1. Muted: permanently true on this cluster by design, tracked in Grafana.
+      #    KubeCPUOvercommit — 10.4 of 11.85 allocatable CPU is requested across
+      #    3 nodes, so "cannot tolerate node failure" is the intended steady
+      #    state, not an incident.
+      #    CPUThrottlingHigh — fires for any container that has a CPU limit and
+      #    uses it; upstream's own docs call it noisy.
+      - receiver: 'null'
+        matchers:
+        - alertname =~ Watchdog|InfoInhibitor|KubeCPUOvercommit|CPUThrottlingHigh
+        continue: false
+
+      # 2. Info: awareness only, never messaged.
+      - receiver: 'null'
+        matchers:
+        - severity = info
+        continue: false
+
+      # 3. Critical: something is broken now. Page immediately, repeat hourly
+      #    until fixed, and confirm on resolve.
+      - receiver: matrix-critical
+        matchers:
+        - severity = critical
+        group_wait: 10s
+        group_interval: 5m
+        repeat_interval: 1h
+        continue: false
+
+      # 4. ArgoCD's own app-level notification webhook.
+      - receiver: matrix-digest
         matchers:
         - source = argocd-notifications
         group_by:
         - alertname
         - app_name
-        group_wait: 10s
-        group_interval: 1m
+        group_wait: 1m
+        group_interval: 30m
         repeat_interval: 24h
         continue: false
-      - receiver: matrix
+
+      # 5. Warning: batched. No resolved notices — a warning that cleared on its
+      #    own is not news, and resolve traffic was roughly half of all volume.
+      - receiver: matrix-digest
         matchers:
-        - severity = critical
-        group_wait: 10s
-        repeat_interval: 1h
+        - severity = warning
         continue: false
-      - receiver: 'null'
-        matchers:
-        - alertname = Watchdog
-        continue: false
-      - receiver: 'null'
-        matchers:
-        - alertname = InfoInhibitor
-        continue: false
+
     receivers:
     - name: 'null'
-    - name: matrix
+    # Both receivers currently target the same Matrix room via two distinct
+    # receiver paths. To split warnings into a dedicated digest room: create the
+    # room, add its ID as `digest-room-id` on the matrix-alertmanager-receiver
+    # 1Password item, add that key to the ExternalSecret and a
+    # MATRIX_DIGEST_ROOM_ID env var to the Deployment, then point the
+    # homelab-digest room-mapping entry at it. No change is needed here.
+    - name: matrix-critical
       webhook_configs:
       - url: http://matrix-alertmanager-receiver.monitoring.svc.cluster.local:12345/alerts/homelab-alerts
         send_resolved: true
+    - name: matrix-digest
+      webhook_configs:
+      - url: http://matrix-alertmanager-receiver.monitoring.svc.cluster.local:12345/alerts/homelab-digest
+        send_resolved: false
 prometheus:
   service:
     type: ClusterIP
