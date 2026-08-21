@@ -1,7 +1,7 @@
 ---
 type: Platform Capability
 title: Kargo — automated image and chart version updates
-description: How every pinned image tag, digest and chart version in the repo is kept current — Kargo Warehouses watch the sources, one Stage per artifact opens a PR against main and merges it under a per-target policy.
+description: How every pinned image tag, digest and chart version in the repo is kept current — Kargo Warehouses watch the sources, one Stage per artifact opens a PR against main, merges it under a per-target policy, and verifies the affected ArgoCD Applications afterwards.
 tags: [kargo, updates, images, charts, automation, gitops]
 status: draft
 generated: { by: claude-code/claude-fable-5, at: 2026-08-21T22:30:00Z }
@@ -12,7 +12,7 @@ sources:
     title: kargo-projects factory chart
   - id: targets
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
-    title: target list (48 Warehouse/Stage pairs)
+    title: target list (49 Warehouse/Stage pairs)
   - id: install
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo/values.yaml
     title: Kargo chart values
@@ -66,6 +66,11 @@ registry / chart repo ─poll─▶ Warehouse ─▶ Freight ─auto-promote─�
 | Route | `kargo.cluster.integratn.tech` → `kargo-api:80` (TLS at the gateway, `api.tls.terminatedUpstream: true`) | external-dns publishes it |
 | Network | default-deny from Kyverno; explicit: DNS, kube-apiserver, webhook ingress on 9443, gateway → API 8080, monitoring → 9090, controller → internet 443, API → nginx-gateway pod 443 for OIDC discovery[^netpol] | Cilium DNATs before policy, so the OIDC rule names the gateway pod, not the VIP |
 | Metrics | ServiceMonitors for controller, management-controller, webhooks-server | scraped by kube-prometheus-stack |
+| Verification | `argo-rollouts-crds` addon (three analysis CRDs from `argoproj/argo-rollouts` v1.9.1, itself a Kargo git-tag target); AnalysisTemplate `argocd-apps-healthy` per Project; `verify.apps` on every `addons`/`promises` target | Kargo's controller runs the AnalysisRuns; no Rollouts controller. Prometheus query over `argocd_app_info` 3m after the merge, 5×1m, 2 failures allowed. `autoRollback` available but off |
+
+Post-merge verification exists for the `addons` and `promises` projects only:
+the vcluster's ArgoCD is not scraped by the host Prometheus, so `workloads`
+Stages have no `argocd_app_info` to check.
 
 Resource requests total ~125m CPU across five pods, all `platform-batch`
 priority. The external-webhooks server is disabled; polling is the only
@@ -126,7 +131,9 @@ disabled addon.
 3. The Kargo API starts even while Authentik is briefly unreachable — if it
    crash-loops on OIDC discovery, the `allow-api-oidc` policy or Authentik
    itself is the first suspect.
-4. GitHub's "Automatically delete head branches" is the intended cleanup for
+4. `autoRollback` is deliberately off: whether Kargo would re-promote the
+   newer (failed) Freight over a rollback has not been observed.
+5. GitHub's "Automatically delete head branches" is the intended cleanup for
    `kargo/promotion/*` branches; it is a repo setting, not in git.
 
 # Related
@@ -141,7 +148,7 @@ disabled addon.
 [^guide]: docs/kargo.md.
 [^install]: Kargo chart values.
 [^chart]: kargo-projects factory chart.
-[^targets]: target list (48 Warehouse/Stage pairs).
+[^targets]: target list (49 Warehouse/Stage pairs).
 [^extras]: ExternalSecrets and HTTPRoute.
 [^netpol]: kargo namespace network policy.
 [^kargo-src]: Kargo v1.11.2 — yaml-update semantics and step schemas.

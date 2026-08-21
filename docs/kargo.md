@@ -28,7 +28,8 @@ registry / chart repo ──poll──▶ Warehouse ──▶ Freight ──auto
 | `kargo` addon | [addons.yaml](../addons/cluster-roles/control-plane/addons/addons.yaml), values in [kargo/values.yaml](../addons/cluster-roles/control-plane/addons/kargo/values.yaml) | The Kargo chart (OCI, `ghcr.io/akuity/kargo-charts/kargo` 1.11.2) in namespace `kargo`, control-plane cluster only |
 | `kargo-extras/` | [kargo-extras/](../addons/cluster-roles/control-plane/addons/kargo-extras/) | Attached to the `kargo` app as an extra source: the two ExternalSecrets and the HTTPRoute for `kargo.cluster.integratn.tech` |
 | `kargo-projects` addon | local chart [addons/charts/kargo-projects](../addons/charts/kargo-projects/), targets in [kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml) | Renders the Projects, Warehouses and Stages from the target list |
-| Network policy | [network-policies/kargo.yaml](../addons/cluster-roles/control-plane/addons/network-policies/kargo.yaml) | DNS, kube-apiserver, webhook ingress, gateway → API, controller → internet:443, API → Authentik |
+| Network policy | [network-policies/kargo.yaml](../addons/cluster-roles/control-plane/addons/network-policies/kargo.yaml) | DNS, kube-apiserver, webhook ingress, gateway → API, controller → internet:443 and → Prometheus:9090, API → Authentik |
+| `argo-rollouts-crds` addon | [addons.yaml](../addons/cluster-roles/control-plane/addons/addons.yaml) | Only the three *analysis* CRDs from `argoproj/argo-rollouts` v1.9.1 — Kargo reuses `AnalysisTemplate`/`AnalysisRun` for post-merge verification and runs the analysis itself; no Rollouts controller |
 | Authentik blueprint | `07-kargo-provider.yaml` in [authentik-blueprints-configmap.yaml](../addons/clusters/the-cluster/addons/authentik/authentik-blueprints-configmap.yaml) | OIDC login for the UI/CLI — a PKCE *public* client, so no client secret exists anywhere |
 
 Three Kargo Projects, each a namespace of the same name, mirror the repo's
@@ -36,7 +37,7 @@ top-level areas:
 
 | Project | Covers | Targets |
 |---|---|---|
-| `addons` | chart versions in every `addons.yaml` (host *and* the vcluster copies, moved together) and the images in raw-manifest addons (`mcp-system`, reconciler, Jobs, nfs, authentik-redis, open-webui image, our own kubectl image) | 34 |
+| `addons` | chart versions in every `addons.yaml` (host *and* the vcluster copies, moved together), the Argo Rollouts CRD tag, and the images in raw-manifest addons (`mcp-system`, reconciler, Jobs, nfs, authentik-redis, open-webui image, our own kubectl image) | 35 |
 | `promises` | the `*-configure` pipeline images in `promises/*/promise.yaml`, pinned to `main-<sha>` | 7 |
 | `workloads` | the media apps in `workloads/vcluster-media/` and `platform/http-services/hello-world.yaml` | 7 |
 
@@ -79,11 +80,42 @@ Everything *not* merged automatically is still opened as a PR; the policy only
 decides who clicks merge. A first-time pin (e.g. `latest` → `v1.10.1`) is
 `Incomparable` and therefore always waits for a human.
 
+### Verification — did the merge actually work?
+
+Every `addons` and `promises` target names the ArgoCD Applications its pin
+feeds (`verify.apps`). After the PR merges, the Stage runs an
+[AnalysisTemplate](https://docs.kargo.io/user-guide/reference-docs/analysis-templates)
+(`argocd-apps-healthy`, rendered into each Project by the chart): starting
+3 minutes after the promotion — ArgoCD polls `main` every 60s, then syncs —
+it asks Prometheus once a minute, five times, whether
+
+```promql
+sum(max by (name) (argocd_app_info{name=~"<apps>", health_status="Healthy", sync_status="Synced"}))
+```
+
+equals the number of apps listed; up to two of the five may fail. The result
+shows on the Stage and on the Freight in the UI, and a failure marks that
+Freight as *failed verification* for the Stage. Nothing is rolled back by
+itself: `autoRollback` exists (per project or per target in the values) and
+would promote the previously verified Freight back — i.e. open and merge a
+revert PR — but it stays **off** until the interaction with auto-promotion
+has been watched on a real failure (a newer Freight could be re-promoted on
+top of the rollback).
+
+The mechanics come from Argo Rollouts: only its three analysis CRDs are
+installed (the `argo-rollouts-crds` addon), Kargo's controller reconciles
+the `AnalysisRun`s, and the Rollouts controller is not installed. Templates
+use Rollouts' `{{args.x}}` syntax, not Kargo's `${{ }}`.
+
+The `workloads` project has no verification: the vcluster's ArgoCD is not
+scraped by the host Prometheus, so there is no `argocd_app_info` to ask.
+
 ### Selection strategies in use
 
 | Strategy | Targets | Notes |
 |---|---|---|
 | `SemVer` | most images, all charts | `allowTags` regexes keep out `-alpine`, per-arch and `git-*` tags; `alpine/k8s` is constrained to the cluster's minor ±1 |
+| `SemVer` on git tags | `argo-rollouts-crds` | a `git` subscription following the repo's release tags (blobless clone), rewriting both the addon's `defaultVersion` and its `generatorValues` revision |
 | `NewestBuild` | `main-<sha>` images, linuxserver `A.B.C.D-lsNNN` tags | Kargo reads each candidate's build time; `discoveryLimit` is kept at 5 and `platform: linux/amd64` set |
 | `Digest` | `mcpo:main` | follows the tag's digest |
 
@@ -228,6 +260,8 @@ trigger.
 | API pod CrashLoopBackOff | OIDC discovery against Authentik failing; `kubectl -n kargo logs deploy/kargo-api`, then the `allow-api-oidc` CiliumNetworkPolicy |
 | UI login loops back | the Authentik `kargo` application/provider (blueprint `07-kargo-provider.yaml`) — check `kubectl -n authentik logs deploy/authentik-server \| grep -i blueprint` |
 | Webhook timeouts creating Projects/Stages | `allow-webhooks-server` / `allow-kube-api` in the network policy; the webhooks server listens on 9443 |
+| Stage verification `Error` | `kubectl -n <project> get analysisrun` then `describe` — Prometheus unreachable (`allow-controller-prometheus-egress` here, the kargo rule in `monitoring.yaml` there) or the AnalysisTemplate CRD missing (`argo-rollouts-crds-the-cluster`) |
+| Stage verification `Failed` | one of the `verify.apps` is not Synced/Healthy three minutes after the merge — look at that Application in ArgoCD; re-verify from the Kargo UI once it recovers |
 
 ## See also
 
