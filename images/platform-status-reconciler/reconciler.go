@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"reflect"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -381,68 +382,7 @@ func buildConditions(result *StatusResult, kubeconfigExists bool) []Condition {
 
 // patchStatus applies a strategic merge patch to the CR's .status subresource.
 func (r *Reconciler) patchStatus(ctx context.Context, vcr *unstructured.Unstructured, result *StatusResult) error {
-	// Build status patch preserving existing status fields from the pipeline
-	statusMap := map[string]interface{}{
-		"phase":          result.Phase,
-		"message":        result.Message,
-		"lastReconciled": result.LastReconciled,
-	}
-
-	// Endpoints (preserve from pipeline if reconciler didn't find them)
-	if result.Endpoints.API != "" || result.Endpoints.ArgoCD != "" {
-		statusMap["endpoints"] = map[string]interface{}{
-			"api":    result.Endpoints.API,
-			"argocd": result.Endpoints.ArgoCD,
-		}
-	}
-
-	// Credentials (preserve from pipeline)
-	if result.Credentials.KubeconfigSecret != "" || result.Credentials.OnePasswordItem != "" {
-		statusMap["credentials"] = map[string]interface{}{
-			"kubeconfigSecret": result.Credentials.KubeconfigSecret,
-			"onePasswordItem":  result.Credentials.OnePasswordItem,
-		}
-	}
-
-	// Health (always updated by reconciler)
-	statusMap["health"] = map[string]interface{}{
-		"argocd": map[string]interface{}{
-			"syncStatus":   result.Health.ArgoCD.SyncStatus,
-			"healthStatus": result.Health.ArgoCD.HealthStatus,
-		},
-		"workloads": map[string]interface{}{
-			"ready": result.Health.Workloads.Ready,
-			"total": result.Health.Workloads.Total,
-		},
-		"subApps": map[string]interface{}{
-			"healthy":   result.Health.SubApps.Healthy,
-			"total":     result.Health.SubApps.Total,
-			"unhealthy": result.Health.SubApps.Unhealthy,
-		},
-	}
-
-	// Reconcile our conditions against what is already on the object:
-	//   - keep lastTransitionTime where the status has not actually changed, so a
-	//     steady state does not look like a fresh transition every pass;
-	//   - keep conditions owned by other controllers (Kratix's WorksSucceeded),
-	//     which a merge patch on this list would otherwise drop.
-	existingConds := readConditions(vcr)
-	conds := MergeForeignConditions(
-		CarryTransitionTime(result.Conditions, existingConds),
-		existingConds,
-	)
-
-	condList := []interface{}{}
-	for _, c := range conds {
-		condList = append(condList, map[string]interface{}{
-			"type":               c.Type,
-			"status":             c.Status,
-			"reason":             c.Reason,
-			"message":            c.Message,
-			"lastTransitionTime": c.LastTransitionTime,
-		})
-	}
-	statusMap["conditions"] = condList
+	statusMap := buildStatusMap(vcr, result)
 
 	// Nothing to say? Then say nothing. Every write here wakes Kratix's watch on
 	// this resource, so an unconditional heartbeat is not free: it cost ~9.5
@@ -478,6 +418,84 @@ func (r *Reconciler) patchStatus(ctx context.Context, vcr *unstructured.Unstruct
 	return nil
 }
 
+// buildStatusMap is the body of the merge patch patchStatus sends. It is a
+// separate function so the exact bytes that go on the wire can be exercised by
+// tests against statusUnchanged, with no client in the way.
+func buildStatusMap(vcr *unstructured.Unstructured, result *StatusResult) map[string]interface{} {
+	// Build status patch preserving existing status fields from the pipeline
+	statusMap := map[string]interface{}{
+		"phase":          result.Phase,
+		"message":        result.Message,
+		"lastReconciled": result.LastReconciled,
+	}
+
+	// Endpoints (preserve from pipeline if reconciler didn't find them)
+	if result.Endpoints.API != "" || result.Endpoints.ArgoCD != "" {
+		statusMap["endpoints"] = map[string]interface{}{
+			"api":    result.Endpoints.API,
+			"argocd": result.Endpoints.ArgoCD,
+		}
+	}
+
+	// Credentials (preserve from pipeline)
+	if result.Credentials.KubeconfigSecret != "" || result.Credentials.OnePasswordItem != "" {
+		statusMap["credentials"] = map[string]interface{}{
+			"kubeconfigSecret": result.Credentials.KubeconfigSecret,
+			"onePasswordItem":  result.Credentials.OnePasswordItem,
+		}
+	}
+
+	// Health (always updated by reconciler)
+	statusMap["health"] = map[string]interface{}{
+		"argocd": map[string]interface{}{
+			"syncStatus":   result.Health.ArgoCD.SyncStatus,
+			"healthStatus": result.Health.ArgoCD.HealthStatus,
+		},
+		"workloads": map[string]interface{}{
+			"ready": result.Health.Workloads.Ready,
+			"total": result.Health.Workloads.Total,
+		},
+		"subApps": map[string]interface{}{
+			"healthy": result.Health.SubApps.Healthy,
+			"total":   result.Health.SubApps.Total,
+			// A nil slice marshals to JSON null, and in a merge patch null means
+			// "delete this key". That is the right thing to send when the list has
+			// emptied -- but it also means the stored object never carries the key
+			// while the patch always does, so any comparison that does not model
+			// merge-patch semantics will never see them as equal. That single null
+			// is what kept this reconciler writing every 60s after the write-loop
+			// fix (2026-08-21); statusUnchanged now applies the patch before
+			// comparing.
+			"unhealthy": result.Health.SubApps.Unhealthy,
+		},
+	}
+
+	// Reconcile our conditions against what is already on the object:
+	//   - keep lastTransitionTime where the status has not actually changed, so a
+	//     steady state does not look like a fresh transition every pass;
+	//   - keep conditions owned by other controllers (Kratix's WorksSucceeded),
+	//     which a merge patch on this list would otherwise drop.
+	existingConds := readConditions(vcr)
+	conds := MergeForeignConditions(
+		CarryTransitionTime(result.Conditions, existingConds),
+		existingConds,
+	)
+
+	condList := []interface{}{}
+	for _, c := range conds {
+		condList = append(condList, map[string]interface{}{
+			"type":               c.Type,
+			"status":             c.Status,
+			"reason":             c.Reason,
+			"message":            c.Message,
+			"lastTransitionTime": c.LastTransitionTime,
+		})
+	}
+	statusMap["conditions"] = condList
+
+	return statusMap
+}
+
 // readConditions pulls the conditions already recorded on the resource.
 func readConditions(vcr *unstructured.Unstructured) []Condition {
 	raw, found, err := unstructured.NestedSlice(vcr.Object, "status", "conditions")
@@ -505,39 +523,71 @@ func readConditions(vcr *unstructured.Unstructured) []Condition {
 	return out
 }
 
-// statusUnchanged reports whether the status we are about to write is
-// equivalent to what is already there, ignoring lastReconciled.
+// statusUnchanged reports whether sending next as a merge patch on .status
+// would leave the stored object exactly as it is, ignoring lastReconciled.
+//
+// It does that by actually applying the patch (RFC 7386 semantics: objects
+// merge, null deletes, anything else replaces) to the current status and
+// comparing the result with the current status. Comparing the patch body
+// against the stored object directly is wrong in two ways that both bit this
+// code: a null for a key the object does not have is a no-op, not a difference;
+// and nested keys the patch does not mention are kept, not removed. Both sides
+// are normalised through JSON first so int vs float64 -- what we build vs what
+// the API server hands back -- cannot masquerade as a change either.
 func statusUnchanged(vcr *unstructured.Unstructured, next map[string]interface{}) bool {
 	current, found, err := unstructured.NestedMap(vcr.Object, "status")
 	if err != nil || !found {
 		return false
 	}
-	strip := func(m map[string]interface{}) map[string]interface{} {
-		c := make(map[string]interface{}, len(m))
-		for k, v := range m {
-			if k == "lastReconciled" {
-				continue
-			}
-			c[k] = v
+	patch := make(map[string]interface{}, len(next))
+	for k, v := range next {
+		if k == "lastReconciled" {
+			continue
 		}
-		return c
+		patch[k] = v
 	}
-	// A merge patch only asserts the keys it carries, so compare on those keys
-	// alone: fields the pipeline owns and we never send must not count as drift.
-	a := strip(next)
-	b := map[string]interface{}{}
-	cur := strip(current)
-	for k := range a {
-		if v, ok := cur[k]; ok {
-			b[k] = v
+	base := normalizeJSON(current)
+	merged := applyMergePatch(base, normalizeJSON(patch))
+	return reflect.DeepEqual(merged, base)
+}
+
+// normalizeJSON round-trips a value through encoding/json so that it is built
+// only from the JSON types: map[string]interface{}, []interface{}, float64,
+// string, bool, nil. Values that fail to round-trip are returned unchanged.
+func normalizeJSON(v interface{}) interface{} {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return v
+	}
+	var out interface{}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return v
+	}
+	return out
+}
+
+// applyMergePatch applies patch to target with JSON merge patch (RFC 7386)
+// semantics and returns the result without mutating either input. Both must
+// already be normalised JSON values.
+func applyMergePatch(target, patch interface{}) interface{} {
+	pm, ok := patch.(map[string]interface{})
+	if !ok {
+		return patch
+	}
+	out := map[string]interface{}{}
+	if tm, ok := target.(map[string]interface{}); ok {
+		for k, v := range tm {
+			out[k] = v
 		}
 	}
-	x, err1 := json.Marshal(a)
-	y, err2 := json.Marshal(b)
-	if err1 != nil || err2 != nil {
-		return false
+	for k, v := range pm {
+		if v == nil {
+			delete(out, k)
+			continue
+		}
+		out[k] = applyMergePatch(out[k], v)
 	}
-	return string(x) == string(y)
+	return out
 }
 
 // contains checks if s contains substr.

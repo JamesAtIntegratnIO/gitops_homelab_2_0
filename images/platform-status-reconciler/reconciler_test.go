@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func makeVCR(phase string, createdAgo time.Duration) *unstructured.Unstructured {
@@ -441,5 +443,154 @@ func TestStatusUnchangedIgnoresFieldsWeDoNotSend(t *testing.T) {
 	next := map[string]interface{}{"phase": "Ready"}
 	if !statusUnchanged(vcr, next) {
 		t.Error("pipeline-owned fields we never send must not count as a change")
+	}
+}
+
+// The defect found on 2026-08-21: with the write-loop fix deployed the
+// reconciler still patched every 60s, and the only stored key that ever changed
+// was lastReconciled. The patch carried "unhealthy": null for an empty list; a
+// merge patch treats null as delete, so the stored object never had the key,
+// the patch always did, and a byte comparison of the two could never be equal.
+func TestStatusUnchangedLiveSteadyStateDoesNotWrite(t *testing.T) {
+	// .status exactly as the API server stored it for vcluster-media, restricted
+	// to the keys this reconciler sends. Numbers are float64, as they come back
+	// from JSON; subApps has no "unhealthy" key.
+	vcr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"status": map[string]interface{}{
+			"phase":          "Ready",
+			"message":        "VCluster vcluster-media is fully operational",
+			"lastReconciled": "2026-08-21T18:10:50Z",
+			"endpoints": map[string]interface{}{
+				"api":    "https://media.integratn.tech:443",
+				"argocd": "https://argocd.cluster.integratn.tech/applications/vcluster-vcluster-media",
+			},
+			"credentials": map[string]interface{}{
+				"kubeconfigSecret": "vcluster-vcluster-media-kubeconfig",
+				"onePasswordItem":  "vcluster-vcluster-media-kubeconfig",
+			},
+			"health": map[string]interface{}{
+				"argocd":    map[string]interface{}{"healthStatus": "Healthy", "syncStatus": "Synced"},
+				"subApps":   map[string]interface{}{"healthy": float64(0), "total": float64(0)},
+				"workloads": map[string]interface{}{"ready": float64(37), "total": float64(37)},
+			},
+			"conditions": []interface{}{
+				map[string]interface{}{"type": "Ready", "status": "True", "reason": "AllHealthy", "message": "All checks passed", "lastTransitionTime": "2026-08-21T17:01:18Z"},
+				map[string]interface{}{"type": "ArgoSynced", "status": "True", "reason": "Synced", "message": "Application is synced", "lastTransitionTime": "2026-08-21T16:53:18Z"},
+				map[string]interface{}{"type": "PodsReady", "status": "True", "reason": "AllPodsRunning", "message": "37/37 pods ready", "lastTransitionTime": "2026-08-21T17:01:18Z"},
+				map[string]interface{}{"type": "KubeconfigAvailable", "status": "True", "reason": "SecretExists", "message": "Kubeconfig secret exists", "lastTransitionTime": "2026-08-21T16:53:18Z"},
+				map[string]interface{}{"type": "WorksSucceeded", "status": "True", "reason": "WorksSucceeded", "message": "All works succeeded", "lastTransitionTime": "2026-08-21T16:53:18Z"},
+			},
+		},
+	}}
+
+	// What the next 60s pass computes for the same, unchanged cluster.
+	var ours []Condition
+	for _, c := range readConditions(vcr) {
+		if c.Type != "WorksSucceeded" {
+			ours = append(ours, c)
+		}
+	}
+	result := &StatusResult{
+		Phase:          "Ready",
+		Message:        "VCluster vcluster-media is fully operational",
+		LastReconciled: "2026-08-21T18:11:50Z",
+		Endpoints:      Endpoints{API: "https://media.integratn.tech:443", ArgoCD: "https://argocd.cluster.integratn.tech/applications/vcluster-vcluster-media"},
+		Credentials:    Credentials{KubeconfigSecret: "vcluster-vcluster-media-kubeconfig", OnePasswordItem: "vcluster-vcluster-media-kubeconfig"},
+		Health: Health{
+			ArgoCD:    ArgoCDHealth{SyncStatus: "Synced", HealthStatus: "Healthy"},
+			Workloads: WorkloadHealth{Ready: 37, Total: 37},
+			SubApps:   SubAppHealth{Healthy: 0, Total: 0, Unhealthy: nil},
+		},
+		Conditions: ours,
+	}
+	next := buildStatusMap(vcr, result)
+
+	// Premise: the patch really does carry the null. (A nil []string is a typed
+	// nil inside an interface, so compare the bytes, not the value.)
+	if b, _ := json.Marshal(next["health"]); !strings.Contains(string(b), `"unhealthy":null`) {
+		t.Fatalf("test premise: the patch must carry unhealthy: null for an empty list, got %s", b)
+	}
+	if !statusUnchanged(vcr, next) {
+		t.Fatal("a steady-state pass must not write: the patch would leave the stored status identical")
+	}
+}
+
+func TestStatusUnchangedNullOnAbsentKeyIsNoop(t *testing.T) {
+	vcr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"status": map[string]interface{}{
+			"health": map[string]interface{}{"subApps": map[string]interface{}{"healthy": float64(0), "total": float64(0)}},
+		},
+	}}
+	next := map[string]interface{}{
+		"health": map[string]interface{}{"subApps": map[string]interface{}{"healthy": 0, "total": 0, "unhealthy": nil}},
+	}
+	if !statusUnchanged(vcr, next) {
+		t.Error("null for a key the object does not have deletes nothing and must not trigger a write")
+	}
+}
+
+func TestStatusUnchangedNullOnPresentKeyIsAChange(t *testing.T) {
+	vcr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"status": map[string]interface{}{
+			"health": map[string]interface{}{"subApps": map[string]interface{}{"healthy": float64(1), "total": float64(2), "unhealthy": []interface{}{"app-a"}}},
+		},
+	}}
+	next := map[string]interface{}{
+		"health": map[string]interface{}{"subApps": map[string]interface{}{"healthy": 1, "total": 2, "unhealthy": nil}},
+	}
+	if statusUnchanged(vcr, next) {
+		t.Error("the list has emptied; null deletes a stored key and that is a real change")
+	}
+}
+
+func TestStatusUnchangedKeepsUnsentNestedKeys(t *testing.T) {
+	// A merge patch only replaces what it mentions. Nested keys owned by someone
+	// else (or by an older build of us) survive, so their presence is not drift.
+	vcr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"status": map[string]interface{}{
+			"health": map[string]interface{}{
+				"argocd":   map[string]interface{}{"healthStatus": "Healthy", "syncStatus": "Synced"},
+				"somebody": map[string]interface{}{"else": "owns this"},
+			},
+		},
+	}}
+	next := map[string]interface{}{
+		"health": map[string]interface{}{"argocd": map[string]interface{}{"healthStatus": "Healthy", "syncStatus": "Synced"}},
+	}
+	if !statusUnchanged(vcr, next) {
+		t.Error("nested keys the patch does not mention are kept by the server and must not count as a change")
+	}
+}
+
+func TestStatusUnchangedNumberTypesAreNotAChange(t *testing.T) {
+	vcr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"status": map[string]interface{}{"health": map[string]interface{}{"workloads": map[string]interface{}{"ready": float64(37), "total": int64(37)}}},
+	}}
+	next := map[string]interface{}{"health": map[string]interface{}{"workloads": map[string]interface{}{"ready": 37, "total": 37}}}
+	if !statusUnchanged(vcr, next) {
+		t.Error("int from our structs vs float64/int64 from the API server is the same number")
+	}
+}
+
+func TestStatusUnchangedDetectsARealChange(t *testing.T) {
+	vcr := &unstructured.Unstructured{Object: map[string]interface{}{
+		"status": map[string]interface{}{"health": map[string]interface{}{"workloads": map[string]interface{}{"ready": float64(36), "total": float64(37)}}},
+	}}
+	next := map[string]interface{}{"health": map[string]interface{}{"workloads": map[string]interface{}{"ready": 37, "total": 37}}}
+	if statusUnchanged(vcr, next) {
+		t.Error("36/37 -> 37/37 is a change and must be written")
+	}
+}
+
+func TestApplyMergePatchDoesNotMutateInputs(t *testing.T) {
+	target := normalizeJSON(map[string]interface{}{"a": map[string]interface{}{"keep": 1, "drop": 2}})
+	patch := normalizeJSON(map[string]interface{}{"a": map[string]interface{}{"drop": nil, "add": 3}})
+	out := applyMergePatch(target, patch)
+	if _, still := target.(map[string]interface{})["a"].(map[string]interface{})["drop"]; !still {
+		t.Error("target was mutated")
+	}
+	a := out.(map[string]interface{})["a"].(map[string]interface{})
+	if _, gone := a["drop"]; gone || a["add"] != float64(3) || a["keep"] != float64(1) {
+		t.Errorf("merge result wrong: %#v", a)
 	}
 }
