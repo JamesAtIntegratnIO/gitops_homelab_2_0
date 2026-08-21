@@ -3,8 +3,8 @@ type: Platform Capability
 title: Kargo — automated image and chart version updates
 description: How every pinned image tag, digest and chart version in the repo is kept current — Kargo Warehouses watch the sources, one Stage per artifact opens a PR against main, merges it under a per-target policy, and verifies the affected ArgoCD Applications afterwards.
 tags: [kargo, updates, images, charts, automation, gitops]
-status: draft
-generated: { by: claude-code/claude-fable-5, at: 2026-08-21T22:30:00Z }
+status: stable
+generated: { by: claude-code/claude-fable-5, at: 2026-08-21T20:00:00Z }
 stale_after: 2026-09-21
 sources:
   - id: chart
@@ -33,10 +33,9 @@ sources:
     title: Kargo v1.11.2 — yaml-update semantics and step schemas
 ---
 
-**Status: authored 2026-08-21 on a branch; nothing is live until it merges.**
-The first person to see it running should set `status: stable`, record the
-day-one PR burst in the [log](../log.md), and re-check the assumptions listed
-at the bottom.
+**Live since 2026-08-21 19:44Z** (PR #24 merged 19:42Z; ArgoCD generated the
+three Applications two minutes later). Day-one observations are at the
+bottom.
 
 # What it is
 
@@ -122,17 +121,40 @@ tracked (it joined the `kubectl` target once main moved it onto the repo's
 own image), but by list position — `additionalResources.10` — so inserting
 an entry above it in the Kratix values breaks that target loudly.
 
-# Assumptions to verify on first run
+# Day one (2026-08-21, 19:44Z–20:00Z)
 
-1. `yaml-parse` evaluates `fromExpression` with the parsed document as the
-   expr-lang environment, so `$env["…"]` works for dashed keys (expr v1.17.8
-   is vendored[^kargo-src]). If chart Stages fail at `yaml-parse`, this is
-   why.
-2. The `SemVer` strategy with no constraint still selects `7.x.y-alpine`
-   tags for `authentik-redis` (semver treats `-alpine` as a prerelease).
-3. The Kargo API starts even while Authentik is briefly unreachable — if it
-   crash-loops on OIDC discovery, the `allow-api-oidc` policy or Authentik
-   itself is the first suspect.
+Within ten minutes of the merge: all four pods Running, both ExternalSecrets
+`SecretSynced`, three Projects ready, 48 Warehouses + 48 Stages, 39 Freight
+discovered on the first poll, **34 pull requests opened, 15 merged by Kargo
+itself**, 19 waiting for a human — exactly the burst the guide predicted.
+Assumptions 1–3 below held: dashed-key `$env[...]` reads worked (qdrant,
+metrics-server merged), `7.4.11-alpine` was selected for authentik-redis, and
+the API came up against Authentik first time.
+
+Two defects surfaced and were fixed the same hour:
+
+- **Warehouse drift.** Kargo's webhook stores `interval: 6h` as `6h0m0s` and
+  fills in `freightCreationPolicy: Automatic`; ArgoCD saw all 48 Warehouses
+  as OutOfSync and re-synced seven times in ten minutes. The chart now emits
+  canonical Go durations and the policy explicitly.
+- **Prerelease chart versions.** With no `semverConstraint`, Kargo picked the
+  greatest version including prereleases: `open-webui 16.0.1-dev.203.1` and
+  `cilium 1.21.0-pre.0` (both manual-merge, so nothing landed). Chart and git
+  subscriptions now default to `>=0.0.0`, which excludes prereleases.
+
+Also observed: GitHub reports `mergeable: UNKNOWN` for a minute or two after
+each merge to `main` moves every other PR's base; `git-merge-pr` with
+`wait: true` simply retries until it clears.
+
+# Assumptions, and what day one settled
+
+1. ~~`yaml-parse` evaluates `fromExpression` with the parsed document as the
+   expr-lang environment, so `$env["…"]` works for dashed keys.~~ Verified
+   day one.
+2. ~~The `SemVer` strategy with no constraint still selects `7.x.y-alpine`
+   tags for `authentik-redis`.~~ Verified day one (PR #49).
+3. ~~The Kargo API starts against Authentik.~~ Verified day one; what
+   happens if Authentik is down at startup is still unobserved.
 4. `autoRollback` is deliberately off: whether Kargo would re-promote the
    newer (failed) Freight over a rollback has not been observed.
 5. GitHub's "Automatically delete head branches" is the intended cleanup for

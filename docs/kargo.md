@@ -193,7 +193,13 @@ matched line in place and parses only the first YAML document:
 - no trailing `# comment` on that line — it would be deleted on the first
   update; put it on the line above;
 - the `repoURL` is written verbatim for `image`/`image-tag` formats, so use
-  the string the file already uses (`redis`, `metio/…`, `docker.io/…`).
+  the string the file already uses (`redis`, `metio/…`, `docker.io/…`);
+- write `interval` in Go's canonical form (`12h0m0s`, not `12h`) — Kargo's
+  webhook stores it normalised and ArgoCD would otherwise see permanent
+  drift and keep re-syncing;
+- chart and git subscriptions default to `constraint: ">=0.0.0"`, which is
+  what keeps prereleases (`16.0.1-dev.203.1`, `1.21.0-pre.0`) out; images
+  rely on `allowTags` for the same job.
 
 Removing a target removes its Warehouse and Stage on the next sync (ArgoCD
 prunes). Removing a whole project also removes its namespace.
