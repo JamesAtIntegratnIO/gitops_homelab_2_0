@@ -1,0 +1,46 @@
+# Scheduling priority for the platform.
+#
+# Purpose: when a node is lost, the cluster is short of CPU until the node
+# returns. Without PriorityClasses the scheduler places whatever it reaches
+# first and the rest stay Pending -- so the component that ends up waiting is
+# arbitrary rather than the least important one. These two classes make that
+# choice explicit in both directions.
+#
+# Kubernetes ships two built-ins we keep using as-is:
+#   system-node-critical    (2000001000)  kubelet-level components
+#   system-cluster-critical (2000000000)  CoreDNS, the vcluster control planes,
+#                                         and Kyverno's admission controller --
+#                                         admission has to be up before anything
+#                                         else can be created at all.
+#
+# Neither class is globalDefault: everything unlabelled keeps priority 0, which
+# keeps the blast radius of this change to the workloads named below.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: platform-critical
+  labels:
+    app.kubernetes.io/part-of: platform
+value: 1000000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: >-
+  Platform components the cluster needs in order to recover: ingress
+  (nginx-gateway-fabric), TLS (cert-manager), secrets (external-secrets),
+  load balancing (metallb), GitOps (argocd, kratix) and DNS publication
+  (external-dns). These preempt ordinary workloads when capacity is short.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: platform-batch
+  labels:
+    app.kubernetes.io/part-of: platform
+value: -1000
+globalDefault: false
+preemptionPolicy: Never
+description: >-
+  Deferrable work: vulnerability scans, Kratix pipeline jobs, the AI stack and
+  demo workloads. Scheduled last, evicted first, and never preempts anything
+  else -- a scan job must not cost a running service its node.
