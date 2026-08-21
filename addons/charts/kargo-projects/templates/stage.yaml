@@ -7,7 +7,7 @@
 {{- $changed := include "kp.changedExpr" (dict "target" $t "norm" $n) }}
 {{- $auto := include "kp.autoMergeExpr" (dict "target" $t "norm" $n) }}
 {{- $subject := include "kp.subject" (dict "target" $t "name" $targetName "norm" $n) }}
-{{- $artifact := ternary (dig "image" "repoURL" "" $t) (printf "%s %s" (dig "chart" "repoURL" "" $t) (dig "chart" "name" "" $t) | trim) $n.isImage }}
+{{- $artifact := ternary (dig "image" "repoURL" "" $t) (ternary (dig "git" "repoURL" "" $t) (printf "%s %s" (dig "chart" "repoURL" "" $t) (dig "chart" "name" "" $t) | trim) $n.isGit) $n.isImage }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
@@ -25,6 +25,18 @@ spec:
         name: {{ $targetName }}
       sources:
         direct: true
+  {{- with $t.verify }}
+  # After the PR has merged: are the Applications this pin feeds Synced and
+  # Healthy? Template rendered per Project in project.yaml.
+  verification:
+    analysisTemplates:
+      - name: argocd-apps-healthy
+    args:
+      - name: apps
+        value: {{ join "|" .apps | quote }}
+      - name: expected
+        value: {{ len .apps | quote }}
+  {{- end }}
   promotionTemplate:
     spec:
       vars:

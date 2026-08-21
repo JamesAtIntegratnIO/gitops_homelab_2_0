@@ -35,6 +35,9 @@ projects:
         image:
           repoURL: ghcr.io/argoproj-labs/mcp-for-argocd
           allowTags: ['^v\d+\.\d+\.\d+$']   # the same releases also exist unprefixed
+        verify:
+          apps:
+            - mcp-system-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/argocd-mcp-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -43,6 +46,9 @@ projects:
         image:
           repoURL: ghcr.io/github/github-mcp-server
           allowTags: ['^v\d+\.\d+\.\d+$']
+        verify:
+          apps:
+            - mcp-system-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/github-mcp-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -51,6 +57,9 @@ projects:
         image:
           repoURL: docker.io/grafana/mcp-grafana
           allowTags: ['^\d+\.\d+\.\d+$']     # not the -alpine variants
+        verify:
+          apps:
+            - mcp-system-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/grafana-mcp-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -59,6 +68,9 @@ projects:
         image:
           repoURL: quay.io/containers/kubernetes_mcp_server
           allowTags: ['^v\d+\.\d+\.\d+$']   # not the per-arch vX.Y.Z-linux-* tags
+        verify:
+          apps:
+            - mcp-system-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/kubernetes-mcp-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -71,6 +83,9 @@ projects:
           strategy: Digest
           constraint: main
         autoMerge: never
+        verify:
+          apps:
+            - mcp-system-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/mcpo-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -79,6 +94,9 @@ projects:
         image:
           repoURL: ghcr.io/supercorp-ai/supergateway
           allowTags: ['^v?\d+\.\d+\.\d+$']  # v2.x was prefixed, 3.x is not
+        verify:
+          apps:
+            - mcp-system-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/sequential-thinking-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -91,6 +109,11 @@ projects:
         image:
           repoURL: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/kubectl
           allowTags: ['^v\d+\.\d+\.\d+$']
+        verify:
+          apps:
+            - mcp-system-the-cluster
+            - kyverno-the-cluster
+            - kyverno-vcluster-media.integratn-tech
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/mcpo-deployment.yaml
             keys: [spec.template.spec.initContainers.0.image]
@@ -112,6 +135,9 @@ projects:
           <<: *promiseImage
           repoURL: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler
         autoMerge: always
+        verify:
+          apps:
+            - platform-status-reconciler-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/platform-status-reconciler/deployment.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -122,6 +148,9 @@ projects:
         image:
           repoURL: metio/matrix-alertmanager-receiver
           allowTags: ['^\d{4}\.\d+\.\d+$']   # calver: YYYY.M.D
+        verify:
+          apps:
+            - matrix-alertmanager-receiver-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/matrix-alertmanager-receiver/deployment.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -134,6 +163,10 @@ projects:
           repoURL: docker.io/alpine/k8s
           constraint: ">=1.34.0 <1.36.0"
           allowTags: ['^\d+\.\d+\.\d+$']
+        verify:
+          apps:
+            - kube-prometheus-stack-extras-the-cluster
+            - mcp-system-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/kube-prometheus-stack-extras/etcd-cert-extractor.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -144,6 +177,9 @@ projects:
         image:
           repoURL: redis
           allowTags: ['^7\.\d+\.\d+-alpine$']
+        verify:
+          apps:
+            - authentik-the-cluster
         updates:
           - file: addons/clusters/the-cluster/addons/authentik/authentik-redis.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -152,6 +188,9 @@ projects:
         image:
           repoURL: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner
           allowTags: ['^v\d+\.\d+\.\d+$']
+        verify:
+          apps:
+            - nfs-subdir-external-provisioner-the-cluster
         updates:
           - file: addons/environments/production/addons/nfs-subdir-external-provisioner/config_deployment.yaml
             keys: [spec.template.spec.containers.0.image]
@@ -165,6 +204,9 @@ projects:
           repoURL: ghcr.io/open-webui/open-webui
           allowTags: ['^v\d+\.\d+\.\d+$']
         format: tag
+        verify:
+          apps:
+            - open-webui-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/open-webui/values.yaml
             keys: [image.tag]
@@ -174,6 +216,10 @@ projects:
       argo-cd:
         chart: { repoURL: https://argoproj.github.io/argo-helm, name: argo-cd }
         autoMerge: patch
+        verify:
+          apps:
+            - argocd-the-cluster
+            - argocd-vcluster-vcluster-media.integratn-tech
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [argocd.defaultVersion]
@@ -182,21 +228,35 @@ projects:
       external-secrets:
         chart: { repoURL: https://charts.external-secrets.io, name: external-secrets }
         autoMerge: patch
+        verify:
+          apps:
+            - external-secrets-the-cluster
+            - external-secrets-vcluster-media.integratn-tech
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [external-secrets.defaultVersion]
       metrics-server:
         chart: { repoURL: https://kubernetes-sigs.github.io/metrics-server, name: metrics-server }
+        verify:
+          apps:
+            - metrics-server-the-cluster
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [metrics-server.defaultVersion]
       nfs-subdir-external-provisioner:
         chart: { repoURL: https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner, name: nfs-subdir-external-provisioner }
+        verify:
+          apps:
+            - nfs-subdir-external-provisioner-the-cluster
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [nfs-subdir-external-provisioner.defaultVersion]
       external-dns:
         chart: { repoURL: https://kubernetes-sigs.github.io/external-dns, name: external-dns }
+        verify:
+          apps:
+            - external-dns-the-cluster
+            - external-dns-vcluster-vcluster-media.integratn-tech
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [external-dns.defaultVersion]
@@ -205,6 +265,10 @@ projects:
       cert-manager:
         chart: { repoURL: https://charts.jetstack.io, name: cert-manager }
         autoMerge: patch
+        verify:
+          apps:
+            - cert-manager-the-cluster
+            - cert-manager-vcluster-vcluster-media.integratn-tech
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [cert-manager.defaultVersion]
@@ -213,12 +277,19 @@ projects:
       metallb:
         chart: { repoURL: https://metallb.github.io/metallb, name: metallb }
         autoMerge: patch
+        verify:
+          apps:
+            - metallb-the-cluster
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [metallb.defaultVersion]
       nginx-gateway-fabric:
         chart: { repoURL: oci://ghcr.io/nginx/charts/nginx-gateway-fabric }
         autoMerge: patch
+        verify:
+          apps:
+            - nginx-gateway-fabric-the-cluster
+            - nginx-gateway-fabric-vcluster-vcluster-media.integratn-tech
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [nginx-gateway-fabric.defaultVersion]
@@ -227,12 +298,19 @@ projects:
       kyverno:
         chart: { repoURL: https://kyverno.github.io/kyverno, name: kyverno }
         autoMerge: patch
+        verify:
+          apps:
+            - kyverno-the-cluster
+            - kyverno-vcluster-media.integratn-tech
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [kyverno.defaultVersion]
       cilium:
         chart: { repoURL: https://helm.cilium.io, name: cilium }
         autoMerge: patch
+        verify:
+          apps:
+            - cilium-the-cluster
         updates:
           - file: addons/environments/production/addons/addons.yaml
             keys: [cilium.defaultVersion]
@@ -240,16 +318,26 @@ projects:
       # ── Helm charts: cluster-roles/control-plane ─────────────────────
       descheduler:
         chart: { repoURL: https://kubernetes-sigs.github.io/descheduler, name: descheduler }
+        verify:
+          apps:
+            - descheduler-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [descheduler.defaultVersion]
       authentik:
         chart: { repoURL: https://charts.goauthentik.io, name: authentik }
+        verify:
+          apps:
+            - authentik-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [authentik.defaultVersion]
       kube-prometheus-stack:
         chart: { repoURL: https://prometheus-community.github.io/helm-charts, name: kube-prometheus-stack }
+        verify:
+          apps:
+            - kube-prometheus-stack-the-cluster
+            - kube-prometheus-stack-agent-vcluster-media.integratn-tech
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [kube-prometheus-stack.defaultVersion]
@@ -257,11 +345,17 @@ projects:
             keys: [kube-prometheus-stack-agent.defaultVersion]
       loki:
         chart: { repoURL: https://grafana.github.io/helm-charts, name: loki }
+        verify:
+          apps:
+            - loki-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [loki.defaultVersion]
       promtail:
         chart: { repoURL: https://grafana.github.io/helm-charts, name: promtail }
+        verify:
+          apps:
+            - promtail-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [promtail.defaultVersion]
@@ -269,35 +363,68 @@ projects:
             keys: [promtail-vcluster.defaultVersion]
       goldilocks:
         chart: { repoURL: https://charts.fairwinds.com/stable, name: goldilocks }
+        verify:
+          apps:
+            - goldilocks-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [goldilocks.defaultVersion]
       trivy-operator:
         chart: { repoURL: https://aquasecurity.github.io/helm-charts, name: trivy-operator }
+        verify:
+          apps:
+            - trivy-operator-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [trivy-operator.defaultVersion]
       trivy-operator-explorer:
         chart: { repoURL: https://starttoaster.github.io/trivy-operator-explorer, name: trivy-operator-explorer }
+        verify:
+          apps:
+            - trivy-explorer-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [trivy-explorer.defaultVersion]
       qdrant:
         chart: { repoURL: https://qdrant.github.io/qdrant-helm, name: qdrant }
+        verify:
+          apps:
+            - qdrant-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [qdrant.defaultVersion]
       open-webui:
         chart: { repoURL: https://helm.openwebui.com, name: open-webui }
+        verify:
+          apps:
+            - open-webui-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [open-webui.defaultVersion]
       kargo:
         chart: { repoURL: oci://ghcr.io/akuity/kargo-charts/kargo }
         autoMerge: patch
+        verify:
+          apps:
+            - kargo-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [kargo.defaultVersion]
+      argo-rollouts-crds:
+        # The analysis CRDs behind Stage verification, pulled straight from
+        # the argo-rollouts repo at a release tag; both pins move together.
+        git:
+          repoURL: https://github.com/argoproj/argo-rollouts.git
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        autoMerge: patch
+        verify:
+          apps:
+            - argo-rollouts-crds-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys:
+              - argo-rollouts-crds.defaultVersion
+              - argo-rollouts-crds.generatorValues.argoRolloutsRevision
 
   # ───────────────────────────────────────────────────────────────────────
   promises:
@@ -310,6 +437,9 @@ projects:
       argocd-application:
         image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/argocd-application-configure }
         autoMerge: always
+        verify:
+          apps:
+            - kratix-promises-the-cluster
         updates:
           - file: promises/argocd-application/promise.yaml
             keys:
@@ -318,6 +448,9 @@ projects:
       argocd-cluster-registration:
         image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/argocd-cluster-registration-configure }
         autoMerge: always
+        verify:
+          apps:
+            - kratix-promises-the-cluster
         updates:
           - file: promises/argocd-cluster-registration/promise.yaml
             keys:
@@ -326,6 +459,9 @@ projects:
       argocd-project:
         image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/argocd-project-configure }
         autoMerge: always
+        verify:
+          apps:
+            - kratix-promises-the-cluster
         updates:
           - file: promises/argocd-project/promise.yaml
             keys:
@@ -334,6 +470,9 @@ projects:
       external-secret:
         image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/external-secret-configure }
         autoMerge: always
+        verify:
+          apps:
+            - kratix-promises-the-cluster
         updates:
           - file: promises/external-secret/promise.yaml
             keys:
@@ -342,6 +481,9 @@ projects:
       gateway-route:
         image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/gateway-route-configure }
         autoMerge: always
+        verify:
+          apps:
+            - kratix-promises-the-cluster
         updates:
           - file: promises/gateway-route/promise.yaml
             keys:
@@ -350,6 +492,9 @@ projects:
       http-service:
         image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/http-service-configure }
         autoMerge: always
+        verify:
+          apps:
+            - kratix-promises-the-cluster
         updates:
           - file: promises/http-service/promise.yaml
             keys:
@@ -358,6 +503,9 @@ projects:
       vcluster-orchestrator-v2:
         image: { <<: *promiseImage, repoURL: ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure }
         autoMerge: always
+        verify:
+          apps:
+            - kratix-promises-the-cluster
         updates:
           - file: promises/vcluster-orchestrator-v2/promise.yaml
             keys:
@@ -368,7 +516,9 @@ projects:
   workloads:
     description: >-
       Apps inside vcluster-media (workloads/, reconciled by the vcluster's own
-      ArgoCD) plus the HTTPService requests under platform/.
+      ArgoCD) plus the HTTPService requests under platform/. No `verify`
+      here: the vcluster's ArgoCD is not scraped by the host Prometheus, so
+      there is no argocd_app_info to check.
     targets:
       # linuxserver tags are A.B.C.D-lsNNN -- not semver, so there is no
       # minor/major to reason about. These were `latest` before, i.e. they

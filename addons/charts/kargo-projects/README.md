@@ -26,6 +26,10 @@ git-merge-pr     if the autoMerge policy allows   ─┐ exactly one of
 git-wait-for-pr  otherwise, until a human acts    ─┘ these runs
 ```
 
+A target that lists `verify.apps` also gets a Stage `verification`: after the
+merge, the `argocd-apps-healthy` AnalysisTemplate (rendered per Project) asks
+Prometheus whether every named ArgoCD Application is Synced and Healthy.
+
 `autoMerge` is evaluated with `semverDiff(new, current)`: `patch` merges
 patch/metadata changes, `minor` additionally merges minor bumps when the major
 is greater than zero, `always` and `never` do what they say. Strategies without
