@@ -239,13 +239,17 @@ spec:
       destination:
         namespace: '{{ $chartConfig.namespace }}'
         name: '{{`{{ .name }}`}}'
-      {{- if $chartConfig.syncPolicy }}
+      {{/*
+      Deep-merge the addon syncPolicy over the chart default rather than replacing it.
+      An addon that overrides only part of the policy (e.g. `automated: {}` or a bare
+      `syncOptions` list) keeps the default selfHeal/prune/retry instead of silently
+      losing them. Maps merge key-by-key; lists (syncOptions) are replaced wholesale,
+      which matches the previous behaviour for addons that set them.
+      deepCopy protects $syncPolicy from mergeOverwrite's in-place mutation across
+      iterations of the addon range.
+      */}}
       syncPolicy:
-        {{- toYaml $chartConfig.syncPolicy | nindent 8 }}
-      {{ else }}
-      syncPolicy:
-        {{- toYaml $syncPolicy | nindent 8 }}
-      {{- end }}
+        {{- toYaml (mergeOverwrite (deepCopy $syncPolicy) ($chartConfig.syncPolicy | default dict)) | nindent 8 }}
       {{- with $chartConfig.ignoreDifferences }}
       ignoreDifferences:
         {{- toYaml . | nindent 8 }}
