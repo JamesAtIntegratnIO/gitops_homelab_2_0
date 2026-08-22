@@ -1,0 +1,16 @@
+# The cluster inventory the gate renders against.
+#
+# One entry, because there is one cluster. An earlier draft listed `hub` and
+# `tenant` separately to make the chain look multi-cluster, and the gate
+# rendered both Applications against whichever entry it matched last -- two
+# inventory entries sharing a server URL are not two clusters, they are one
+# cluster described twice. The chain is expressed by two Applications and two
+# pin files instead, which is what a single-cluster promotion actually is.
+clusters:
+  - name: local
+    server: https://kubernetes.default.svc
+    labels:
+      argocd.argoproj.io/secret-type: cluster
+      cluster_name: local
+      cluster_role: hub
+      environment: production

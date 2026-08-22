@@ -14,8 +14,14 @@ PushFix(ctx, pr, root, message)      // to the PR's branch, never the default
 | Provider | Status |
 |---|---|
 | GitHub | implemented, exercised |
+| Gitea | implemented, exercised against a live instance |
 | GitLab | extension point |
 | Bitbucket | extension point |
+
+`GIT_API_BASE` means different things per provider, because the providers do:
+on GitHub it is the API root (`.../api/v3` for Enterprise); on Gitea it is the
+**instance** root, because the client appends `/api/v1` itself and also needs
+that root to build a push remote.
 
 ## Things a new implementation has to get right
 

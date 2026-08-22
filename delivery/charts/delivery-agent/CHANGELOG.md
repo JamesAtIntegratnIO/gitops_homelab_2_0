@@ -7,6 +7,14 @@ All notable changes to the `delivery-agent` chart. Format follows
 
 ### Added
 
+- `git.provider: gitea`, and `git.insecureSkipTLSVerify` for a self-hosted host
+  with a private or self-signed certificate.
+- `networkPolicy.egress.namespaces` — egress to an in-cluster destination by
+  namespace selector. This CANNOT be expressed as an `ipBlock`: a Service's
+  ClusterIP is DNAT'd to a pod IP before policy evaluation, so a rule naming
+  the ClusterIP matches nothing and the connection hangs with zero bytes and
+  no error. Found by running the agent against an in-cluster Gitea.
+
 - Deployment, Service, ServiceAccount, read-only ClusterRole and NetworkPolicy
   for the in-cluster triage agent.
 - `networkPolicy.flavor: cilium` additionally emits a `CiliumNetworkPolicy`

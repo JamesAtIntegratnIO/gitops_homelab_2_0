@@ -1,0 +1,17 @@
+# How gitops-gate renders this repository.
+#
+# The simplest shape the gate supports: ArgoCD Applications committed as plain
+# YAML. No ApplicationSet, no generators, no app-of-apps -- which is what most
+# repositories actually look like before they grow one.
+clusters: .gitops-gate/clusters.yaml
+
+sources:
+  - name: apps
+    type: manifests
+    paths: ["apps/*.yaml"]
+
+validate:
+  enabled: true
+  ignoreMissingSchemas: true
+  schemaLocations:
+    - default

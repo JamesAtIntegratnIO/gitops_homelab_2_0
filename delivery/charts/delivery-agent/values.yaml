@@ -19,10 +19,18 @@ service:
 # HTTPRoute at all.
 
 git:
-  # github (implemented) | gitlab | bitbucket (extension points)
+  # github, gitea (implemented) | gitlab | bitbucket (extension points)
   provider: github
-  # For a self-hosted host, e.g. https://ghe.example.com/api/v3
+  # What this means depends on the host, because the hosts differ:
+  #   github -- the API root, e.g. https://ghe.example.com/api/v3
+  #   gitea  -- the INSTANCE root, e.g. https://gitea.example.com. The client
+  #             appends /api/v1 itself, and also needs the root to build a
+  #             push remote.
   apiBase: ""
+  # Accept a self-signed certificate. Self-hosted hosts commonly have one;
+  # this is scoped to the agent's git client and to the clone it pushes from,
+  # never to the process or to a global git config.
+  insecureSkipTLSVerify: false
   owner: ""               # REQUIRED
   repo: ""                # REQUIRED
   # Clone URL. Must be reachable from the cluster.
@@ -104,6 +112,12 @@ networkPolicy:
   # For `standard`, give CIDRs; for `cilium`, FQDNs are also honoured.
   egress:
     dnsNamespace: kube-system
+    # In-cluster destinations -- a self-hosted git host or a model endpoint
+    # running in this cluster. These CANNOT be expressed as ipBlocks: a
+    # ClusterIP is DNAT'd to a pod IP before policy evaluation, so a rule
+    # naming it matches nothing and the connection hangs with zero bytes.
+    # e.g. [{name: gitea, ports: [3000]}]
+    namespaces: []
     # e.g. [{cidr: 10.1.2.3/32, port: 8000}] for a model endpoint on your LAN
     ipBlocks: []
     # e.g. [api.github.com] -- honoured only when flavor is `cilium`

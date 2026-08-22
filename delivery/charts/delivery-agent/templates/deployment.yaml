@@ -44,6 +44,8 @@ spec:
               value: ":{{ .Values.service.port }}"
             - name: GIT_PROVIDER
               value: {{ .Values.git.provider | quote }}
+            - name: GIT_INSECURE_SKIP_TLS_VERIFY
+              value: {{ .Values.git.insecureSkipTLSVerify | default false | quote }}
             {{- with .Values.git.apiBase }}
             - name: GIT_API_BASE
               value: {{ . | quote }}

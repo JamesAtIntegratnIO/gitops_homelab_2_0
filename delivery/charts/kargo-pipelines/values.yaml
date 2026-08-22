@@ -23,6 +23,14 @@ git:
   branch: main
   # github | gitlab | bitbucket | gitea | azure
   provider: github
+  # Accept a self-signed or privately-issued certificate on the git host.
+  #
+  # Needed more often than it looks. Kargo REFUSES to send credentials to a
+  # plain-HTTP endpoint -- "refused to get credentials for insecure HTTP
+  # endpoint" -- so a self-hosted host cannot be reached over http:// to dodge
+  # a certificate problem. It has to be https://, which means the certificate
+  # has to be either trusted or explicitly skipped, and this is the second.
+  insecureSkipTLSVerify: false
 
 merge:
   # Used by git-merge-pr when a Stage is allowed to merge its own PR.
@@ -107,6 +115,13 @@ verification:
   # argo-rollouts addon: its CRDs and the controller that actually executes
   # AnalysisRuns -- Kargo only creates them) and
   # controller.rollouts.integrationEnabled on the Kargo chart.
+  #
+  # It ALSO needs Prometheus to be scraping ArgoCD, because the query is
+  # `argocd_app_info`. With nothing scraping it the query returns no rows,
+  # every AnalysisRun fails, and no component names the reason -- the run
+  # reports Failed with an empty message. Confirm before enabling:
+  #
+  #   count(argocd_app_info)   must be > 0
   prometheus: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
   # ArgoCD polls main every 60s, then syncs and the rollout progresses.
   initialDelay: 3m

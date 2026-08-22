@@ -49,6 +49,25 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    {{- /* An in-cluster destination cannot be expressed as an ipBlock. A
+           Service's ClusterIP is DNAT'd to a pod IP before policy is
+           evaluated, so a rule naming the ClusterIP matches nothing and the
+           connection times out with no error anywhere -- the same shape of
+           failure as reaching a service through a gateway whose egress
+           allow-list has not learned the namespace. Select the namespace. */}}
+    {{- range $np.egress.namespaces }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .name }}
+      {{- with .ports }}
+      ports:
+        {{- range . }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
     {{- range $np.egress.ipBlocks }}
     - to:
         - ipBlock:
