@@ -1,0 +1,86 @@
+{{- range $projectName, $project := .Values.projects }}
+{{- range $targetName, $t := $project.targets }}
+{{- $n := include "kp.normalise" (dict "root" $ "project" $projectName "name" $targetName "target" $t) | fromJson }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: {{ $targetName }}
+  namespace: {{ $projectName }}
+  labels:
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  interval: {{ $n.interval }}
+  # Stated explicitly: the Kargo webhook defaults it, and an absent field is
+  # permanent drift to ArgoCD.
+  freightCreationPolicy: Automatic
+  subscriptions:
+    {{- if $n.isImage }}
+    - image:
+        repoURL: {{ $t.image.repoURL }}
+        imageSelectionStrategy: {{ $n.strategy }}
+        {{- with $t.image.constraint }}
+        constraint: {{ . | quote }}
+        {{- end }}
+        {{- with $t.image.allowTags }}
+        allowTagsRegexes:
+          {{- range . }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- end }}
+        {{- with $t.image.ignoreTags }}
+        ignoreTagsRegexes:
+          {{- range . }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- end }}
+        {{- with $t.image.platform }}
+        platform: {{ . }}
+        {{- end }}
+        # Emitted for every strategy, not just SemVer: the Kargo webhook
+        # defaults it to true on all image subscriptions, and an absent field
+        # is permanent ArgoCD drift (13 Warehouses on day one).
+        strictSemvers: {{ ternary $t.image.strictSemvers true (hasKey $t.image "strictSemvers") }}
+        discoveryLimit: {{ $n.discoveryLimit }}
+        # Tags are immutable for every strategy except Digest, which exists
+        # precisely to follow a mutable tag. Caching by tag spares the
+        # registry a manifest fetch per tag per poll.
+        cacheByTag: {{ ne $n.strategy "Digest" }}
+    {{- else if $n.isGit }}
+    - git:
+        repoURL: {{ $t.git.repoURL }}
+        commitSelectionStrategy: SemVer
+        # A constraint without a prerelease part never matches prerelease
+        # tags (Masterminds semver), which is the point of the default.
+        semverConstraint: {{ default ">=0.0.0" $t.git.constraint | quote }}
+        {{- with $t.git.allowTags }}
+        allowTagsRegexes:
+          {{- range . }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- end }}
+        {{- with $t.git.ignoreTags }}
+        ignoreTagsRegexes:
+          {{- range . }}
+          - {{ . | quote }}
+          {{- end }}
+        {{- end }}
+        discoveryLimit: {{ $n.discoveryLimit }}
+        # Only tags are inspected; no need to fetch the repository's blobs.
+        blobless: true
+    {{- else }}
+    - chart:
+        repoURL: {{ $t.chart.repoURL }}
+        {{- with $t.chart.name }}
+        name: {{ . }}
+        {{- end }}
+        # Same default as for git: without it the greatest version wins,
+        # and on day one that was open-webui 16.0.1-dev.203.1 and cilium
+        # 1.21.0-pre.0.
+        semverConstraint: {{ default ">=0.0.0" $t.chart.constraint | quote }}
+        discoveryLimit: {{ $n.discoveryLimit }}
+    {{- end }}
+{{- end }}
+{{- end }}

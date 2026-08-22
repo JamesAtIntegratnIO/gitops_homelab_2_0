@@ -25,20 +25,26 @@ fi
 for c in "${charts[@]}"; do
   d="$(dirname "$c")"
 
-  if helm lint "$d" >/dev/null 2>&1; then
+  # A chart with required values cannot render bare; Helm's convention is a
+  # ci/*-values.yaml fixture, and a chart that needs one but lacks it is a
+  # chart nobody can lint.
+  lintargs=()
+  for v in "$d"/ci/*-values.yaml; do [ -f "$v" ] && lintargs+=(-f "$v"); done
+
+  if helm lint "${lintargs[@]}" "$d" >/dev/null 2>&1; then
     ok "helm lint $d"
   else
-    helm lint "$d" 2>&1 | sed 's/^/        /'
+    helm lint "${lintargs[@]}" "$d" 2>&1 | sed 's/^/        /'
     bad "helm lint $d"
   fi
 
   # `helm template` validates values against values.schema.json when present,
   # so a default set that violates its own schema fails here.
   if [ -f "$d/values.schema.json" ]; then
-    if helm template lint-check "$d" >/dev/null 2>&1; then
+    if helm template lint-check "${lintargs[@]}" "$d" >/dev/null 2>&1; then
       ok "values.schema.json accepts the chart defaults ($d)"
     else
-      helm template lint-check "$d" 2>&1 | sed 's/^/        /' | head -10
+      helm template lint-check "${lintargs[@]}" "$d" 2>&1 | sed 's/^/        /' | head -10
       bad "chart defaults violate values.schema.json ($d)"
     fi
     if python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$d/values.schema.json" 2>/dev/null; then

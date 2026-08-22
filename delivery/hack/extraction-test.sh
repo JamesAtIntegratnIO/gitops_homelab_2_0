@@ -106,10 +106,12 @@ if [ ${#charts[@]} -eq 0 ]; then
 else
   for c in "${charts[@]}"; do
     d="$(dirname "$c")"
-    if helm template test "$d" >/dev/null 2>&1; then
+    targs=()
+    for v in "$d"/ci/*-values.yaml; do [ -f "$v" ] && targs+=(-f "$v"); done
+    if helm template test "${targs[@]}" "$d" >/dev/null 2>&1; then
       ok "helm template $d"
     else
-      helm template test "$d" 2>&1 | sed 's/^/        /' | head -10
+      helm template test "${targs[@]}" "$d" 2>&1 | sed 's/^/        /' | head -10
       bad "helm template $d"
     fi
   done
