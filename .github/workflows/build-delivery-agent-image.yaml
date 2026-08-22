@@ -67,7 +67,10 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./delivery/images/delivery-agent
-          platforms: linux/amd64,linux/arm64
+          # amd64 only: all three nodes are amd64 and the vcluster shares them,
+          # so an arm64 image has no consumer. Halves the build and removes the
+          # emulated runtime stage entirely.
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
