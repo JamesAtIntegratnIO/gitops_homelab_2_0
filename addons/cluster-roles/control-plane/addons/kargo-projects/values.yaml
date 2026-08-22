@@ -24,6 +24,26 @@ git:
 # app.kubernetes.io/name on all 111 objects.
 nameLabel: kargo-projects
 
+# Hand opened pull requests to the delivery-agent. Without this the agent runs
+# and Kargo never calls it -- enabling the addon alone deploys a service with
+# no caller.
+#
+# The Service name is doubled because the chart's fullname helper is
+# `<release>-<chart>` and the ApplicationSet sets releaseName from addonChart,
+# which is also `delivery-agent`.
+#
+# `gated` rather than `always`: only PRs the merge policy will NOT auto-merge,
+# which is exactly the set already waiting on a human. The happy path stays
+# untouched, and a 9B model on the workstation is not asked to look at the
+# dozen patch bumps a week that merge themselves.
+#
+# The controller's egress half already permits this (allow-controller-egress
+# in network-policies/kargo.yaml names the delivery-agent namespace on 8080).
+triage:
+  enabled: true
+  url: http://delivery-agent-delivery-agent.delivery-agent.svc:8080/v1/promotion-opened
+  when: gated
+
 # Shared shapes -- YAML anchors are resolved before Helm sees the file.
 x-promise-image: &promiseImage
   strategy: NewestBuild
