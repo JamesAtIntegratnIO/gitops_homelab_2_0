@@ -85,6 +85,38 @@ Each of these is a real defect or a real gap, found by running the thing:
   message. `count(argocd_app_info)` went 0 -> 6 once one existed, and the
   verification query started returning 1.
 
+## What the agent will and will not fix
+
+`make demo` shows the happy path, where the gate is green and the agent
+correctly does nothing. `make demo-triage` opens a pull request the gate
+**refuses** and shows the agent answering for it.
+
+It escalates rather than fixing, and that is worth understanding before you
+call it a limitation of the model. Measured here against both
+`qwen/qwen3.5-9b` and `qwen/qwen3.8-27b`, each independently escalated with a
+sound argument -- the 27B's was *"the cause is not provable from the rendered
+diff alone"*, which is precisely the judgement the prompt asks for.
+
+The deeper reason is structural, and it is the most useful thing this proving
+ground has turned up:
+
+| | Blocks the merge | Agent's mechanical class |
+|---|---|---|
+| Targeting moved | yes | escalate |
+| Source / project / namespace changed | yes | escalate |
+| apiVersion migration | yes | **always** escalate |
+| A chart default flipped | no, reported only | mechanical |
+| Coupled pins | no, reported only | mechanical |
+| A port moved under a policy | no, reported only | mechanical |
+
+Everything the gate blocks on is structural, and the agent escalates
+structural changes by design. Everything the agent can mechanically fix is a
+values conflict, which the gate reports without blocking. **The two sets
+barely intersect**, so "gate red, agent fixes it" is close to a null case
+today. That is a design question about where each half draws its line, not a
+bug in either, and it is worth answering before the agent is trusted to push
+fixes anywhere that matters.
+
 ## Running it a second time
 
 `make demo` **consumes** the Freight it promotes. Run it again as-is and it
