@@ -478,8 +478,8 @@ loki:
   releaseName: loki
   chartName: loki
   project: platform-services
-  chartRepository: https://grafana.github.io/helm-charts
-  defaultVersion: "6.49.0"
+  chartRepository: https://grafana-community.github.io/helm-charts
+  defaultVersion: 18.11.0
   selector:
     matchExpressions:
       - key: cluster_role
