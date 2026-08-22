@@ -143,7 +143,7 @@ func renderChartVersion(repoRoot string, r Row) ([]Object, error) {
 
 	var result []Object
 	for _, o := range objs {
-		if obj, ok := objectFrom(r.App, r.Cluster, o); ok {
+		if obj, ok := objectFrom(r.App, r.Cluster, r.Namespace, o); ok {
 			result = append(result, obj)
 		}
 	}

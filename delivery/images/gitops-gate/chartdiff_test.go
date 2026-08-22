@@ -79,8 +79,8 @@ func TestVersionStampsDoNotCountAsChanges(t *testing.T) {
 			"spec": map[string]any{"replicas": 1},
 		}
 	}
-	a, _ := objectFrom("s", "prod", withStamp("cert-manager-1.19.3", "v1.19.3"))
-	b, _ := objectFrom("s", "prod", withStamp("cert-manager-1.21.1", "v1.21.1"))
+	a, _ := objectFrom("s", "prod", "", withStamp("cert-manager-1.19.3", "v1.19.3"))
+	b, _ := objectFrom("s", "prod", "", withStamp("cert-manager-1.21.1", "v1.21.1"))
 	if a.Hash != b.Hash {
 		t.Fatal("a version stamp alone must not read as a changed resource")
 	}
@@ -88,7 +88,7 @@ func TestVersionStampsDoNotCountAsChanges(t *testing.T) {
 	// A real change still registers.
 	changed := withStamp("cert-manager-1.21.1", "v1.21.1")
 	changed["spec"] = map[string]any{"replicas": 3}
-	c, _ := objectFrom("s", "prod", changed)
+	c, _ := objectFrom("s", "prod", "", changed)
 	if a.Hash == c.Hash {
 		t.Fatal("a real spec change must register")
 	}

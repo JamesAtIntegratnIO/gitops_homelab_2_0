@@ -5,6 +5,21 @@ All notable changes to `gitops-gate`. Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Chart diff no longer reports a chart's whole resource set as removed and
+  re-added when the two versions disagree about stamping
+  `metadata.namespace`. Whether a chart sets it varies between versions of the
+  same chart -- podinfo omits it at 6.7.0 and sets it at 6.14.1 -- and a
+  namespaced resource without it lands in the Application's destination
+  namespace anyway, so that is now its identity. On a real 6.7.0 -> 6.14.1
+  bump the report went from 5 added + 5 removed to the 2 resources that
+  actually changed.
+- Helm **test** hooks are excluded. They are never applied by a sync, and they
+  are the one place charts routinely generate a random name, so all three of
+  podinfo's test pods appeared as added AND removed on every render. Other
+  hooks are applied and are still reported.
+
 ### Added
 
 - **chart-diff** (`diff -repo <path>`) — every chart whose version moved is
