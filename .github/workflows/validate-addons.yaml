@@ -100,7 +100,10 @@ jobs:
           version: v3.19.0
 
       - name: Build the gate
-        run: go build -o /usr/local/bin/gitops-gate ./delivery/images/gitops-gate
+        # `go build ./some/path` only works for a path inside the CURRENT
+        # module, and the gate is its own module. Build from its directory.
+        working-directory: delivery/images/gitops-gate
+        run: go build -o /usr/local/bin/gitops-gate .
 
       - name: Render
         run: gitops-gate render -repo . -out "targets-${{ matrix.ref }}.json"
@@ -125,7 +128,10 @@ jobs:
           cache-dependency-path: delivery/images/gitops-gate/go.sum
 
       - name: Build the gate
-        run: go build -o /usr/local/bin/gitops-gate ./delivery/images/gitops-gate
+        # `go build ./some/path` only works for a path inside the CURRENT
+        # module, and the gate is its own module. Build from its directory.
+        working-directory: delivery/images/gitops-gate
+        run: go build -o /usr/local/bin/gitops-gate .
 
       - uses: actions/download-artifact@v4
         with:
@@ -185,7 +191,10 @@ jobs:
           kubeconform -v
 
       - name: Build the gate
-        run: go build -o /usr/local/bin/gitops-gate ./delivery/images/gitops-gate
+        # `go build ./some/path` only works for a path inside the CURRENT
+        # module, and the gate is its own module. Build from its directory.
+        working-directory: delivery/images/gitops-gate
+        run: go build -o /usr/local/bin/gitops-gate .
 
       - name: Validate
         run: |
