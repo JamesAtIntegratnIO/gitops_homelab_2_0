@@ -126,7 +126,7 @@ deployment:
         - SETGID
   image:
     repository: linuxserver/sonarr
-    tag: 4.0.19.2979-ls321
+    tag: 4.0.19.2979-ls322
     pullPolicy: IfNotPresent
   ports:
     - name: http

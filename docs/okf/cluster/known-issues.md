@@ -4,8 +4,8 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-21T05:30:00Z }
-stale_after: 2026-09-20
+generated: { by: claude-code/claude-opus-5, at: 2026-08-22T13:40:53Z }
+stale_after: 2026-09-22
 sources:
   - id: live-cluster
     resource: kubectl sweep of the-cluster (admin@the-cluster), 2026-08-20
@@ -14,6 +14,186 @@ sources:
     resource: full-repo review (source, docs, workflows, hooks), 2026-08-20
     title: Repository review
 ---
+
+# An NGF data plane replica can serve stale config forever (2026-08-22)
+
+Found chasing an ArgoCD UI that answered **3 of 8 requests** and timed out on
+the rest, while grafana, kargo, auth and chat were 8/8 through the same
+gateway. Every ArgoCD Application was `Synced/Healthy`, both argocd-server pods
+`Running 1/1` and `ready=true` in the EndpointSlice, and nothing was logged --
+the requests never reached either pod.
+
+The two NGINX data plane replicas disagreed about where the backend was:
+
+| pod | upstream for `argocd_argo-cd-argocd-server_80` | |
+|---|---|---|
+| `…-b6s94` | 10.244.0.159, 10.244.1.150 | current |
+| `…-hr47x` | 10.244.1.193, 10.244.2.225 | pods that no longer existed |
+
+`hr47x` had been serving a config snapshot from its own start time
+(2026-08-22T03:28:47Z) ever since. The control plane says why -- across both
+`nginx-gateway-fabric` replicas, `nginxUpdater.commandService` logs
+`Creating connection for nginx pod: …-b6s94` repeatedly and **never once names
+`hr47x`**. The data plane dials the control plane for its config; that
+connection was never established, and nothing retried it or reported it.
+
+**Nothing surfaces this.** The pod is Ready (its own health check passes -- it
+is a working NGINX, just pointing at dead addresses), the Gateway is
+`Programmed=True`, the HTTPRoute is Accepted, and ArgoCD is Healthy because
+desired state matches. The only symptom is that roughly half of requests to
+whichever backends have moved since that snapshot hang, and which half depends
+on which replica the LB picks.
+
+Any backend whose pods reschedule after a data plane replica goes deaf is
+exposed; ArgoCD was simply the one that had rolled (its pods were replaced by
+the 10.4.0 bump and again by the extension fix).
+
+**Remediation is a restart of the affected replica** -- runtime state, nothing
+to change in git:
+
+```bash
+kubectl -n nginx-gateway delete pod <nginx-gateway-nginx-…>
+```
+
+Deleting the *stale* one is safe even single-handed: the surviving replica is
+the one with correct config, so availability goes up immediately. After the
+restart, all five hostnames returned 10/10.
+
+**Worth building on:** the leader-election lease renewals in the same control
+plane log time out against the kube-apiserver repeatedly
+(`context deadline exceeded` at 10:10, 10:40, 12:00, 12:01, 13:20Z), which is
+the etcd/DNS problem below. A control plane that keeps losing the apiserver is
+a plausible trigger for a command connection that never gets set up. A
+comparison of each data plane pod's upstreams against the live EndpointSlices
+would detect the state directly and is the obvious alert to add.
+
+# Promtail is EOL and has nowhere to move (2026-08-22)
+
+Found while checking what else should follow Loki to the community charts.
+Grafana has deprecated almost its entire community chart estate — `grafana`,
+`promtail`, `tempo*`, `loki-*`, `grafana-agent-operator`, `grafana-mcp`,
+`lgtm-distributed`, `fluent-bit` are all `deprecated: true` in
+`grafana.github.io/helm-charts`. Only three of those touch this cluster, and
+each lands differently:
+
+| chart | status here |
+|---|---|
+| `loki` | **moved** to `grafana-community/loki` 18.11.0 |
+| `grafana` | **already community** — no action needed |
+| `promtail` | **stranded** — no fork exists |
+
+**Grafana needed nothing.** kube-prometheus-stack 88.5.3 declares its `grafana`
+dependency against `https://grafana-community.github.io/helm-charts` at 12.11.1,
+so the migration already happened upstream of us. That is why the cluster runs
+Grafana **13.2.0** while the deprecated `grafana/grafana` chart tops out at app
+12.3.1 — nothing in this repo pins the grafana chart directly.
+
+**Promtail is the real exposure.** The community org forked `grafana`, `loki`,
+`tempo`, `tempo-distributed`, `tempo-vulture`, `synthetic-monitoring-agent` and
+`grafana-mcp` — **not** `promtail`, because Promtail the *software* is EOL, not
+just its chart. The last release is chart 6.17.1 / app **3.5.1**, published
+2025-10-31, and the `promtail` addon is already pinned there. So there is no
+version to bump and no repository to switch to: the DaemonSet feeding every log
+line on the platform is frozen and will not receive security fixes.
+
+The successor is **Grafana Alloy**, whose chart is alive and unaffected by any
+of this (`grafana/alloy` 1.11.1 / app v1.18.1, 2026-08-06 — still in
+`grafana.github.io/helm-charts`, not deprecated). Migrating is a real piece of
+work rather than a pin change: Alloy replaces Promtail's YAML `scrape_configs`
+with River/Alloy configuration blocks, and the host DaemonSet is what covers
+vcluster-synced pods (`promtail-vcluster` is disabled by design), so the
+cutover has to keep `/var/log/pods` tailing and the `cluster`/`environment`
+external labels intact or the tenant loses its logs silently.
+
+Kargo's `promtail` target will never propose anything again, which means this
+will not resurface on its own.
+
+# Four Kargo bumps were held, each for a different reason (2026-08-22)
+
+Twelve of Kargo's sixteen day-one PRs merged. These four were open on purpose —
+none is a version bump you can just take, and each needed a decision rather
+than a config tweak. Loki's is resolved; three remain. Kargo will keep them parked (`git-wait-for-pr`), which also
+holds back later versions of the same artifact until they are dealt with.
+
+## external-secrets 0.10.3 → 2.9.0 (PR #37) — two majors, and an API removal
+
+The 2.9.0 CRDs make `v1` the storage version and serve `v1beta1` **only** when
+`crds.unsafeServeV1Beta1: true` — a flag upstream documents as removed on
+2026-05-01. This repo has **39 `external-secrets.io/v1beta1` references across
+29 files**, including Go code in `promises/external-secret` and
+`promises/argocd-cluster-registration`, and the `onepassword-store`
+ClusterSecretStore itself in `addons/environments/production/addons/addons.yaml`.
+Live CRD is `v1alpha1` + `v1beta1` with `storedVersions: ["v1beta1"]`.
+
+Taking the bump alone stops every ExternalSecret manifest in the repo from
+applying, on the component every credential on the platform depends on (it also
+has no `cluster_role` exclusion, so it moves on the host *and* in
+vcluster-media). The staged path, none of which is done:
+
+1. upgrade with `crds.unsafeServeV1Beta1: true` so both versions are served;
+2. rewrite all 39 references to `external-secrets.io/v1`;
+3. let the objects re-write to `v1` storage, then drop the flag.
+
+## kyverno 3.2.8 → 3.9.0 (PR #41) — seven minors under a `failurePolicy: Fail` webhook
+
+Chart 3.9.0 is Kyverno **v1.19.0**, from v1.12.6. Three separate problems:
+
+- `cleanupJobs.*` and `policyReportsCleanup.*` no longer exist in the chart.
+  `addons/environments/production/addons/kyverno/values.yaml` sets both, and
+  **six of the seven keys** in Kargo's `kubectl` target
+  ([kargo-projects values](../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml))
+  point at them — the target would keep rewriting config nothing reads.
+- `webhooksCleanup.image` now defaults to `kyverno/readiness-checker` and the
+  Job runs it with `delete-webhooks`. Our override points that container at the
+  repo's kubectl image, which has no such subcommand.
+- Seven minors of generate-rule change land on top of the
+  `generate-default-deny-netpol` ClusterPolicy, whose `synchronize: true` owns
+  every namespace's `default-deny-all`. The admission controller's webhooks are
+  `failurePolicy: Fail` and exclude only `kube-system` and `kyverno`, so while
+  it is unhealthy **no pod can be created anywhere else**.
+
+## ~~loki chart 6.49.0 → 7.3.0 (PR #44) — wrong chart now~~ (resolved)
+
+Not a version problem: the chart's own changelog says the repository "is now
+maintained for Grafana Enterprise Logs (GEL) users only", and OSS users should
+move to the community fork at `grafana-community/helm-charts` (forked at
+6.55.0). This cluster runs OSS Loki (SingleBinary, filesystem, boltdb-shipper
+on `config-nfs-client`). Merging 7.x follows the enterprise chart by accident.
+
+**Resolved 2026-08-22** by following the OSS lineage instead: the addon and the
+Kargo target both point at `https://grafana-community.github.io/helm-charts`,
+pinned at chart **18.11.0** (Loki 3.7.6). PR #44 was closed unmerged. See
+[observability](../platform/observability.md).
+
+Two things worth carrying forward from the values rewrite, because they are
+general to this chart family and not to Loki:
+
+- The chart resolves security contexts with `coalesce`
+  (`$component` → `.Values.defaults` → `.Values.loki`), so a **partial override
+  replaces the chart's default rather than merging into it**. Our hand-written
+  `singleBinary.podSecurityContext` — added for a Trivy finding, and carrying
+  only `seccompProfile` — would have silently dropped `fsGroup: 10001` and run
+  the pod as root against the existing NFS volume. Every hardening block in the
+  values file was deleted; 18.x ships the same settings or stricter.
+- `loki.storageConfig` in the values file had **never rendered**. The chart
+  reads `loki.storage_config` (snake case), in 18.11.0 and in 6.49.0 alike, so
+  the boltdb-shipper/filesystem block was decoration — the real config comes
+  from `loki.storage.type: filesystem`.
+
+Still ahead: Loki 3.7.6 keeps boltdb-shipper and schema v12 working, but both
+are deprecated upstream and targeted for removal in Loki 4. Migrating the
+schema to TSDB/v13 is a separate decision.
+
+## trivy-operator-explorer 0.4.6 → 0.5.1 (PR #56) — v1.0.0 is a different application
+
+Chart 0.5.1 ships app **v1.0.0**, which "split collector and frontend services,
+with multi-tenant S3 backend for state". The chart dropped `clusterrole.yaml`
+and `clusterrolebinding.yaml` outright, and the rendered Deployment gains
+`TRIVY_OPERATOR_EXPLORER_DB_PATH`, `_S3_BUCKET/_PREFIX/_REGION` (all empty) and
+an MCP port. The `trivy-explorer` addon syncs with `prune: true`, so the
+existing ClusterRole would be **deleted** — leaving a UI with no permission to
+read the 156 VulnerabilityReports it exists to display, and no S3 backend
+configured to read them from instead.
 
 # etcd is unhealthy, and a status write loop is feeding it (2026-08-21)
 

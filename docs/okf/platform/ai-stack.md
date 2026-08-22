@@ -21,7 +21,7 @@ sources:
 # Active components
 
 **`ai` namespace**
-- **Open WebUI v0.8.6** (chart 12.5.0) — chat UI at
+- **Open WebUI v0.11.0** (chart 16.0.0) — chat UI at
   `chat.cluster.integratn.tech`, OIDC via Authentik, configured for an
   external Ollama at `10.0.3.4:11434`.
 - **Qdrant v1.17.0** — vector DB at `qdrant.cluster.integratn.tech`
@@ -33,7 +33,7 @@ path-routed on `mcp.cluster.integratn.tech`:[^mcp-dir]
 | Path | Server | Image |
 |---|---|---|
 | `/kubernetes` | kubernetes-mcp (read-only RBAC) | quay.io/containers/kubernetes_mcp_server |
-| `/argocd` | mcp-for-argocd v0.5.0 | ghcr.io/argoproj-labs |
+| `/argocd` | mcp-for-argocd v0.9.0 | ghcr.io/argoproj-labs |
 | `/github` | github-mcp-server | ghcr.io/github |
 | `/grafana` | mcp-grafana (token minted by a PostSync Job) | grafana/mcp-grafana |
 | `/sequential-thinking` | supergateway wrapping the stdio server (npm pre-install initContainer) | ghcr.io/supercorp-ai/supergateway |
