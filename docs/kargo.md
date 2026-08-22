@@ -65,6 +65,24 @@ Each Stage runs the same generated pipeline
      behind it — so an ignored major-version PR holds back later patches of
      that artifact until it is dealt with.
 
+### How the PR steps retry
+
+All three PR steps carry a `retry` policy from `merge.*` in the chart values.
+Kargo's system-wide default `errorThreshold` is **1** — no retries at all —
+which is how two transient `error getting pull request N` blips from
+api.github.com became Errored promotions on day one. It is `3` here.
+
+`git-merge-pr` and `git-wait-for-pr` also carry a `timeout`, which caps how
+long a step returning *Running* may keep being retried:
+
+| Step | Timeout | Why |
+|---|---|---|
+| `git-merge-pr` | `45m0s` | It returns Running while the PR is not mergeable, which includes *a required status check is pending or red*. The cap is what stops a red gate spinning forever — the promotion parks as `Failed` and alerts, instead of looking identical to one waiting on a human. |
+| `git-wait-for-pr` | `168h0m0s` | This one parks deliberately, so the cap is generous. It exists to surface a PR everyone forgot, not to police review. |
+
+Write both in Go's canonical duration form (`45m0s`, not `45m`) — the webhook
+rewrites them otherwise and ArgoCD reads the difference as permanent drift.
+
 ### Merge policy
 
 `autoMerge` per target, evaluated against `semverDiff(new, current)`:
@@ -192,7 +210,11 @@ matched line in place and parses only the first YAML document:
 
 - the key must already exist, address a scalar, and live in the **first**
   `---` document of the file (the Jobs in `etcd-cert-extractor.yaml` and
-  `grafana-sa-token-job.yaml` were moved to the top for exactly this reason);
+  `grafana-sa-token-job.yaml`, and the CronJob in `talos-etcd-snapshot.yaml`,
+  were moved to the top for exactly this reason). This bites at `yaml-parse`,
+  before any update is attempted, and the failure is easy to miss: the
+  `talosctl` target Errored on every promotion from the day it was created
+  with `cannot fetch spec from <nil>`, and nothing reported it;
 - no trailing `# comment` on that line — it would be deleted on the first
   update; put it on the line above;
 - the `repoURL` is written verbatim for `image`/`image-tag` formats, so use
