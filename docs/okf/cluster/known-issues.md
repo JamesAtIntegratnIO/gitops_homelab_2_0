@@ -4,8 +4,8 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-21T05:30:00Z }
-stale_after: 2026-09-20
+generated: { by: claude-code/claude-fable-5, at: 2026-08-22T03:40:00Z }
+stale_after: 2026-09-22
 sources:
   - id: live-cluster
     resource: kubectl sweep of the-cluster (admin@the-cluster), 2026-08-20
@@ -14,6 +14,71 @@ sources:
     resource: full-repo review (source, docs, workflows, hooks), 2026-08-20
     title: Repository review
 ---
+
+# Four Kargo bumps are held, each for a different reason (2026-08-22)
+
+Twelve of Kargo's sixteen day-one PRs merged. These four are open on purpose —
+none is a version bump you can just take, and each needs a decision rather than
+a config tweak. Kargo will keep them parked (`git-wait-for-pr`), which also
+holds back later versions of the same artifact until they are dealt with.
+
+## external-secrets 0.10.3 → 2.9.0 (PR #37) — two majors, and an API removal
+
+The 2.9.0 CRDs make `v1` the storage version and serve `v1beta1` **only** when
+`crds.unsafeServeV1Beta1: true` — a flag upstream documents as removed on
+2026-05-01. This repo has **39 `external-secrets.io/v1beta1` references across
+29 files**, including Go code in `promises/external-secret` and
+`promises/argocd-cluster-registration`, and the `onepassword-store`
+ClusterSecretStore itself in `addons/environments/production/addons/addons.yaml`.
+Live CRD is `v1alpha1` + `v1beta1` with `storedVersions: ["v1beta1"]`.
+
+Taking the bump alone stops every ExternalSecret manifest in the repo from
+applying, on the component every credential on the platform depends on (it also
+has no `cluster_role` exclusion, so it moves on the host *and* in
+vcluster-media). The staged path, none of which is done:
+
+1. upgrade with `crds.unsafeServeV1Beta1: true` so both versions are served;
+2. rewrite all 39 references to `external-secrets.io/v1`;
+3. let the objects re-write to `v1` storage, then drop the flag.
+
+## kyverno 3.2.8 → 3.9.0 (PR #41) — seven minors under a `failurePolicy: Fail` webhook
+
+Chart 3.9.0 is Kyverno **v1.19.0**, from v1.12.6. Three separate problems:
+
+- `cleanupJobs.*` and `policyReportsCleanup.*` no longer exist in the chart.
+  `addons/environments/production/addons/kyverno/values.yaml` sets both, and
+  **six of the seven keys** in Kargo's `kubectl` target
+  ([kargo-projects values](../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml))
+  point at them — the target would keep rewriting config nothing reads.
+- `webhooksCleanup.image` now defaults to `kyverno/readiness-checker` and the
+  Job runs it with `delete-webhooks`. Our override points that container at the
+  repo's kubectl image, which has no such subcommand.
+- Seven minors of generate-rule change land on top of the
+  `generate-default-deny-netpol` ClusterPolicy, whose `synchronize: true` owns
+  every namespace's `default-deny-all`. The admission controller's webhooks are
+  `failurePolicy: Fail` and exclude only `kube-system` and `kyverno`, so while
+  it is unhealthy **no pod can be created anywhere else**.
+
+## loki chart 6.49.0 → 7.3.0 (PR #44) — wrong chart now
+
+Not a version problem: the chart's own changelog says the repository "is now
+maintained for Grafana Enterprise Logs (GEL) users only", and OSS users should
+move to the community fork at `grafana-community/helm-charts` (forked at
+6.55.0). This cluster runs OSS Loki (SingleBinary, filesystem, boltdb-shipper
+on `config-nfs-client`). Merging 7.x follows the enterprise chart by accident.
+The real decision is which chart repository `loki` should point at, after which
+the Kargo target's `chart.repoURL` needs to move with it.
+
+## trivy-operator-explorer 0.4.6 → 0.5.1 (PR #56) — v1.0.0 is a different application
+
+Chart 0.5.1 ships app **v1.0.0**, which "split collector and frontend services,
+with multi-tenant S3 backend for state". The chart dropped `clusterrole.yaml`
+and `clusterrolebinding.yaml` outright, and the rendered Deployment gains
+`TRIVY_OPERATOR_EXPLORER_DB_PATH`, `_S3_BUCKET/_PREFIX/_REGION` (all empty) and
+an MCP port. The `trivy-explorer` addon syncs with `prune: true`, so the
+existing ClusterRole would be **deleted** — leaving a UI with no permission to
+read the 156 VulnerabilityReports it exists to display, and no S3 backend
+configured to read them from instead.
 
 # etcd is unhealthy, and a status write loop is feeding it (2026-08-21)
 

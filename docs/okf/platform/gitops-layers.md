@@ -35,8 +35,8 @@ Applications per matching cluster — `<addon>-the-cluster`,
 Applications exist today.
 
 ArgoCD **self-manages**: the `argocd` addon deploys the argo-cd chart onto the
-cluster ArgoCD itself runs in (chart pinned at 9.4.3 in addons.yaml; live
-server image v3.3.1).
+cluster ArgoCD itself runs in (chart pinned at 10.4.0 in addons.yaml; live
+server image v3.5.1).
 
 The pins themselves have a feedback loop: [Kargo](kargo.md) watches every
 chart repository and image registry referenced from these layers and opens a

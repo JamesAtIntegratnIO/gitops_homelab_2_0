@@ -20,7 +20,7 @@ sources:
 
 # Hub and spoke
 
-- **Hub (the-cluster, `monitoring` ns)**: kube-prometheus-stack (chart 82.1.1;
+- **Hub (the-cluster, `monitoring` ns)**: kube-prometheus-stack (chart 88.5.3;
   Prometheus v3.9.1, 15d retention, 30Gi; `enableRemoteWriteReceiver: true`),
   Alertmanager v0.31.1, Grafana (admin creds via ExternalSecret, OIDC via
   Authentik), kube-state-metrics, node-exporter DaemonSet.
