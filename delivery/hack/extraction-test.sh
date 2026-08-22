@@ -16,6 +16,15 @@ note() { printf '  %s\n' "$*"; }
 bad()  { printf '  FAIL  %s\n' "$*"; fail=1; }
 ok()   { printf '  ok    %s\n' "$*"; }
 
+# Fail with a useful message rather than a bare "command not found" halfway
+# through, which reads like a broken test instead of a missing tool.
+for tool in helm go python3; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    printf 'extraction test needs %s on PATH and it is not there.\n' "$tool" >&2
+    exit 2
+  }
+done
+
 echo "==> copying package to $SCRATCH"
 cp -R "$ROOT/." "$SCRATCH/"
 cd "$SCRATCH"
@@ -59,17 +68,30 @@ fi
 # ---------------------------------------------------------------------------
 echo "==> rule 2: no environment assumptions"
 
-# Literals from the host environment that must always be values.
-LEAKS='the-cluster|vcluster-media|integratn\.tech|10\.0\.4\.|onepassword-store|jamesatintegratnio'
-if grep -rniE "$LEAKS" --include='*.yaml' --include='*.yml' --include='*.go' \
-     --include='*.json' --include='Dockerfile' . 2>/dev/null \
-     | grep -v '^\./hack/extraction-test.sh' >/dev/null 2>&1; then
-  grep -rniE "$LEAKS" --include='*.yaml' --include='*.yml' --include='*.go' \
-     --include='*.json' --include='Dockerfile' . 2>/dev/null \
-     | grep -v '^\./hack/extraction-test.sh' | sed 's/^/        /' | head -20
+# Literals from the host environment that must always be values. Cluster
+# names, domains, addresses, and the host's particular secret store.
+LEAKS='the-cluster|vcluster-media|integratn\.tech|10\.0\.4\.|onepassword-store'
+leakhits() {
+  grep -rniE "$1" --include='*.yaml' --include='*.yml' --include='*.go' \
+    --include='*.json' --include='Dockerfile' . 2>/dev/null \
+    | grep -v '^\./hack/extraction-test.sh'
+}
+if [ -n "$(leakhits "$LEAKS")" ]; then
+  leakhits "$LEAKS" | sed 's/^/        /' | head -20
   bad "host-environment literal in shipped code"
 else
   ok "no host-environment literals"
+fi
+
+# A hardcoded upstream repository URL is a leak in values or templates, but is
+# simply the project's own identity in Chart.yaml `home:`/`sources:` -- so that
+# one file is exempt rather than the check being dropped.
+OWNER='jamesatintegratnio'
+if [ -n "$(leakhits "$OWNER" | grep -v '/Chart\.yaml:')" ]; then
+  leakhits "$OWNER" | grep -v '/Chart\.yaml:' | sed 's/^/        /' | head -20
+  bad "hardcoded repository URL outside Chart.yaml metadata"
+else
+  ok "no hardcoded repository URLs"
 fi
 
 # ---------------------------------------------------------------------------

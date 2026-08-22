@@ -1,0 +1,67 @@
+# Consumes delivery/charts/kargo-observability -- the portable package this
+# repo also publishes. See delivery/charts/kargo-observability/README.md.
+#
+# Kargo exposes controller-runtime counters and nothing about promotions,
+# freight or stages, so until this landed a failed promotion or a failed
+# verification appeared nowhere at all.
+
+kubeStateMetrics:
+  namespace: monitoring
+  serviceAccountName: kube-prometheus-stack-kube-state-metrics
+  configMapName: kargo-custom-resource-state
+  configMapKey: config.yaml
+  rbac:
+    create: true
+
+metricPrefix: kargo
+
+alerts:
+  enabled: true
+  kargoURL: https://kargo.cluster.integratn.tech
+  rules:
+    # The cluster's promotion history is already full of both, and neither has
+    # ever been reported anywhere.
+    promotionErrored:
+      enabled: true
+      for: 15m
+      severity: warning
+    promotionFailed:
+      enabled: true
+      for: 15m
+      severity: warning
+    # Human-gated PRs legitimately sit for days here, so this stays slow.
+    promotionRunningLong:
+      enabled: true
+      for: 48h
+      severity: warning
+    verificationFailed:
+      enabled: true
+      for: 5m
+      severity: warning
+    stageNotVerified:
+      enabled: true
+      for: 30m
+      severity: warning
+    warehouseUnhealthy:
+      enabled: true
+      for: 30m
+      severity: warning
+    # The chart defaults this to `info`, but this cluster's Alertmanager routes
+    # `severity = info` to the null receiver -- never messaged. A detector for
+    # "this target has been broken for a week" that goes nowhere is the exact
+    # failure this addon exists to fix, so it is a warning here.
+    stageBehind:
+      enabled: true
+      for: 7d
+      severity: warning
+    metricsMissing:
+      enabled: true
+      for: 30m
+      severity: warning
+
+dashboard:
+  enabled: true
+  namespace: monitoring
+  label: grafana_dashboard
+  labelValue: "1"
+  datasource: Prometheus

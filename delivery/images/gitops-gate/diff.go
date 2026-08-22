@@ -22,6 +22,13 @@ type DiffResult struct {
 	// vanishing from a cluster is the failure mode that reading a values diff
 	// does not reveal.
 	Targeting []Change `json:"targeting"`
+	// Introduced covers whole ApplicationSets that did not exist before, and
+	// does NOT block. Adding an addon is a deliberate act by the author of the
+	// pull request; the dangerous case is an addon that already existed
+	// quietly changing which clusters it reaches. Blocking on both would make
+	// every new-addon PR red for a reason nobody needs to investigate, and a
+	// check that is routinely overridden stops being a check.
+	Introduced []Change `json:"introduced"`
 	// Versions are reported, not blocked -- a version bump is the point.
 	Versions []Change `json:"versions"`
 	// Other covers a source moving between chart and path, or a project or
@@ -34,6 +41,13 @@ func (d *DiffResult) Blocking() bool { return len(d.Targeting) > 0 || len(d.Othe
 
 func Diff(base, head *Table) *DiffResult {
 	res := &DiffResult{}
+
+	// ApplicationSets present before this change. An ApplicationSet missing
+	// from this set is newly introduced, not newly leaking.
+	baseAppSets := map[string]bool{}
+	for _, r := range base.Rows {
+		baseAppSets[r.AppSet] = true
+	}
 
 	baseByKey := map[string]Row{}
 	for _, r := range base.Rows {
@@ -82,10 +96,18 @@ func Diff(base, head *Table) *DiffResult {
 	}
 	for appset, added := range addedByApp {
 		for _, a := range added {
-			res.Targeting = append(res.Targeting, Change{
-				Kind: "added", AppSet: appset, App: a.App, Cluster: a.Cluster,
-				To: a.Describe(), Detail: "newly generated for this cluster",
-			})
+			c := Change{
+				AppSet: appset, App: a.App, Cluster: a.Cluster, To: a.Describe(),
+			}
+			if baseAppSets[appset] {
+				c.Kind = "added"
+				c.Detail = "newly generated for this cluster -- this addon already existed and has gained a cluster"
+				res.Targeting = append(res.Targeting, c)
+			} else {
+				c.Kind = "introduced"
+				c.Detail = "new addon, first appearance"
+				res.Introduced = append(res.Introduced, c)
+			}
 		}
 	}
 
@@ -126,6 +148,7 @@ func Diff(base, head *Table) *DiffResult {
 	}
 
 	sortChanges(res.Targeting)
+	sortChanges(res.Introduced)
 	sortChanges(res.Versions)
 	sortChanges(res.Other)
 
@@ -168,6 +191,15 @@ func (d *DiffResult) Report(w io.Writer) {
 		}
 		fmt.Fprintln(w)
 	}
+	if len(d.Introduced) > 0 {
+		fmt.Fprintf(w, "### New addons\n\n")
+		fmt.Fprintf(w, "First appearance, so nothing changed underneath them. Listed for review, not blocking.\n\n")
+		fmt.Fprintf(w, "| Application | Cluster | Source |\n|---|---|---|\n")
+		for _, c := range d.Introduced {
+			fmt.Fprintf(w, "| `%s` | %s | `%s` |\n", c.App, c.Cluster, c.To)
+		}
+		fmt.Fprintln(w)
+	}
 	if len(d.Versions) > 0 {
 		fmt.Fprintf(w, "### Versions\n\n| Application | Cluster | From | To |\n|---|---|---|---|\n")
 		for _, c := range d.Versions {
@@ -175,7 +207,7 @@ func (d *DiffResult) Report(w io.Writer) {
 		}
 		fmt.Fprintln(w)
 	}
-	if len(d.Targeting) == 0 && len(d.Other) == 0 && len(d.Versions) == 0 {
+	if len(d.Targeting) == 0 && len(d.Other) == 0 && len(d.Versions) == 0 && len(d.Introduced) == 0 {
 		fmt.Fprintf(w, "No change to what gets deployed.\n\n")
 	}
 	if len(d.Warnings) > 0 {

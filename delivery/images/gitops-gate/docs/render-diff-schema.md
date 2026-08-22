@@ -16,6 +16,16 @@ these field names.
       "detail": "newly generated for this cluster"
     }
   ],
+  "introduced": [
+    {
+      "kind": "introduced",
+      "cluster": "hub",
+      "app": "kargo-observability-hub",
+      "appset": "kargo-observability",
+      "to": "charts/kargo-observability (path)",
+      "detail": "new addon, first appearance"
+    }
+  ],
   "versions": [
     {
       "kind": "version",
@@ -42,9 +52,16 @@ change, the set of clusters it matches did.
 
 | `kind` | Meaning |
 |---|---|
-| `added` | Newly generated for this cluster. Something is about to be installed somewhere it was not. |
+| `added` | An ApplicationSet that already existed is now generated for a cluster it was not. This is the leak. |
 | `removed` | No longer generated. This is a silent uninstall — ArgoCD will prune it. |
 | `moved` | Both, for the same ApplicationSet. Reported as one change, because reporting it as an unrelated add plus an unrelated remove buries the actual shape of what happened. |
+
+**`introduced`** — a whole ApplicationSet that did not exist before. **Not
+blocking.** Adding an addon is a deliberate act by the author of the pull
+request; the dangerous case is an addon that *already existed* quietly changing
+which clusters it reaches. Blocking on both would make every new-addon pull
+request red for a reason nobody needs to investigate, and a check that gets
+routinely overridden stops functioning as a check.
 
 **`versions`** — same Application, same clusters, different `targetRevision`.
 **Not blocking**, because this is the entire point of an automated bump

@@ -13,6 +13,10 @@ All notable changes to `gitops-gate`. Format follows
 - `diff` — compares two renders. Blocks on cluster-targeting changes and on a
   source changing underneath an unchanged Application; reports version changes
   without blocking.
+- `diff` separates a brand-new addon (`introduced`, non-blocking) from an
+  existing addon gaining or losing a cluster (`targeting`, blocking). Only the
+  second is the leak; blocking on the first would make every new-addon pull
+  request red for no reason and train people to override the check.
 - `validate` — schema validation of every rendered stream via kubeconform.
 - `clusters export` — regenerates the cluster inventory from live ArgoCD
   cluster Secrets, with `-check` for drift detection.

@@ -1,0 +1,25 @@
+{{- if .Values.dashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kargo-observability.fullname" . }}-dashboard
+  namespace: {{ .Values.dashboard.namespace }}
+  labels:
+    {{- include "kargo-observability.labels" . | nindent 4 }}
+    {{ .Values.dashboard.label }}: {{ .Values.dashboard.labelValue | quote }}
+  {{- with .Values.dashboard.folder }}
+  annotations:
+    grafana_folder: {{ . | quote }}
+  {{- end }}
+data:
+  {{- /*
+  Plain string substitution rather than `tpl`. Grafana's own legend syntax is
+  {{ phase }}, which Go's template engine would try to evaluate and fail on --
+  so the dashboard JSON must never be treated as a template.
+  */}}
+  kargo-delivery.json: |
+    {{- .Files.Get "dashboard.json"
+          | replace "__METRIC_PREFIX__" (include "kargo-observability.prefix" .)
+          | replace "__DATASOURCE__" .Values.dashboard.datasource
+          | nindent 4 }}
+{{- end }}

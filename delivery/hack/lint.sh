@@ -9,6 +9,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+command -v helm >/dev/null 2>&1 || { echo "lint needs helm on PATH and it is not there." >&2; exit 2; }
+
 fail=0
 ok()  { printf '  ok    %s\n' "$*"; }
 bad() { printf '  FAIL  %s\n' "$*"; fail=1; }

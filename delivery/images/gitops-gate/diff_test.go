@@ -93,3 +93,42 @@ func TestNoChangeIsNotBlocking(t *testing.T) {
 		t.Fatalf("identical renders must produce nothing, got %+v", d)
 	}
 }
+
+// Adding a new addon is a deliberate act by the pull request's author. Blocking
+// on it would make every new-addon PR red for a reason nobody needs to look
+// into, and a check that is routinely overridden stops working as a check.
+func TestNewAddonIsReportedNotBlocking(t *testing.T) {
+	base := &Table{Rows: []Row{row("hub", "existing-hub", "1.0.0")}}
+	newRow := row("hub", "brand-new-hub", "1.0.0")
+	newRow.AppSet = "brand-new"
+	head := &Table{Rows: []Row{row("hub", "existing-hub", "1.0.0"), newRow}}
+
+	d := Diff(base, head)
+	if d.Blocking() {
+		t.Fatal("a brand-new addon must not block")
+	}
+	if len(d.Introduced) != 1 || d.Introduced[0].Kind != "introduced" {
+		t.Fatalf("want one introduced change, got %+v", d.Introduced)
+	}
+	if len(d.Targeting) != 0 {
+		t.Fatalf("a new addon is not a targeting change, got %+v", d.Targeting)
+	}
+}
+
+// The distinction that matters: an addon that already existed gaining a cluster
+// is the leak, and must still block.
+func TestExistingAddonGainingAClusterStillBlocks(t *testing.T) {
+	base := &Table{Rows: []Row{row("hub", "thing-hub", "1.0.0")}}
+	head := &Table{Rows: []Row{
+		row("hub", "thing-hub", "1.0.0"),
+		row("tenant", "thing-tenant", "1.0.0"), // same AppSet, new cluster
+	}}
+
+	d := Diff(base, head)
+	if !d.Blocking() {
+		t.Fatal("an existing addon reaching a new cluster must block -- this is the leak")
+	}
+	if len(d.Introduced) != 0 {
+		t.Fatalf("must not be classified as a new addon, got %+v", d.Introduced)
+	}
+}

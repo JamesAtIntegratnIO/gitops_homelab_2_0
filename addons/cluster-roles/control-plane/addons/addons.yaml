@@ -811,6 +811,25 @@ argo-rollouts:
       - ServerSideApply=true
 
 # The target list lives in kargo-projects/values.yaml next to this file.
+kargo-observability:
+  enabled: true
+  namespace: monitoring
+  project: platform-services
+  defaultVersion: "main"
+  path: delivery/charts/kargo-observability
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      # PrometheusRule and the Kargo CRDs it references may not exist yet on a
+      # fresh cluster; do not fail the dry-run on that.
+      - SkipDryRunOnMissingResource=true
+
 kargo-projects:
   enabled: true
   namespace: kargo
