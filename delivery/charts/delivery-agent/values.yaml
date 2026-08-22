@@ -1,0 +1,118 @@
+replicaCount: 1
+
+image:
+  repository: ""          # REQUIRED
+  tag: ""                 # prefer a digest
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  port: 8080
+
+# Kargo calls this in-cluster. Nothing else needs to reach it, and publishing
+# something that can spend money and write to your repository would be
+# gratuitous exposure -- so this chart deliberately renders no Ingress or
+# HTTPRoute at all.
+
+git:
+  # github (implemented) | gitlab | bitbucket (extension points)
+  provider: github
+  # For a self-hosted host, e.g. https://ghe.example.com/api/v3
+  apiBase: ""
+  owner: ""               # REQUIRED
+  repo: ""                # REQUIRED
+  # Clone URL. Must be reachable from the cluster.
+  repoURL: ""             # REQUIRED
+  author:
+    name: delivery-agent
+    email: delivery-agent@users.noreply.github.com
+  # Existing Secret holding the token. This chart never creates a Secret --
+  # how it gets there (ExternalSecret, Vault Agent, SOPS, kubectl) belongs to
+  # whoever installs this.
+  existingSecret: ""      # REQUIRED
+  tokenKey: token
+
+llm:
+  # openai | anthropic. NO DEFAULT: a component that installs cleanly and then
+  # quietly spends money against a vendor you did not choose is a bad default.
+  provider: ""            # REQUIRED
+  # Required for `openai`. This is what makes a self-hosted endpoint work.
+  baseURL: ""
+  model: ""               # REQUIRED
+  # Optional; only some models accept it.
+  reasoningEffort: ""
+  timeout: 10m
+  # Existing Secret holding the API key. Omit entirely for an unauthenticated
+  # local endpoint.
+  existingSecret: ""
+  apiKeyKey: api-key
+
+gate:
+  # The single aggregate check the agent waits on. Must match the name in your
+  # branch protection rule.
+  checkName: addons-gate
+  # How long to wait for the gate to reach a verdict.
+  wait: 10m
+  poll: 30s
+
+triage:
+  # Self-fix attempts per pull request, tracked by label so the cap survives a
+  # restart or a rescheduled pod.
+  maxAttempts: 2
+  # Paths the agent may edit. EMPTY MEANS IT CAN FIX NOTHING, and the process
+  # refuses to start that way rather than silently refusing every fix later.
+  allowPaths: []
+  # Added to the built-in deny-list, which already refuses CI config, the gate
+  # and the merge policy and cannot be removed from.
+  denyPaths: []
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    memory: 512Mi
+
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  # Read-only, cluster-scoped. The agent observes and writes to pull requests;
+  # it never mutates the cluster.
+  create: true
+
+networkPolicy:
+  enabled: true
+  # cilium emits CiliumNetworkPolicy with toFQDNs, which is materially tighter
+  # than an ipBlock. `standard` emits plain NetworkPolicy and works anywhere.
+  flavor: standard
+  # Namespace running the Kargo controller -- the only thing allowed to call
+  # this service.
+  kargoNamespace: kargo
+  # Egress the agent needs: the git host and the model endpoint.
+  # For `standard`, give CIDRs; for `cilium`, FQDNs are also honoured.
+  egress:
+    dnsNamespace: kube-system
+    # e.g. [{cidr: 192.168.0.57/32, port: 1234}] for a model on your LAN
+    ipBlocks: []
+    # e.g. [api.github.com]
+    fqdns: []
+    # Allow outbound 443 to everything except private ranges. Convenient for
+    # reaching a public git host; unnecessary if you list FQDNs.
+    allowPublicHTTPS: false
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s

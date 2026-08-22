@@ -83,13 +83,18 @@ else
   ok "no host-environment literals"
 fi
 
-# A hardcoded upstream repository URL is a leak in values or templates, but is
-# simply the project's own identity in Chart.yaml `home:`/`sources:` -- so that
-# one file is exempt rather than the check being dropped.
+# A hardcoded upstream repository URL is a leak in values or templates. Two
+# places it is instead the package's own identity, and exempting them is not
+# the same as dropping the check:
+#   * Chart.yaml `home:` / `sources:`
+#   * a Go module path -- `module` in go.mod and the imports that follow from it
+# A genuine hardcoded URL in Go code (an http call, a default repoURL) does not
+# match the module-path form and is still caught.
 OWNER='jamesatintegratnio'
-if [ -n "$(leakhits "$OWNER" | grep -v '/Chart\.yaml:')" ]; then
-  leakhits "$OWNER" | grep -v '/Chart\.yaml:' | sed 's/^/        /' | head -20
-  bad "hardcoded repository URL outside Chart.yaml metadata"
+MODULE_PATH='github.com/JamesAtIntegratnIO/delivery-kit/'
+if [ -n "$(leakhits "$OWNER" | grep -v '/Chart\.yaml:' | grep -vF "$MODULE_PATH")" ]; then
+  leakhits "$OWNER" | grep -v '/Chart\.yaml:' | grep -vF "$MODULE_PATH" | sed 's/^/        /' | head -20
+  bad "hardcoded repository URL outside Chart.yaml metadata and Go module paths"
 else
   ok "no hardcoded repository URLs"
 fi

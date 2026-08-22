@@ -3,7 +3,52 @@
 Runs [`delivery-agent`](../../images/delivery-agent) in-cluster: Deployment,
 Service, RBAC and NetworkPolicy.
 
-> **Status: not yet implemented.** This README is the contract.
+## Install
+
+Two Secrets and a values file. The chart creates neither Secret — how they get
+there is yours to choose.
+
+```yaml
+image:
+  repository: ghcr.io/you/delivery-agent
+  digest: sha256:...          # prefer a digest to a moving tag
+git:
+  owner: you
+  repo: platform
+  repoURL: https://github.com/you/platform.git
+  existingSecret: delivery-agent-git
+llm:
+  provider: openai            # no default; you must choose
+  baseURL: http://model.internal:1234/v1
+  model: your-model
+triage:
+  allowPaths: [addons/**]     # empty means it can fix nothing
+networkPolicy:
+  kargoNamespace: kargo
+  egress:
+    ipBlocks:
+      - {cidr: 192.0.2.10/32, port: 1234}   # your model endpoint
+    allowPublicHTTPS: true                   # your git host
+```
+
+Then point the pipelines chart's triage hook at it:
+
+```yaml
+triage:
+  enabled: true
+  url: http://<release>-delivery-agent.<namespace>.svc:8080/v1/promotion-opened
+```
+
+## The other half of the network path
+
+This chart writes the policy governing what reaches the agent. It cannot write
+the **Kargo controller's** egress policy, and that is the half people miss.
+
+A controller allowed `0.0.0.0/0` with RFC1918 excepted — a common shape, since
+it usually only needs to reach registries — cannot reach a ClusterIP at all.
+The symptom is a hang with zero bytes, not an error, so it reads as a slow
+agent rather than a blocked one. Add an explicit rule for this service's
+namespace and port.
 
 ## Shape
 

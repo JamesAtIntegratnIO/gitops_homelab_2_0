@@ -57,6 +57,18 @@ for c in "${charts[@]}"; do
   fi
 done
 
+# Go formatting, for every module in the package.
+gomods=(images/*/go.mod)
+for m in "${gomods[@]}"; do
+  d="$(dirname "$m")"
+  if [ -z "$(gofmt -l "$d")" ]; then
+    ok "gofmt $d"
+  else
+    gofmt -l "$d" | sed 's/^/        /'
+    bad "gofmt $d"
+  fi
+done
+
 echo
 [ "$fail" -eq 0 ] || { echo "LINT FAILED"; exit 1; }
 echo "lint passed"

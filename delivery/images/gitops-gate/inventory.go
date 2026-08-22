@@ -73,9 +73,9 @@ func (c Cluster) TemplateData(values map[string]string) map[string]any {
 		"annotations": toAny(c.Annotations),
 	}
 	d := map[string]any{
-		"name":     c.Name,
-		"server":   c.Server,
-		"metadata": md,
+		"name":           c.Name,
+		"server":         c.Server,
+		"metadata":       md,
 		"nameNormalized": c.Name,
 	}
 	if values != nil {
