@@ -94,7 +94,79 @@ var (
 		Version:  "v1alpha1",
 		Resource: "workplacements",
 	}
+
+	// KargoPromotionGVR is the GroupVersionResource for Kargo Promotions.
+	KargoPromotionGVR = schema.GroupVersionResource{
+		Group:    "kargo.akuity.io",
+		Version:  "v1alpha1",
+		Resource: "promotions",
+	}
+
+	// KargoStageGVR is the GroupVersionResource for Kargo Stages.
+	KargoStageGVR = schema.GroupVersionResource{
+		Group:    "kargo.akuity.io",
+		Version:  "v1alpha1",
+		Resource: "stages",
+	}
+
+	// KargoWarehouseGVR is the GroupVersionResource for Kargo Warehouses.
+	KargoWarehouseGVR = schema.GroupVersionResource{
+		Group:    "kargo.akuity.io",
+		Version:  "v1alpha1",
+		Resource: "warehouses",
+	}
+
+	// KargoFreightGVR is the GroupVersionResource for Kargo Freight.
+	KargoFreightGVR = schema.GroupVersionResource{
+		Group:    "kargo.akuity.io",
+		Version:  "v1alpha1",
+		Resource: "freights",
+	}
 )
+
+// --- Kargo Resource Helpers ---
+//
+// Namespace is the Kargo Project. Passing "" lists across all of them, which is
+// the usual case: promotion state is only meaningful in aggregate.
+
+// ListKargoPromotions returns Promotions in a Kargo Project, or all Projects
+// when namespace is empty.
+func (c *Client) ListKargoPromotions(ctx context.Context, namespace string) ([]unstructured.Unstructured, error) {
+	list, err := c.Dynamic.Resource(KargoPromotionGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing Kargo promotions: %w", err)
+	}
+	return list.Items, nil
+}
+
+// ListKargoStages returns Stages in a Kargo Project, or all Projects when
+// namespace is empty.
+func (c *Client) ListKargoStages(ctx context.Context, namespace string) ([]unstructured.Unstructured, error) {
+	list, err := c.Dynamic.Resource(KargoStageGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing Kargo stages: %w", err)
+	}
+	return list.Items, nil
+}
+
+// GetKargoStage returns a single Stage.
+func (c *Client) GetKargoStage(ctx context.Context, namespace, name string) (*unstructured.Unstructured, error) {
+	obj, err := c.Dynamic.Resource(KargoStageGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("getting Kargo stage %s/%s: %w", namespace, name, err)
+	}
+	return obj, nil
+}
+
+// ListKargoWarehouses returns Warehouses in a Kargo Project, or all Projects
+// when namespace is empty.
+func (c *Client) ListKargoWarehouses(ctx context.Context, namespace string) ([]unstructured.Unstructured, error) {
+	list, err := c.Dynamic.Resource(KargoWarehouseGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("listing Kargo warehouses: %w", err)
+	}
+	return list.Items, nil
+}
 
 // ListVClusters returns all VClusterOrchestratorV2 resources.
 func (c *Client) ListVClusters(ctx context.Context, namespace string) ([]unstructured.Unstructured, error) {
