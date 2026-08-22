@@ -49,7 +49,7 @@ with a Grafana dashboard, explorer UI (`trivy.cluster.integratn.tech`), and
 CVE alerts. Caveat: scan jobs are currently failing —
 see [known issues](/cluster/known-issues.md).
 
-**Identity**: Authentik 2025.12.4 (`auth.cluster.integratn.tech`) provides
+**Identity**: Authentik 2026.8.0 (`auth.cluster.integratn.tech`) provides
 OIDC for ArgoCD, Grafana, and Open WebUI (client secrets via 1Password;
 Google OAuth federated). Prometheus/Alertmanager/Loki endpoints have **no
 auth** (flagged as future work in the docs).

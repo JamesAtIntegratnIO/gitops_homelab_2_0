@@ -369,7 +369,18 @@ projects:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [descheduler.defaultVersion]
       authentik:
-        chart: { repoURL: https://charts.goauthentik.io, name: authentik }
+        # authentik will not migrate across major.minor releases in one hop --
+        # it raises "Major version skips are not allowed" before running any
+        # migration. Unconstrained, Kargo keeps proposing the newest release,
+        # which can never be merged. Constrain it to the next legal step and
+        # widen this one hop at a time as each lands:
+        #   2025.12.4 -> 2026.2.3 -> 2026.5.6 -> 2026.8.0
+        chart:
+          repoURL: https://charts.goauthentik.io
+          name: authentik
+          constraint: ">=2025.12.0 <2026.3.0"
+        # Each hop is a one-way database migration on the platform's SSO.
+        autoMerge: never
         verify:
           apps:
             - authentik-the-cluster

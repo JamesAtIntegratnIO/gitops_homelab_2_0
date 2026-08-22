@@ -48,7 +48,7 @@ README nor AGENTS.md mentions Cilium — cluster reality is ahead of the docs.
 ```
 client → Cloudflare DNS (A record → 10.0.4.205)
        → MetalLB L2 ARP for the VIP
-       → nginx-gateway-fabric 2.2.2 (Gateway `nginx-gateway`, TLS terminate)
+       → nginx-gateway-fabric 2.6.7 (Gateway `nginx-gateway`, TLS terminate)
        → HTTPRoute (hostname match) → ClusterIP service → pod
 ```
 

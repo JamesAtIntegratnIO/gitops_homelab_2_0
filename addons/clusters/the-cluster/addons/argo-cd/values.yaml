@@ -59,15 +59,27 @@ server:
   service:
     annotations:
       metallb.io/loadBalancerIPs: 10.0.4.201
+  # Disabled 2026-08-22: this never worked, and on chart 10.4.0 it stopped
+  # failing quietly.
+  #
+  # The installer init container downloads the extension from github.com:443,
+  # but `allow-argocd-server` grants egress only to ports 8081/6379/5556 inside
+  # the namespace -- no internet, unlike allow-repo-server and
+  # allow-application-controller, which do carry a 443 ipBlock rule. So the
+  # download has always timed out after 30s. Chart 10.4.0 bumps the installer
+  # image v0.0.9 -> v1.0.1, and where v0.0.9 timed out and exited 0 (leaving no
+  # extension and no complaint), v1.0.1 exits 28. Both pods' init logs show the
+  # same "Elapsed Time: 30030 ms"; only the exit code changed.
+  #
+  # That turned a silent no-op into Init:CrashLoopBackOff, pinning argocd-server
+  # to its old ReplicaSet -- no new server pod could ever start.
+  #
+  # Re-enabling it means deciding to give argocd-server egress to the internet:
+  # add a 443 ipBlock egress rule for `app.kubernetes.io/component: server` in
+  # network-policies/argocd.yaml, matching the repo-server rule. Left off until
+  # someone wants the Trivy tab enough to widen that.
   extensions:
-    enabled: true
-    extensionList:
-      - name: extension-trivy
-        env:
-          - name: EXTENSION_URL
-            value: https://github.com/mziyabo/argocd-trivy-extension/releases/download/v0.2.0/extension-trivy.tar
-          - name: EXTENSION_CHECKSUM_URL
-            value: https://github.com/mziyabo/argocd-trivy-extension/releases/download/v0.2.0/extension-trivy_checksums.txt
+    enabled: false
 
 repoServer:
   pdb:
