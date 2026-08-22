@@ -346,7 +346,12 @@ found alongside the items below; see
 - Kyverno `ClusterCleanupPolicy` for the leftovers behind items #1 and #4 below;
   descheduler for post-recovery imbalance and permanent restart loops.
 - Talos patches committed (watchdog, `os:etcd:backup` API access, apiserver
-  toleration defaults) — **not applied**, they need `talosctl`.
+  toleration defaults) — **applied to all three nodes 2026-08-22** as
+  `watchdog.yaml` plus the two `live-*.yaml` strategic-merge patches; no
+  reboots. Verified: `/dev/watchdog0` timers cycling, `toleration-seconds=60`
+  on every kube-apiserver, `serviceaccounts.talos.dev` served. Caveat found:
+  vcluster-synced pods still carry 300s — the syncer copies tolerations from
+  the vcluster's own apiserver, so the host default never reaches them.
 
 # Remediation status (2026-08-21) — quick wins COMPLETE
 

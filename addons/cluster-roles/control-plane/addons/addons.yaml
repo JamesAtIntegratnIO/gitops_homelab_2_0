@@ -336,13 +336,13 @@ platform-backups:
     syncOptions:
       - CreateNamespace=false
 
-# DISABLED until matchbox/talos-machineconfigs/all.yaml is applied on every
-# node: the talos.dev/v1alpha1 ServiceAccount it contains is a kind Talos only
-# serves once kubernetesTalosAPIAccess is on, and an Application that cannot
-# create one of its resources never reaches Synced. Flip to true once
-# `kubectl get crd serviceaccounts.talos.dev` succeeds.
+# Depends on machine.features.kubernetesTalosAPIAccess being on every node
+# (applied 2026-08-22; `kubectl get crd serviceaccounts.talos.dev` is the
+# check). Without it the talos.dev/v1alpha1 ServiceAccount below is a kind the
+# API does not serve and the Application can never reach Synced -- set this
+# back to false if the cluster is ever rebuilt without that feature.
 platform-backups-talos:
-  enabled: false
+  enabled: true
   type: manifest
   namespace: talos-backup
   project: platform-services
