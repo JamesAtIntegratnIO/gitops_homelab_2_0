@@ -79,6 +79,11 @@ Each of these is a real defect or a real gap, found by running the thing:
   `networkPolicy.egress.namespaces` now.
 - **kube-state-metrics reads its config once, at startup.** Changing the
   ConfigMap changes nothing until it restarts.
+- **Verification silently requires Prometheus to scrape ArgoCD.** The
+  AnalysisTemplate queries `argocd_app_info`; idpbuilder ships ArgoCD's metrics
+  Services but no ServiceMonitor, so every AnalysisRun failed with an empty
+  message. `count(argocd_app_info)` went 0 -> 6 once one existed, and the
+  verification query started returning 1.
 
 ## `make seed` is a reset, not an update
 

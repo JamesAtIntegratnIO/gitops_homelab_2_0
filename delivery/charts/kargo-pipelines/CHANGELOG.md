@@ -12,6 +12,11 @@ actually declares `stages`.
 
 ### Added
 
+- Documented that verification requires Prometheus to be scraping ArgoCD. The
+  AnalysisTemplate queries `argocd_app_info`; with nothing scraping it, every
+  AnalysisRun fails with an empty message and no component names the cause.
+  Found by running a promotion on a cluster that had no ArgoCD ServiceMonitor.
+
 - `git.insecureSkipTLSVerify`, applied to every git step. Needed more often
   than it looks: Kargo REFUSES to send credentials to a plain-HTTP endpoint
   ("refused to get credentials for insecure HTTP endpoint"), so a self-hosted

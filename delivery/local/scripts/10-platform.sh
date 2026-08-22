@@ -54,6 +54,30 @@ helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
   --wait --timeout 12m >/dev/null
 ok "monitoring ready"
 
+say "scraping ArgoCD"
+# kargo-pipelines' verification asks Prometheus
+#   sum(max by (name) (argocd_app_info{health_status="Healthy", sync_status="Synced"}))
+# so if nothing scrapes ArgoCD the query returns no rows, every AnalysisRun
+# fails, and no error anywhere names the reason. idpbuilder ships ArgoCD's
+# metrics Services but no ServiceMonitor.
+cat <<'YAML' | kc apply -f - >/dev/null
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: argocd-metrics
+  namespace: argocd
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-metrics
+  endpoints:
+    - port: metrics
+      interval: 15s
+YAML
+ok "argocd ServiceMonitor"
+
 say "Kargo"
 helm upgrade --install kargo oci://ghcr.io/akuity/kargo-charts/kargo \
   --kube-context "$CLUSTER_CONTEXT" \
