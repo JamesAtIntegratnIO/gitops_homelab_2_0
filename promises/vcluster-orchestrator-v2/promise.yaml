@@ -283,7 +283,7 @@ spec:
           spec:
             containers:
               - name: configure
-                image: ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure:main-237d846@sha256:55adb9bdf0b9d5bb7457e872deae9ad89933c6dc0898d41b21b02fba613dae23
+                image: ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure:main-6ee6b58@sha256:4ffdc90528807c34c7d5f40918ea97c570ff81b4d3579ae5aa6ebd019aa1d3ae
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
@@ -302,7 +302,7 @@ spec:
           spec:
             containers:
               - name: delete
-                image: ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure:main-237d846@sha256:55adb9bdf0b9d5bb7457e872deae9ad89933c6dc0898d41b21b02fba613dae23
+                image: ghcr.io/jamesatintegratnio/vcluster-orchestrator-v2-configure:main-6ee6b58@sha256:4ffdc90528807c34c7d5f40918ea97c570ff81b4d3579ae5aa6ebd019aa1d3ae
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
