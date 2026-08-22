@@ -23,6 +23,14 @@ git:
   branch: main
   # github | gitlab | bitbucket | gitea | azure
   provider: github
+  # Accept a self-signed or privately-issued certificate on the git host.
+  #
+  # Needed more often than it looks. Kargo REFUSES to send credentials to a
+  # plain-HTTP endpoint -- "refused to get credentials for insecure HTTP
+  # endpoint" -- so a self-hosted host cannot be reached over http:// to dodge
+  # a certificate problem. It has to be https://, which means the certificate
+  # has to be either trusted or explicitly skipped, and this is the second.
+  insecureSkipTLSVerify: false
 
 merge:
   # Used by git-merge-pr when a Stage is allowed to merge its own PR.

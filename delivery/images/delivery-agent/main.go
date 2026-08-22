@@ -50,9 +50,22 @@ func main() {
 		}
 	}
 
-	git := &gitprovider.GitHub{
-		APIBase: cfg.GitAPIBase, Owner: cfg.GitOwner, Repo: cfg.GitRepo,
-		Token: cfg.GitToken, AuthorName: cfg.AuthorName, AuthorEmail: cfg.AuthorEmail,
+	// LoadConfig has already rejected any provider not handled here, so a
+	// nil git would be a programming error rather than a configuration one.
+	var git gitprovider.Provider
+	switch cfg.GitProvider {
+	case "gitea":
+		git = &gitprovider.Gitea{
+			BaseURL: cfg.GitAPIBase, Owner: cfg.GitOwner, Repo: cfg.GitRepo,
+			Token: cfg.GitToken, Username: cfg.GitOwner,
+			AuthorName: cfg.AuthorName, AuthorEmail: cfg.AuthorEmail,
+			InsecureSkipTLSVerify: cfg.GitInsecureSkipTLSVerify,
+		}
+	default:
+		git = &gitprovider.GitHub{
+			APIBase: cfg.GitAPIBase, Owner: cfg.GitOwner, Repo: cfg.GitRepo,
+			Token: cfg.GitToken, AuthorName: cfg.AuthorName, AuthorEmail: cfg.AuthorEmail,
+		}
 	}
 
 	t := &Triage{

@@ -12,6 +12,14 @@ actually declares `stages`.
 
 ### Added
 
+- `git.insecureSkipTLSVerify`, applied to every git step. Needed more often
+  than it looks: Kargo REFUSES to send credentials to a plain-HTTP endpoint
+  ("refused to get credentials for insecure HTTP endpoint"), so a self-hosted
+  host cannot be reached over `http://` to dodge a certificate problem — it
+  has to be `https://`, and the certificate then has to be trusted or skipped.
+  The failure without this is `git push` reporting `could not read Username`,
+  which names neither cause.
+
 - **Promotion chains.** A target may declare an ordered `stages` list. Each
   stage carries its own `updates` and `verify`, and downstream stages take
   their freight from the one before with `direct: false`. Kargo only offers

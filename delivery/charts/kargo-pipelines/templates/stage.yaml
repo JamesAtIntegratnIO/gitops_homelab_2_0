@@ -72,6 +72,9 @@ spec:
         - uses: git-clone
           config:
             repoURL: {{ include "kp.expr" "vars.repoURL" | quote }}
+            {{- if $.Values.git.insecureSkipTLSVerify }}
+            insecureSkipTLSVerify: true
+            {{- end }}
             checkout:
               - branch: {{ include "kp.expr" "vars.branch" | quote }}
                 path: ./repo
@@ -119,6 +122,9 @@ spec:
           if: {{ include "kp.expr" $changed | quote }}
           config:
             repoURL: {{ include "kp.expr" "vars.repoURL" | quote }}
+            {{- if $.Values.git.insecureSkipTLSVerify }}
+            insecureSkipTLSVerify: true
+            {{- end }}
             provider: {{ $.Values.git.provider }}
             sourceBranch: {{ include "kp.expr" "outputs.push.branch" | quote }}
             targetBranch: {{ include "kp.expr" "vars.branch" | quote }}
@@ -182,6 +188,9 @@ spec:
           if: {{ include "kp.expr" (printf "(%s) && (%s)" $changed $auto) | quote }}
           config:
             repoURL: {{ include "kp.expr" "vars.repoURL" | quote }}
+            {{- if $.Values.git.insecureSkipTLSVerify }}
+            insecureSkipTLSVerify: true
+            {{- end }}
             provider: {{ $.Values.git.provider }}
             prNumber: {{ include "kp.expr" "outputs.pr.pr.id" | quote }}
             mergeMethod: {{ $.Values.merge.method }}
@@ -194,6 +203,9 @@ spec:
           if: {{ include "kp.expr" (printf "(%s) && !(%s)" $changed $auto) | quote }}
           config:
             repoURL: {{ include "kp.expr" "vars.repoURL" | quote }}
+            {{- if $.Values.git.insecureSkipTLSVerify }}
+            insecureSkipTLSVerify: true
+            {{- end }}
             provider: {{ $.Values.git.provider }}
             prNumber: {{ include "kp.expr" "outputs.pr.pr.id" | quote }}
             pollInterval: {{ $.Values.merge.waitPollInterval }}

@@ -7,6 +7,17 @@ All notable changes to `delivery-agent`. Format follows
 
 ### Added
 
+- `gitprovider.Gitea`. Gitea's API is deliberately GitHub-shaped, so most of
+  it is the same request against a different base — but three places are not,
+  and each fails silently rather than loudly: there is no check-runs API, so
+  everything including Gitea Actions reports as a commit status; labels attach
+  by numeric ID on older versions, and posting names returns 200 and attaches
+  nothing, which would break the attempt cap into an infinite loop; and
+  self-hosted is the normal case, so the instance URL is required and a
+  self-signed certificate is expressible via `GIT_INSECURE_SKIP_TLS_VERIFY`.
+- `GIT_INSECURE_SKIP_TLS_VERIFY`. Scoped to the git client and to the clone it
+  pushes from — never to the process, and never to a global git config.
+
 - `POST /v1/promotion-opened` — answers `202` immediately and triages
   asynchronously. Kargo's `http` step is synchronous, so a blocking handler
   would put a model round trip inside every promotion's critical path.

@@ -18,14 +18,21 @@ type Config struct {
 	Addr string
 
 	// Git host.
-	GitProvider string // github | gitlab | bitbucket
-	GitAPIBase  string
+	GitProvider string // github | gitea
+	// GitAPIBase means different things per host, because the hosts do:
+	// on GitHub it is the API root (.../api/v3 for Enterprise), on Gitea it
+	// is the INSTANCE root and the client appends /api/v1 itself, because it
+	// also needs that root to build a push remote.
+	GitAPIBase string
 	GitOwner    string
 	GitRepo     string
 	GitRepoURL  string
 	GitToken    string
 	AuthorName  string
 	AuthorEmail string
+	// GitInsecureSkipTLSVerify allows a self-signed certificate on a
+	// self-hosted host. Scoped to the git client; never process-wide.
+	GitInsecureSkipTLSVerify bool
 
 	// Model.
 	LLMProvider        string // openai | anthropic
@@ -48,7 +55,8 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	c := &Config{
 		Addr:        env("AGENT_ADDR", ":8080"),
-		GitProvider: env("GIT_PROVIDER", "github"),
+		GitProvider:              env("GIT_PROVIDER", "github"),
+		GitInsecureSkipTLSVerify: os.Getenv("GIT_INSECURE_SKIP_TLS_VERIFY") == "true",
 		GitAPIBase:  os.Getenv("GIT_API_BASE"),
 		GitOwner:    os.Getenv("GIT_OWNER"),
 		GitRepo:     os.Getenv("GIT_REPO"),
@@ -112,7 +120,9 @@ func (c *Config) validate() error {
 		return fmt.Errorf("unknown LLM_PROVIDER %q (openai or anthropic)", c.LLMProvider)
 	}
 
-	if c.GitProvider != "github" {
+	switch c.GitProvider {
+	case "github", "gitea":
+	default:
 		return fmt.Errorf("GIT_PROVIDER %q is not implemented yet -- see docs/git-providers.md", c.GitProvider)
 	}
 

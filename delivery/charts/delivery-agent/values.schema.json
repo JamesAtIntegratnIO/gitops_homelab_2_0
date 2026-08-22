@@ -75,6 +75,7 @@
         "provider": {
           "enum": [
             "github",
+            "gitea",
             "gitlab",
             "bitbucket"
           ]
@@ -114,6 +115,9 @@
         "tokenKey": {
           "type": "string",
           "minLength": 1
+        },
+        "insecureSkipTLSVerify": {
+          "type": "boolean"
         }
       }
     },
@@ -291,6 +295,28 @@
             },
             "allowPublicHTTPS": {
               "type": "boolean"
+            },
+            "namespaces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "ports": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
             }
           }
         }
