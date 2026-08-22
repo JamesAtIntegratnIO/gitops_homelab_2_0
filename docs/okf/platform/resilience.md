@@ -28,7 +28,7 @@ and they fail independently.
 |---|---|---|
 | Node / OS | Talos auto-reboot on kernel panic; [hardware watchdog](/infrastructure/talos-nodes.md) (2m); 3-member etcd; API VIP `10.0.4.100` with Cilium on KubePrism | node hang, node loss, apiserver loss |
 | Network | Cilium kube-proxy replacement; MetalLB speaker on every node; 2 NGINX data planes spread across hosts | VIP failover, ingress pod loss |
-| Scheduling | `platform-critical` / `platform-batch` PriorityClasses; topology spread on gateway + Kyverno admission; 60s failover tolerations | capacity shortfall, slow rescheduling |
+| Scheduling | `platform-critical` / `platform-batch` PriorityClasses; topology spread on gateway + Kyverno admission; 60s failover tolerations — per-workload on the recovery-path addons and, since 2026-08-22, the apiserver default for every new host pod (vcluster-synced pods still get 300s from the vcluster's own apiserver) | capacity shortfall, slow rescheduling |
 | Disruption | PodDisruptionBudgets on every component running ≥2 replicas, CoreDNS and the vcluster-media etcd included | drains and rolling updates |
 | GitOps | ArgoCD `selfHeal` + `prune` + unlimited retry on **all 50** rendered Applications; 60s reconciliation; `kratix-state-reconciler` | config drift, manual edits, failed syncs |
 | Hygiene | Kyverno `ClusterCleanupPolicy` for suspended Jobs, long-failed Jobs, terminal Pods; descheduler every 30m | leftovers that look like failure, post-recovery imbalance, restart loops |
@@ -96,9 +96,8 @@ rule, which was 8.399.)
   storms. Talos owns the CoreDNS Deployment and Corefile as bootstrap manifests
   and re-applies them, so only a PodDisruptionBudget could be added from git.
   See [known issues](/cluster/known-issues.md) and the Talos runbook.[^talos-cmds]
-- **Host etcd snapshots.** The CronJob is in git (`platform-backups-talos`)
-  but disabled: the Talos API access it needs is a machine-config patch that
-  is committed, not applied. The tenant's etcd *is* backed up nightly — see
+- **Host etcd snapshots** — no longer outside git's reach: the Talos API access
+  patch was applied 2026-08-22 and `platform-backups-talos` is enabled. See
   [backups](/platform/backups.md).
 - **Rebuild from git.** The two fresh-clone bugs (`secrets.env`,
   `dockerconfig.json`) are fixed, but the DR path in

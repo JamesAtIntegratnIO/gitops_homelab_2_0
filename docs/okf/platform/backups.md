@@ -42,7 +42,7 @@ snapshots cover.
 | CronJob | Namespace | Schedule (UTC) | Takes | Writes to | Status |
 |---|---|---|---|---|---|
 | `vcluster-media-etcd-snapshot` | `vcluster-media` | 03:45 daily | `etcdctl snapshot save` against `vcluster-media-etcd:2379` | `10.0.0.12:/mnt/user/kube_storage/backups/vcluster-media-etcd/` | **live** (addon `platform-backups`)[^backups-addon] |
-| `talos-etcd-snapshot` | `talos-backup` | 03:15 daily | `talosctl etcd snapshot` on the pod's own node | `…/backups/the-cluster-etcd/` | **disabled** — needs the Talos patch (addon `platform-backups-talos`)[^talos-addon] |
+| `talos-etcd-snapshot` | `talos-backup` | 03:15 daily | `talosctl etcd snapshot` on the pod's own node | `…/backups/the-cluster-etcd/` | **enabled 2026-08-22** (addon `platform-backups-talos`)[^talos-addon] — first nightly not yet observed |
 
 **First run verified 2026-08-22T01:34Z** (manual Job from the CronJob, right
 after #68 merged): 33 MB snapshot fetched in 0.8 s, written as
@@ -71,9 +71,9 @@ its own health check it trusts this.
 `machine.features.kubernetesTalosAPIAccess`. The gen-time fragment is
 [`all.yaml`](../../../matchbox/talos-machineconfigs/all.yaml), but on a running
 node it must be applied as a JSON patch of just that key — the fragment itself
-duplicates list items under `patch mc` (see the runbook). A talosconfig now
-exists on James's Mac; the apply is a human step because the agent permission
-layer blocks live machine-config writes. Until
+duplicates list items under `patch mc` (see the runbook). Applied to all three
+nodes on 2026-08-22 (by James; the agent permission layer blocks live
+machine-config writes) and the addon switched on the same day. Until
 it is applied the `talos.dev/v1alpha1 ServiceAccount` kind does not exist, so
 the addon ships `enabled: false`; an Application that cannot create one of its
 resources never reaches Synced. After the patch:
