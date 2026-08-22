@@ -107,8 +107,28 @@ spec:
           port: 443
 ---
 # ArgoCD Server: OIDC provider access via nginx-gateway (Authentik)
-# Cilium performs DNAT before policy eval, so LB VIP rules don't work.
-# Must target the actual nginx-gateway pod by labels.
+#
+# BOTH rules below are required, and the pod-label one alone is not enough --
+# which is what broke SSO. Cilium classifies the gateway's LB VIP as
+# `cidr:10.0.4.0/24` + `reserved:world` at egress policy evaluation, NOT as
+# the nginx-gateway endpoint:
+#
+#   cilium-dbg identity get 16777224
+#   16777224   cidr:10.0.4.0/24
+#              reserved:world
+#
+# so `toEndpoints` can never match it and the flow is dropped
+# `policy-verdict:none`. The `allow-argocd-server` rule above does not cover
+# it either: its 0.0.0.0/0-on-443 excepts every RFC1918 range, and the VIP is
+# 10.0.4.205.
+#
+# The symptom is not an error. argocd-server blocks the full 30s dial timeout
+# on every session check, so the UI hangs on "checking session" and each
+# GetUserInfo/Settings call takes 30s -- while every pod reads Healthy.
+#
+# The VIP is pinned in nginx-gateway-fabric/values.yaml (loadBalancerIP), so
+# the /32 is stable. The toEndpoints rule is kept: it is what applies if the
+# traffic is ever DNATed to the pod before policy evaluation.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -123,6 +143,13 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: nginx-gateway
             app.kubernetes.io/name: nginx-gateway-nginx
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # The gateway LB VIP, reached as a CIDR identity. See the note above.
+    - toCIDR:
+        - 10.0.4.205/32
       toPorts:
         - ports:
             - port: "443"
