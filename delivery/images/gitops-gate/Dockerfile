@@ -13,7 +13,10 @@ RUN apk add --no-cache ca-certificates git bash
 
 ARG HELM_VERSION=v3.19.0
 ARG KUBECONFORM_VERSION=v0.7.0
-ARG TARGETARCH=amd64
+# No default. TARGETARCH is a built-in BuildKit arg, and assigning one here
+# shadows the value BuildKit injects -- which made the arm64 image download
+# amd64 helm and kubeconform, then fail exec'ing them under emulation.
+ARG TARGETARCH
 
 RUN set -eux; \
     wget -qO- "https://get.helm.sh/helm-${HELM_VERSION}-linux-${TARGETARCH}.tar.gz" \
