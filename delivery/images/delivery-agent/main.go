@@ -70,6 +70,7 @@ func main() {
 
 	t := &Triage{
 		Git: git, LLM: model,
+		Brand: cfg.Brand, BrandMark: cfg.BrandMark,
 		Policy:      edits.Policy{Allow: cfg.AllowPaths, Deny: cfg.DenyPaths},
 		CheckName:   cfg.CheckName,
 		MaxAttempts: cfg.MaxAttempts,
@@ -94,8 +95,8 @@ func main() {
 	}
 
 	go func() {
-		logger.Printf("delivery-agent listening on %s (model %s, repo %s/%s, allow %v)",
-			cfg.Addr, model.Name(), cfg.GitOwner, cfg.GitRepo, cfg.AllowPaths)
+		logger.Printf("%s listening on %s (model %s, repo %s/%s, allow %v)",
+			cfg.Brand, cfg.Addr, model.Name(), cfg.GitOwner, cfg.GitRepo, cfg.AllowPaths)
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatalf("serving: %v", err)
 		}

@@ -63,9 +63,16 @@ PY
   git -C "$WORK/repo" commit -q -m "$SUBJECT"
   git -C "$WORK/repo" push -q --force "$CLONE" "$BRANCH"
 
+  # A body, not just a title. Gitea renders an empty description as a bare
+  # "No description provided." at the top of the conversation, which reads
+  # like a broken first comment rather than an absent one.
+  BODY_TEXT="Automated version bump.
+Replayed from the \`${NAME}\` incident fixture; correct handling is **${WANT}**.
+The gate report below is the one recorded from the original incident.
+Everything after it -- the agent, the model, any commit -- is live.
+See \`delivery/local\` in the delivery kit."
   PR=$(gitea_api POST "/repos/${GITEA_OWNER}/${SAMPLE_REPO_NAME}/pulls" \
-        -d "$(python3 -c "
-import json,sys; print(json.dumps({'head':sys.argv[1],'base':'main','title':sys.argv[2]}))" "$BRANCH" "$SUBJECT")" \
+        -d "$(BR="$BRANCH" TI="$SUBJECT" BO="$BODY_TEXT" python3 -c 'import json,os; print(json.dumps({"head":os.environ["BR"],"base":"main","title":os.environ["TI"],"body":os.environ["BO"]}))')" \
       | python3 -c 'import json,sys; print(json.load(sys.stdin).get("number",""))')
   if [ -z "$PR" ]; then
     PR=$(gitea_api GET "/repos/${GITEA_OWNER}/${SAMPLE_REPO_NAME}/pulls?state=open" \

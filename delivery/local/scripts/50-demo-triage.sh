@@ -50,7 +50,7 @@ git -C "$WORK/repo" push -q --force "$CLONE" "$BRANCH"
 ok "pushed $BRANCH"
 
 PR="$(gitea_api POST "/repos/${GITEA_OWNER}/${SAMPLE_REPO_NAME}/pulls" \
-  -d "{\"head\":\"${BRANCH}\",\"base\":\"main\",\"title\":\"chore(podinfo): bump hub to 6.14.1\"}" \
+  -d "$(BR="$BRANCH" python3 -c 'import json,os; print(json.dumps({"head":os.environ["BR"],"base":"main","title":"chore(podinfo): bump hub to 6.14.1","body":"Routine version bump.\n\nOpened by the local proving ground to show what the gate refuses. The bump itself is fine; the destination namespace changed alongside it."}))')" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin).get("number",""))')"
 [ -n "$PR" ] || PR="$(gitea_api GET "/repos/${GITEA_OWNER}/${SAMPLE_REPO_NAME}/pulls?state=open" \
   | python3 -c 'import json,sys; d=[p for p in json.load(sys.stdin) if p["head"]["ref"]=="'"$BRANCH"'"]; print(d[0]["number"] if d else "")')"

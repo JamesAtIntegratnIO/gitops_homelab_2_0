@@ -36,6 +36,9 @@ type Promotion struct {
 // always say something. It never loops waiting for a model, never retries an
 // applied edit, and never touches anything outside the bot's own branch.
 type Triage struct {
+	// Brand is what the agent calls itself in comments and commits.
+	Brand     string
+	BrandMark string
 	Git       gitprovider.Provider
 	LLM       llm.Provider
 	Policy    edits.Policy
@@ -62,6 +65,7 @@ type Triage struct {
 const (
 	labelNeedsHuman = "needs-human"
 	labelAttempt    = "delivery-agent/attempt-"
+	labelAttemptFmt = "%s/attempt-"
 )
 
 func (t *Triage) logf(f string, a ...any) {
@@ -82,7 +86,7 @@ func (t *Triage) Run(ctx context.Context, p Promotion) error {
 		t.logf("PR %d already needs a human; nothing to add", pr.Number)
 		return nil
 	}
-	attempt := attemptsSoFar(pr.Labels) + 1
+	attempt := attemptsSoFar(pr.Labels, t.attemptPrefix()) + 1
 	if attempt > t.MaxAttempts {
 		t.logf("PR %d has used its %d attempts", pr.Number, t.MaxAttempts)
 		return t.escalate(ctx, pr, fmt.Sprintf(
@@ -169,7 +173,7 @@ func (t *Triage) Run(ctx context.Context, p Promotion) error {
 		return t.escalate(ctx, pr, fmt.Sprintf("Could not push the fix: %v", err), verdict)
 	}
 
-	if err := t.Git.AddLabel(ctx, pr.Number, fmt.Sprintf("%s%d", labelAttempt, attempt)); err != nil {
+	if err := t.Git.AddLabel(ctx, pr.Number, fmt.Sprintf("%s%d", t.attemptPrefix(), attempt)); err != nil {
 		t.logf("PR %d: could not label attempt %d: %v", pr.Number, attempt, err)
 	}
 	return t.Git.Comment(ctx, pr.Number, t.render(verdict, res, fmt.Sprintf(
@@ -197,8 +201,28 @@ func (t *Triage) escalateWith(ctx context.Context, pr *gitprovider.PullRequest, 
 // render builds the pull-request comment. It always states which model
 // produced the verdict, and always lists what was refused -- a silent refusal
 // would let a reader believe a fix was applied when it was not.
+// attemptPrefix is the label prefix the attempt cap counts. It follows the
+// brand: a renamed agent must not keep writing labels under its old name, or
+// the cap silently resets on the rename.
+func (t *Triage) attemptPrefix() string {
+	if t.Brand == "" {
+		return labelAttempt
+	}
+	return fmt.Sprintf(labelAttemptFmt, strings.ToLower(t.Brand))
+}
+
 func (t *Triage) render(v *llm.Verdict, res *edits.Result, headline string) string {
 	var b strings.Builder
+	// Lead with the identity. A comment that opens with a verdict reads like
+	// a colleague's review until you reach the footer, and the difference
+	// matters most in the seconds before someone acts on it.
+	if t.Brand != "" {
+		mark := t.BrandMark
+		if mark != "" {
+			mark += " "
+		}
+		fmt.Fprintf(&b, "%s**%s**\n\n", mark, t.Brand)
+	}
 	fmt.Fprintf(&b, "%s\n\n", headline)
 	fmt.Fprintf(&b, "**%s**\n\n%s\n", v.Summary, v.Reasoning)
 
@@ -214,7 +238,11 @@ func (t *Triage) render(v *llm.Verdict, res *edits.Result, headline string) stri
 			fmt.Fprintf(&b, "- `%s` in `%s` — %s\n", r.Key, r.Path, r.Reason)
 		}
 	}
-	fmt.Fprintf(&b, "\n<sub>delivery-agent · %s</sub>\n", t.LLM.Name())
+	brand := t.Brand
+	if brand == "" {
+		brand = "delivery-agent"
+	}
+	fmt.Fprintf(&b, "\n<sub>%s · %s · automated triage, not a review</sub>\n", brand, t.LLM.Name())
 	return b.String()
 }
 
@@ -310,10 +338,10 @@ func has(items []string, want string) bool {
 	return false
 }
 
-func attemptsSoFar(labels []string) int {
+func attemptsSoFar(labels []string, prefix string) int {
 	n := 0
 	for _, l := range labels {
-		if strings.HasPrefix(l, labelAttempt) {
+		if strings.HasPrefix(l, prefix) {
 			n++
 		}
 	}

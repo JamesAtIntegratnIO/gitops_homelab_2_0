@@ -46,11 +46,48 @@ command -v kind >/dev/null 2>&1 || bad "kind is not on PATH -- idpbuilder embeds
 kind load docker-image "$AGENT_IMAGE" --name "$KIND_CLUSTER" 2>&1 | sed 's/^/    /'
 ok "loaded into kind/$KIND_CLUSTER"
 
+say "the agent's own account"
+# The agent authenticates as whoever owns its token. Hand it the admin's and
+# every comment and commit it makes carries the admin's name -- which is
+# indistinguishable, at a glance, from a colleague having written it. So it
+# gets a user of its own, and mints its own token as that user.
+: "${AGENT_USER:=bosun}"
+: "${AGENT_PASSWORD:=bosun-local-not-a-secret}"
+: "${AGENT_BRAND:=Bosun}"
+: "${AGENT_BRAND_MARK:=⚓}"
+
+if gitea_api GET "/users/${AGENT_USER}" -o /dev/null -w '%{http_code}' | grep -q 200; then
+  step "user ${AGENT_USER} exists"
+else
+  gitea_api POST "/admin/users" -d "$(python3 -c "
+import json,sys
+print(json.dumps({'username':sys.argv[1],'email':sys.argv[1]+'@localtest.me',
+                  'password':sys.argv[2],'must_change_password':False}))" \
+    "$AGENT_USER" "$AGENT_PASSWORD")" >/dev/null
+  step "created ${AGENT_USER}"
+fi
+
+# The bot needs write access to the repository it fixes.
+curl -sk -X PUT -H "Authorization: token ${GITEA_TOKEN}" \
+  "${GITEA_URL}/api/v1/repos/${GITEA_OWNER}/${SAMPLE_REPO_NAME}/collaborators/${AGENT_USER}" \
+  -H 'Content-Type: application/json' -d '{"permission":"write"}' >/dev/null
+step "granted write on ${SAMPLE_REPO_NAME}"
+
+# Tokens are minted by the user themselves, with basic auth -- an admin token
+# cannot mint one on someone else's behalf.
+AGENT_TOKEN="$(curl -sk -u "${AGENT_USER}:${AGENT_PASSWORD}" \
+  -X POST "${GITEA_URL}/api/v1/users/${AGENT_USER}/tokens" \
+  -H 'Content-Type: application/json' \
+  -d "{\"name\":\"agent-$(date +%s)\",\"scopes\":[\"write:repository\",\"write:issue\",\"read:user\"]}" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin).get("sha1",""))')"
+[ -n "$AGENT_TOKEN" ] || bad "could not mint a token for ${AGENT_USER}"
+ok "minted a token for ${AGENT_USER}"
+
 say "agent credentials"
 kc get namespace delivery-agent >/dev/null 2>&1 || kc create namespace delivery-agent >/dev/null
 kc -n delivery-agent delete secret agent-git >/dev/null 2>&1 || true
 kc -n delivery-agent create secret generic agent-git \
-  --from-literal=token="$GITEA_TOKEN" >/dev/null
+  --from-literal=token="$AGENT_TOKEN" >/dev/null
 ok "agent-git"
 
 say "delivery-agent"
@@ -63,6 +100,10 @@ helm upgrade --install delivery-agent "$ROOT/../charts/delivery-agent" \
   --set git.provider=gitea \
   --set git.apiBase="$GITEA_ROOT" \
   --set git.owner="$GITEA_OWNER" \
+  --set branding.name="$AGENT_BRAND" \
+  --set branding.mark="$AGENT_BRAND_MARK" \
+  --set git.author.name="$AGENT_BRAND" \
+  --set git.author.email="${AGENT_USER}@localtest.me" \
   --set git.repo="$SAMPLE_REPO_NAME" \
   --set git.repoURL="$REPO_URL" \
   --set git.insecureSkipTLSVerify=false \
@@ -80,7 +121,13 @@ helm upgrade --install delivery-agent "$ROOT/../charts/delivery-agent" \
   --set 'triage.allowPaths[0]=apps/**' \
   --set 'triage.allowPaths[1]=addons/**' \
   --wait --timeout 5m >/dev/null
-ok "delivery-agent ready"
+# The image tag never changes, so helm sees an identical pod spec and keeps
+# the running pod -- with the OLD binary in it. Every rebuild therefore needs
+# an explicit rollout, or you spend an hour debugging code that is not
+# running.
+kc -n delivery-agent rollout restart deploy/delivery-agent-delivery-agent >/dev/null
+kc -n delivery-agent rollout status deploy/delivery-agent-delivery-agent --timeout=180s >/dev/null
+ok "delivery-agent ready (restarted onto the freshly built image)"
 
 say "kargo-pipelines"
 helm upgrade --install kargo-pipelines "$ROOT/../charts/kargo-pipelines" \

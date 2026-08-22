@@ -324,6 +324,18 @@
     },
     "metrics": {
       "type": "object"
+    },
+    "branding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "mark": {
+          "type": "string"
+        }
+      }
     }
   }
 }
