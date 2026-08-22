@@ -168,10 +168,16 @@ jobs:
             report.md
           retention-days: 7
 
-      - name: Fail on a blocking change
+      - name: Report the verdict
         if: steps.diff.outputs.exit != '0'
+        # The gate separates "this change is bad" (1) from "the gate is broken"
+        # (2) on purpose -- they want opposite reactions. Both fail the job, but
+        # they must not read the same, or a broken gate looks like a bad change.
         run: |
-          echo "::error::Cluster targeting changed. See the job summary."
+          case "${{ steps.diff.outputs.exit }}" in
+            1) echo "::error::A blocking change was found. See the job summary for which: cluster targeting, a source move, or an apiVersion migration." ;;
+            *) echo "::error::The gate could not run -- a gate failure, not a bad change." ;;
+          esac
           exit 1
 
   schema:

@@ -133,6 +133,6 @@ jobs:
         run: |
           case "${{ steps.diff.outputs.exit }}" in
             0) echo "gate is green" ;;
-            1) echo "::error::Cluster targeting changed. See the job summary."; exit 1 ;;
+            1) echo "::error::A blocking change was found. See the job summary for which: cluster targeting, a source move, or an apiVersion migration."; exit 1 ;;
             *) echo "::error::The gate could not run -- this is a gate failure, not a bad change."; exit 1 ;;
           esac
