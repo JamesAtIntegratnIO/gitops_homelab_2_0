@@ -85,12 +85,19 @@ Each of these is a real defect or a real gap, found by running the thing:
   message. `count(argocd_app_info)` went 0 -> 6 once one existed, and the
   verification query started returning 1.
 
-## `make seed` is a reset, not an update
+## Running it a second time
 
-It force-pushes `sample-repo/` over `main`. That is what makes a run
-reproducible, and it also means re-seeding after a demo **discards the merge**
-you just watched land. Run `make demo` against a seeded repo; re-seed when you
-want to start over.
+`make demo` **consumes** the Freight it promotes. Run it again as-is and it
+fails at step 2 with `a promotion exists (waited 240s)`, because the Stage is
+already fulfilled and Kargo has nothing left to promote.
+
+`make seed` alone does not fix that. It force-pushes `sample-repo/` back over
+`main` — discarding the merge you just watched land — but leaves Kargo holding
+the Freight it already promoted. Both sides have to go back:
+
+```bash
+make reset && make demo
+```
 
 ## Teardown
 

@@ -10,6 +10,7 @@ SCRIPTS := scripts
 help:
 	@echo "make up      colima + idpbuilder + platform + kit + seed  (everything)"
 	@echo "make demo    run the whole flow, asserted at every step"
+	@echo "make reset   put the flow back to the start so demo can run again"
 	@echo "make down    delete the cluster; colima keeps running"
 	@echo "make clean   down, and stop colima too"
 	@echo
@@ -43,6 +44,12 @@ kit:
 .PHONY: demo
 demo:
 	@bash $(SCRIPTS)/40-demo.sh
+
+# The demo consumes the Freight it promotes, so a second run has nothing left
+# to do. This puts BOTH sides back -- the repository and Kargo's stage state.
+.PHONY: reset
+reset:
+	@bash $(SCRIPTS)/95-reset.sh
 
 .PHONY: down
 down:
