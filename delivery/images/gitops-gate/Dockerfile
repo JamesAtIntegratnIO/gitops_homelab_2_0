@@ -1,7 +1,7 @@
 # The gate shells out to helm and kubeconform rather than vendoring their
 # libraries: chart rendering has to match what the cluster's own Helm does, and
 # pinning a library version is a slower way to drift away from that.
-FROM golang:1.25-alpine AS build
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
