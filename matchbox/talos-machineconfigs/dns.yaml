@@ -1,3 +1,17 @@
+# WITHDRAWN 2026-08-21 -- DO NOT APPLY. Kept for the record only.
+#
+# Both pre-checks below were finally run with a talosconfig, and both failed
+# the premise of this file:
+#   talosctl get resolvers             -> ["1.1.1.1","8.8.8.8"] on all three
+#                                         nodes, both healthy (get dnsupstreams)
+#   dig @10.0.0.1 media.integratn.tech -> 10.0.4.200, from a dnsmasq: the
+#                                         router serves a split-horizon LAN zone
+# So the nodes already have two public upstreams, the router is not in the
+# path, and adding it would make the platform's own hostnames flip between
+# LAN and public answers. The single point of failure CoreDNS sees is the
+# Talos host-DNS proxy itself (hostDNS.forwardKubeDNSToHost: true), which is
+# a different change -- see commands.md step 3.
+#
 # Upstream DNS resolvers for the Talos host DNS proxy.
 #
 # WHY

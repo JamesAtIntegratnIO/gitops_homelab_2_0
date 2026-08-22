@@ -8,11 +8,12 @@ and bootstrap tokens, so they are gitignored.
 ```bash
 talosctl gen config the-cluster https://10.0.4.100 \
   --config-patch @all.yaml \
-  --config-patch @dns.yaml \
   --config-patch @watchdog.yaml \
   --config-patch-control-plane @cp.yaml \
   --config-patch-worker @work.yaml
 ```
+
+`dns.yaml` is deliberately absent from that list -- see step 3 below.
 
 `watchdog.yaml` is a separate machine-config *document* (`kind:
 WatchdogTimerConfig`) rather than a fragment of `machine:`, which is why it is
@@ -40,22 +41,45 @@ talosctl -n 10.0.4.101 patch mc --patch-file watchdog.yaml
 talosctl -n 10.0.4.101 read /sys/class/watchdog/watchdog0/timeleft
 
 # 2. Talos API access for etcd snapshots (all nodes) and the failover timings
-#    (control plane). Both are in the fragments used at generation time, so
-#    applying them here keeps the live cluster and git in agreement.
-talosctl -n 10.0.4.101 patch mc --patch-file all.yaml
-talosctl -n 10.0.4.101 patch mc --patch-file cp.yaml
-#    Once all.yaml is on every node, `kubectl get crd serviceaccounts.talos.dev`
-#    succeeds and the host etcd backup can be switched on: set
-#    platform-backups-talos.enabled to true in
+#    (control plane). Do NOT `--patch-file all.yaml` / `cp.yaml` against a
+#    running node: those are the generation-time fragments, and `patch mc`
+#    APPENDS list items, so a dry-run on 2026-08-21 showed it duplicating
+#    certSANs, extraKernelArgs and the entire network-interface/VIP block.
+#    JSON 6902 patches are not an option either: Talos refuses them once the
+#    config is multi-document, which it is as soon as watchdog.yaml is on.
+#    The live-*.yaml files carry exactly the new keys as strategic-merge
+#    patches; both dry-run clean with no reboot, the second restarts that
+#    node's kube-apiserver static pod.
+talosctl -n 10.0.4.101 patch mc --patch-file live-talos-api-access.yaml
+talosctl -n 10.0.4.101 patch mc --patch-file live-apiserver-tolerations.yaml
+#    Verify on that node before moving on:
+kubectl -n kube-system get pod kube-apiserver-<node> -o jsonpath='{.spec.containers[0].command}' | tr ' ' '\n' | grep toleration
+#    Once the first patch is on every node, `kubectl get crd
+#    serviceaccounts.talos.dev` succeeds and the host etcd backup can be
+#    switched on: set platform-backups-talos.enabled to true in
 #    addons/cluster-roles/control-plane/addons/addons.yaml (one-line PR).
 
-# 3. Second upstream resolver. Read the two pre-checks at the top of dns.yaml
-#    first -- this patch REPLACES the DHCP-supplied resolver list, and the
-#    primary entry in it was inferred from the default gateway, not confirmed.
-talosctl -n 10.0.4.101 get resolvers
-talosctl -n 10.0.4.101 patch mc --patch-file dns.yaml
-#    Verify: the node still resolves, and now has more than one upstream.
-talosctl -n 10.0.4.101 get resolvers
+# 3. DNS -- dns.yaml is WITHDRAWN; do not apply it. Its pre-checks were run
+#    on 2026-08-21 and both failed its premise:
+#      talosctl -n 10.0.4.101 get resolvers   -> ["1.1.1.1","8.8.8.8"], both healthy
+#      dig @10.0.0.1 media.integratn.tech     -> 10.0.4.200 (dnsmasq, split-horizon)
+#    The nodes already have two public upstreams; the router is not in the
+#    path, and adding it would make the cluster's own hostname flip between
+#    the LAN and public answers. The single point of failure is the Talos
+#    host-DNS proxy (169.254.116.108) that CoreDNS forwards everything to,
+#    enabled by `machine.features.hostDNS.forwardKubeDNSToHost: true`. The
+#    candidate fix is to set that false so CoreDNS forwards to the upstreams
+#    directly and its own health checks get two targets -- untested, and it
+#    changes how Talos renders the CoreDNS manifest, so it is its own task.
+
+# 4. etcd defragmentation. Found 2026-08-21: ~600 MB on disk, ~110 MB in use
+#    on every member. Blocks that member for a few seconds; non-leader first,
+#    leader (`talosctl etcd status` shows it) last.
+talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status
+talosctl -n <non-leader-1> etcd defrag
+talosctl -n <non-leader-2> etcd defrag
+talosctl -n <leader> etcd defrag
+talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status     # DB SIZE should be near IN USE
 ```
 
 `cluster.apiServer.extraArgs` restarts the kube-apiserver static pod on that
