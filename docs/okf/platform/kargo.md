@@ -4,15 +4,15 @@ title: Kargo — automated image and chart version updates
 description: How every pinned image tag, digest and chart version in the repo is kept current — Kargo Warehouses watch the sources, one Stage per artifact opens a PR against main, merges it under a per-target policy, and verifies the affected ArgoCD Applications afterwards.
 tags: [kargo, updates, images, charts, automation, gitops]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-21T20:00:00Z }
-stale_after: 2026-09-21
+generated: { by: claude-code/claude-opus-5, at: 2026-08-22T22:20:00Z }
+stale_after: 2026-09-22
 sources:
   - id: chart
-    resource: ../../../addons/charts/kargo-projects/
-    title: kargo-projects factory chart
+    resource: ../../../delivery/charts/kargo-pipelines/
+    title: kargo-pipelines factory chart (superseded addons/charts/kargo-projects in PR #86)
   - id: targets
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
-    title: target list (48 Warehouse/Stage pairs)
+    title: target list (55 Warehouse/Stage pairs, measured live 2026-08-22)
   - id: install
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo/values.yaml
     title: Kargo chart values
@@ -25,6 +25,9 @@ sources:
   - id: guide
     resource: ../../kargo.md
     title: docs/kargo.md — the operator guide
+  - id: agent
+    resource: ../../../delivery/images/delivery-agent/
+    title: delivery-agent — the triage service the pipeline calls
   - id: reference
     resource: https://github.com/Tensure/gitops-apps-config (private)
     title: Tensure's Kargo chart-updater pipelines, the implementation reference
@@ -84,6 +87,15 @@ trigger.
 `kargo/promotion/<promotion>` branch → `git-open-pr` → then **exactly one of**
 `git-merge-pr` (squash, when the policy allows) or `git-wait-for-pr` (parks
 the promotion until a human merges or closes; later Freight queues behind it).
+
+After `git-open-pr`, a **triage** `http` step POSTs the freight context to the
+[delivery-agent](../../../delivery/images/delivery-agent) — live since
+2026-08-22 (PR #92). `when: gated` means it fires only for pull requests the
+merge policy will *not* auto-merge, i.e. the ones already parked on
+`git-wait-for-pr` waiting for a human; all 55 Stages carry it. The step is
+`continueOnError: true` and the service answers `202` and works
+asynchronously, so triage can be down, slow or asleep without ever failing a
+promotion — the model runs on the workstation, which is not always awake.
 
 Merge policy (`autoMerge`): `patch` for CNI / ArgoCD / Kyverno / cert-manager
 / MetalLB / NGF / external-secrets / Kargo; `minor` (default — patch, plus

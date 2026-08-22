@@ -107,12 +107,19 @@ Each Stage runs the same generated pipeline
 
 ### Triage (the delivery-agent)
 
-When a promotion opens a pull request, an optional `http` step hands the
-freight context to the [delivery-agent](../delivery/images/delivery-agent),
-which reads the gate, explains a red one, and fixes what the rendered diff
-proves. It is **disabled** in this repo until the model endpoint is serving.
+When a promotion opens a pull request, an `http` step hands the freight
+context to the [delivery-agent](../delivery/images/delivery-agent), which
+reads the gate, explains a red one, and fixes what the rendered diff proves.
 
-Two properties worth knowing before turning it on:
+**Live since 2026-08-22 22:04Z** (PR #92), against a self-hosted
+`qwen/qwen3.5-9b` on the workstation. It is wired at `triage:` in
+[kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml)
+with `when: gated` — only pull requests the merge policy refuses to
+auto-merge, which is exactly the set already waiting on a human. All 55
+Stages carry the step. The dozen patch bumps a week that merge themselves
+never reach the model.
+
+Two properties worth knowing:
 
 - The step is `continueOnError: true`, so a triage service that is down, slow
   or misconfigured can never fail a promotion. The agent answers `202` and
@@ -124,6 +131,16 @@ Two properties worth knowing before turning it on:
 
 Its measured behaviour, and why a 9B local model is enough, is in
 [the prompt contract](../delivery/images/delivery-agent/docs/prompt-contract.md).
+
+Two things bite when standing this up, both verified the hard way on #92:
+
+- **Enabling the addon is only half of it.** `kargo-pipelines` defaults
+  `triage.enabled: false`, so the agent deploys, passes its readiness probe
+  and is never called. A healthy pod is not evidence of a wired hook —
+  `kubectl get stages -A -o json | grep -c promotion-opened` is.
+- **The model endpoint lives on the workstation**, so triage is only as
+  awake as that machine. A sleeping laptop is not an outage: the step is
+  `continueOnError`, so promotions carry on untriaged.
 
 ### How the PR steps retry
 
