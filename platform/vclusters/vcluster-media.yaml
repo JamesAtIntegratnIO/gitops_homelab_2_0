@@ -38,8 +38,14 @@ spec:
         ingress:
           enabled: false
       integrations:
+        # Proxies the host cluster's metrics-server into the vcluster so
+        # metrics.k8s.io resolves inside it. Off since this file was first
+        # written, which left the tenant with no pod or node metrics at all --
+        # `kubectl top` empty, and its ArgoCD HPAs stuck at
+        # ScalingActive=False for their entire life. The pipeline's own default
+        # is true; this override was the only thing holding it off.
         metricsServer:
-          enabled: false
+          enabled: true
     resources:
       requests:
         # The prod preset reserves 500m per control-plane replica (1.5 CPU across
