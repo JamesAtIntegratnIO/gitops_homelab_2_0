@@ -1,0 +1,138 @@
+# Portable reference adapter for GitHub Actions.
+#
+# Copy to .github/workflows/ and adjust the `paths:` filter to match where your
+# addon values live. Everything else works as-is.
+#
+# Put `addons-gate` -- and only `addons-gate` -- in the branch protection rule.
+
+name: Validate Addons
+
+# NO `paths:` filter -- see ../README.md. A required check skipped by a paths
+# filter never reports, so the pull request is blocked forever. The `scope` job
+# below does the filtering instead, and `addons-gate` always reports.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: addons-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  GATE_IMAGE: ghcr.io/OWNER/delivery-kit/gitops-gate:latest   # <- pin a digest
+
+jobs:
+  scope:
+    name: Does this change what gets deployed?
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.check.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only \
+            '${{ github.event.pull_request.base.sha }}' \
+            '${{ github.event.pull_request.head.sha }}')
+          # <- adjust this pattern to your layout
+          if echo "$changed" | grep -qE '^(addons/|bootstrap/|\.gitops-gate)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  render:
+    name: Render (${{ matrix.ref }})
+    runs-on: ubuntu-latest
+    needs: scope
+    if: needs.scope.outputs.relevant == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: [base, head]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # the gate needs the merge base, not just the head
+
+      - name: Check out the revision under render
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.ref }}" = "base" ]; then
+            git checkout --quiet "${{ github.event.pull_request.base.sha }}"
+          fi
+
+      - name: Take the gate config from the head at both revisions
+        # The config describes how to render, not what to render. The base may
+        # predate it entirely -- notably on the PR that introduces the gate.
+        run: |
+          git checkout --quiet "${{ github.event.pull_request.head.sha }}" -- \
+            .gitops-gate.yaml .gitops-gate
+
+      - name: Render
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo "$GATE_IMAGE" \
+            render -repo . -out "targets-${{ matrix.ref }}.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: targets-${{ matrix.ref }}
+          path: targets-${{ matrix.ref }}.json
+
+  addons-gate:
+    name: addons-gate
+    runs-on: ubuntu-latest
+    needs: [scope, render]
+    # always(), or this inherits the never-reports problem from its own
+    # dependencies and blocks the pull request just as a paths filter would.
+    if: always()
+    steps:
+      - name: Nothing affecting rendering changed
+        if: needs.scope.outputs.relevant != 'true'
+        run: |
+          echo "gate is green (no rendering-affecting paths in this change)"
+      - name: Fail if a needed job did not succeed
+        if: needs.scope.outputs.relevant == 'true' && needs.render.result != 'success'
+        run: echo "::error::render did not succeed (${{ needs.render.result }})" && exit 1
+      - uses: actions/checkout@v4
+        if: needs.scope.outputs.relevant == 'true'
+      - uses: actions/download-artifact@v4
+        if: needs.scope.outputs.relevant == 'true'
+        with:
+          pattern: targets-*
+          merge-multiple: true
+
+      - name: Diff
+        if: needs.scope.outputs.relevant == 'true'
+        id: diff
+        run: |
+          set -euo pipefail
+          set +e
+          docker run --rm -v "$PWD:/repo" -w /repo "$GATE_IMAGE" \
+            diff -base targets-base.json -head targets-head.json \
+                 -report report.md -json render-diff.json
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: needs.scope.outputs.relevant == 'true'
+        with:
+          name: render-diff
+          path: |
+            render-diff.json
+            report.md
+
+      - name: Report
+        if: needs.scope.outputs.relevant == 'true'
+        run: |
+          case "${{ steps.diff.outputs.exit }}" in
+            0) echo "gate is green" ;;
+            1) echo "::error::A blocking change was found. See the job summary for which: cluster targeting, a source move, or an apiVersion migration."; exit 1 ;;
+            *) echo "::error::The gate could not run -- this is a gate failure, not a bad change."; exit 1 ;;
+          esac

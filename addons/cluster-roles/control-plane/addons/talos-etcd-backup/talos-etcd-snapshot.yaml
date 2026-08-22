@@ -30,23 +30,16 @@
 # the Unraid share -- off the nodes, at a fixed path that survives a rebuild.
 #
 # Restore procedure: docs/operations.md, "Restore the-cluster etcd".
----
-# The talos-backup Namespace itself is owned by the network-policies addon
-# (network-policies/talos-backup.yaml), like every other namespace that addon
-# fences, so the default-deny and this addon's resources never race.
 #
-# Talos watches this kind and writes a Secret of the same name containing a
-# talosconfig. The namespace and role must both be in the allow-lists in
-# matchbox/talos-machineconfigs/all.yaml.
-apiVersion: talos.dev/v1alpha1
-kind: ServiceAccount
-metadata:
-  name: talos-etcd-backup
-  namespace: talos-backup
-spec:
-  roles:
-    - os:etcd:backup
----
+# DOCUMENT ORDER IS LOAD-BEARING -- do not move the CronJob
+# ---------------------------------------------------------
+# Kargo's `yaml-update` parses only the FIRST document of a file, so the
+# resource whose image Kargo tracks (addons.targets.talosctl ->
+# spec.jobTemplate...initContainers.0.image) has to be document one. With the
+# ServiceAccount first, every promotion failed with
+# `cannot fetch spec from <nil>` -- silently, from the day the target was
+# created. Same reason etcd-cert-extractor.yaml and grafana-sa-token-job.yaml
+# are ordered the way they are.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -158,3 +151,19 @@ spec:
               nfs:
                 server: 10.0.0.12
                 path: /mnt/user/kube_storage
+---
+# The talos-backup Namespace itself is owned by the network-policies addon
+# (network-policies/talos-backup.yaml), like every other namespace that addon
+# fences, so the default-deny and this addon's resources never race.
+#
+# Talos watches this kind and writes a Secret of the same name containing a
+# talosconfig. The namespace and role must both be in the allow-lists in
+# matchbox/talos-machineconfigs/all.yaml.
+apiVersion: talos.dev/v1alpha1
+kind: ServiceAccount
+metadata:
+  name: talos-etcd-backup
+  namespace: talos-backup
+spec:
+  roles:
+    - os:etcd:backup

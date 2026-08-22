@@ -146,6 +146,22 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+    # The delivery-agent, which the `http` promotion step POSTs to when a pull
+    # request opens.
+    #
+    # This rule is required precisely BECAUSE of the exception list above: a
+    # ClusterIP is RFC1918, so without naming the namespace explicitly the
+    # controller's POST is dropped. The symptom is a hang with zero bytes, not
+    # an error -- the same failure that shipped the Kargo UI unreachable on
+    # day one, and the reason CLAUDE.md warns that a service behind a policy
+    # needs BOTH halves.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: delivery-agent
+      ports:
+        - protocol: TCP
+          port: 8080
 ---
 # API server: OIDC discovery + JWKS from Authentik, reached through the
 # gateway's public hostname. Cilium performs DNAT before policy evaluation,

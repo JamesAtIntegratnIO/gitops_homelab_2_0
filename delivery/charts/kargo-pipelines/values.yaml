@@ -1,0 +1,169 @@
+# kargo-pipelines defaults.
+#
+# This file documents the schema and carries the defaults every target
+# inherits. Your own target list goes in your values file.
+#
+# A target is one artifact you want kept current. By default it renders one
+# Warehouse and one Stage, and the Stage's whole job is to write the new
+# version onto your branch through a pull request -- your GitOps controller
+# does the rest. Targets that need a canary declare `stages` instead; see
+# docs/chaining.md.
+
+# Value of app.kubernetes.io/name on every rendered object. Override when
+# migrating from a differently-named chart so the label does not churn.
+nameLabel: kargo-pipelines
+
+git:
+  # Repository the Stages clone, push branches to, and open PRs against.
+  # REQUIRED. Must match the `repoURL` of the git credential Secret Kargo
+  # reads -- Kargo matches credentials by normalised URL, so a trailing `.git`
+  # mismatch here fails at git-clone with an authentication error rather than
+  # anything that names the real cause.
+  repoURL: ""
+  branch: main
+  # github | gitlab | bitbucket | gitea | azure
+  provider: github
+
+merge:
+  # Used by git-merge-pr when a Stage is allowed to merge its own PR.
+  method: squash
+  # How often git-merge-pr re-checks a PR that is not mergeable yet.
+  pollInterval: 30s
+  # How often git-wait-for-pr polls a PR that needs a human. Every open,
+  # human-gated PR costs one GitHub API call per interval.
+  waitPollInterval: 5m
+  # Consecutive failures a PR step tolerates before the Promotion is failed.
+  # Kargo's system-wide default is 1 -- no retries at all -- which turned two
+  # transient `error getting pull request N` blips from api.github.com into
+  # Errored promotions on day one.
+  errorThreshold: 3
+  # Soft cap on how long a step that returns Running may keep being retried.
+  # git-merge-pr returns Running while a PR is not yet mergeable, which
+  # includes "a required status check is pending or red". This is what stops a
+  # red gate spinning forever: the Promotion parks as Failed and alerts,
+  # instead of being indistinguishable from one waiting on a human.
+  # Canonical Go duration form -- the webhook rewrites `45m` to `45m0s` and
+  # ArgoCD would read the difference as permanent drift.
+  timeout: 45m0s
+  # git-wait-for-pr parks deliberately until a human acts, so its cap is
+  # generous: it exists to surface a PR everyone forgot, not to police review.
+  waitTimeout: 168h0m0s
+
+# Optional: hand each opened pull request to a triage service.
+triage:
+  enabled: false
+  # URL of the service. Cluster-internal is the norm -- nothing outside Kargo
+  # needs to reach it.
+  url: ""
+  # when: always | gated | never
+  #   always -- every opened PR
+  #   gated  -- only PRs the merge policy will NOT auto-merge, i.e. the ones
+  #             already waiting on a human. Fewer calls, and it targets the
+  #             backlog rather than the happy path.
+  when: gated
+  # The step is best-effort: `continueOnError` keeps a triage service that is
+  # down, slow, or misconfigured from ever failing a promotion. Turning this
+  # off couples your delivery pipeline to your triage service's uptime.
+  continueOnError: true
+  timeout: 30s
+
+defaults:
+  # autoMerge: what the Stage may merge on its own. Anything it may not merge
+  # is still opened as a PR and the promotion waits for a human.
+  #   always -- merge whatever the Warehouse produced
+  #   minor  -- merge patch and metadata changes, plus minor bumps when the
+  #             major is > 0 (0.x minors are treated as breaking, per semver)
+  #   patch  -- merge patch and metadata changes only
+  #   never  -- always wait for a human
+  # For non-semver strategies (Digest, NewestBuild, Lexical) only `always`
+  # and `never` are meaningful; `minor`/`patch` behave as `never`.
+  autoMerge: minor
+  # Whether new Freight is promoted into the Stage automatically. `false`
+  # means someone clicks "Promote" in the Kargo UI first.
+  autoPromotion: true
+  interval:
+    # Registry/repo polling cadence by artifact kind. Kargo enforces a 5m floor.
+    # Write durations in Go's canonical form (6h0m0s, not 6h). Kargo's webhook
+    # normalises them on write, so a non-canonical value is rewritten in the
+    # cluster and your GitOps controller sees permanent drift -- every
+    # Warehouse re-syncing on every reconcile.
+    image: 6h0m0s
+    chart: 24h0m0s
+    # NewestBuild targets -- typically your own CI images, where a merged
+    # change should reach the cluster promptly rather than on the next poll.
+    build: 15m0s
+  discoveryLimit:
+    image: 10
+    chart: 10
+    # NewestBuild inspects every candidate image's config blob; keep it small.
+    build: 5
+
+verification:
+  # Post-merge check. A target that lists `verify.apps` gets a Stage
+  # `verification` against the AnalysisTemplate `argocd-apps-healthy`, which
+  # this chart renders into every Project that needs it: after the PR merges
+  # and ArgoCD has had time to sync, Prometheus is asked whether every named
+  # ArgoCD Application is Synced and Healthy. Needs Argo Rollouts (the
+  # argo-rollouts addon: its CRDs and the controller that actually executes
+  # AnalysisRuns -- Kargo only creates them) and
+  # controller.rollouts.integrationEnabled on the Kargo chart.
+  prometheus: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+  # ArgoCD polls main every 60s, then syncs and the rollout progresses.
+  initialDelay: 3m
+  interval: 1m
+  count: 5
+  # Up to this many of `count` measurements may fail before the run fails.
+  failureLimit: 2
+
+# projects:
+#   <project name -- becomes the Namespace and Kargo Project>:
+#     description: free text, rendered into the Project's annotations
+#     autoRollback: false  # when true, a failed verification promotes the
+#                          # previously verified Freight back (another PR).
+#                          # Off by default; see docs/chaining.md.
+#     targets:
+#       <target name -- becomes the Warehouse and Stage name>:
+#         scope: conventional-commit scope for the PR title (default: project)
+#         autoMerge: override of defaults.autoMerge
+#         autoPromotion: override of defaults.autoPromotion
+#         interval: override of the polling interval (canonical form, e.g. 12h0m0s)
+#         format: how the value is written; default `image` for image targets,
+#                 `version` for chart targets, `tag` for git targets
+#           image      -> repo:tag@sha256:digest   (raw manifests)
+#           image-tag  -> repo:tag                 (no digest)
+#           tag        -> tag                      (Helm values `image.tag`)
+#           version    -> chart version            (addons.yaml defaultVersion)
+#         verify:
+#           apps: [ArgoCD Application names that must be Synced+Healthy
+#                  after the merge; omit to skip verification]
+#         image:                      # exactly one of image / chart / git
+#           repoURL: string, written verbatim into the file for image/image-tag
+#           strategy: SemVer | Digest | NewestBuild | Lexical (default SemVer)
+#           constraint: semver range (SemVer) or the mutable tag (Digest)
+#           allowTags: [regex, ...]   # tags must match one of these
+#           ignoreTags: [regex, ...]
+#           platform: linux/amd64     # set for NewestBuild
+#           strictSemvers: bool       # default true
+#           discoveryLimit: int
+#         chart:
+#           repoURL: https://... or oci://...
+#           name: chart name          # omit for OCI
+#           constraint: semver range  # default >=0.0.0, which also excludes
+#                                     # prereleases (16.0.1-dev.3, 1.21.0-pre.0)
+#         git:                        # follow a repository's semver tags
+#           repoURL: https://github.com/org/repo.git
+#           constraint: semver range
+#           allowTags: [regex, ...]
+#           ignoreTags: [regex, ...]
+#         updates:
+#           - file: path/in/repo.yaml
+#             format: per-file override of the target format
+#             keys:
+#               - sjson-style key path, e.g. spec.template.spec.containers.0.image
+#
+# Constraints on the files being updated (from how Kargo's yaml-update works):
+#   * the key must exist and address a scalar, in the FIRST YAML document of
+#     the file -- later `---` documents are preserved but unreachable;
+#   * the edited line is rewritten from the value onwards, so a trailing
+#     `# comment` on that line is dropped.
+projects: {}

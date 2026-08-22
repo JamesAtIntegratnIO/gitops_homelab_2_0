@@ -113,6 +113,32 @@ Quick operations that infer context from `score.yaml` in the current directory o
 | `hctl addon enable` | Enable an addon for a cluster role/environment |
 | `hctl addon disable` | Disable an addon |
 
+### Delivery / Kargo (`kargo`)
+
+Kargo exports controller-runtime counters and nothing about promotions, freight
+or stages, so a promotion that fails has nowhere to appear. These read the CRDs
+directly and work whether or not the metrics pipeline does.
+
+| Command | Description |
+|---------|-------------|
+| `hctl kargo status` | One screen: stages, unverified, warehouses, promotions by outcome |
+| `hctl kargo promotions --failed` | Promotions needing attention |
+| `hctl kargo stages --problems` | Stages that are unhealthy or unverified |
+| `hctl kargo warehouses --problems` | Warehouses that have stopped discovering versions |
+| `hctl kargo describe <stage>` | Conditions, current freight, and the step-level error text |
+
+`hctl doctor` also compares the pre-merge gate's checked-in cluster inventory
+against the live ArgoCD cluster Secrets. That check has to live here rather
+than in the gate: the gate runs in CI, which cannot reach the cluster, so its
+inventory is a snapshot — and a snapshot that has drifted produces a
+confidently wrong answer rather than an error. One missing label once took a
+render from 62 Applications to 7, silently.
+
+`describe` is the one that pays for itself. A target whose parse path stops
+resolving fails with something like `cannot fetch spec from <nil>`, which lives
+in the Promotion's status message and nowhere else — not in a metric, not in an
+ArgoCD app, not in any log a human would think to open.
+
 ### Other
 
 | Command | Description |

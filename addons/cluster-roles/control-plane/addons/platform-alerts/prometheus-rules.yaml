@@ -1,7 +1,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # platform-alerts — the single source of truth for homegrown alerting rules.
 #
-# Everything NOT shipped by kube-prometheus-stack's own defaultRules lives here.
+# Everything NOT shipped by kube-prometheus-stack's own defaultRules lives here,
+# with ONE deliberate exception: the Kargo delivery alerts ship inside
+# delivery/charts/kargo-observability, because that chart has to carry its own
+# alerts to be usable outside this repo. They are a disjoint set of conditions,
+# not a second copy of anything here -- which is what the warning below is
+# actually about. Check both files before concluding an alert does not exist.
 # Before this file existed the same conditions were defined in five different
 # places (argocd-dashboard, matrix-alertmanager-receiver, kratix, trivy-dashboard,
 # platform-status-reconciler), which produced duplicate Matrix messages for a

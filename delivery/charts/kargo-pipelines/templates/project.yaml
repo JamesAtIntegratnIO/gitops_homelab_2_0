@@ -1,0 +1,98 @@
+{{- range $projectName, $project := .Values.projects }}
+---
+# Pre-created and labelled so Kargo adopts it instead of racing ArgoCD to
+# create it. Kargo refuses to adopt an unlabelled pre-existing namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $projectName }}
+  labels:
+    kargo.akuity.io/project: "true"
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: {{ $projectName }}
+  labels:
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    {{- with $project.description }}
+    kargo.akuity.io/description: {{ . | quote }}
+    {{- end }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: {{ $projectName }}
+  namespace: {{ $projectName }}
+  labels:
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  promotionPolicies:
+    {{- range $targetName, $t := $project.targets }}
+    {{- $n := include "kp.normalise" (dict "root" $ "project" $projectName "name" $targetName "target" $t) | fromJson }}
+    {{- /* One policy per STAGE, not per target: a chained target has several,
+         and a policy naming only the terminal stage would leave the canary
+         with auto-promotion off and the chain silently stalled at step one. */ -}}
+    {{- range $st := include "kp.stageList" (dict "target" $t "name" $targetName) | fromJsonArray }}
+    - stageSelector:
+        name: {{ $st.stageName }}
+      {{- /* A stage may hold auto-promotion off while the rest of the chain
+           runs -- the usual shape when a chain is new: let the canary move on
+           its own and click the terminal stage by hand until you trust it. */}}
+      autoPromotionEnabled: {{ if kindIs "bool" $st.autoPromotion }}{{ $st.autoPromotion }}{{ else }}{{ $n.autoPromotion }}{{ end }}
+      {{- if and $st.verify (default $project.autoRollback $t.autoRollback) }}
+      autoRollback:
+        onVerification:
+          - Failed
+          - Error
+      {{- end }}
+    {{- end }}
+    {{- end }}
+{{- $verified := list }}
+{{- range $targetName, $t := $project.targets }}
+{{- range $st := include "kp.stageList" (dict "target" $t "name" $targetName) | fromJsonArray }}
+{{- if $st.verify }}{{- $verified = append $verified $st.stageName }}{{- end }}
+{{- end }}{{- end }}
+{{- if $verified }}
+{{- $v := $.Values.verification }}
+---
+# Post-merge verification shared by every Stage in this Project that names
+# `verify.apps`. Argo Rollouts AnalysisTemplate CRD, executed by Kargo's own
+# analysis reconciler. Placeholders in it are Argo Rollouts' double-brace
+# args substitution, not Kargo's dollar-double-brace expressions.
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: argocd-apps-healthy
+  namespace: {{ $projectName }}
+  labels:
+    {{- include "kp.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  args:
+    # Regex over argocd_app_info{name}; PromQL anchors it.
+    - name: apps
+    # How many of those must be Synced and Healthy -- i.e. all of them.
+    - name: expected
+  metrics:
+    - name: argocd-apps-healthy
+      initialDelay: {{ $v.initialDelay }}
+      interval: {{ $v.interval }}
+      count: {{ $v.count }}
+      failureLimit: {{ $v.failureLimit }}
+      successCondition: {{ "len(result) == 1 && result[0] == {{args.expected}}" | quote }}
+      provider:
+        prometheus:
+          address: {{ $v.prometheus }}
+          # max by (name) collapses stale label-sets for the same app.
+          query: {{ `sum(max by (name) (argocd_app_info{name=~"{{args.apps}}", health_status="Healthy", sync_status="Synced"}))` | quote }}
+{{- end }}
+{{- end }}

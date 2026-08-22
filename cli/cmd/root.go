@@ -8,6 +8,7 @@ import (
 	"github.com/jamesatintegratnio/hctl/cmd/addon"
 	"github.com/jamesatintegratnio/hctl/cmd/ai"
 	"github.com/jamesatintegratnio/hctl/cmd/deploy"
+	"github.com/jamesatintegratnio/hctl/cmd/kargo"
 	"github.com/jamesatintegratnio/hctl/cmd/scale"
 	"github.com/jamesatintegratnio/hctl/cmd/secret"
 	"github.com/jamesatintegratnio/hctl/cmd/vcluster"
@@ -23,12 +24,12 @@ var (
 	// Commit is set at build time via ldflags.
 	Commit = "none"
 
-	cfgFile      string
-	nonInteract  bool
-	outputFormat string
-	verboseFlag  bool
-	quietFlag    bool
-	watchFlag    bool
+	cfgFile       string
+	nonInteract   bool
+	outputFormat  string
+	verboseFlag   bool
+	quietFlag     bool
+	watchFlag     bool
 	watchInterval time.Duration
 	bundlePath    string
 )
@@ -94,6 +95,7 @@ func init() {
 	rootCmd.AddCommand(vcluster.NewCmd())
 	rootCmd.AddCommand(deploy.NewCmd())
 	rootCmd.AddCommand(addon.NewCmd())
+	rootCmd.AddCommand(kargo.NewCmd())
 	rootCmd.AddCommand(scale.NewCmd())
 	rootCmd.AddCommand(secret.NewCmd())
 	rootCmd.AddCommand(ai.NewCmd())

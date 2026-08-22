@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "kargo-observability values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "nameOverride": {
+      "type": "string"
+    },
+    "metricPrefix": {
+      "type": "string",
+      "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+      "description": "Prefix for every metric. Changing it later orphans dashboards and alerts."
+    },
+    "namespaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "kubeStateMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "serviceAccountName",
+        "configMapName",
+        "configMapKey"
+      ],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "serviceAccountName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configMapName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "configMapKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rbac": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "create": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "alerts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "additionalLabels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "kargoURL": {
+          "type": "string"
+        },
+        "rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "promotionErrored": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "for": {
+                  "type": "string",
+                  "pattern": "^\\d+[smhdwy]$"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "warning",
+                    "info",
+                    "none"
+                  ]
+                }
+              }
+            },
+            "promotionFailed": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "for": {
+                  "type": "string",
+                  "pattern": "^\\d+[smhdwy]$"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "warning",
+                    "info",
+                    "none"
+                  ]
+                }
+              }
+            },
+            "promotionRunningLong": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "for": {
+                  "type": "string",
+                  "pattern": "^\\d+[smhdwy]$"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "warning",
+                    "info",
+                    "none"
+                  ]
+                }
+              }
+            },
+            "verificationFailed": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "for": {
+                  "type": "string",
+                  "pattern": "^\\d+[smhdwy]$"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "warning",
+                    "info",
+                    "none"
+                  ]
+                }
+              }
+            },
+            "stageNotVerified": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "for": {
+                  "type": "string",
+                  "pattern": "^\\d+[smhdwy]$"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "warning",
+                    "info",
+                    "none"
+                  ]
+                }
+              }
+            },
+            "warehouseUnhealthy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "for": {
+                  "type": "string",
+                  "pattern": "^\\d+[smhdwy]$"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "warning",
+                    "info",
+                    "none"
+                  ]
+                }
+              }
+            },
+            "stageBehind": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "for": {
+                  "type": "string",
+                  "pattern": "^\\d+[smhdwy]$"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "warning",
+                    "info",
+                    "none"
+                  ]
+                }
+              }
+            },
+            "metricsMissing": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "for": {
+                  "type": "string",
+                  "pattern": "^\\d+[smhdwy]$"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "warning",
+                    "info",
+                    "none"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "dashboard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "labelValue": {
+          "type": "string"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "datasource": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

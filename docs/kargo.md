@@ -44,6 +44,46 @@ top-level areas:
 The UI is at <https://kargo.cluster.integratn.tech>; ArgoCD deep-links are
 wired to <https://argocd.cluster.integratn.tech>.
 
+## Promotion chains
+
+Charts that run in **both** the host and the vcluster are promoted as a chain:
+the vcluster first, then the host, and the host only once the vcluster's
+Application has gone Synced and Healthy. Before this they moved in a single
+pull request, so a bad chart reached the tenant and the platform at the same
+moment.
+
+| Target | Canary stage | Terminal stage |
+|---|---|---|
+| `argo-cd` | `argo-cd-vcluster` | `argo-cd` |
+| `cert-manager` | `cert-manager-vcluster` | `cert-manager` |
+| `external-dns` | `external-dns-vcluster` | `external-dns` |
+| `nginx-gateway-fabric` | `nginx-gateway-fabric-vcluster` | `nginx-gateway-fabric` |
+| `kube-prometheus-stack` | `kube-prometheus-stack-vcluster` | `kube-prometheus-stack` |
+
+The gate is Kargo's own: it only makes Freight available downstream once it has
+been **verified** upstream, so a canary that fails verification simply never
+offers the version on. Nothing polls and there is no state of our own.
+
+**The host stages ship with `autoPromotion: false`.** Watch one artifact
+traverse a chain by hand in the Kargo UI, confirm the canary verifies and the
+host stage then offers the Freight, and only then remove that line.
+
+Two things this deliberately does *not* cover, worth stating so the chain is
+not over-trusted:
+
+- **`promtail` is not chained.** `promtail-vcluster` is disabled, so a canary
+  stage would bump a pin nothing deploys and verify nothing.
+- **Everything with no vcluster copy gets no staging at all** — `cilium`,
+  `metallb`, `kyverno`, `loki`, `authentik` and every image target go straight
+  to the host exactly as before. The vcluster is also materially smaller than
+  the host, so a green canary proves less than it looks like it does.
+
+`external-secrets` is a special case: it has one pin serving both clusters (the
+production-layer selector has no vcluster exclusion), so it cannot be chained
+until that addon is split — which renames the generated Application and makes
+ArgoCD prune and recreate the operator every credential in the vcluster depends
+on. That is its own change.
+
 ## What a Stage does
 
 Each Stage runs the same generated pipeline
@@ -64,6 +104,44 @@ Each Stage runs the same generated pipeline
      closes the PR. While parked, newer Freight for the same target queues
      behind it — so an ignored major-version PR holds back later patches of
      that artifact until it is dealt with.
+
+### Triage (the delivery-agent)
+
+When a promotion opens a pull request, an optional `http` step hands the
+freight context to the [delivery-agent](../delivery/images/delivery-agent),
+which reads the gate, explains a red one, and fixes what the rendered diff
+proves. It is **disabled** in this repo until the model endpoint is serving.
+
+Two properties worth knowing before turning it on:
+
+- The step is `continueOnError: true`, so a triage service that is down, slow
+  or misconfigured can never fail a promotion. The agent answers `202` and
+  works asynchronously, because the `http` step is synchronous.
+- The model never edits a file. It returns a structured verdict plus proposed
+  scalar edits, and the agent applies them behind a path deny-list, a
+  from-value match and a version-corroboration check. So it cannot make a red
+  gate green by editing the gate, and it cannot invent a version number.
+
+Its measured behaviour, and why a 9B local model is enough, is in
+[the prompt contract](../delivery/images/delivery-agent/docs/prompt-contract.md).
+
+### How the PR steps retry
+
+All three PR steps carry a `retry` policy from `merge.*` in the chart values.
+Kargo's system-wide default `errorThreshold` is **1** — no retries at all —
+which is how two transient `error getting pull request N` blips from
+api.github.com became Errored promotions on day one. It is `3` here.
+
+`git-merge-pr` and `git-wait-for-pr` also carry a `timeout`, which caps how
+long a step returning *Running* may keep being retried:
+
+| Step | Timeout | Why |
+|---|---|---|
+| `git-merge-pr` | `45m0s` | It returns Running while the PR is not mergeable, which includes *a required status check is pending or red*. The cap is what stops a red gate spinning forever — the promotion parks as `Failed` and alerts, instead of looking identical to one waiting on a human. |
+| `git-wait-for-pr` | `168h0m0s` | This one parks deliberately, so the cap is generous. It exists to surface a PR everyone forgot, not to police review. |
+
+Write both in Go's canonical duration form (`45m0s`, not `45m`) — the webhook
+rewrites them otherwise and ArgoCD reads the difference as permanent drift.
 
 ### Merge policy
 
@@ -192,11 +270,23 @@ matched line in place and parses only the first YAML document:
 
 - the key must already exist, address a scalar, and live in the **first**
   `---` document of the file (the Jobs in `etcd-cert-extractor.yaml` and
-  `grafana-sa-token-job.yaml` were moved to the top for exactly this reason);
+  `grafana-sa-token-job.yaml`, and the CronJob in `talos-etcd-snapshot.yaml`,
+  were moved to the top for exactly this reason). This bites at `yaml-parse`,
+  before any update is attempted, and the failure is easy to miss: the
+  `talosctl` target Errored on every promotion from the day it was created
+  with `cannot fetch spec from <nil>`, and nothing reported it;
 - no trailing `# comment` on that line — it would be deleted on the first
   update; put it on the line above;
 - the `repoURL` is written verbatim for `image`/`image-tag` formats, so use
   the string the file already uses (`redis`, `metio/…`, `docker.io/…`);
+- **a `-suffix` in a tag is a semver PRERELEASE.** `3.6.8-0` (etcd) and
+  `7.4.11-alpine` (redis) both parse as prereleases, and a plain range
+  constraint excludes prereleases by rule. Pair such tags either with no
+  constraint at all, or with bounds that carry their own prerelease —
+  `>=3.6.0-0 <3.7.0-0`. Getting this wrong matches *nothing*: the Warehouse
+  sits at `NoImageReferencesDiscovered` with zero Freight and reports no error,
+  which is how `vcluster-etcd-snapshot-client` stayed dead from the day it was
+  written. `hctl kargo warehouses --problems` is what surfaces it;
 - write `interval` in Go's canonical form (`12h0m0s`, not `12h`) — Kargo's
   webhook stores it normalised and ArgoCD would otherwise see permanent
   drift and keep re-syncing;
