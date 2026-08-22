@@ -1,0 +1,12 @@
+# LIVE patch -- the one key from all.yaml, for `talosctl patch mc` against a
+# running node. The gen-time fragment cannot be used that way (it appends
+# list items), and JSON 6902 patches are refused once the config is
+# multi-document, which it is as soon as watchdog.yaml is applied.
+machine:
+  features:
+    kubernetesTalosAPIAccess:
+      enabled: true
+      allowedRoles:
+        - os:etcd:backup
+      allowedKubernetesNamespaces:
+        - talos-backup

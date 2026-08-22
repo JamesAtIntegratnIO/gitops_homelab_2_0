@@ -45,10 +45,13 @@ talosctl -n 10.0.4.101 read /sys/class/watchdog/watchdog0/timeleft
 #    running node: those are the generation-time fragments, and `patch mc`
 #    APPENDS list items, so a dry-run on 2026-08-21 showed it duplicating
 #    certSANs, extraKernelArgs and the entire network-interface/VIP block.
-#    Apply only the new keys, as JSON patches. Both dry-run clean with no
-#    reboot; the second restarts that node's kube-apiserver static pod.
-talosctl -n 10.0.4.101 patch mc --patch '[{"op":"add","path":"/machine/features/kubernetesTalosAPIAccess","value":{"enabled":true,"allowedRoles":["os:etcd:backup"],"allowedKubernetesNamespaces":["talos-backup"]}}]'
-talosctl -n 10.0.4.101 patch mc --patch '[{"op":"add","path":"/cluster/apiServer/extraArgs","value":{"default-not-ready-toleration-seconds":"60","default-unreachable-toleration-seconds":"60"}}]'
+#    JSON 6902 patches are not an option either: Talos refuses them once the
+#    config is multi-document, which it is as soon as watchdog.yaml is on.
+#    The live-*.yaml files carry exactly the new keys as strategic-merge
+#    patches; both dry-run clean with no reboot, the second restarts that
+#    node's kube-apiserver static pod.
+talosctl -n 10.0.4.101 patch mc --patch-file live-talos-api-access.yaml
+talosctl -n 10.0.4.101 patch mc --patch-file live-apiserver-tolerations.yaml
 #    Verify on that node before moving on:
 kubectl -n kube-system get pod kube-apiserver-<node> -o jsonpath='{.spec.containers[0].command}' | tr ' ' '\n' | grep toleration
 #    Once the first patch is on every node, `kubectl get crd

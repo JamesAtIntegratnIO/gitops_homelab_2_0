@@ -1,0 +1,9 @@
+# LIVE patch -- the one key from cp.yaml, for `talosctl patch mc` against a
+# running control-plane node. See live-talos-api-access.yaml for why the
+# gen-time fragment and JSON patches are not used. Restarts that node's
+# kube-apiserver static pod; no reboot.
+cluster:
+  apiServer:
+    extraArgs:
+      default-not-ready-toleration-seconds: "60"
+      default-unreachable-toleration-seconds: "60"
