@@ -306,7 +306,7 @@ cert-manager-vcluster:
   chartName: cert-manager
   project: platform-services
   chartRepository: https://charts.jetstack.io
-  defaultVersion: "v1.19.3"
+  defaultVersion: v1.21.1
   annotationsApp:
     argocd.argoproj.io/sync-wave: "-1"
   selector:
