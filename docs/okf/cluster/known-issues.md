@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-22T20:50:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-22T22:20:00Z }
 stale_after: 2026-09-22
 sources:
   - id: live-cluster
@@ -14,6 +14,32 @@ sources:
     resource: full-repo review (source, docs, workflows, hooks), 2026-08-20
     title: Repository review
 ---
+
+# The LM Studio endpoint does not enforce its API key (found 2026-08-22)
+
+The delivery-agent authenticates to the model endpoint on the workstation
+(`192.168.0.57:1234`) with a bearer token from 1Password
+(`delivery-agent-llm`). The token is attached correctly and inference works —
+but the endpoint accepts requests **without** it.
+
+Tested from inside the agent's own pod, so through the real network path:
+
+| Request | Result |
+|---|---|
+| real key | `200`, completion returned |
+| deliberately wrong key | `200` |
+| no `Authorization` header at all | `200` |
+
+So the credential is currently decorative, and **any host on the LAN that can
+route to `192.168.0.57:1234` can spend the workstation's GPU**. The cluster
+side is constrained — the agent's egress is a `/32` and Kargo reaches only the
+agent — but nothing constrains the endpoint itself.
+
+The configuration is right and needs no change: the key is sent, so switching
+enforcement on (or moving to a hosted provider) is a 1Password edit rather than
+a redeploy. What is wrong is the assumption that it is *already* enforced.
+
+Fix is at the LM Studio end, not in this repo.
 
 # An NGF data plane replica can serve stale config forever (2026-08-22)
 
