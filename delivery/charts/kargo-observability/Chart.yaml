@@ -1,0 +1,15 @@
+apiVersion: v2
+name: kargo-observability
+description: Kargo's own promotion state as Prometheus metrics, with alerts and a dashboard
+type: application
+version: 0.1.0
+appVersion: "1.11"
+keywords: [kargo, argocd, gitops, observability, promotion]
+home: https://github.com/JamesAtIntegratnIO/delivery-kit
+sources:
+  - https://github.com/JamesAtIntegratnIO/delivery-kit
+annotations:
+  # Kargo exposes controller-runtime counters and nothing about promotions,
+  # freight or stages. This chart closes that gap through kube-state-metrics'
+  # CustomResourceState rather than by running another exporter.
+  delivery-kit/requires: kube-state-metrics, prometheus

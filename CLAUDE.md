@@ -127,6 +127,12 @@ Addon value files resolve `environments/{env}` → `cluster-roles/{role}` →
   [network-policies/nginx-gateway.yaml](addons/cluster-roles/control-plane/addons/network-policies/nginx-gateway.yaml)
   must name the new namespace/port. Missing the second half looks like a
   hang with zero bytes, not an error — Kargo's UI shipped that way.
+- **`allow-controller-egress` in `network-policies/kargo.yaml` excepts every
+  RFC1918 range.** It permits the Kargo controller `0.0.0.0/0:443` *minus*
+  10/8, 172.16/12 and 192.168/16 — which is fine for registries and wrong for
+  anything in-cluster. A ClusterIP is RFC1918, so a new service the controller
+  must reach needs its own explicit rule there. Same for a host on your LAN.
+  The symptom is a hang with zero bytes, not an error.
 - **Kargo rewrites pinned lines in place.** Every pin it tracks is listed in
   [kargo-projects/values.yaml](addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml).
   A tracked key must stay in the *first* YAML document of its file, stay a

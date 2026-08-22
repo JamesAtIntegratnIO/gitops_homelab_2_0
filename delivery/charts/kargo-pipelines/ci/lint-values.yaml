@@ -1,0 +1,56 @@
+# Minimum values that satisfy the schema, so `helm lint` and the extraction
+# test can render a chart whose required fields have no sensible default.
+#
+# Helm's own convention: any ci/*-values.yaml is a lint fixture. This exercises
+# both shapes -- a plain single-stage target and a two-stage chain -- so a
+# template change that only breaks chains still fails the check.
+git:
+  repoURL: https://git.example.com/org/repo.git
+  branch: main
+  provider: github
+
+projects:
+  example:
+    targets:
+
+      # Single stage: the default shape.
+      simple-chart:
+        chart:
+          repoURL: https://charts.example.com
+          name: thing
+        autoMerge: patch
+        updates:
+          - file: clusters/hub/addons.yaml
+            keys: [thing.defaultVersion]
+        verify:
+          apps: [thing-hub]
+
+      # Two-stage chain: canary first, gated on verification.
+      chained-chart:
+        chart:
+          repoURL: https://charts.example.com
+          name: other
+        autoMerge: patch
+        stages:
+          - name: canary
+            updates:
+              - file: clusters/tenant/addons.yaml
+                keys: [other.defaultVersion]
+            verify:
+              apps: [other-tenant]
+            requiredSoakTime: 30m0s
+          - name: prod
+            updates:
+              - file: clusters/hub/addons.yaml
+                keys: [other.defaultVersion]
+            verify:
+              apps: [other-hub]
+
+      # An image target, to cover the non-chart code path.
+      simple-image:
+        image:
+          repoURL: registry.example.com/app
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        updates:
+          - file: clusters/hub/app.yaml
+            keys: [spec.template.spec.containers.0.image]

@@ -811,12 +811,59 @@ argo-rollouts:
       - ServerSideApply=true
 
 # The target list lives in kargo-projects/values.yaml next to this file.
+delivery-agent:
+  # DISABLED until the model endpoint is serving and reachable. See
+  # addons/cluster-roles/control-plane/addons/delivery-agent/values.yaml.
+  enabled: false
+  namespace: delivery-agent
+  project: platform-services
+  defaultVersion: "main"
+  path: delivery/charts/delivery-agent
+  additionalResources:
+    type: manifest
+    path: addons/cluster-roles/control-plane/addons/delivery-agent
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+kargo-observability:
+  enabled: true
+  namespace: monitoring
+  project: platform-services
+  defaultVersion: "main"
+  path: delivery/charts/kargo-observability
+  # Ahead of kube-prometheus-stack. That chart now mounts the
+  # CustomResourceState ConfigMap this addon creates, and a kube-state-metrics
+  # pod that rolls before the ConfigMap exists sits in
+  # CreateContainerConfigError until it appears. It self-heals, but a
+  # sync-wave avoids the flap entirely.
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "-1"
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      # PrometheusRule and the Kargo CRDs it references may not exist yet on a
+      # fresh cluster; do not fail the dry-run on that.
+      - SkipDryRunOnMissingResource=true
+
 kargo-projects:
   enabled: true
   namespace: kargo
   project: platform-services
   defaultVersion: "main"
-  path: addons/charts/kargo-projects
+  path: delivery/charts/kargo-pipelines
   selectorMatchLabels:
     cluster_role: control-plane
   syncPolicy:

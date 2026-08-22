@@ -1,0 +1,159 @@
+{{- if .Values.alerts.enabled }}
+{{- $p := include "kargo-observability.prefix" . -}}
+{{- $r := .Values.alerts.rules -}}
+{{- $url := .Values.alerts.kargoURL -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "kargo-observability.fullname" . }}
+  labels:
+    {{- include "kargo-observability.labels" . | nindent 4 }}
+    {{- with .Values.alerts.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: delivery.kargo
+      rules:
+{{- if $r.promotionErrored.enabled }}
+        # Errored is Kargo's "the step could not run" -- a credential, a network
+        # fault, a path that no longer resolves. Distinct from Failed, which
+        # means the pipeline ran and did not get what it wanted.
+        - alert: KargoPromotionErrored
+          expr: {{ $p }}_promotion_phase{phase="Errored"} == 1
+          for: {{ $r.promotionErrored.for }}
+          labels:
+            severity: {{ $r.promotionErrored.severity }}
+            component: kargo
+          annotations:
+            summary: "Kargo promotion errored ({{ "{{" }} $labels.stage {{ "}}" }})"
+            description: >-
+              Promotion {{ "{{" }} $labels.promotion {{ "}}" }} in
+              {{ "{{" }} $labels.namespace {{ "}}" }} could not run. This is an
+              infrastructure fault rather than a rejected change.
+            {{- if $url }}
+            kargo_url: "{{ $url }}/project/{{ "{{" }} $labels.namespace {{ "}}" }}/stage/{{ "{{" }} $labels.stage {{ "}}" }}"
+            {{- end }}
+{{- end }}
+{{- if $r.promotionFailed.enabled }}
+        - alert: KargoPromotionFailed
+          expr: {{ $p }}_promotion_phase{phase="Failed"} == 1
+          for: {{ $r.promotionFailed.for }}
+          labels:
+            severity: {{ $r.promotionFailed.severity }}
+            component: kargo
+          annotations:
+            summary: "Kargo promotion failed ({{ "{{" }} $labels.stage {{ "}}" }})"
+            description: >-
+              Promotion {{ "{{" }} $labels.promotion {{ "}}" }} in
+              {{ "{{" }} $labels.namespace {{ "}}" }} failed. If a pre-merge gate
+              is in use, a red check that outlived the merge step's timeout
+              lands here.
+{{- end }}
+{{- if $r.promotionRunningLong.enabled }}
+        # A long-Running promotion is ambiguous by construction: it is either
+        # parked on a human, which is normal and can last days, or wedged on a
+        # merge that will never happen. No metric separates them, so this fires
+        # late and the description says which two things to check.
+        - alert: KargoPromotionRunningLong
+          expr: {{ $p }}_promotion_phase{phase="Running"} == 1
+          for: {{ $r.promotionRunningLong.for }}
+          labels:
+            severity: {{ $r.promotionRunningLong.severity }}
+            component: kargo
+          annotations:
+            summary: "Kargo promotion running for over {{ $r.promotionRunningLong.for }} ({{ "{{" }} $labels.stage {{ "}}" }})"
+            description: >-
+              Promotion {{ "{{" }} $labels.promotion {{ "}}" }} has been Running
+              for {{ $r.promotionRunningLong.for }}. Either its pull request is
+              waiting for a human, or the merge step is stuck on a check that
+              will never go green. Open the PR to tell which.
+{{- end }}
+{{- if $r.verificationFailed.enabled }}
+        - alert: KargoVerificationFailed
+          expr: {{ $p }}_stage_verification_phase{phase=~"Failed|Error"} == 1
+          for: {{ $r.verificationFailed.for }}
+          labels:
+            severity: {{ $r.verificationFailed.severity }}
+            component: kargo
+          annotations:
+            summary: "Kargo verification did not pass ({{ "{{" }} $labels.stage {{ "}}" }})"
+            description: >-
+              Post-promotion verification for stage
+              {{ "{{" }} $labels.stage {{ "}}" }} reported
+              {{ "{{" }} $labels.phase {{ "}}" }}. The change has already merged
+              -- verification records the outcome, it does not prevent it.
+{{- end }}
+{{- if $r.stageNotVerified.enabled }}
+        - alert: KargoStageNotVerified
+          expr: {{ $p }}_stage_condition{condition="Verified"} == 0
+          for: {{ $r.stageNotVerified.for }}
+          labels:
+            severity: {{ $r.stageNotVerified.severity }}
+            component: kargo
+          annotations:
+            summary: "Kargo stage is not verified ({{ "{{" }} $labels.stage {{ "}}" }})"
+            description: >-
+              Stage {{ "{{" }} $labels.stage {{ "}}" }} has Verified=False,
+              reason {{ "{{" }} $labels.reason {{ "}}" }}. In a promotion chain
+              this also blocks everything downstream, because Kargo only makes
+              verified Freight available to the next stage.
+{{- end }}
+{{- if $r.warehouseUnhealthy.enabled }}
+        - alert: KargoWarehouseUnhealthy
+          expr: {{ $p }}_warehouse_condition{condition="Healthy"} == 0
+          for: {{ $r.warehouseUnhealthy.for }}
+          labels:
+            severity: {{ $r.warehouseUnhealthy.severity }}
+            component: kargo
+          annotations:
+            summary: "Kargo warehouse unhealthy ({{ "{{" }} $labels.warehouse {{ "}}" }})"
+            description: >-
+              Warehouse {{ "{{" }} $labels.warehouse {{ "}}" }} in
+              {{ "{{" }} $labels.namespace {{ "}}" }} reports
+              {{ "{{" }} $labels.reason {{ "}}" }}. It has stopped discovering
+              new versions, so everything it feeds is quietly frozen at whatever
+              it last found.
+{{- end }}
+{{- if $r.stageBehind.enabled }}
+        # The detector for a target that has been broken since the day it was
+        # written: the warehouse keeps finding freight, the stage never moves to
+        # it, and nothing else in the system considers that an error.
+        - alert: KargoStageBehind
+          expr: |
+            count by (namespace, stage) ({{ $p }}_stage_condition{condition="Ready"})
+              unless on (namespace)
+            (
+              count by (namespace) ({{ $p }}_promotion_phase{phase="Succeeded"} == 1)
+            )
+          for: {{ $r.stageBehind.for }}
+          labels:
+            severity: {{ $r.stageBehind.severity }}
+            component: kargo
+          annotations:
+            summary: "Kargo stage has never promoted successfully ({{ "{{" }} $labels.stage {{ "}}" }})"
+            description: >-
+              Stage {{ "{{" }} $labels.stage {{ "}}" }} exists but no successful
+              promotion has been recorded for its project. A target whose parse
+              path no longer resolves looks exactly like this, and looks like
+              nothing else.
+{{- end }}
+{{- if $r.metricsMissing.enabled }}
+        # Without this, every rule above fails open. kube-state-metrics is
+        # usually a tracked artifact itself, and a subchart bump that
+        # invalidates the CustomResourceState config would silence the lot
+        # while breaking nothing that anyone would notice.
+        - alert: KargoMetricsMissing
+          expr: absent({{ $p }}_promotion_phase)
+          for: {{ $r.metricsMissing.for }}
+          labels:
+            severity: {{ $r.metricsMissing.severity }}
+            component: kargo
+          annotations:
+            summary: "Kargo metrics have disappeared"
+            description: >-
+              No {{ $p }}_promotion_phase series are being reported. Every other
+              Kargo alert is now blind. Usual cause: kube-state-metrics was
+              upgraded and no longer reads the CustomResourceState ConfigMap.
+{{- end }}
+{{- end }}

@@ -118,6 +118,8 @@ spec:
             {{- $lines = concat $lines (list "" (printf "Kargo: %s/project/%s/stage/%s" (include "kp.expr" "ctx.uiBaseUrl") (include "kp.expr" "ctx.project") (include "kp.expr" "ctx.stage"))) }}
             description: |
               {{- join "\n" $lines | nindent 14 }}
+          retry:
+            errorThreshold: {{ $.Values.merge.errorThreshold }}
         # Exactly one of the next two runs. Either the policy lets the Stage
         # merge its own PR, or the promotion parks here until a human does.
         - uses: git-merge-pr
@@ -129,6 +131,9 @@ spec:
             mergeMethod: {{ $.Values.merge.method }}
             wait: true
             pollInterval: {{ $.Values.merge.pollInterval }}
+          retry:
+            errorThreshold: {{ $.Values.merge.errorThreshold }}
+            timeout: {{ $.Values.merge.timeout }}
         - uses: git-wait-for-pr
           if: {{ include "kp.expr" (printf "(%s) && !(%s)" $changed $auto) | quote }}
           config:
@@ -136,5 +141,8 @@ spec:
             provider: {{ $.Values.git.provider }}
             prNumber: {{ include "kp.expr" "outputs.pr.pr.id" | quote }}
             pollInterval: {{ $.Values.merge.waitPollInterval }}
+          retry:
+            errorThreshold: {{ $.Values.merge.errorThreshold }}
+            timeout: {{ $.Values.merge.waitTimeout }}
 {{- end }}
 {{- end }}

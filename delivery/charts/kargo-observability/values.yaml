@@ -1,0 +1,95 @@
+# kube-state-metrics is where the Kargo CRDs actually get read. This chart does
+# not deploy it; it supplies the CustomResourceState config and the RBAC that
+# lets the existing installation read Kargo's resources.
+kubeStateMetrics:
+  # Namespace kube-state-metrics runs in.
+  namespace: monitoring
+  # Its ServiceAccount, which this chart grants read access to Kargo CRDs.
+  serviceAccountName: kube-state-metrics
+  # Name of the ConfigMap this chart creates. Point kube-state-metrics at it:
+  #
+  #   customResourceState:
+  #     enabled: true
+  #     create: false
+  #     name: <this value>
+  #
+  # `create: false` matters -- letting both charts own the ConfigMap makes them
+  # fight over it on every sync.
+  configMapName: kargo-custom-resource-state
+  # Key inside that ConfigMap. Must match kube-state-metrics' `customResourceState.key`.
+  configMapKey: config.yaml
+  # Create the ClusterRole and binding that let it list/watch Kargo CRDs.
+  # Set false if you grant that some other way.
+  rbac:
+    create: true
+
+# Metric name prefix. Changing this after the fact orphans your dashboards and
+# alerts, so pick once.
+metricPrefix: kargo
+
+# Kargo Projects to watch. Empty means all namespaces.
+namespaces: []
+
+alerts:
+  enabled: true
+  # Extra labels on every rule -- routing keys, team ownership.
+  additionalLabels: {}
+  # A link included in every alert annotation, so whoever is paged can get to
+  # the UI without hunting for it. Leave empty to omit.
+  kargoURL: ""
+
+  rules:
+    promotionErrored:
+      enabled: true
+      for: 15m
+      severity: warning
+    promotionFailed:
+      enabled: true
+      for: 15m
+      severity: warning
+    # A promotion that stays Running is ambiguous: it is either waiting on a
+    # human, which is normal, or wedged, which is not. No metric distinguishes
+    # them, so this fires late and says so rather than pretending to know.
+    promotionRunningLong:
+      enabled: true
+      for: 24h
+      severity: warning
+    verificationFailed:
+      enabled: true
+      for: 5m
+      severity: warning
+    stageNotVerified:
+      enabled: true
+      for: 30m
+      severity: warning
+    warehouseUnhealthy:
+      enabled: true
+      for: 30m
+      severity: warning
+    # The detector for a target broken since the day it was written: freight
+    # exists, but the stage never moved to it.
+    stageBehind:
+      enabled: true
+      for: 7d
+      severity: info
+    # kube-state-metrics is often a tracked artifact in its own right, and a
+    # subchart bump that invalidates the CustomResourceState config would
+    # silence every rule above without failing anything. This is the check that
+    # notices.
+    metricsMissing:
+      enabled: true
+      for: 30m
+      severity: warning
+
+dashboard:
+  enabled: true
+  # Namespace for the dashboard ConfigMap -- usually wherever your Grafana
+  # sidecar watches.
+  namespace: monitoring
+  # Label the Grafana sidecar selects on.
+  label: grafana_dashboard
+  labelValue: "1"
+  # Optional folder annotation.
+  folder: ""
+  # Datasource name or UID the panels query.
+  datasource: Prometheus

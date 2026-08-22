@@ -24,6 +24,22 @@ merge:
   # How often git-wait-for-pr polls a PR that needs a human. Every open,
   # human-gated PR costs one GitHub API call per interval.
   waitPollInterval: 5m
+  # Consecutive failures a PR step tolerates before the Promotion is failed.
+  # Kargo's system-wide default is 1 -- no retries at all -- which turned two
+  # transient `error getting pull request N` blips from api.github.com into
+  # Errored promotions on day one.
+  errorThreshold: 3
+  # Soft cap on how long a step that returns Running may keep being retried.
+  # git-merge-pr returns Running while a PR is not yet mergeable, which
+  # includes "a required status check is pending or red". This is what stops a
+  # red gate spinning forever: the Promotion parks as Failed and alerts,
+  # instead of being indistinguishable from one waiting on a human.
+  # Canonical Go duration form -- the webhook rewrites `45m` to `45m0s` and
+  # ArgoCD would read the difference as permanent drift.
+  timeout: 45m0s
+  # git-wait-for-pr parks deliberately until a human acts, so its cap is
+  # generous: it exists to surface a PR everyone forgot, not to police review.
+  waitTimeout: 168h0m0s
 
 defaults:
   # autoMerge: what the Stage may merge on its own. Anything it may not merge
