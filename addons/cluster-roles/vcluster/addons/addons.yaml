@@ -28,6 +28,35 @@ argocd-vcluster:
   valuesObject:
     global:
       domain: '{{ printf "argocd.%s.%s" .metadata.labels.cluster_name (index .metadata.annotations "platform.integratn.tech/base-domain") }}'
+    # The production layer turns on autoscaling for both of these, and the
+    # chart's targets are utilization percentages -- 60% CPU from that layer,
+    # 50% memory from the chart default. Utilization is usage/request, so an HPA
+    # cannot compute anything at all without requests:
+    #
+    #   FailedGetResourceMetric: missing request for memory in container server
+    #
+    # The chart ships `resources: {}`, and only the-cluster's own values layer
+    # fills them in -- which the vcluster does not read. So these were the last
+    # thing standing between the tenant's HPAs and working.
+    #
+    # Sized from live usage (server 1m/22Mi, repo-server 1m/30Mi) with enough
+    # headroom that steady state sits near 15-20% of the request and nothing
+    # scales up on idle. Memory limits at 2x request follow the pattern used
+    # elsewhere in this repo; CPU is left unlimited deliberately.
+    server:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+    repoServer:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 192Mi
+        limits:
+          memory: 384Mi
     configs:
       params:
         server.insecure: true
