@@ -66,6 +66,28 @@ server:
   # exited 0, and chart 10.4.0's v1.0.1 exits 28 instead, which is what finally
   # surfaced it. The matching egress rule is `allow-argocd-server` in
   # network-policies/argocd.yaml; the two have to move together.
+  #
+  # EXTENSION_CHECKSUM_URL is deliberately not set. The extension does publish
+  # one, but its single entry names the file by build path:
+  #
+  #   f5e6a134...4ae45  ./dist/resources/extension-trivy.tar
+  #
+  # and the installer looks the value up with
+  # `awk -v f=extension-trivy.tar '$2 == f'` -- an exact match on the bare
+  # filename, which never equals the path-prefixed one. So validation cannot
+  # succeed for this extension, and there is no way to pass a literal checksum
+  # or to skip only the validation (IGNORE_FAILURE would restore exactly the
+  # silent no-op this change exists to remove).
+  #
+  # The artifact was verified by hand on 2026-08-22 and does match what the
+  # project published:
+  #
+  #   sha256  f5e6a134909606d7e176294eea643779a81fb08248b985435ea3ab920694ae45
+  #   624640 bytes, single file resources/extension-trivy.js/extension-trivy.js
+  #
+  # Re-check with that hash if the release is ever re-cut. Restore the checksum
+  # URL if upstream republishes with a bare filename, or if the installer learns
+  # to match on basename.
   extensions:
     enabled: true
     extensionList:
@@ -73,8 +95,6 @@ server:
         env:
           - name: EXTENSION_URL
             value: https://github.com/mziyabo/argocd-trivy-extension/releases/download/v0.2.0/extension-trivy.tar
-          - name: EXTENSION_CHECKSUM_URL
-            value: https://github.com/mziyabo/argocd-trivy-extension/releases/download/v0.2.0/extension-trivy_checksums.txt
 
 repoServer:
   pdb:
