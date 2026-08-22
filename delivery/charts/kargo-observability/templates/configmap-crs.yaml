@@ -22,6 +22,11 @@ data:
             group: kargo.akuity.io
             version: v1alpha1
             kind: Promotion
+          # kube-state-metrics prefixes every custom-resource metric with
+          # `kube_customresource_` unless this is set. The names below already
+          # carry their own prefix, so an empty value is what makes the series
+          # come out as documented in docs/metrics.md.
+          metricNamePrefix: ""
           labelsFromPath:
             namespace: [metadata, namespace]
             promotion: [metadata, name]
@@ -51,6 +56,11 @@ data:
             group: kargo.akuity.io
             version: v1alpha1
             kind: Stage
+          # kube-state-metrics prefixes every custom-resource metric with
+          # `kube_customresource_` unless this is set. The names below already
+          # carry their own prefix, so an empty value is what makes the series
+          # come out as documented in docs/metrics.md.
+          metricNamePrefix: ""
           labelsFromPath:
             namespace: [metadata, namespace]
             stage: [metadata, name]
@@ -100,6 +110,11 @@ data:
             group: kargo.akuity.io
             version: v1alpha1
             kind: Warehouse
+          # kube-state-metrics prefixes every custom-resource metric with
+          # `kube_customresource_` unless this is set. The names below already
+          # carry their own prefix, so an empty value is what makes the series
+          # come out as documented in docs/metrics.md.
+          metricNamePrefix: ""
           labelsFromPath:
             namespace: [metadata, namespace]
             warehouse: [metadata, name]
@@ -130,6 +145,11 @@ data:
             group: kargo.akuity.io
             version: v1alpha1
             kind: Freight
+          # kube-state-metrics prefixes every custom-resource metric with
+          # `kube_customresource_` unless this is set. The names below already
+          # carry their own prefix, so an empty value is what makes the series
+          # come out as documented in docs/metrics.md.
+          metricNamePrefix: ""
           labelsFromPath:
             namespace: [metadata, namespace]
             warehouse: [origin, name]
