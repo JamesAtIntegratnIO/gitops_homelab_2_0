@@ -124,6 +124,31 @@ var (
 	}
 )
 
+// ListArgoClusterSecrets returns the labels of every ArgoCD cluster Secret,
+// keyed by the cluster name ArgoCD knows it by (the `name` field, not the
+// Secret's own name -- selectors and templates both use the former).
+func (c *Client) ListArgoClusterSecrets(ctx context.Context, namespace string) (map[string]map[string]string, error) {
+	list, err := c.Clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "argocd.argoproj.io/secret-type=cluster",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing ArgoCD cluster secrets: %w", err)
+	}
+	out := make(map[string]map[string]string, len(list.Items))
+	for _, s := range list.Items {
+		name := string(s.Data["name"])
+		if name == "" {
+			name = s.Name
+		}
+		labels := map[string]string{}
+		for k, v := range s.Labels {
+			labels[k] = v
+		}
+		out[name] = labels
+	}
+	return out, nil
+}
+
 // --- Kargo Resource Helpers ---
 //
 // Namespace is the Kargo Project. Passing "" lists across all of them, which is

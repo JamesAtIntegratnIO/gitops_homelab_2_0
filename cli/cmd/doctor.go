@@ -27,7 +27,8 @@ Checks include:
   - ArgoCD is accessible
   - Git repository is detected and clean
   - Platform namespace exists
-  - Kratix CRDs are installed`,
+  - Kratix CRDs are installed
+  - The gate's cluster inventory still matches the live clusters`,
 	RunE: runDoctor,
 }
 
@@ -49,6 +50,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		{Name: "Platform namespace", Run: checkPlatformNamespace},
 		{Name: "ArgoCD", Run: checkArgoCD},
 		{Name: "Kratix CRDs", Run: checkKratixCRDs},
+		{Name: "Gate cluster inventory", Run: checkGateInventory},
 	}
 
 	fmt.Printf("\n%s\n\n", tui.TitleStyle.Render("  hctl doctor"))
@@ -60,9 +62,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Structured output
 	if tui.IsStructured() {
 		type result struct {
-			Check   string `json:"check"`
-			Status  string `json:"status"`
-			Detail  string `json:"detail,omitempty"`
+			Check  string `json:"check"`
+			Status string `json:"status"`
+			Detail string `json:"detail,omitempty"`
 		}
 		var results []result
 
@@ -230,5 +232,5 @@ func checkKratixCRDs(cfg *config.Config) (string, error) {
 	return "VClusterOrchestratorV2 available", nil
 }
 
-func metav1Options() metav1.GetOptions     { return metav1.GetOptions{} }
+func metav1Options() metav1.GetOptions      { return metav1.GetOptions{} }
 func metav1ListOptions() metav1.ListOptions { return metav1.ListOptions{} }
