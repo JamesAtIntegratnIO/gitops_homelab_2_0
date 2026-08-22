@@ -209,7 +209,7 @@ helm template kargo-projects addons/charts/kargo-projects \
 
 | Pin | Why |
 |---|---|
-| `gateway-api-crds` (`v1.4.0`) | Gateway API must move in step with NGINX Gateway Fabric; bump both by hand |
+| `gateway-api-crds` (`v1.5.1`) | Gateway API must move in step with NGINX Gateway Fabric; bump both by hand |
 | `kratix` chart `0.0.1` | placeholder version; the images inside are sha-pinned by Syntasso's chart |
 | vcluster-media's etcd `3.6.8-0` | coupled to the vcluster/Kubernetes version |
 | `environments/development` and `staging` | no clusters use them |

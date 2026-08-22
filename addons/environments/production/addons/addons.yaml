@@ -551,7 +551,7 @@ gateway-api-crds:
   type: manifest
   namespace: kube-system
   project: platform-services
-  defaultVersion: v1.4.0
+  defaultVersion: v1.5.1
   annotationsApp:
     argocd.argoproj.io/sync-wave: "0"
   selector:
@@ -560,7 +560,7 @@ gateway-api-crds:
         operator: In
         values: ['true']
   generatorValues:
-    gatewayAPIRevision: v1.4.0
+    gatewayAPIRevision: v1.5.1
   manifestSource:
     repoURL: https://github.com/kubernetes-sigs/gateway-api.git
     path: config/crd/standard
