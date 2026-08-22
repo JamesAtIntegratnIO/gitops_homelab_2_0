@@ -1,4 +1,11 @@
-deploymentMode: SingleBinary
+# Chart: grafana-community/loki (the OSS fork). The upstream grafana/loki chart
+# became Grafana Enterprise Logs only at 7.0.0 -- see docs/okf/platform/observability.md.
+#
+# 18.x renamed the SingleBinary deployment mode to Monolithic, and ships the
+# pod/container security contexts this file used to hand-write. Those blocks are
+# gone on purpose: the chart resolves them with `coalesce`, so a partial override
+# *replaces* the chart's hardened default rather than merging into it.
+deploymentMode: Monolithic
 
 loki:
   auth_enabled: false
@@ -16,23 +23,9 @@ loki:
         index:
           prefix: loki_index_
           period: 24h
-  storageConfig:
-    boltdb_shipper:
-      active_index_directory: /var/loki/index
-      cache_location: /var/loki/cache
-      shared_store: filesystem
-    filesystem:
-      directory: /var/loki/chunks
   limits_config:
     retention_period: 168h
     allow_structured_metadata: false
-  # Security hardening — fixes AVD-KSV-0030 / AVD-KSV-0001
-  containerSecurityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop: [ALL]
-    seccompProfile:
-      type: RuntimeDefault
 
 singleBinary:
   replicas: 1
@@ -40,11 +33,19 @@ singleBinary:
     enabled: true
     storageClass: config-nfs-client
     size: 50Gi
-  podSecurityContext:
-    seccompProfile:
-      type: RuntimeDefault
 
-# Must explicitly set to 0 when using SingleBinary mode
+gateway:
+  enabled: true
+  service:
+    type: ClusterIP
+  # New in 18.x and on by default: an access-log-exporter sidecar. Nothing
+  # scrapes it -- there is no ServiceMonitor, and network-policies/loki.yaml
+  # only admits 80/8080 into the gateway pod.
+  metrics:
+    enabled: false
+
+# Still required in 18.x: templates/validate.yaml counts `.replicas` directly,
+# not the deploymentMode gate, and these default to 3.
 read:
   replicas: 0
 
@@ -53,50 +54,3 @@ write:
 
 backend:
   replicas: 0
-
-gateway:
-  enabled: true
-  service:
-    type: ClusterIP
-  containerSecurityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop: [ALL]
-    seccompProfile:
-      type: RuntimeDefault
-
-# Security hardening for memcached pods — fixes AVD-KSV-0030 / AVD-KSV-0104
-memcached:
-  podSecurityContext:
-    runAsNonRoot: true
-    runAsUser: 11211
-    runAsGroup: 11211
-    fsGroup: 11211
-    seccompProfile:
-      type: RuntimeDefault
-  containerSecurityContext:
-    readOnlyRootFilesystem: true
-    capabilities:
-      drop: [ALL]
-    allowPrivilegeEscalation: false
-    seccompProfile:
-      type: RuntimeDefault
-
-memcachedExporter:
-  containerSecurityContext:
-    readOnlyRootFilesystem: true
-    capabilities:
-      drop: [ALL]
-    allowPrivilegeEscalation: false
-    seccompProfile:
-      type: RuntimeDefault
-
-# Security hardening for sidecar containers — fixes AVD-KSV-0104
-sidecar:
-  securityContext:
-    readOnlyRootFilesystem: true
-    capabilities:
-      drop: [ALL]
-    allowPrivilegeEscalation: false
-    seccompProfile:
-      type: RuntimeDefault

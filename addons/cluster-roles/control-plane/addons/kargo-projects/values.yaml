@@ -399,7 +399,7 @@ projects:
           - file: addons/cluster-roles/vcluster/addons/addons.yaml
             keys: [kube-prometheus-stack-agent.defaultVersion]
       loki:
-        chart: { repoURL: https://grafana.github.io/helm-charts, name: loki }
+        chart: { repoURL: https://grafana-community.github.io/helm-charts, name: loki }
         verify:
           apps:
             - loki-the-cluster
