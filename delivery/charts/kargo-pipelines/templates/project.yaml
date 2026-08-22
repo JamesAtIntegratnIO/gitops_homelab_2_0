@@ -43,7 +43,10 @@ spec:
     {{- range $st := include "kp.stageList" (dict "target" $t "name" $targetName) | fromJsonArray }}
     - stageSelector:
         name: {{ $st.stageName }}
-      autoPromotionEnabled: {{ $n.autoPromotion }}
+      {{- /* A stage may hold auto-promotion off while the rest of the chain
+           runs -- the usual shape when a chain is new: let the canary move on
+           its own and click the terminal stage by hand until you trust it. */}}
+      autoPromotionEnabled: {{ if kindIs "bool" $st.autoPromotion }}{{ $st.autoPromotion }}{{ else }}{{ $n.autoPromotion }}{{ end }}
       {{- if and $st.verify (default $project.autoRollback $t.autoRollback) }}
       autoRollback:
         onVerification:

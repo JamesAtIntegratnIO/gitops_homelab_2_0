@@ -835,7 +835,7 @@ kargo-projects:
   namespace: kargo
   project: platform-services
   defaultVersion: "main"
-  path: addons/charts/kargo-projects
+  path: delivery/charts/kargo-pipelines
   selectorMatchLabels:
     cluster_role: control-plane
   syncPolicy:

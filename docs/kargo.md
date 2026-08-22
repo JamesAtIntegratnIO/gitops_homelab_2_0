@@ -44,6 +44,46 @@ top-level areas:
 The UI is at <https://kargo.cluster.integratn.tech>; ArgoCD deep-links are
 wired to <https://argocd.cluster.integratn.tech>.
 
+## Promotion chains
+
+Charts that run in **both** the host and the vcluster are promoted as a chain:
+the vcluster first, then the host, and the host only once the vcluster's
+Application has gone Synced and Healthy. Before this they moved in a single
+pull request, so a bad chart reached the tenant and the platform at the same
+moment.
+
+| Target | Canary stage | Terminal stage |
+|---|---|---|
+| `argo-cd` | `argo-cd-vcluster` | `argo-cd` |
+| `cert-manager` | `cert-manager-vcluster` | `cert-manager` |
+| `external-dns` | `external-dns-vcluster` | `external-dns` |
+| `nginx-gateway-fabric` | `nginx-gateway-fabric-vcluster` | `nginx-gateway-fabric` |
+| `kube-prometheus-stack` | `kube-prometheus-stack-vcluster` | `kube-prometheus-stack` |
+
+The gate is Kargo's own: it only makes Freight available downstream once it has
+been **verified** upstream, so a canary that fails verification simply never
+offers the version on. Nothing polls and there is no state of our own.
+
+**The host stages ship with `autoPromotion: false`.** Watch one artifact
+traverse a chain by hand in the Kargo UI, confirm the canary verifies and the
+host stage then offers the Freight, and only then remove that line.
+
+Two things this deliberately does *not* cover, worth stating so the chain is
+not over-trusted:
+
+- **`promtail` is not chained.** `promtail-vcluster` is disabled, so a canary
+  stage would bump a pin nothing deploys and verify nothing.
+- **Everything with no vcluster copy gets no staging at all** — `cilium`,
+  `metallb`, `kyverno`, `loki`, `authentik` and every image target go straight
+  to the host exactly as before. The vcluster is also materially smaller than
+  the host, so a green canary proves less than it looks like it does.
+
+`external-secrets` is a special case: it has one pin serving both clusters (the
+production-layer selector has no vcluster exclusion), so it cannot be chained
+until that addon is split — which renames the generated Application and makes
+ArgoCD prune and recreate the operator every credential in the vcluster depends
+on. That is its own change.
+
 ## What a Stage does
 
 Each Stage runs the same generated pipeline

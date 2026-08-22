@@ -231,6 +231,10 @@
                         "type": "string",
                         "pattern": "^\\d+h\\d+m\\d+s$|^\\d+m\\d+s$|^\\d+s$",
                         "description": "Go canonical duration. Kargo's webhook rewrites non-canonical forms, which ArgoCD then reads as permanent drift."
+                      },
+                      "autoPromotion": {
+                        "type": "boolean",
+                        "description": "Override the target's auto-promotion for this stage. Hold the terminal stage off while a new chain is being trusted."
                       }
                     }
                   },

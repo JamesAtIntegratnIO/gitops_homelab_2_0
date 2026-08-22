@@ -215,6 +215,7 @@ upstream one. See docs/chaining.md.
           "updates" $s.updates
           "verify" (default $target.verify $s.verify)
           "autoMerge" (default $target.autoMerge $s.autoMerge)
+          "autoPromotion" $s.autoPromotion
           "requiredSoakTime" $soak
           "upstream" $upstream
         ) -}}
@@ -229,6 +230,7 @@ upstream one. See docs/chaining.md.
         "updates" $target.updates
         "verify" $target.verify
         "autoMerge" $target.autoMerge
+        "autoPromotion" nil
         "requiredSoakTime" ""
         "upstream" ""
       ) -}}

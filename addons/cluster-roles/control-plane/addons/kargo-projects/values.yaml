@@ -2,13 +2,27 @@
 # top-level repo area. One entry == one Warehouse + one Stage; the Stage opens
 # a PR that rewrites the listed keys and merges it when `autoMerge` allows.
 #
-# Schema and defaults: addons/charts/kargo-projects/values.yaml.
+# Rendered by delivery/charts/kargo-pipelines -- the portable package this
+# repo also publishes. Schema and defaults live with that chart; its docs/
+# cover the target schema and promotion chains.
 # Rationale, policies and how to add an entry: docs/kargo.md.
 #
 # Merge policy in one line: `patch` for anything a bad minor could take the
 # cluster down with (CNI, the deployer, admission, certs, the gateway),
 # `minor` for apps and tooling, `always` for our own CI images, `never` where
 # there is no version to judge by (digest of a mutable tag).
+
+# The chart has no default repoURL: it must match the Kargo git credential
+# Secret's repoURL after normalisation, and a silent mismatch fails at
+# git-clone with an authentication error that names nothing useful.
+git:
+  repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+  branch: main
+  provider: github
+
+# Keep the label the previous chart wrote, so switching charts does not churn
+# app.kubernetes.io/name on all 111 objects.
+nameLabel: kargo-projects
 
 # Shared shapes -- YAML anchors are resolved before Helm sees the file.
 x-promise-image: &promiseImage
@@ -266,19 +280,35 @@ projects:
             keys: [image.tag]
 
       # ── Helm charts: environments/production ─────────────────────────
-      # Host and vcluster copies of the same chart move together, on purpose.
+      # Charts that run in BOTH clusters are promoted as a chain: the vcluster
+      # first, and the host only once the vcluster's Application has gone
+      # Synced and Healthy. Before this they moved in one PR, so a bad chart
+      # reached the tenant and the platform simultaneously.
+      #
+      # The host stage ships with autoPromotion off. Watch one artifact
+      # traverse a chain by hand, then flip it -- see docs/kargo.md.
+      #
+      # promtail is deliberately NOT chained: promtail-vcluster is disabled, so
+      # a canary stage would bump a pin nothing deploys and verify nothing.
       argo-cd:
         chart: { repoURL: https://argoproj.github.io/argo-helm, name: argo-cd }
         autoMerge: patch
-        verify:
-          apps:
-            - argocd-the-cluster
-            - argocd-vcluster-vcluster-media.integratn-tech
-        updates:
-          - file: addons/environments/production/addons/addons.yaml
-            keys: [argocd.defaultVersion]
-          - file: addons/cluster-roles/vcluster/addons/addons.yaml
-            keys: [argocd-vcluster.defaultVersion]
+        stages:
+          - name: vcluster
+            updates:
+              - file: addons/cluster-roles/vcluster/addons/addons.yaml
+                keys: [argocd-vcluster.defaultVersion]
+            verify:
+              apps:
+                - argocd-vcluster-vcluster-media.integratn-tech
+          - name: host
+            autoPromotion: false
+            updates:
+              - file: addons/environments/production/addons/addons.yaml
+                keys: [argocd.defaultVersion]
+            verify:
+              apps:
+                - argocd-the-cluster
       external-secrets:
         chart: { repoURL: https://charts.external-secrets.io, name: external-secrets }
         autoMerge: patch
@@ -307,27 +337,41 @@ projects:
             keys: [nfs-subdir-external-provisioner.defaultVersion]
       external-dns:
         chart: { repoURL: https://kubernetes-sigs.github.io/external-dns, name: external-dns }
-        verify:
-          apps:
-            - external-dns-the-cluster
-            - external-dns-vcluster-vcluster-media.integratn-tech
-        updates:
-          - file: addons/environments/production/addons/addons.yaml
-            keys: [external-dns.defaultVersion]
-          - file: addons/cluster-roles/vcluster/addons/addons.yaml
-            keys: [external-dns-vcluster.defaultVersion]
+        stages:
+          - name: vcluster
+            updates:
+              - file: addons/cluster-roles/vcluster/addons/addons.yaml
+                keys: [external-dns-vcluster.defaultVersion]
+            verify:
+              apps:
+                - external-dns-vcluster-vcluster-media.integratn-tech
+          - name: host
+            autoPromotion: false
+            updates:
+              - file: addons/environments/production/addons/addons.yaml
+                keys: [external-dns.defaultVersion]
+            verify:
+              apps:
+                - external-dns-the-cluster
       cert-manager:
         chart: { repoURL: https://charts.jetstack.io, name: cert-manager }
         autoMerge: patch
-        verify:
-          apps:
-            - cert-manager-the-cluster
-            - cert-manager-vcluster-vcluster-media.integratn-tech
-        updates:
-          - file: addons/environments/production/addons/addons.yaml
-            keys: [cert-manager.defaultVersion]
-          - file: addons/cluster-roles/vcluster/addons/addons.yaml
-            keys: [cert-manager-vcluster.defaultVersion]
+        stages:
+          - name: vcluster
+            updates:
+              - file: addons/cluster-roles/vcluster/addons/addons.yaml
+                keys: [cert-manager-vcluster.defaultVersion]
+            verify:
+              apps:
+                - cert-manager-vcluster-vcluster-media.integratn-tech
+          - name: host
+            autoPromotion: false
+            updates:
+              - file: addons/environments/production/addons/addons.yaml
+                keys: [cert-manager.defaultVersion]
+            verify:
+              apps:
+                - cert-manager-the-cluster
       metallb:
         chart: { repoURL: https://metallb.github.io/metallb, name: metallb }
         autoMerge: patch
@@ -340,15 +384,22 @@ projects:
       nginx-gateway-fabric:
         chart: { repoURL: oci://ghcr.io/nginx/charts/nginx-gateway-fabric }
         autoMerge: patch
-        verify:
-          apps:
-            - nginx-gateway-fabric-the-cluster
-            - nginx-gateway-fabric-vcluster-vcluster-media.integratn-tech
-        updates:
-          - file: addons/environments/production/addons/addons.yaml
-            keys: [nginx-gateway-fabric.defaultVersion]
-          - file: addons/cluster-roles/vcluster/addons/addons.yaml
-            keys: [nginx-gateway-fabric-vcluster.defaultVersion]
+        stages:
+          - name: vcluster
+            updates:
+              - file: addons/cluster-roles/vcluster/addons/addons.yaml
+                keys: [nginx-gateway-fabric-vcluster.defaultVersion]
+            verify:
+              apps:
+                - nginx-gateway-fabric-vcluster-vcluster-media.integratn-tech
+          - name: host
+            autoPromotion: false
+            updates:
+              - file: addons/environments/production/addons/addons.yaml
+                keys: [nginx-gateway-fabric.defaultVersion]
+            verify:
+              apps:
+                - nginx-gateway-fabric-the-cluster
       kyverno:
         chart: { repoURL: https://kyverno.github.io/kyverno, name: kyverno }
         autoMerge: patch
@@ -399,15 +450,22 @@ projects:
             keys: [authentik.defaultVersion]
       kube-prometheus-stack:
         chart: { repoURL: https://prometheus-community.github.io/helm-charts, name: kube-prometheus-stack }
-        verify:
-          apps:
-            - kube-prometheus-stack-the-cluster
-            - kube-prometheus-stack-agent-vcluster-media.integratn-tech
-        updates:
-          - file: addons/cluster-roles/control-plane/addons/addons.yaml
-            keys: [kube-prometheus-stack.defaultVersion]
-          - file: addons/cluster-roles/vcluster/addons/addons.yaml
-            keys: [kube-prometheus-stack-agent.defaultVersion]
+        stages:
+          - name: vcluster
+            updates:
+              - file: addons/cluster-roles/vcluster/addons/addons.yaml
+                keys: [kube-prometheus-stack-agent.defaultVersion]
+            verify:
+              apps:
+                - kube-prometheus-stack-agent-vcluster-media.integratn-tech
+          - name: host
+            autoPromotion: false
+            updates:
+              - file: addons/cluster-roles/control-plane/addons/addons.yaml
+                keys: [kube-prometheus-stack.defaultVersion]
+            verify:
+              apps:
+                - kube-prometheus-stack-the-cluster
       loki:
         chart: { repoURL: https://grafana-community.github.io/helm-charts, name: loki }
         verify:
