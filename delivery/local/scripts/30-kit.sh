@@ -78,6 +78,7 @@ helm upgrade --install delivery-agent "$ROOT/../charts/delivery-agent" \
   --set gate.wait=3m \
   --set gate.poll=10s \
   --set 'triage.allowPaths[0]=apps/**' \
+  --set 'triage.allowPaths[1]=addons/**' \
   --wait --timeout 5m >/dev/null
 ok "delivery-agent ready"
 

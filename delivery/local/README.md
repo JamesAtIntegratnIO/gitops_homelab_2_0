@@ -85,14 +85,51 @@ Each of these is a real defect or a real gap, found by running the thing:
   message. `count(argocd_app_info)` went 0 -> 6 once one existed, and the
   verification query started returning 1.
 
+## Seeing it actually fix things
+
+```bash
+make demo-scenarios              # all nine
+make demo-scenarios CASE=metallb # just one
+```
+
+Nine incidents that really happened to this platform, replayed against the
+**live** agent on **real** pull requests. They are not invented: each is
+already written down once as an eval fixture, and this reads those same
+fixtures so the thing the eval measures and the thing you watch cannot drift.
+
+Four of them are mechanical, and on those the agent pushes a commit. MetalLB
+0.16.0 swapping its FRR sidecars for a DaemonSet, for instance:
+
+```
+==> metallb-frr-defaults-flip  (expected: mechanical)
+  bump metallb chart 0.15.2 -> 0.16.0
+  pull request #8
+  gate report posted, status gate=failure
+  ok    pushed a fix: f27ac09 -> 7a11247
+      -        enabled: true
+      +        enabled: false
+      -      enabled: true
+      +      enabled: false
+      Pushed a fix to `scenario/metallb-frr-defaults-flip` (attempt 1 of 2).
+```
+
+The other five are escalations and a no-action, and it should not touch those.
+
+**What is replayed and what is live.** The gate's REPORT is the recorded one
+from each incident, posted the way the gate posts it -- reproducing fourteen
+upstream chart versions locally would prove nothing extra. The agent, the
+model, the pull requests, the reasoning and every commit it pushes are live.
+
+The summary shows whether it *edited*, not whether the edit was *right*. The
+exact scalars are checked by the eval suite: `go test ./evals/...` in
+`images/delivery-agent`.
+
 ## What the agent will and will not fix
 
-`make demo` shows the happy path, where the gate is green and the agent
-correctly does nothing. `make demo-triage` opens a pull request the gate
-**refuses** and shows the agent answering for it.
-
-It escalates rather than fixing, and that is worth understanding before you
-call it a limitation of the model. Measured here against both
+`make demo-triage` opens a pull request the gate **refuses** -- a bump
+carrying a changed destination namespace -- and the agent escalates rather
+than fixing it. That is worth understanding before you call it a limitation of
+the model. Measured here against both
 `qwen/qwen3.5-9b` and `qwen/qwen3.8-27b`, each independently escalated with a
 sound argument -- the 27B's was *"the cause is not provable from the rendered
 diff alone"*, which is precisely the judgement the prompt asks for.

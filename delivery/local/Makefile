@@ -11,6 +11,7 @@ help:
 	@echo "make up      colima + idpbuilder + platform + kit + seed  (everything)"
 	@echo "make demo    run the whole flow, asserted at every step"
 	@echo "make demo-triage  a PR the gate REFUSES, and the agent's verdict on it"
+	@echo "make demo-scenarios  9 real incidents replayed; CASE=<name> for one"
 	@echo "make reset   put the flow back to the start so demo can run again"
 	@echo "make down    delete the cluster; colima keeps running"
 	@echo "make clean   down, and stop colima too"
@@ -53,6 +54,12 @@ demo:
 .PHONY: demo-triage
 demo-triage:
 	@bash $(SCRIPTS)/50-demo-triage.sh
+
+# Nine real incidents replayed against the live agent, on real pull requests.
+# Optional CASE=<substring> runs one. This is where you see it FIX things.
+.PHONY: demo-scenarios
+demo-scenarios:
+	@bash $(SCRIPTS)/60-demo-scenarios.sh $(CASE)
 
 .PHONY: reset
 reset:
