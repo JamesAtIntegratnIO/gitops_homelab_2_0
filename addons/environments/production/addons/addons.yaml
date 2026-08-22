@@ -452,7 +452,7 @@ metallb:
   namespace: metallb-system
   releaseName: metallb
   project: platform-services
-  defaultVersion: "0.15.3"
+  defaultVersion: 0.16.1
   chartRepository: "https://metallb.github.io/metallb"
   additionalResources:
     type: manifests
