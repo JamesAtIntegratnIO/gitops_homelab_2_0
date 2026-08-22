@@ -88,6 +88,23 @@ spec:
           port: 6379
         - protocol: TCP
           port: 5556
+    # UI extension downloads (external). The argocd-extension-installer init
+    # container fetches the Trivy extension tarball from a GitHub release, which
+    # redirects to release-assets.githubusercontent.com -- so this has to be the
+    # open-internet block, the same shape as allow-repo-server, not a fixed
+    # address. Without it the init container just times out; that is why the
+    # extension had never actually installed. See the `server.extensions` note in
+    # clusters/the-cluster/addons/argo-cd/values.yaml.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 # ArgoCD Server: OIDC provider access via nginx-gateway (Authentik)
 # Cilium performs DNAT before policy eval, so LB VIP rules don't work.
