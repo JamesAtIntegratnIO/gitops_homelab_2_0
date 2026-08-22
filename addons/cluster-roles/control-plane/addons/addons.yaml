@@ -811,6 +811,27 @@ argo-rollouts:
       - ServerSideApply=true
 
 # The target list lives in kargo-projects/values.yaml next to this file.
+delivery-agent:
+  # DISABLED until the model endpoint is serving and reachable. See
+  # addons/cluster-roles/control-plane/addons/delivery-agent/values.yaml.
+  enabled: false
+  namespace: delivery-agent
+  project: platform-services
+  defaultVersion: "main"
+  path: delivery/charts/delivery-agent
+  additionalResources:
+    type: manifest
+    path: addons/cluster-roles/control-plane/addons/delivery-agent
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
 kargo-observability:
   enabled: true
   namespace: monitoring

@@ -105,6 +105,26 @@ Each Stage runs the same generated pipeline
      behind it — so an ignored major-version PR holds back later patches of
      that artifact until it is dealt with.
 
+### Triage (the delivery-agent)
+
+When a promotion opens a pull request, an optional `http` step hands the
+freight context to the [delivery-agent](../delivery/images/delivery-agent),
+which reads the gate, explains a red one, and fixes what the rendered diff
+proves. It is **disabled** in this repo until the model endpoint is serving.
+
+Two properties worth knowing before turning it on:
+
+- The step is `continueOnError: true`, so a triage service that is down, slow
+  or misconfigured can never fail a promotion. The agent answers `202` and
+  works asynchronously, because the `http` step is synchronous.
+- The model never edits a file. It returns a structured verdict plus proposed
+  scalar edits, and the agent applies them behind a path deny-list, a
+  from-value match and a version-corroboration check. So it cannot make a red
+  gate green by editing the gate, and it cannot invent a version number.
+
+Its measured behaviour, and why a 9B local model is enough, is in
+[the prompt contract](../delivery/images/delivery-agent/docs/prompt-contract.md).
+
 ### How the PR steps retry
 
 All three PR steps carry a `retry` policy from `merge.*` in the chart values.
