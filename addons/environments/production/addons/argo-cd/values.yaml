@@ -1,3 +1,12 @@
+# Chart 10.0.0 flipped global.networkPolicy.create false -> true, which would add
+# six chart-authored NetworkPolicies to the argocd namespace on this bump. This
+# repo owns network policy in one place -- the `network-policies` addon
+# (argocd.yaml) plus the Kyverno-generated default-deny -- so keep the chart out
+# of it and preserve the policy set that is deployed today.
+global:
+  networkPolicy:
+    create: false
+
 addPrometheusAnnotations: true
 server:
   autoscaling:
