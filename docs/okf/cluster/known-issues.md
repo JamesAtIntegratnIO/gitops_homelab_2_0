@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-22T13:35:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-22T13:40:53Z }
 stale_after: 2026-09-22
 sources:
   - id: live-cluster
@@ -67,11 +67,11 @@ a plausible trigger for a command connection that never gets set up. A
 comparison of each data plane pod's upstreams against the live EndpointSlices
 would detect the state directly and is the obvious alert to add.
 
-# Four Kargo bumps are held, each for a different reason (2026-08-22)
+# Four Kargo bumps were held, each for a different reason (2026-08-22)
 
-Twelve of Kargo's sixteen day-one PRs merged. These four are open on purpose —
-none is a version bump you can just take, and each needs a decision rather than
-a config tweak. Kargo will keep them parked (`git-wait-for-pr`), which also
+Twelve of Kargo's sixteen day-one PRs merged. These four were open on purpose —
+none is a version bump you can just take, and each needed a decision rather
+than a config tweak. Loki's is resolved; three remain. Kargo will keep them parked (`git-wait-for-pr`), which also
 holds back later versions of the same artifact until they are dealt with.
 
 ## external-secrets 0.10.3 → 2.9.0 (PR #37) — two majors, and an API removal
@@ -111,15 +111,37 @@ Chart 3.9.0 is Kyverno **v1.19.0**, from v1.12.6. Three separate problems:
   `failurePolicy: Fail` and exclude only `kube-system` and `kyverno`, so while
   it is unhealthy **no pod can be created anywhere else**.
 
-## loki chart 6.49.0 → 7.3.0 (PR #44) — wrong chart now
+## ~~loki chart 6.49.0 → 7.3.0 (PR #44) — wrong chart now~~ (resolved)
 
 Not a version problem: the chart's own changelog says the repository "is now
 maintained for Grafana Enterprise Logs (GEL) users only", and OSS users should
 move to the community fork at `grafana-community/helm-charts` (forked at
 6.55.0). This cluster runs OSS Loki (SingleBinary, filesystem, boltdb-shipper
 on `config-nfs-client`). Merging 7.x follows the enterprise chart by accident.
-The real decision is which chart repository `loki` should point at, after which
-the Kargo target's `chart.repoURL` needs to move with it.
+
+**Resolved 2026-08-22** by following the OSS lineage instead: the addon and the
+Kargo target both point at `https://grafana-community.github.io/helm-charts`,
+pinned at chart **18.11.0** (Loki 3.7.6). PR #44 was closed unmerged. See
+[observability](../platform/observability.md).
+
+Two things worth carrying forward from the values rewrite, because they are
+general to this chart family and not to Loki:
+
+- The chart resolves security contexts with `coalesce`
+  (`$component` → `.Values.defaults` → `.Values.loki`), so a **partial override
+  replaces the chart's default rather than merging into it**. Our hand-written
+  `singleBinary.podSecurityContext` — added for a Trivy finding, and carrying
+  only `seccompProfile` — would have silently dropped `fsGroup: 10001` and run
+  the pod as root against the existing NFS volume. Every hardening block in the
+  values file was deleted; 18.x ships the same settings or stricter.
+- `loki.storageConfig` in the values file had **never rendered**. The chart
+  reads `loki.storage_config` (snake case), in 18.11.0 and in 6.49.0 alike, so
+  the boltdb-shipper/filesystem block was decoration — the real config comes
+  from `loki.storage.type: filesystem`.
+
+Still ahead: Loki 3.7.6 keeps boltdb-shipper and schema v12 working, but both
+are deprecated upstream and targeted for removal in Loki 4. Migrating the
+schema to TSDB/v13 is a separate decision.
 
 ## trivy-operator-explorer 0.4.6 → 0.5.1 (PR #56) — v1.0.0 is a different application
 

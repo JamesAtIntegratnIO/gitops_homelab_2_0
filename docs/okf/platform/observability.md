@@ -4,7 +4,7 @@ title: Observability — metrics, logs, dashboards, alerting
 description: Hub-and-spoke Prometheus with vcluster agents, Loki + Promtail logging, Grafana dashboards, and Matrix alert delivery with Loki deep links.
 tags: [observability, prometheus, grafana, loki, alertmanager, matrix]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-22T13:40:53Z }
 stale_after: 2027-02-20
 sources:
   - id: obs-doc
@@ -31,11 +31,20 @@ sources:
 
 # Logs
 
-Loki 3.6.3 (`loki` ns; 50Gi NFS; gateway + memcached caches + canary) fed by
+Loki 3.7.6 (`loki` ns; 50Gi NFS; gateway + memcached caches + canary) fed by
 **host-level Promtail 2.7.3** tailing `/var/log/pods` — this covers
 vcluster-synced pods too, since they run on the host nodes. A per-vcluster
 promtail addon exists but is disabled by design. External push endpoint:
 `loki.cluster.integratn.tech`.
+
+Monolithic deployment mode, filesystem storage, boltdb-shipper on schema v12.
+The chart is **`grafana-community/loki` 18.11.0**, not `grafana/loki` — upstream
+made its chart Grafana Enterprise Logs only at 7.0.0 and pointed OSS users at
+the community fork, which continues the same lineage from 6.55.0. Both the
+addon and Kargo's `loki` target moved to
+`https://grafana-community.github.io/helm-charts` on 2026-08-22; see
+[known issues](../cluster/known-issues.md) for what the migration changed in the
+values file.
 
 # Dashboards & rules (live counts, 2026-08-20)
 
