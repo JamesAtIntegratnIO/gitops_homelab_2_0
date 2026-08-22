@@ -239,6 +239,19 @@ kubeScheduler:
 # kube-state-metrics: set resource requests/limits and tune probes to prevent
 # transient 503 liveness failures caused by short CPU starvation on busy nodes.
 kube-state-metrics:
+  # Kargo exports controller-runtime counters and nothing about promotions,
+  # freight or stages, so a failed promotion appears nowhere. The
+  # kargo-observability addon writes a CustomResourceState config over Kargo's
+  # CRDs and the ClusterRole to read them; this is the half that tells
+  # kube-state-metrics to load it.
+  #
+  # `create: false` matters: the config ConfigMap is owned by that addon, and
+  # letting this chart create one too makes the two fight over it every sync.
+  customResourceState:
+    enabled: true
+    create: false
+    name: kargo-custom-resource-state
+    key: config.yaml
   resources:
     requests:
       cpu: 50m

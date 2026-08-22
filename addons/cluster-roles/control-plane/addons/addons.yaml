@@ -838,6 +838,13 @@ kargo-observability:
   project: platform-services
   defaultVersion: "main"
   path: delivery/charts/kargo-observability
+  # Ahead of kube-prometheus-stack. That chart now mounts the
+  # CustomResourceState ConfigMap this addon creates, and a kube-state-metrics
+  # pod that rolls before the ConfigMap exists sits in
+  # CreateContainerConfigError until it appears. It self-heals, but a
+  # sync-wave avoids the flap entirely.
+  annotationsApp:
+    argocd.argoproj.io/sync-wave: "-1"
   selectorMatchLabels:
     cluster_role: control-plane
   syncPolicy:
