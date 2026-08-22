@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-22T13:40:53Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-22T20:50:00Z }
 stale_after: 2026-09-22
 sources:
   - id: live-cluster
@@ -114,6 +114,34 @@ Twelve of Kargo's sixteen day-one PRs merged. These four were open on purpose �
 none is a version bump you can just take, and each needed a decision rather
 than a config tweak. Loki's is resolved; three remain. Kargo will keep them parked (`git-wait-for-pr`), which also
 holds back later versions of the same artifact until they are dealt with.
+
+## A CustomResourceState config change does not reach kube-state-metrics (found 2026-08-22)
+
+`kargo-observability` ships the CustomResourceState ConfigMap that
+kube-state-metrics reads, deliberately, so the two charts do not fight over
+ownership of the same object. kube-state-metrics reads that file **once, at
+startup**, and nothing watches it. When [PR #89](https://github.com/JamesAtIntegratnIO/gitops_homelab_2_0/pull/89)
+corrected the metric names, ArgoCD updated the ConfigMap within a minute and
+the running pod carried on emitting the old series; the fix only took effect
+after a manual `kubectl -n monitoring rollout restart deploy/kube-prometheus-stack-kube-state-metrics`.
+
+The usual answer is a Reloader annotation, which is not available here — see
+below. Until one exists, **any change to the CRS config needs a deliberate
+kube-state-metrics rollout**, and the symptom of forgetting is metrics that
+silently stay stale rather than an error.
+
+## `enable_stakater_reloader` is a dangling flag (found 2026-08-22)
+
+`the-cluster` carries `enable_stakater_reloader: "true"`, and there is **no
+addon definition for it anywhere in `addons/`**. No ApplicationSet generates
+it, no ArgoCD Application exists, and no Deployment runs — `kubectl get deploy
+-A | grep -i reloader` returns nothing. The label has presumably been set since
+the cluster was built.
+
+Consequence beyond the cosmetic: `reloader.stakater.com/auto` annotations are
+inert on this cluster, so no workload picks up a ConfigMap or Secret change
+without a rollout of its own. That is what makes the CRS issue above a manual
+step rather than a one-line annotation.
 
 ## external-secrets 0.10.3 → 2.9.0 (PR #37) — two majors, and an API removal
 
