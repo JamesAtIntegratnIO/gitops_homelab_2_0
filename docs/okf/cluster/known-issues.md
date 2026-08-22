@@ -46,7 +46,13 @@ F0821 16:15:57 leaderelection lost
 
 Any leader-elected controller can lose its lease this way, and several have.
 
-## The database is 82% empty space (found 2026-08-21T20:00Z)
+## The database was 82% empty space (found 2026-08-21, **defragmented 2026-08-22**)
+
+**Resolved 2026-08-22T03:4xZ:** `talosctl etcd defrag` on 102, 101, then the
+leader 103. DB size went 584 / 628 / 635 MB → **135 / 135 / 134 MB** at
+~100% in use, same leader and raft term throughout — no election triggered.
+The fsync/commit latencies below are still the disk's problem and were
+re-measured separately; the record of the finding follows.
 
 After the 208k-event storm was drained, `etcd_mvcc_db_total_size_in_bytes` sits
 at **584–635 MB per member** while `etcd_mvcc_db_total_size_in_use_in_bytes` is
