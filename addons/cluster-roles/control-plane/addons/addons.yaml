@@ -825,6 +825,23 @@ delivery-agent:
     path: addons/cluster-roles/control-plane/addons/delivery-agent
   selectorMatchLabels:
     cluster_role: control-plane
+  # The ExternalSecret CRD defaults three fields inside every `remoteRef`
+  # (`conversionStrategy: Default`, `decodingStrategy: None`,
+  # `metadataPolicy: None`) plus `target.deletionPolicy`. The manifests do not
+  # set them, so the API server writes them and ArgoCD's predicted live state
+  # -- which only carries what argocd-controller owns -- lacks them. The app
+  # then reports OutOfSync forever while syncing successfully every time.
+  #
+  # Same block as the kargo addon above; `RespectIgnoreDifferences` is what
+  # makes it apply during sync and not only in the diff view.
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
   syncPolicy:
     automated:
       selfHeal: true
@@ -832,6 +849,7 @@ delivery-agent:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
 
 kargo-observability:
   enabled: true
