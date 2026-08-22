@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-22T03:40:00Z }
+generated: { by: claude-code/claude-fable-5, at: 2026-08-22T13:35:00Z }
 stale_after: 2026-09-22
 sources:
   - id: live-cluster
@@ -14,6 +14,58 @@ sources:
     resource: full-repo review (source, docs, workflows, hooks), 2026-08-20
     title: Repository review
 ---
+
+# An NGF data plane replica can serve stale config forever (2026-08-22)
+
+Found chasing an ArgoCD UI that answered **3 of 8 requests** and timed out on
+the rest, while grafana, kargo, auth and chat were 8/8 through the same
+gateway. Every ArgoCD Application was `Synced/Healthy`, both argocd-server pods
+`Running 1/1` and `ready=true` in the EndpointSlice, and nothing was logged --
+the requests never reached either pod.
+
+The two NGINX data plane replicas disagreed about where the backend was:
+
+| pod | upstream for `argocd_argo-cd-argocd-server_80` | |
+|---|---|---|
+| `…-b6s94` | 10.244.0.159, 10.244.1.150 | current |
+| `…-hr47x` | 10.244.1.193, 10.244.2.225 | pods that no longer existed |
+
+`hr47x` had been serving a config snapshot from its own start time
+(2026-08-22T03:28:47Z) ever since. The control plane says why -- across both
+`nginx-gateway-fabric` replicas, `nginxUpdater.commandService` logs
+`Creating connection for nginx pod: …-b6s94` repeatedly and **never once names
+`hr47x`**. The data plane dials the control plane for its config; that
+connection was never established, and nothing retried it or reported it.
+
+**Nothing surfaces this.** The pod is Ready (its own health check passes -- it
+is a working NGINX, just pointing at dead addresses), the Gateway is
+`Programmed=True`, the HTTPRoute is Accepted, and ArgoCD is Healthy because
+desired state matches. The only symptom is that roughly half of requests to
+whichever backends have moved since that snapshot hang, and which half depends
+on which replica the LB picks.
+
+Any backend whose pods reschedule after a data plane replica goes deaf is
+exposed; ArgoCD was simply the one that had rolled (its pods were replaced by
+the 10.4.0 bump and again by the extension fix).
+
+**Remediation is a restart of the affected replica** -- runtime state, nothing
+to change in git:
+
+```bash
+kubectl -n nginx-gateway delete pod <nginx-gateway-nginx-…>
+```
+
+Deleting the *stale* one is safe even single-handed: the surviving replica is
+the one with correct config, so availability goes up immediately. After the
+restart, all five hostnames returned 10/10.
+
+**Worth building on:** the leader-election lease renewals in the same control
+plane log time out against the kube-apiserver repeatedly
+(`context deadline exceeded` at 10:10, 10:40, 12:00, 12:01, 13:20Z), which is
+the etcd/DNS problem below. A control plane that keeps losing the apiserver is
+a plausible trigger for a command connection that never gets set up. A
+comparison of each data plane pod's upstreams against the live EndpointSlices
+would detect the state directly and is the obvious alert to add.
 
 # Four Kargo bumps are held, each for a different reason (2026-08-22)
 

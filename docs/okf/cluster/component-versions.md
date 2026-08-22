@@ -19,7 +19,7 @@ differs meaningfully, it's noted — the running image is the truth.
 |---|---|---|
 | Talos / Kubernetes | 1.11.5 / v1.34.1 | host; vcluster runs K8s v1.34.3 |
 | Cilium (+ Hubble UI) | 1.17.3 (+0.13.2) | CNI, kube-proxy replacement |
-| ArgoCD | v3.5.1 | chart 10.4.0; 10.0.0 turns chart NetworkPolicies on -- pinned off, this repo owns netpol |
+| ArgoCD | v3.5.1 | chart 10.4.0; 10.0.0 turns chart NetworkPolicies on -- pinned off, this repo owns netpol. Trivy UI extension installs for the first time as of 2026-08-22 |
 | Kratix | syntasso community image (sha-pinned) | chart 0.0.1 |
 | cert-manager | v1.21.1 | host had been moved off v1.16.2 on 2026-08-21 (Cloudflare DNS01 cleanup bug blocked wildcard renewal) |
 | external-secrets | v0.10.3 | the 2.9.0 bump is open and held: v1beta1 stops being served by default and 39 manifests still use it |
