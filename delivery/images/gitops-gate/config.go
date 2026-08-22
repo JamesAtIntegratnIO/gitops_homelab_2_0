@@ -58,6 +58,17 @@ const (
 	// SourceKustomize builds an overlay.
 	SourceKustomize SourceType = "kustomize"
 
+	// SourceRendered reads manifests that are already rendered in git -- the
+	// rendered-manifests pattern, whether produced by ArgoCD's source
+	// hydrator, by Kargo's helm-template/kustomize-build promotion steps, or
+	// by any CI job that commits its output.
+	//
+	// These are DEPLOYED OBJECTS, not Applications. That makes an
+	// object-level diff possible: which Deployments, CRDs and NetworkPolicies
+	// actually appear, vanish or change. It is the strongest signal available,
+	// because it is the real answer rather than a reconstruction of it.
+	SourceRendered SourceType = "rendered"
+
 	// SourceArgoCDBootstrap derives a helm source from an app-of-apps
 	// ApplicationSet -- the gitops-bridge shape, where cluster metadata on the
 	// ArgoCD cluster Secret drives which chart is rendered and with what.
@@ -206,9 +217,9 @@ func (s *Source) normalise(cfgPath string, i int) error {
 		}
 	}
 	switch s.Type {
-	case SourceManifests:
+	case SourceManifests, SourceRendered:
 		if len(s.Paths) == 0 {
-			return fmt.Errorf("%s: source %q is type manifests and needs `paths`", cfgPath, s.Name)
+			return fmt.Errorf("%s: source %q is type %s and needs `paths`", cfgPath, s.Name, s.Type)
 		}
 	case SourceHelm:
 		if s.Chart == "" {

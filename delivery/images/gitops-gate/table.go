@@ -34,11 +34,18 @@ func (r Row) Key() string {
 }
 
 type Table struct {
-	Rows     []Row    `json:"rows"`
+	Rows []Row `json:"rows"`
+	// Objects are the Kubernetes resources a source produced directly --
+	// from a rendered-manifests branch, or from any source whose output is
+	// not itself an Application. Empty when nothing in the repository is
+	// rendered, which is the common case and is why the object diff is
+	// reported only when there is something to report.
+	Objects  []Object `json:"objects,omitempty"`
 	Warnings []string `json:"warnings,omitempty"`
 }
 
 func (t *Table) Sort() {
+	sort.Slice(t.Objects, func(i, j int) bool { return t.Objects[i].ID() < t.Objects[j].ID() })
 	sort.Slice(t.Rows, func(i, j int) bool {
 		if t.Rows[i].Cluster != t.Rows[j].Cluster {
 			return t.Rows[i].Cluster < t.Rows[j].Cluster

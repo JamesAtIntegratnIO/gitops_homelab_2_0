@@ -55,6 +55,7 @@ somebody added. So this is a list of strategies, not a mode.
 | `argocd-bootstrap` | `path` | an app-of-apps ApplicationSet, following it to whatever it points at |
 | `helm` | `chart`, optional `valueFiles` | a rendered chart |
 | `kustomize` | `path` | `kustomize build`, falling back to `kubectl kustomize` |
+| `rendered` | `paths` (globs) | manifests already rendered into git — diffed at resource level. See [rendered-manifests.md](rendered-manifests.md) |
 
 `chart` and `valueFiles` may contain `{{metadata.labels.x}}` and
 `{{metadata.annotations.y}}`, resolved per cluster — which is how a

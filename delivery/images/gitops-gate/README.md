@@ -42,3 +42,4 @@ change, the cluster labels it matches did. Rendering both sides and diffing the
 - [`docs/config-reference.md`](docs/config-reference.md) — the full `.gitops-gate.yaml` schema
 - [`docs/render-diff-schema.md`](docs/render-diff-schema.md) — the JSON contract the agent consumes
 - [`docs/adding-a-ci-provider.md`](docs/adding-a-ci-provider.md)
+- [`docs/rendered-manifests.md`](docs/rendered-manifests.md) — the rendered-manifests pattern, and why ArgoCD's source hydrator cannot gate a merge

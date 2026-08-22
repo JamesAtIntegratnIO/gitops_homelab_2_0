@@ -7,6 +7,12 @@ All notable changes to `gitops-gate`. Format follows
 
 ### Added
 
+- **`type: rendered`** — reads manifests already committed to git and diffs
+  them at RESOURCE level: added, removed, changed, and `apiVersion` changed
+  called out separately as the one that blocks. Supports ArgoCD's source
+  hydrator output, Kargo's rendered promotion branches, or any CI job that
+  commits its render. See docs/rendered-manifests.md.
+
 - **Source model.** A repository's manifests are obtained through a list of
   sources -- `manifests`, `helm`, `kustomize`, `argocd-bootstrap` -- which can
   be combined. The previous version understood exactly one topology (an

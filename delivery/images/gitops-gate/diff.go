@@ -33,11 +33,32 @@ type DiffResult struct {
 	Versions []Change `json:"versions"`
 	// Other covers a source moving between chart and path, or a project or
 	// namespace change: not a targeting change, but not routine either.
-	Other    []Change `json:"other"`
-	Warnings []string `json:"warnings,omitempty"`
+	Other []Change `json:"other"`
+
+	// Objects are resource-level differences, present only when the
+	// repository renders manifests into git. This is the evidence a reviewer
+	// -- or a triage agent -- actually needs: a version number says a chart
+	// moved, whereas "removed two containers, added a DaemonSet and four
+	// CRDs" says what will happen.
+	Objects  []ObjectChange `json:"objects,omitempty"`
+	Warnings []string       `json:"warnings,omitempty"`
 }
 
-func (d *DiffResult) Blocking() bool { return len(d.Targeting) > 0 || len(d.Other) > 0 }
+func (d *DiffResult) Blocking() bool {
+	if len(d.Targeting) > 0 || len(d.Other) > 0 {
+		return true
+	}
+	// An API version moving under an existing resource is a migration, and
+	// migrations are the class of change that renders perfectly and breaks at
+	// runtime. Objects appearing or changing are reported but not blocked --
+	// that is what a version bump legitimately does.
+	for _, o := range d.Objects {
+		if o.Kind == "apiVersion" {
+			return true
+		}
+	}
+	return false
+}
 
 func Diff(base, head *Table) *DiffResult {
 	res := &DiffResult{}
@@ -147,6 +168,8 @@ func Diff(base, head *Table) *DiffResult {
 		}
 	}
 
+	res.Objects = diffObjects(base.Objects, head.Objects)
+
 	sortChanges(res.Targeting)
 	sortChanges(res.Introduced)
 	sortChanges(res.Versions)
@@ -200,6 +223,46 @@ func (d *DiffResult) Report(w io.Writer) {
 		}
 		fmt.Fprintln(w)
 	}
+	if len(d.Objects) > 0 {
+		var api, added, removed, changed []ObjectChange
+		for _, o := range d.Objects {
+			switch o.Kind {
+			case "apiVersion":
+				api = append(api, o)
+			case "added":
+				added = append(added, o)
+			case "removed":
+				removed = append(removed, o)
+			default:
+				changed = append(changed, o)
+			}
+		}
+		fmt.Fprintf(w, "### Resources\n\n")
+		if len(api) > 0 {
+			fmt.Fprintf(w, "**API version changed** — this is a migration, not a bump.\n\n")
+			for _, o := range api {
+				fmt.Fprintf(w, "- `%s`: `%s` → `%s`\n", o.Object, o.From, o.To)
+			}
+			fmt.Fprintln(w)
+		}
+		for _, g := range []struct {
+			label string
+			items []ObjectChange
+		}{{"Added", added}, {"Removed", removed}, {"Changed", changed}} {
+			if len(g.items) == 0 {
+				continue
+			}
+			fmt.Fprintf(w, "**%s (%d)**\n\n", g.label, len(g.items))
+			for i, o := range g.items {
+				if i == 12 {
+					fmt.Fprintf(w, "- …and %d more\n", len(g.items)-12)
+					break
+				}
+				fmt.Fprintf(w, "- `%s`\n", o.Object)
+			}
+			fmt.Fprintln(w)
+		}
+	}
 	if len(d.Versions) > 0 {
 		fmt.Fprintf(w, "### Versions\n\n| Application | Cluster | From | To |\n|---|---|---|---|\n")
 		for _, c := range d.Versions {
@@ -207,7 +270,8 @@ func (d *DiffResult) Report(w io.Writer) {
 		}
 		fmt.Fprintln(w)
 	}
-	if len(d.Targeting) == 0 && len(d.Other) == 0 && len(d.Versions) == 0 && len(d.Introduced) == 0 {
+	if len(d.Targeting) == 0 && len(d.Other) == 0 && len(d.Versions) == 0 &&
+		len(d.Introduced) == 0 && len(d.Objects) == 0 {
 		fmt.Fprintf(w, "No change to what gets deployed.\n\n")
 	}
 	if len(d.Warnings) > 0 {

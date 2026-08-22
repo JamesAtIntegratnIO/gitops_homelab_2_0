@@ -21,6 +21,9 @@ type docs struct {
 	objects []map[string]any
 	// scope is the source's Scope, carried so expansion can honour it.
 	scope string
+	// rendered marks a batch as already-deployed objects rather than
+	// Applications to expand.
+	rendered bool
 	// bootstrapRow is the app-of-apps Application itself, when this batch came
 	// from one.
 	bootstrapRow *Row
@@ -35,6 +38,13 @@ type docs struct {
 // than a mode switch.
 func collect(repoRoot string, cfg *Config, inv *Inventory, s Source) ([]docs, error) {
 	switch s.Type {
+	case SourceRendered:
+		objs, err := readGlobs(repoRoot, s.Paths)
+		if err != nil {
+			return nil, fmt.Errorf("source %q: %w", s.Name, err)
+		}
+		return []docs{{source: s.Name, objects: objs, rendered: true}}, nil
+
 	case SourceManifests:
 		objs, err := readGlobs(repoRoot, s.Paths)
 		if err != nil {

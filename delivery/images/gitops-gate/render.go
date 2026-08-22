@@ -86,6 +86,18 @@ func Render(repoRoot string, cfg *Config, inv *Inventory) (*Table, error) {
 					table.Warnings = append(table.Warnings, warns...)
 					table.Rows = append(table.Rows, rows...)
 
+				default:
+					// Anything that is not an Application or ApplicationSet
+					// is a resource the cluster will end up with. Recording
+					// these is what makes an object-level diff possible.
+					cluster := ""
+					if d.cluster != nil {
+						cluster = d.cluster.Name
+					}
+					if o, ok := objectFrom(d.source, cluster, obj); ok {
+						table.Objects = append(table.Objects, o)
+					}
+
 				case "Application":
 					// A plain Application needs no expansion: it targets one
 					// destination and is already the thing ArgoCD will create.
