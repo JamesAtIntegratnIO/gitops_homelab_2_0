@@ -94,7 +94,7 @@ func Render(repoRoot string, cfg *Config, inv *Inventory) (*Table, error) {
 					if d.cluster != nil {
 						cluster = d.cluster.Name
 					}
-					if o, ok := objectFrom(d.source, cluster, obj); ok {
+					if o, ok := objectFrom(d.source, cluster, "", obj); ok {
 						table.Objects = append(table.Objects, o)
 					}
 

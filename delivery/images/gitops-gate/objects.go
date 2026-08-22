@@ -48,9 +48,36 @@ func (o Object) Describe() string {
 	return base
 }
 
+// isTestHook reports whether an object is a Helm test hook.
+//
+// Test hooks are never applied by a sync -- they run on `helm test` and
+// nothing else -- so reporting them as deployed resources is wrong on its own.
+// They are also the one place charts routinely generate a random name, so
+// every render produces a different one and the diff shows the same three
+// pods added and removed on every single bump. Other hooks (pre-install,
+// post-upgrade) ARE applied, and are deliberately still reported.
+func isTestHook(meta map[string]any) bool {
+	ann, _ := meta["annotations"].(map[string]any)
+	h, _ := ann["helm.sh/hook"].(string)
+	for _, part := range strings.Split(h, ",") {
+		switch strings.TrimSpace(part) {
+		case "test", "test-success", "test-failure":
+			return true
+		}
+	}
+	return false
+}
+
 // objectFrom builds an Object, returning false for anything that is not a
-// Kubernetes resource.
-func objectFrom(source, cluster string, obj map[string]any) (Object, bool) {
+// Kubernetes resource or is not something a sync would apply.
+//
+// defaultNS is the Application's destination namespace. A namespaced resource
+// whose manifest omits `metadata.namespace` lands there when ArgoCD applies
+// it, so that is its real identity -- and whether a chart stamps the field at
+// all varies BETWEEN VERSIONS OF THE SAME CHART. podinfo 6.7.0 omits it and
+// 6.14.1 sets it, which made every object in the chart read as one removal
+// plus one addition rather than a change.
+func objectFrom(source, cluster, defaultNS string, obj map[string]any) (Object, bool) {
 	kind, _ := obj["kind"].(string)
 	apiVersion, _ := obj["apiVersion"].(string)
 	if kind == "" || apiVersion == "" {
@@ -61,7 +88,13 @@ func objectFrom(source, cluster string, obj map[string]any) (Object, bool) {
 	if name == "" {
 		return Object{}, false
 	}
+	if isTestHook(meta) {
+		return Object{}, false
+	}
 	ns, _ := meta["namespace"].(string)
+	if ns == "" {
+		ns = defaultNS
+	}
 
 	raw, err := yaml.Marshal(normalise(obj))
 	if err != nil {

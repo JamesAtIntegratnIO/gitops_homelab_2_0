@@ -85,7 +85,7 @@ func TestObjectFromRejectsNonResources(t *testing.T) {
 		"no apiVersion": {"kind": "ConfigMap", "metadata": map[string]any{"name": "x"}},
 		"no name":       {"kind": "ConfigMap", "apiVersion": "v1"},
 	} {
-		if _, ok := objectFrom("s", "", in); ok {
+		if _, ok := objectFrom("s", "", "", in); ok {
 			t.Errorf("%s: must be rejected", name)
 		}
 	}
@@ -159,5 +159,73 @@ spec: {revisionHistoryLimit: 10}
 	}
 	if kinds["DaemonSet/frr-k8s in metallb-system"] != "added" {
 		t.Errorf("want frr-k8s added, got %v", kinds)
+	}
+}
+
+// Whether a chart stamps metadata.namespace varies between versions of the
+// SAME chart -- podinfo omits it at 6.7.0 and sets it at 6.14.1. Keying on the
+// raw value made every object in the chart read as one removal plus one
+// addition, which buried the actual change under a full-set churn.
+func TestNamespaceDefaultsToTheApplicationDestination(t *testing.T) {
+	without := map[string]any{
+		"apiVersion": "apps/v1", "kind": "Deployment",
+		"metadata": map[string]any{"name": "podinfo"},
+	}
+	with := map[string]any{
+		"apiVersion": "apps/v1", "kind": "Deployment",
+		"metadata": map[string]any{"name": "podinfo", "namespace": "podinfo-tenant"},
+	}
+
+	a, ok := objectFrom("app", "local", "podinfo-tenant", without)
+	if !ok {
+		t.Fatal("object was rejected")
+	}
+	b, ok := objectFrom("app", "local", "podinfo-tenant", with)
+	if !ok {
+		t.Fatal("object was rejected")
+	}
+	if a.ID() != b.ID() {
+		t.Fatalf("same resource got two identities:\n  %s\n  %s", a.ID(), b.ID())
+	}
+}
+
+// A destination-less render must not invent one, or committed manifests for a
+// cluster-scoped resource would acquire a namespace they do not have.
+func TestNamespaceIsNotInventedWithoutADestination(t *testing.T) {
+	o, ok := objectFrom("app", "local", "", map[string]any{
+		"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRole",
+		"metadata": map[string]any{"name": "reader"},
+	})
+	if !ok {
+		t.Fatal("object was rejected")
+	}
+	if o.Namespace != "" {
+		t.Fatalf("namespace = %q, want empty", o.Namespace)
+	}
+}
+
+// Helm test hooks are never applied by a sync, and charts routinely give them
+// a random name -- so they appeared as the same three pods added AND removed
+// on every render. Other hooks are applied and must still be reported.
+func TestHelmTestHooksAreExcludedButOtherHooksAreNot(t *testing.T) {
+	hooked := func(v string) map[string]any {
+		return map[string]any{
+			"apiVersion": "v1", "kind": "Pod",
+			"metadata": map[string]any{
+				"name":        "podinfo-grpc-test-lxlnc",
+				"annotations": map[string]any{"helm.sh/hook": v},
+			},
+		}
+	}
+	for _, v := range []string{"test", "test-success", "test-failure",
+		"test-success,hook-succeeded"} {
+		if _, ok := objectFrom("app", "local", "ns", hooked(v)); ok {
+			t.Errorf("helm.sh/hook %q was reported as a deployed resource", v)
+		}
+	}
+	for _, v := range []string{"pre-install", "post-upgrade"} {
+		if _, ok := objectFrom("app", "local", "ns", hooked(v)); !ok {
+			t.Errorf("helm.sh/hook %q was dropped; it IS applied by a sync", v)
+		}
 	}
 }
