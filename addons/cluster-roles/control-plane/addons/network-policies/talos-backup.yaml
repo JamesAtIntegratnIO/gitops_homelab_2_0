@@ -2,7 +2,7 @@
 #
 # The namespace gets its default-deny from the Kyverno generate policy like
 # any other. The only thing the snapshot pod talks to is the Talos apid on
-# its own node (port 50000, node IPs 10.0.4.101-103). It needs neither DNS
+# its own node (port 50000). It needs neither DNS
 # (the node IP comes from status.hostIP) nor the Kubernetes API, and the NFS
 # volume is mounted by the kubelet outside the pod's network namespace.
 #
@@ -17,21 +17,27 @@ metadata:
   labels:
     app.kubernetes.io/part-of: platform
 ---
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
+# A CiliumNetworkPolicy rather than an ipBlock: Cilium classifies node IPs as
+# the `host` / `remote-node` entities and does not match CIDR rules against
+# them (policy-cidr-match-mode is unset), so a NetworkPolicy allowing
+# 10.0.4.0/24:50000 let nothing through -- the first manual run timed out
+# dialling its own node. Same pattern nfs-provisioner.yaml uses for the
+# apiserver. `host` covers the node the pod is on, `remote-node` the others,
+# in case the scheduler and status.hostIP ever disagree mid-reschedule.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
 metadata:
   name: allow-talos-api
   namespace: talos-backup
 spec:
-  podSelector:
+  endpointSelector:
     matchLabels:
       app.kubernetes.io/name: talos-etcd-snapshot
-  policyTypes:
-    - Egress
   egress:
-    - to:
-        - ipBlock:
-            cidr: 10.0.4.0/24
-      ports:
-        - protocol: TCP
-          port: 50000
+    - toEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "50000"
+              protocol: TCP
