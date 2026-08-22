@@ -42,13 +42,19 @@ snapshots cover.
 | CronJob | Namespace | Schedule (UTC) | Takes | Writes to | Status |
 |---|---|---|---|---|---|
 | `vcluster-media-etcd-snapshot` | `vcluster-media` | 03:45 daily | `etcdctl snapshot save` against `vcluster-media-etcd:2379` | `10.0.0.12:/mnt/user/kube_storage/backups/vcluster-media-etcd/` | **live** (addon `platform-backups`)[^backups-addon] |
-| `talos-etcd-snapshot` | `talos-backup` | 03:15 daily | `talosctl etcd snapshot` on the pod's own node | `…/backups/the-cluster-etcd/` | **enabled 2026-08-22** (addon `platform-backups-talos`)[^talos-addon] — first nightly not yet observed |
+| `talos-etcd-snapshot` | `talos-backup` | 03:15 daily | `talosctl etcd snapshot` on the pod's own node | `…/backups/the-cluster-etcd/` | **enabled 2026-08-22** (addon `platform-backups-talos`)[^talos-addon] — **verified 2026-08-22T03:38Z**: 192 MB, hash-checked by Talos, 8,358 keys |
 
 **First run verified 2026-08-22T01:34Z** (manual Job from the CronJob, right
 after #68 merged): 33 MB snapshot fetched in 0.8 s, written as
 `vcluster-media-etcd-2026-08-22T0134Z.db`, owned by uid 99 — the export
 root-squashes, which the Job tolerates because it only ever writes into its
 own directory.
+
+The host job needed one fix after it went live: its egress rule was a
+NetworkPolicy `ipBlock` for the node subnet, which Cilium never matches
+against node IPs (`host`/`remote-node` entities, `policy-cidr-match-mode`
+unset). It is a `CiliumNetworkPolicy` with `toEntities` now. Worth
+remembering for anything else that has to talk to a node.
 
 Both keep **14 days** of nightlies and prune older files in the same run.
 Both mount the NFS export directly (an inline `nfs:` volume, not a PVC) so the
