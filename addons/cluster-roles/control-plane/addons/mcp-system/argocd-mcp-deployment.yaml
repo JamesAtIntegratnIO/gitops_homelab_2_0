@@ -31,7 +31,20 @@ spec:
       containers:
         - name: argocd-mcp
           image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.9.0@sha256:dffc6c719d8635be2d5f2c8ad1c0178540325da4b40da0b373307e12b4c48f86
-          # CMD in Dockerfile is ["node", "dist/index.js", "http"] — no override needed
+          # ENTRYPOINT is ["node", "dist/index.js"] and CMD is ["http"]; `args`
+          # replaces CMD only, so "http" has to be repeated here.
+          #
+          # v0.9.0 made the http/sse listener bind 127.0.0.1 instead of every
+          # interface, and made widening that bind refuse to start unless either
+          # MCP_AUTH_TOKEN is set or --allow-unauthenticated is passed. Left
+          # alone, the pod would come up healthy -- the probes are tcpSocket on
+          # localhost, which still answers -- while the Service behind it served
+          # nothing. Reachability here is a network-policy question, not a bearer
+          # token one: mcp-system carries a default-deny and only the routes in
+          # network-policies/mcp-system.yaml can reach this port.
+          args:
+            - "http"
+            - "--allow-unauthenticated"
           ports:
             - name: http
               containerPort: 3000
@@ -47,6 +60,9 @@ spec:
                   optional: true
             - name: MCP_READ_ONLY
               value: "true"
+            # See the args comment: v0.9.0 defaults to loopback.
+            - name: MCP_BIND_ADDRESS
+              value: "0.0.0.0"
             # ArgoCD uses self-signed certs internally
             - name: NODE_TLS_REJECT_UNAUTHORIZED
               value: "0"
