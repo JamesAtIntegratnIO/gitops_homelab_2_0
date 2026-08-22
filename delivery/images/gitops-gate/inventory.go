@@ -13,8 +13,12 @@ import (
 // templates can actually see: the name and server, plus labels and
 // annotations. Selectors match on labels; templates read both.
 type Cluster struct {
-	Name        string            `json:"name"`
-	Server      string            `json:"server"`
+	Name   string `json:"name"`
+	Server string `json:"server"`
+	// ArgoCD names the instance this cluster is registered with, for fleets
+	// running more than one -- per region, per tenant, per business unit.
+	// Empty means "the only one", which is the common case.
+	ArgoCD      string            `json:"argocd,omitempty"`
 	Labels      map[string]string `json:"labels"`
 	Annotations map[string]string `json:"annotations"`
 }

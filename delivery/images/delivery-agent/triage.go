@@ -51,6 +51,12 @@ type Triage struct {
 	CloneRoot string
 	RepoURL   string
 	Log       func(string, ...any)
+
+	// Checkout produces a working copy of the pull request's branch and a
+	// function that discards it. Defaults to a shallow clone; tests substitute
+	// it so the whole workflow can run against a directory on disk, with no
+	// remote to clone from.
+	Checkout func(ctx context.Context, pr *gitprovider.PullRequest) (string, func(), error)
 }
 
 const (
@@ -104,7 +110,11 @@ func (t *Triage) Run(ctx context.Context, p Promotion) error {
 		return err
 	}
 
-	root, cleanup, err := t.checkout(ctx, pr)
+	checkout := t.Checkout
+	if checkout == nil {
+		checkout = t.clone
+	}
+	root, cleanup, err := checkout(ctx, pr)
 	if err != nil {
 		return fmt.Errorf("checking out %s: %w", pr.Branch, err)
 	}
@@ -146,11 +156,11 @@ func (t *Triage) Run(ctx context.Context, p Promotion) error {
 	// The rule that turns miscalibration into a safe outcome: a mechanical
 	// verdict whose edits were all refused is an escalation, not a success.
 	if len(res.Applied) == 0 {
-		reason := "The proposed fix was rejected before anything was written."
-		if len(res.Rejected) > 0 {
-			reason += " " + res.Rejected[0].Reason + "."
-		}
-		return t.escalate(ctx, pr, reason, verdict)
+		// Every refusal is reported, not just the first. A reader told only
+		// about one of three rejected edits would reasonably conclude the
+		// other two were fine.
+		return t.escalateWith(ctx, pr,
+			"The proposed fix was rejected before anything was written.", verdict, res)
 	}
 
 	msg := fmt.Sprintf("fix(%s): %s\n\nProposed by %s, applied by delivery-agent.\n",
@@ -168,9 +178,15 @@ func (t *Triage) Run(ctx context.Context, p Promotion) error {
 }
 
 func (t *Triage) escalate(ctx context.Context, pr *gitprovider.PullRequest, reason string, v *llm.Verdict) error {
+	return t.escalateWith(ctx, pr, reason, v, nil)
+}
+
+// escalateWith is escalate plus the applier's result, so a comment can list
+// every refused edit rather than summarising one of them.
+func (t *Triage) escalateWith(ctx context.Context, pr *gitprovider.PullRequest, reason string, v *llm.Verdict, res *edits.Result) error {
 	body := "### Needs a human\n\n" + reason + "\n"
 	if v != nil {
-		body = t.render(v, nil, "**Needs a human.** "+reason)
+		body = t.render(v, res, "**Needs a human.** "+reason)
 	}
 	if err := t.Git.Comment(ctx, pr.Number, body); err != nil {
 		return err
@@ -238,7 +254,7 @@ func (t *Triage) gateReport(ctx context.Context, pr *gitprovider.PullRequest) (s
 
 const gateReportMarker = "<!-- gitops-gate -->"
 
-func (t *Triage) checkout(ctx context.Context, pr *gitprovider.PullRequest) (string, func(), error) {
+func (t *Triage) clone(ctx context.Context, pr *gitprovider.PullRequest) (string, func(), error) {
 	root, err := os.MkdirTemp(t.CloneRoot, "pr")
 	if err != nil {
 		return "", func() {}, err

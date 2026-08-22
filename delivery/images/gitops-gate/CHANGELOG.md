@@ -7,6 +7,26 @@ All notable changes to `gitops-gate`. Format follows
 
 ### Added
 
+- **Source model.** A repository's manifests are obtained through a list of
+  sources -- `manifests`, `helm`, `kustomize`, `argocd-bootstrap` -- which can
+  be combined. The previous version understood exactly one topology (an
+  app-of-apps ApplicationSet rendering a chart) and was silently blind to every
+  other, including committed ApplicationSets and plain Applications, which are
+  the most common ArgoCD layouts there are.
+- `argocd-bootstrap` resolves its source path the way ArgoCD does: a directory
+  with `Chart.yaml` is a chart, anything else is read recursively as manifests.
+  The canonical gitops-bridge bootstrap is the second kind.
+- Both the singular `source:` and multi-source `sources:` Application template
+  forms are read. gitops-bridge uses the singular.
+- Plain `Application` manifests are read, with `destination.server` resolved
+  against the inventory so they key the same way generated ones do.
+- Concurrent rendering, and `argocd:` on sources and clusters for fleets
+  running more than one ArgoCD.
+- `scope: cluster | fleet` for per-cluster renders, because whether an
+  ApplicationSet expands fleet-wide depends on hub-and-spoke versus
+  per-cluster ArgoCD, and guessing is silent.
+- Topology fixtures covering each shape, plus a 50-cluster fleet.
+
 - `render` — expands both levels of the ApplicationSet hierarchy into the flat
   set of Applications a cluster would end up with, including the bootstrap
   Applications themselves.

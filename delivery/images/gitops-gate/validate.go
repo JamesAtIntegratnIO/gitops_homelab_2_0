@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
+
+	"sigs.k8s.io/yaml"
 )
 
 // cmdValidate schema-validates every rendered manifest with kubeconform.
@@ -125,37 +126,30 @@ func runKubeconform(cfg *Config, doc []byte) ([]kubeconformResult, error) {
 	return bad, nil
 }
 
-// renderStreams re-runs the bootstrap renders and returns the raw manifest
-// stream for each, keyed by a human-readable name.
+// renderStreams re-collects every source and returns the raw manifests for
+// each, keyed by a human-readable name.
 func renderStreams(root string, cfg *Config, inv *Inventory) (map[string][]byte, error) {
 	out := map[string][]byte{}
-	for _, b := range cfg.Bootstraps {
-		raw, err := os.ReadFile(filepath.Join(root, b.Path))
+	for _, src := range cfg.Sources {
+		batch, err := collect(root, cfg, inv, src)
 		if err != nil {
 			return nil, err
 		}
-		bs, err := unmarshalMap(raw)
-		if err != nil {
-			return nil, err
-		}
-		gens, err := generatorsOf(bs)
-		if err != nil {
-			return nil, err
-		}
-		params, _, err := expandGenerators(gens, inv)
-		if err != nil {
-			return nil, err
-		}
-		for _, p := range params {
-			chartPath, valueFiles, err := bootstrapSource(bs, p, cfg)
-			if err != nil {
-				return nil, err
+		for _, d := range batch {
+			key := d.source
+			if d.cluster != nil {
+				key = fmt.Sprintf("%s on %s", d.source, d.cluster.Name)
 			}
-			stream, err := helmTemplateRaw(root, chartPath, valueFiles)
-			if err != nil {
-				return nil, err
+			var buf bytes.Buffer
+			for _, obj := range d.objects {
+				raw, err := yaml.Marshal(obj)
+				if err != nil {
+					return nil, err
+				}
+				buf.WriteString("---\n")
+				buf.Write(raw)
 			}
-			out[fmt.Sprintf("%s on %s", b.Name, p.Cluster.Name)] = stream
+			out[key] = buf.Bytes()
 		}
 	}
 	return out, nil
