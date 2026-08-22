@@ -2,11 +2,10 @@
 # delivery/images/delivery-agent/docs/ for the safety model and the prompt
 # contract the eval numbers come from.
 #
-# SHIPS DISABLED. Two things have to be true before flipping `enabled: true`
-# in addons.yaml:
-#   1. the model endpoint below is actually serving, and
-#   2. LM Studio has "Serve on Local Network" on -- it binds 127.0.0.1 by
-#      default, which the cluster cannot reach.
+# ENABLED. Both preconditions hold: the model endpoint below is serving, and
+# LM Studio has "Serve on Local Network" on -- it binds 127.0.0.1 by default,
+# which the cluster cannot reach. If triage starts timing out, check those two
+# first; a sleeping workstation looks exactly like a wedged model.
 
 image:
   repository: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/delivery-agent
@@ -32,9 +31,9 @@ llm:
   # Generous: a local model reasoning over a 15k-token chart diff takes
   # minutes, and nothing is waiting on it.
   timeout: 10m
-  # Omit existingSecret entirely for an unauthenticated local endpoint. Set it
-  # to delivery-agent-llm once the endpoint requires a key.
-  existingSecret: ""
+  # The endpoint requires a key. Renders LLM_API_KEY from the ExternalSecret
+  # beside this file; the client sends it as a bearer token.
+  existingSecret: delivery-agent-llm
 
 gate:
   checkName: addons-gate
