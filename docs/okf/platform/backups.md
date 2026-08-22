@@ -3,7 +3,7 @@ type: Platform Design
 title: Backups — the recovery layer
 description: Nightly etcd snapshots of the-cluster and vcluster-media onto the Unraid share, what they do and do not cover, how they are watched, and how to restore from them.
 tags: [backup, recovery, etcd, disaster-recovery, resilience]
-status: draft
+status: stable
 generated: { by: claude-code/claude-fable-5, at: 2026-08-21T21:30:00Z }
 stale_after: 2027-02-21
 sources:
@@ -44,6 +44,12 @@ snapshots cover.
 | `vcluster-media-etcd-snapshot` | `vcluster-media` | 03:45 daily | `etcdctl snapshot save` against `vcluster-media-etcd:2379` | `10.0.0.12:/mnt/user/kube_storage/backups/vcluster-media-etcd/` | **live** (addon `platform-backups`)[^backups-addon] |
 | `talos-etcd-snapshot` | `talos-backup` | 03:15 daily | `talosctl etcd snapshot` on the pod's own node | `…/backups/the-cluster-etcd/` | **disabled** — needs the Talos patch (addon `platform-backups-talos`)[^talos-addon] |
 
+**First run verified 2026-08-22T01:34Z** (manual Job from the CronJob, right
+after #68 merged): 33 MB snapshot fetched in 0.8 s, written as
+`vcluster-media-etcd-2026-08-22T0134Z.db`, owned by uid 99 — the export
+root-squashes, which the Job tolerates because it only ever writes into its
+own directory.
+
 Both keep **14 days** of nightlies and prune older files in the same run.
 Both mount the NFS export directly (an inline `nfs:` volume, not a PVC) so the
 target path is fixed and no object in etcd is needed to reach it — the backup
@@ -62,9 +68,12 @@ its own health check it trusts this.
 ## Host etcd: the one gate
 
 `talosctl etcd snapshot` from inside a pod needs
-`machine.features.kubernetesTalosAPIAccess`, which is
-[`all.yaml`](../../../matchbox/talos-machineconfigs/all.yaml) — committed, not
-applied, because it needs `talosctl` on a workstation with a talosconfig. Until
+`machine.features.kubernetesTalosAPIAccess`. The gen-time fragment is
+[`all.yaml`](../../../matchbox/talos-machineconfigs/all.yaml), but on a running
+node it must be applied as a JSON patch of just that key — the fragment itself
+duplicates list items under `patch mc` (see the runbook). A talosconfig now
+exists on James's Mac; the apply is a human step because the agent permission
+layer blocks live machine-config writes. Until
 it is applied the `talos.dev/v1alpha1 ServiceAccount` kind does not exist, so
 the addon ships `enabled: false`; an Application that cannot create one of its
 resources never reaches Synced. After the patch:

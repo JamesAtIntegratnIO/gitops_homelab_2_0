@@ -55,13 +55,15 @@ defragmentation, so every backend commit is still working through a file five
 times larger than its contents. This is the cheap part of the etcd problem:
 
 ```bash
-talosctl -n 10.0.4.103 etcd defrag   # one member at a time, least-loaded first
-talosctl -n 10.0.4.102 etcd defrag
+talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status   # find the leader
+talosctl -n 10.0.4.102 etcd defrag                          # non-leaders first
 talosctl -n 10.0.4.101 etcd defrag
+talosctl -n 10.0.4.103 etcd defrag                          # the leader on 2026-08-22
 ```
 
 Defrag blocks that member for the duration (seconds at this size); do the
-leader last. It needs `talosctl`, like everything else on the node layer.
+leader last. `talosctl etcd status` on 2026-08-22: 584 / 628 / 635 MB on
+disk, 110 MB in use on every member. It needs `talosctl`, like everything else on the node layer.
 
 ## A status write loop was making it worse
 
@@ -299,11 +301,23 @@ needs `talosctl get resolvers` — but the nodes set no
 `machine.network.nameservers` anywhere in `matchbox/talos-machineconfigs/`, so it
 is whatever DHCP hands out, and the default gateway on `eno1` is `10.0.0.1`.
 
-A second independent resolver is therefore queued as
-[`dns.yaml`](../../../matchbox/talos-machineconfigs/dns.yaml), unapplied — it
-needs `talosctl`, and it carries two pre-checks, because the field *replaces* the
-DHCP list and Talos distributes queries across upstreams rather than treating
-later ones as failover-only.
+A second independent resolver was therefore queued as
+[`dns.yaml`](../../../matchbox/talos-machineconfigs/dns.yaml), with two
+pre-checks, because the field *replaces* the DHCP list and Talos distributes
+queries across upstreams rather than treating later ones as failover-only.
+
+**Correction 2026-08-22, with a talosconfig in hand — `dns.yaml` is
+withdrawn.** `talosctl get resolvers` shows every node already resolving
+through `["1.1.1.1","8.8.8.8"]`, both reported healthy by `get dnsupstreams`;
+the router at `10.0.0.1` is not in the path at all. Worse, it is a dnsmasq
+with a split-horizon zone (`media.integratn.tech` → `10.0.4.200`), so adding it
+would have made the cluster's own hostnames flip between LAN and public
+answers. The single upstream CoreDNS sees is the Talos host-DNS *proxy*
+(`hostDNS.forwardKubeDNSToHost: true`), which multiplexes onto those two
+resolvers — a stall there is the proxy stalling, not a router. The candidate
+fix is `forwardKubeDNSToHost: false`, which makes CoreDNS forward to the
+upstreams directly with its own per-upstream health checks; untested, and its
+own task.
 
 Owning CoreDNS outright (`cluster.coreDNS.disabled: true` plus a CoreDNS addon)
 would additionally allow re-enabling `cluster.local` caching and raising the CPU
