@@ -219,6 +219,14 @@ matched line in place and parses only the first YAML document:
   update; put it on the line above;
 - the `repoURL` is written verbatim for `image`/`image-tag` formats, so use
   the string the file already uses (`redis`, `metio/…`, `docker.io/…`);
+- **a `-suffix` in a tag is a semver PRERELEASE.** `3.6.8-0` (etcd) and
+  `7.4.11-alpine` (redis) both parse as prereleases, and a plain range
+  constraint excludes prereleases by rule. Pair such tags either with no
+  constraint at all, or with bounds that carry their own prerelease —
+  `>=3.6.0-0 <3.7.0-0`. Getting this wrong matches *nothing*: the Warehouse
+  sits at `NoImageReferencesDiscovered` with zero Freight and reports no error,
+  which is how `vcluster-etcd-snapshot-client` stayed dead from the day it was
+  written. `hctl kargo warehouses --problems` is what surfaces it;
 - write `interval` in Go's canonical form (`12h0m0s`, not `12h`) — Kargo's
   webhook stores it normalised and ArgoCD would otherwise see permanent
   drift and keep re-syncing;

@@ -207,7 +207,13 @@ projects:
         # the constraint together with that tag.
         image:
           repoURL: registry.k8s.io/etcd
-          constraint: ">=3.6.0 <3.7.0"
+          # The `-0` bounds are load-bearing. Every etcd tag carries a `-N`
+          # build suffix, which semver reads as a PRERELEASE, and a plain range
+          # like `>=3.6.0 <3.7.0` excludes prereleases by rule -- so it matched
+          # nothing at all and the Warehouse sat at NoImageReferencesDiscovered
+          # with zero Freight, silently, from the day it was written. A bound
+          # carrying its own prerelease (`-0`) admits them.
+          constraint: ">=3.6.0-0 <3.7.0-0"
           allowTags: ['^\d+\.\d+\.\d+-\d+$']
         verify:
           apps:
@@ -220,6 +226,10 @@ projects:
         scope: authentik
         image:
           repoURL: redis
+          # `-alpine` is also a semver prerelease. This works only because
+          # there is no constraint; adding one would have to carry a
+          # prerelease bound (see vcluster-etcd-snapshot-client) or it would
+          # silently match nothing.
           allowTags: ['^7\.\d+\.\d+-alpine$']
         verify:
           apps:
