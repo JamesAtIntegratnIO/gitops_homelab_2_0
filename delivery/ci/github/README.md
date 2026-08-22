@@ -4,9 +4,19 @@ Reference implementation. This is the adapter that is actually exercised.
 
 ## Wiring
 
-The workflow runs on `pull_request` for paths that affect what gets deployed,
-and exposes a single aggregate job — that is the name to put in branch
-protection.
+[`validate-addons.yaml`](validate-addons.yaml) is a copy-and-adjust template:
+change the `paths:` filter to match where your addon values live, pin
+`GATE_IMAGE` to a digest, and drop it in `.github/workflows/`.
+
+It runs on `pull_request` and exposes a single aggregate job, `addons-gate` —
+that is the name to put in branch protection.
+
+Two details in it are not obvious and are load-bearing:
+
+- `fetch-depth: 0`, because the gate renders the merge base as well as the head.
+- The gate config is taken from the **head** at both revisions. It describes how
+  to render, not what to render, and the base commit may predate it — which is
+  exactly the case on the pull request that introduces the gate.
 
 ## Branch protection with one committer
 

@@ -1,0 +1,29 @@
+# How gitops-gate renders this repository.
+#
+# The gate binary knows nothing about any particular repo layout -- this file
+# is the whole of that knowledge. See delivery/images/gitops-gate/README.md.
+
+clusters: .gitops-gate/clusters.yaml
+
+# The `ref:` name the bootstraps use for the values source, so `$values/...`
+# in a valueFiles entry maps back to a path in this repo.
+valuesRef: values
+
+bootstraps:
+  - name: control-plane
+    path: terraform/cluster/bootstrap/addons-control-plane.yaml
+  - name: vcluster
+    path: terraform/cluster/bootstrap/addons-vcluster.yaml
+
+clustersExport:
+  # Churns on every reconcile without changing what any selector or template
+  # sees; leaving it in would make `clusters export -check` fail constantly.
+  ignoreKeys:
+    - platform.integratn.tech/reconcile-at
+
+validate:
+  enabled: true
+  ignoreMissingSchemas: true
+  schemaLocations:
+    - default
+    - 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
