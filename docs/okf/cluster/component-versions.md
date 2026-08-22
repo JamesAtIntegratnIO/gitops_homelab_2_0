@@ -4,7 +4,7 @@ title: Component versions (live snapshot)
 description: Running image versions for every platform component as observed 2026-08-22 after Kargo's day-one bumps, with chart pins where they differ.
 tags: [versions, inventory, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-22T13:40:53Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-22T14:02:54Z }
 stale_after: 2026-09-22
 sources:
   - id: live-images
