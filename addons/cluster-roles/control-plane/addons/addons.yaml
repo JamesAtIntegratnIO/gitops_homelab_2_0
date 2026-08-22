@@ -386,7 +386,19 @@ authentik:
   chartName: authentik
   project: platform-services
   chartRepository: https://charts.goauthentik.io
-  defaultVersion: 2026.8.0
+  # Reverted from 2026.8.0 on 2026-08-22. authentik refuses to migrate across
+  # major.minor releases in one hop -- `ensure_allowed_version()` runs before
+  # `run_migrations()` and raises "Major version skips are not allowed", so the
+  # 2026.8.0 pods took the database lock, refused, released it and crashlooped
+  # while the 2025.12.4 pods kept serving. Nothing migrated; SSO never went down.
+  #
+  # The supported path is one major.minor at a time, latest patch of each:
+  #   2025.12.4 -> 2026.2.3 -> 2026.5.6 -> 2026.8.0
+  # Each hop runs one-way database migrations, so take them deliberately and
+  # back the authentik database up first -- not as an unattended Kargo merge.
+  # The Kargo target is constrained to <2026.3.0 so it proposes 2026.2.3 next;
+  # widen it a step at a time as each hop lands.
+  defaultVersion: 2025.12.4
   selector:
     matchExpressions:
       - key: cluster_role
