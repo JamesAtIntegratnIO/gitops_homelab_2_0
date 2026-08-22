@@ -28,29 +28,6 @@ argocd-vcluster:
   valuesObject:
     global:
       domain: '{{ printf "argocd.%s.%s" .metadata.labels.cluster_name (index .metadata.annotations "platform.integratn.tech/base-domain") }}'
-    # The production layer turns autoscaling on for the server and repo-server,
-    # and this addon reads that layer too (it resolves by chartName: argo-cd),
-    # so the vcluster inherited two HPAs it can never satisfy -- there is no
-    # metrics-server inside vcluster-media, and no `v1beta1.metrics.k8s.io`
-    # APIService at all. Both have reported
-    # `ScalingActive=False: FailedGetResourceMetric` for their entire 171-day
-    # life, pinned at one replica.
-    #
-    # That was invisible until ArgoCD 3.5 (chart 10.4.0), whose HPA health check
-    # grades ScalingActive=False as Degraded -- which is correct, and made the
-    # whole application Degraded with every one of its 71 resources healthy.
-    #
-    # Turned off rather than silenced: a HorizontalPodAutoscaler that cannot
-    # read metrics is not autoscaling. Replica counts are unchanged (both were
-    # already sitting at the chart default of 1). If the tenant ever needs to
-    # scale these, the fix is a metrics-server addon for the vcluster role, and
-    # then this can come back out.
-    server:
-      autoscaling:
-        enabled: false
-    repoServer:
-      autoscaling:
-        enabled: false
     configs:
       params:
         server.insecure: true
