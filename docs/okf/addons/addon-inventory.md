@@ -4,7 +4,7 @@ title: Addon inventory
 description: Every addon defined under addons/ — enabled state, namespace, chart/version, defining layer, and purpose — as of 2026-08-20, plus the kargo/kargo-projects pair added 2026-08-21.
 tags: [addons, inventory]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-21T22:30:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-22T13:51:03Z }
 stale_after: 2026-11-20
 sources:
   - id: env-prod
@@ -59,7 +59,7 @@ kro, kro-resource-groups.[^env-prod]
 | network-policies | default | manifest (22 files) | ~100 NetPols + 26 CNPs + Kyverno policies |
 | authentik | authentik | @ 2026.8.0 (+tc: blueprints, redis, ExternalSecrets, route) | SSO/OIDC |
 | kube-prometheus-stack (+extras) | monitoring | @ 88.5.3 + etcd-cert Job | [Monitoring hub](/platform/observability.md) |
-| loki / promtail | loki / promtail | @ 6.49.0 / 6.9.0 | Logging |
+| loki / promtail | loki / promtail | @ 18.11.0 (grafana-community) / 6.17.1 | Logging |
 | goldilocks | goldilocks | @ 11.0.0 | VPA right-sizing (Auto mode) |
 | trivy-operator / trivy-explorer (+route, dashboard) | trivy-system | @ 0.35.0 / 0.4.6 | Vulnerability scanning |
 | qdrant / open-webui | ai | @ 1.17.0 / 12.5.0 | [AI stack](/platform/ai-stack.md) |

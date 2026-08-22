@@ -32,7 +32,7 @@ sources:
 # Logs
 
 Loki 3.7.6 (`loki` ns; 50Gi NFS; gateway + memcached caches + canary) fed by
-**host-level Promtail 2.7.3** tailing `/var/log/pods` — this covers
+**host-level Promtail 3.5.1** tailing `/var/log/pods` — this covers
 vcluster-synced pods too, since they run on the host nodes. A per-vcluster
 promtail addon exists but is disabled by design. External push endpoint:
 `loki.cluster.integratn.tech`.
@@ -45,6 +45,12 @@ addon and Kargo's `loki` target moved to
 `https://grafana-community.github.io/helm-charts` on 2026-08-22; see
 [known issues](../cluster/known-issues.md) for what the migration changed in the
 values file.
+
+**Grafana is already on the community chart** and needed no change: since
+kube-prometheus-stack 88.5.3 the `grafana` dependency resolves to
+`grafana-community/grafana` 12.11.1, which is why the cluster runs Grafana
+13.2.0 while the deprecated `grafana/grafana` chart tops out at app 12.3.1.
+**Promtail cannot move** — see [known issues](../cluster/known-issues.md).
 
 # Dashboards & rules (live counts, 2026-08-20)
 

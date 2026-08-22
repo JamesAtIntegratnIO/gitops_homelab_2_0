@@ -67,6 +67,47 @@ a plausible trigger for a command connection that never gets set up. A
 comparison of each data plane pod's upstreams against the live EndpointSlices
 would detect the state directly and is the obvious alert to add.
 
+# Promtail is EOL and has nowhere to move (2026-08-22)
+
+Found while checking what else should follow Loki to the community charts.
+Grafana has deprecated almost its entire community chart estate — `grafana`,
+`promtail`, `tempo*`, `loki-*`, `grafana-agent-operator`, `grafana-mcp`,
+`lgtm-distributed`, `fluent-bit` are all `deprecated: true` in
+`grafana.github.io/helm-charts`. Only three of those touch this cluster, and
+each lands differently:
+
+| chart | status here |
+|---|---|
+| `loki` | **moved** to `grafana-community/loki` 18.11.0 |
+| `grafana` | **already community** — no action needed |
+| `promtail` | **stranded** — no fork exists |
+
+**Grafana needed nothing.** kube-prometheus-stack 88.5.3 declares its `grafana`
+dependency against `https://grafana-community.github.io/helm-charts` at 12.11.1,
+so the migration already happened upstream of us. That is why the cluster runs
+Grafana **13.2.0** while the deprecated `grafana/grafana` chart tops out at app
+12.3.1 — nothing in this repo pins the grafana chart directly.
+
+**Promtail is the real exposure.** The community org forked `grafana`, `loki`,
+`tempo`, `tempo-distributed`, `tempo-vulture`, `synthetic-monitoring-agent` and
+`grafana-mcp` — **not** `promtail`, because Promtail the *software* is EOL, not
+just its chart. The last release is chart 6.17.1 / app **3.5.1**, published
+2025-10-31, and the `promtail` addon is already pinned there. So there is no
+version to bump and no repository to switch to: the DaemonSet feeding every log
+line on the platform is frozen and will not receive security fixes.
+
+The successor is **Grafana Alloy**, whose chart is alive and unaffected by any
+of this (`grafana/alloy` 1.11.1 / app v1.18.1, 2026-08-06 — still in
+`grafana.github.io/helm-charts`, not deprecated). Migrating is a real piece of
+work rather than a pin change: Alloy replaces Promtail's YAML `scrape_configs`
+with River/Alloy configuration blocks, and the host DaemonSet is what covers
+vcluster-synced pods (`promtail-vcluster` is disabled by design), so the
+cutover has to keep `/var/log/pods` tailing and the `cluster`/`environment`
+external labels intact or the tenant loses its logs silently.
+
+Kargo's `promtail` target will never propose anything again, which means this
+will not resurface on its own.
+
 # Four Kargo bumps were held, each for a different reason (2026-08-22)
 
 Twelve of Kargo's sixteen day-one PRs merged. These four were open on purpose —
