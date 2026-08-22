@@ -75,14 +75,15 @@ spec:
       ports:
         - protocol: TCP
           port: 9443
-    # Prometheus metrics
+    # Prometheus metrics. MetalLB 0.16 moved the metrics port 7472 -> 9120 on
+    # both the controller and the speaker; scraping breaks silently otherwise.
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
-          port: 7472
+          port: 9120
   egress:
     # Memberlist communication with speakers
     - to:
@@ -117,14 +118,15 @@ spec:
           port: 7946
         - protocol: UDP
           port: 7946
-    # Prometheus metrics
+    # Prometheus metrics. MetalLB 0.16 moved the metrics port 7472 -> 9120 on
+    # both the controller and the speaker; scraping breaks silently otherwise.
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
-          port: 7472
+          port: 9120
   egress:
     # Memberlist inter-speaker communication
     - to:
