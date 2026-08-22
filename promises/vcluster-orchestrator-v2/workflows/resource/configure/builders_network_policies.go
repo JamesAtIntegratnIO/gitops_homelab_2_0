@@ -288,6 +288,34 @@ func buildVClusterExternalPolicy(config *VClusterConfig) u.Resource {
 						{"protocol": "TCP", "port": 443},
 					},
 				},
+				// Host metrics-server, for integrations.metricsServer: the
+				// vCluster apiserver aggregates metrics.k8s.io by proxying to
+				// the host's metrics-server rather than running its own.
+				//
+				// This has to be a namespace+pod selector, not a CIDR: the
+				// Service ClusterIP and the pod IP both sit inside 10.0.0.0/8,
+				// which the external-HTTPS rule below explicitly excepts, and
+				// Cilium DNATs to the pod IP before policy evaluation anyway.
+				// Port is the targetPort (10250), for the same reason.
+				{
+					"to": []map[string]interface{}{
+						{
+							"namespaceSelector": map[string]interface{}{
+								"matchLabels": map[string]string{
+									"kubernetes.io/metadata.name": "kube-system",
+								},
+							},
+							"podSelector": map[string]interface{}{
+								"matchLabels": map[string]string{
+									"app.kubernetes.io/name": "metrics-server",
+								},
+							},
+						},
+					},
+					"ports": []map[string]interface{}{
+						{"protocol": "TCP", "port": 10250},
+					},
+				},
 				// External HTTPS (container registries, APIs)
 				// Also allows DNS (53/UDP+TCP) to public nameservers for
 				// cert-manager DNS-01 challenge propagation checks against

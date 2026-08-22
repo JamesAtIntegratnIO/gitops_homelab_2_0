@@ -299,6 +299,19 @@ spec:
       ports:
         - protocol: TCP
           port: 10250
+    # vcluster tenants aggregating metrics.k8s.io. Each vcluster proxies to this
+    # metrics-server instead of running its own (which could not scrape kubelets
+    # it does not own), so without this the tenant has no pod or node metrics at
+    # all and every HPA inside it sits at ScalingActive=False. The egress half
+    # lives in the vcluster-orchestrator-v2 pipeline
+    # (builders_network_policies.go, allow-vcluster-external) -- both are needed.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              platform.integratn.tech/type: vcluster
+      ports:
+        - protocol: TCP
+          port: 10250
   egress:
     # Kubelet metrics collection (node IPs)
     - to:
