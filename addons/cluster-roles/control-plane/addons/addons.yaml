@@ -812,9 +812,10 @@ argo-rollouts:
 
 # The target list lives in kargo-projects/values.yaml next to this file.
 delivery-agent:
-  # DISABLED until the model endpoint is serving and reachable. See
+  # The model endpoint is serving on the workstation and the credentials are in
+  # 1Password. See
   # addons/cluster-roles/control-plane/addons/delivery-agent/values.yaml.
-  enabled: false
+  enabled: true
   namespace: delivery-agent
   project: platform-services
   defaultVersion: "main"
