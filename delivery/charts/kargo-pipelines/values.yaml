@@ -1,13 +1,13 @@
-# kargo-projects chart defaults.
+# kargo-pipelines defaults.
 #
-# The real target list lives in the addon values file
-# (addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml); this
-# file documents the schema and carries the defaults every target inherits.
+# This file documents the schema and carries the defaults every target
+# inherits. Your own target list goes in your values file.
 #
-# One target == one Warehouse + one Stage in a single Kargo Project. There is
-# no dev -> staging -> prod chain: this is a single-environment homelab, and
-# the Stage's only job is to write the new version into `git.branch` through a
-# pull request. See docs/kargo.md for the full picture.
+# A target is one artifact you want kept current. By default it renders one
+# Warehouse and one Stage, and the Stage's whole job is to write the new
+# version onto your branch through a pull request -- your GitOps controller
+# does the rest. Targets that need a canary declare `stages` instead; see
+# docs/chaining.md.
 
 # Value of app.kubernetes.io/name on every rendered object. Override when
 # migrating from a differently-named chart so the label does not churn.
@@ -83,13 +83,14 @@ defaults:
   autoPromotion: true
   interval:
     # Registry/repo polling cadence by artifact kind. Kargo enforces a 5m floor.
-    # Write durations in Go's canonical form (6h0m0s, not 6h): Kargo's webhook
-    # stores them normalised, and anything else shows up as permanent ArgoCD
-    # drift -- 48 Warehouses re-synced every minute, observed on day one.
+    # Write durations in Go's canonical form (6h0m0s, not 6h). Kargo's webhook
+    # normalises them on write, so a non-canonical value is rewritten in the
+    # cluster and your GitOps controller sees permanent drift -- every
+    # Warehouse re-syncing on every reconcile.
     image: 6h0m0s
     chart: 24h0m0s
-    # NewestBuild targets -- our own CI images, where a merged change should
-    # reach the cluster promptly.
+    # NewestBuild targets -- typically your own CI images, where a merged
+    # change should reach the cluster promptly rather than on the next poll.
     build: 15m0s
   discoveryLimit:
     image: 10
@@ -119,7 +120,7 @@ verification:
 #     description: free text, rendered into the Project's annotations
 #     autoRollback: false  # when true, a failed verification promotes the
 #                          # previously verified Freight back (another PR).
-#                          # Off by default: see docs/kargo.md before enabling.
+#                          # Off by default; see docs/chaining.md.
 #     targets:
 #       <target name -- becomes the Warehouse and Stage name>:
 #         scope: conventional-commit scope for the PR title (default: project)

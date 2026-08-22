@@ -39,6 +39,12 @@ type ClustersExportConfig struct {
 	// Without this, every export reports drift, and a check that always fails
 	// gets switched off.
 	IgnoreKeys []string `json:"ignoreKeys"`
+
+	// KnownAbsentLabels are label keys a selector matches on that no cluster
+	// is expected to carry -- an addon aimed at a cluster type you do not run
+	// yet, for instance. Without this the gate refuses to render, on the
+	// grounds that it usually means a stale inventory.
+	KnownAbsentLabels []string `json:"knownAbsentLabels"`
 }
 
 type Bootstrap struct {

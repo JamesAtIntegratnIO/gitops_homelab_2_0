@@ -75,13 +75,20 @@ func walk(n *yaml.Node, path []string, out *[]Scalar) {
 	}
 }
 
-// Render formats an inventory for a prompt: one scalar per line, key then
-// value, so the model can copy both verbatim.
+// Render formats one file's scalars for a prompt.
+//
+// The `path:` line is repeated on every scalar rather than stated once as a
+// header. That looks redundant and is not: given a header, a 9B model
+// reconstructs the path from memory when it writes the edit and drops a
+// segment -- `a/b/c/addons.yaml` becomes `a/b/addons.yaml`, the applier
+// cannot open it, and the fix is silently lost. Repeating it puts the exact
+// string adjacent to every key it might choose, which turns writing the path
+// into copying rather than recalling.
 func Render(path string, scalars []Scalar) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "FILE %s -- editable scalars (key = value):\n", path)
+	fmt.Fprintf(&b, "--- editable scalars in %s ---\n", path)
 	for _, s := range scalars {
-		fmt.Fprintf(&b, "  %s = %s\n", s.Key, s.Value)
+		fmt.Fprintf(&b, "  path=%s  key=%s  from=%s\n", path, s.Key, s.Value)
 	}
 	return b.String()
 }

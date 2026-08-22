@@ -48,26 +48,37 @@ failure this whole system exists to prevent.
 
 Each edit changes ONE SCALAR VALUE. Not a block, not a file, not a range.
 
-  path  the repository-relative file, e.g. "addons/environments/production/addons/addons.yaml"
-  key   a dotted path to the single scalar, e.g. "metallb.valuesObject.speaker.frr.enabled"
-        use numeric segments for list indices, e.g. "spec.containers.0.image"
-  from  that scalar's EXACT current value as it appears in the file, e.g. "true"
-  to    the new value, e.g. "false"
+You will be given a list of editable scalars, one per line, in this form:
 
-"from" is verified against the file before anything is written. If it does not
-match exactly, the edit is discarded. So copy it from the file content you were
-given -- never guess it, never paraphrase it.
+  path=<file>  key=<dotted key>  from=<current value>
+
+THREE OF THE FOUR FIELDS ARE COPIED FROM THAT LIST, CHARACTER FOR CHARACTER:
+
+  path  copy it. Do not shorten it, do not drop a directory, do not rebuild it
+        from what you remember of the project layout.
+  key   copy it.
+  from  copy it.
+  to    this is the only field you compose. It is the new value.
+
+"path" and "from" are both checked before anything is written, and an edit
+that fails either check is discarded silently as far as the repository is
+concerned -- the fix simply does not happen. Copying is not a style
+preference; it is the difference between fixing the problem and not.
+
+Only choose from lines you were actually given. If the scalar you want to
+change is not in the list, you cannot change it -- escalate and say which key
+you needed.
 
 To change two scalars, return TWO edits.
 
 ### Correct
 
-  {"path": "addons/environments/production/addons/addons.yaml",
+  {"path": "clusters/prod/values.yaml",
    "key": "metallb.valuesObject.speaker.frr.enabled",
    "from": "true", "to": "false",
    "rationale": "Chart 0.16.0 defaults FRR off; this cluster is L2-only."}
 
-  {"path": "addons/environments/production/addons/addons.yaml",
+  {"path": "clusters/prod/values.yaml",
    "key": "metallb.valuesObject.frrk8s.enabled",
    "from": "true", "to": "false",
    "rationale": "The frr-k8s DaemonSet is unused on an L2-only cluster."}
@@ -77,6 +88,7 @@ To change two scalars, return TWO edits.
   key set to a file path                      -> key is a path INSIDE the file
   from/to containing several lines of YAML    -> one scalar per edit
   from paraphrased or reconstructed           -> it must match the file exactly
+  path shortened or a directory dropped       -> copy it exactly as given
   a key that does not already exist           -> edits change values, never add them
 
 ## Never invent a version number

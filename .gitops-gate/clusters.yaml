@@ -5,13 +5,8 @@ clusters:
     addons_repo_revision: main
     addons_repo_url: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
     cert_manager_namespace: cert-manager
-    cluster_name: vcluster-media
-    environment: production
     external_dns_namespace: external-dns
-    managed-by: argocd.argoproj.io
     nfs_subdir_external_provisioner_namespace: nfs-provisioner
-    platform.integratn.tech/base-domain: integratn.tech
-    platform.integratn.tech/base-domain-sanitized: integratn-tech
     workload_repo_basepath: ""
     workload_repo_path: workloads
     workload_repo_revision: main
@@ -39,10 +34,7 @@ clusters:
     addons_repo_revision: main
     addons_repo_url: https://github.com/jamesatintegratnio/gitops_homelab_2_0
     cert_manager_namespace: cert-manager
-    cluster_name: the-cluster
-    environment: production
     external_dns_namespace: external-dns
-    managed-by: argocd.argoproj.io
     nfs_subdir_external_provisioner_namespace: nfs-provisioner
   labels:
     argocd.argoproj.io/secret-type: cluster
@@ -66,4 +58,4 @@ clusters:
     environment: production
   name: the-cluster
   server: https://kubernetes.default.svc
-generatedAt: "2026-08-22T14:24:31Z"
+generatedAt: "2026-08-22T17:18:46Z"

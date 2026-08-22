@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -38,6 +41,10 @@ func cmdClusters(args []string) error {
 	// deliberately usable without one, so a missing config is not an error.
 	if cfg, err := LoadConfig(*configPath); err == nil {
 		noisyKeys = append(append([]string{}, defaultNoisyKeys...), cfg.ClustersExport.IgnoreKeys...)
+		root := filepath.Dir(*configPath)
+		if used, err := annotationsUsedBy(root); err == nil && len(used) > 0 {
+			keepAnnotations = used
+		}
 	}
 
 	inv, err := exportClusters(*kubeContext, *namespace)
@@ -120,10 +127,17 @@ func exportClusters(kubeContext, namespace string) (*Inventory, error) {
 	}
 
 	inv := &Inventory{GeneratedAt: time.Now().UTC().Format(time.RFC3339)}
+
 	for _, item := range list.Items {
+		labels := stripNoise(item.Metadata.Labels)
 		c := Cluster{
-			Labels:      stripNoise(item.Metadata.Labels),
-			Annotations: stripNoise(item.Metadata.Annotations),
+			Labels: labels,
+			// Annotations are trimmed to what the bootstraps actually
+			// template with. Labels are NOT: they are selector inputs, and
+			// which ones a future selector will match on is unknowable, so
+			// dropping any would reintroduce the stale-fixture failure this
+			// export exists to prevent.
+			Annotations: keepOnly(stripNoise(item.Metadata.Annotations), keepAnnotations),
 		}
 		c.Name = decode(item.Data["name"])
 		if c.Name == "" {
@@ -135,7 +149,74 @@ func exportClusters(kubeContext, namespace string) (*Inventory, error) {
 	if len(inv.Clusters) == 0 {
 		return nil, fmt.Errorf("no cluster Secrets found in namespace %q", namespace)
 	}
+
 	return inv, nil
+}
+
+// keepAnnotations is the set of annotation keys the bootstraps reference,
+// discovered from their own templates. Empty means keep everything.
+var keepAnnotations map[string]bool
+
+func keepOnly(m map[string]string, keep map[string]bool) map[string]string {
+	if len(keep) == 0 {
+		return m
+	}
+	out := map[string]string{}
+	for k, v := range m {
+		if keep[k] {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// annotationsUsedBy finds every cluster annotation the repository templates
+// with, so the exported inventory carries the handful that are read rather
+// than the twenty that happen to exist on the Secret.
+//
+// Derived rather than configured: a list an operator maintains by hand is a
+// list that goes wrong, and the answer is already in the repository.
+//
+// It scans the WHOLE repository, not just the bootstraps. Scanning only the
+// bootstraps was the obvious first guess and it was wrong -- the inner
+// ApplicationSets reference `cert_manager_namespace` and
+// `external_dns_namespace` too, and trimming those broke their templates.
+// Under-collecting here silently drops Applications from the render, so the
+// scan errs wide: an annotation kept unnecessarily costs one line.
+func annotationsUsedBy(repoRoot string) (map[string]bool, error) {
+	re := regexp.MustCompile(`metadata\.annotations(?:\.([A-Za-z0-9_.\-]+)|\[["']([^"']+)["']\])`)
+	out := map[string]bool{}
+
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // unreadable paths are not worth failing an export over
+		}
+		if d.IsDir() {
+			switch d.Name() {
+			case ".git", "node_modules", "vendor":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		switch filepath.Ext(path) {
+		case ".yaml", ".yml", ".tpl", ".json":
+		default:
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		for _, m := range re.FindAllStringSubmatch(string(raw), -1) {
+			for _, g := range m[1:] {
+				if g != "" {
+					out[g] = true
+				}
+			}
+		}
+		return nil
+	})
+	return out, err
 }
 
 func decode(s string) string {

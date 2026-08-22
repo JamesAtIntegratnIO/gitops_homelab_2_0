@@ -43,7 +43,8 @@ That renders two Stages:
 Kargo only makes Freight available to a downstream Stage once it has been
 **verified** upstream. So `verify` on the canary plus auto-promotion on the
 next stage already *is* "tenant first, hub only if the tenant came up healthy".
-There is no orchestration code, nothing polls, and no state of our own — a
+There is no orchestration code, nothing polls, and the chart keeps no state
+of its own — a
 canary that fails verification simply never offers its freight on.
 
 `requiredSoakTime` adds "and it has to have been fine for a while", which

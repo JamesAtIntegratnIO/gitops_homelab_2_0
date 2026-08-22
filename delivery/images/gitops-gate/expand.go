@@ -30,6 +30,23 @@ func expandAppSet(as map[string]any, inv *Inventory) ([]Row, []string, error) {
 		warnings[i] = asName + ": " + w
 	}
 
+	// An ApplicationSet that matches no cluster generates nothing. Usually
+	// that is deliberate -- a disabled addon, or one aimed at a cluster type
+	// this installation does not run.
+	//
+	// But it is also what a stale inventory looks like, and that case is
+	// dangerous: labels drift, selectors stop matching, the render shrinks,
+	// and the gate compares two diminished sets and reports no change. One
+	// missing label took a real render from 62 Applications to 7. Nothing
+	// inside the inventory file can detect that the file is out of date --
+	// only `clusters export -check` against the live cluster can -- so this
+	// warning is the in-band signal, and a page of them means look at the
+	// inventory before believing the verdict.
+	if len(params) == 0 {
+		warnings = append(warnings, fmt.Sprintf(
+			"%s: matched no cluster, so it generates nothing", asName))
+	}
+
 	tmpl, _ := spec["template"].(map[string]any)
 	if tmpl == nil {
 		return nil, warnings, fmt.Errorf("ApplicationSet %s has no .spec.template", asName)

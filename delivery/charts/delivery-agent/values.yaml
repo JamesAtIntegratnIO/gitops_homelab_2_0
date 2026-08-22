@@ -104,9 +104,9 @@ networkPolicy:
   # For `standard`, give CIDRs; for `cilium`, FQDNs are also honoured.
   egress:
     dnsNamespace: kube-system
-    # e.g. [{cidr: 192.168.0.57/32, port: 1234}] for a model on your LAN
+    # e.g. [{cidr: 10.1.2.3/32, port: 8000}] for a model endpoint on your LAN
     ipBlocks: []
-    # e.g. [api.github.com]
+    # e.g. [api.github.com] -- honoured only when flavor is `cilium`
     fqdns: []
     # Allow outbound 443 to everything except private ranges. Convenient for
     # reaching a public git host; unnecessary if you list FQDNs.

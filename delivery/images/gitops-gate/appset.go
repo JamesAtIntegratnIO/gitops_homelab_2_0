@@ -174,3 +174,34 @@ func mergeKeyFor(p Param, keys []string) string {
 	}
 	return out
 }
+
+// selectorKeys returns every label key a generator list matches on, at any
+// depth. Feeding these to Inventory.Validate is what converts a stale fixture
+// from a wrong answer into a refusal.
+func selectorKeys(gens []generatorSpec) []string {
+	seen := map[string]bool{}
+	var walk func([]generatorSpec)
+	walk = func(gs []generatorSpec) {
+		for _, g := range gs {
+			if g.Clusters != nil && g.Clusters.Selector != nil {
+				for k := range g.Clusters.Selector.MatchLabels {
+					seen[k] = true
+				}
+				for _, e := range g.Clusters.Selector.MatchExpressions {
+					seen[e.Key] = true
+				}
+			}
+			if g.Merge != nil {
+				walk(g.Merge.Generators)
+			}
+		}
+	}
+	walk(gens)
+
+	out := make([]string, 0, len(seen))
+	for k := range seen {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}

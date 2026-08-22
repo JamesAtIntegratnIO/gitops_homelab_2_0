@@ -56,6 +56,29 @@ else
   ok "no links into host-repository directories"
 fi
 
+# Host-repository directory paths in ANY shipped file, not just markdown
+# links. This is the check that was missing: a chart copied from a specific
+# repository kept comments pointing at
+# `addons/cluster-roles/.../values.yaml` and `docs/kargo.md`, which the
+# markdown-link check never sees because they are inside YAML comments.
+#
+# None of these directories exist inside the package, so any occurrence in
+# shipped code is a reference outward. Tests and fixtures are exempt: a
+# realistic test case is made of realistic paths, and `addons/values.yaml` as
+# a temp-dir fixture references nothing.
+HOSTDIRS='(^|[^a-zA-Z0-9_./-])(addons|promises|workloads|terraform|matchbox|cli)/'
+if [ -n "$(grep -rnE "$HOSTDIRS" --include='*.yaml' --include='*.yml' --include='*.tpl' \
+             --include='*.go' --include='Dockerfile' . 2>/dev/null \
+           | grep -vE '^\./(hack/|images/[a-z-]+/evals/|charts/[a-z-]+/ci/|ci/)|_test\.go:')" ]; then
+  grep -rnE "$HOSTDIRS" --include='*.yaml' --include='*.yml' --include='*.tpl' \
+    --include='*.go' --include='Dockerfile' . 2>/dev/null \
+    | grep -vE '^\./(hack/|images/[a-z-]+/evals/|charts/[a-z-]+/ci/|ci/)|_test\.go:' \
+    | sed 's/^/        /' | head -20
+  bad "reference to a host-repository directory"
+else
+  ok "no host-repository directory paths"
+fi
+
 # Dockerfiles must not COPY from above their own context.
 if grep -rn '^\s*COPY\s\+\.\./' --include='Dockerfile' . >/dev/null 2>&1; then
   bad "Dockerfile COPY reaches outside its context"

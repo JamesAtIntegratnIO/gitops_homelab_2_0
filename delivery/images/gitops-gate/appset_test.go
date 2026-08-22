@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"sigs.k8s.io/yaml"
@@ -146,5 +147,67 @@ func TestUnexpandableGeneratorWarnsRatherThanSilentlyPassing(t *testing.T) {
 	}
 	if len(warns) != 1 {
 		t.Fatalf("an unexpandable generator must warn -- a silent blind spot reads as full coverage; got %v", warns)
+	}
+}
+
+// The inventory cannot detect that it is out of date -- only comparing against
+// the live cluster can. What it CAN do is refuse to answer when a selector
+// asks about a label it has never seen, because the alternative is a silently
+// diminished render that then reports "no change".
+func TestValidateRefusesUnknownSelectorLabels(t *testing.T) {
+	inv := testInventory()
+	err := inv.Validate([]string{"cluster_role", "aws_cluster_name"}, nil)
+	if err == nil {
+		t.Fatal("a selector on a label no cluster carries must be refused")
+	}
+	if !strings.Contains(err.Error(), "aws_cluster_name") {
+		t.Errorf("the error must name the offending label: %v", err)
+	}
+	if strings.Contains(err.Error(), "cluster_role") {
+		t.Errorf("a label that IS present must not be reported: %v", err)
+	}
+}
+
+func TestValidateAcceptsDeliberatelyAbsentLabels(t *testing.T) {
+	inv := testInventory()
+	if err := inv.Validate([]string{"aws_cluster_name"}, []string{"aws_cluster_name"}); err != nil {
+		t.Fatalf("an explicitly known-absent label must be allowed: %v", err)
+	}
+}
+
+func TestValidatePassesWhenEverySelectorKeyIsKnown(t *testing.T) {
+	inv := testInventory()
+	if err := inv.Validate([]string{"cluster_role", "environment"}, nil); err != nil {
+		t.Fatalf("want no error, got %v", err)
+	}
+}
+
+// selectorKeys has to reach inside a merge generator, or a stale-inventory
+// check would skip exactly the addons that use per-environment overrides.
+func TestSelectorKeysReachesInsideMergeGenerators(t *testing.T) {
+	gens := parseGens(t, `
+- merge:
+    mergeKeys: [server]
+    generators:
+      - clusters:
+          selector:
+            matchLabels:
+              cluster_role: control-plane
+      - clusters:
+          selector:
+            matchExpressions:
+              - key: environment
+                operator: In
+                values: [production]
+`)
+	got := selectorKeys(gens)
+	want := map[string]bool{"cluster_role": true, "environment": true}
+	if len(got) != len(want) {
+		t.Fatalf("want %v, got %v", want, got)
+	}
+	for _, k := range got {
+		if !want[k] {
+			t.Errorf("unexpected key %q", k)
+		}
 	}
 }

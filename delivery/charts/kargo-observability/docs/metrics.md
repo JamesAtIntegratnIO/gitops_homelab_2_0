@@ -1,8 +1,8 @@
 # Metric contract
 
 Every metric here comes from kube-state-metrics reading Kargo's CRDs through a
-`CustomResourceState` config this chart supplies. No exporter, no polling, no
-state of our own.
+`CustomResourceState` config this chart supplies. No exporter, no polling, no state
+of its own.
 
 Names are prefixed with `metricPrefix` (default `kargo`). Changing that after
 the fact orphans your dashboards and alerts, so pick once.

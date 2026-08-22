@@ -27,7 +27,7 @@ networkPolicy:
   kargoNamespace: kargo
   egress:
     ipBlocks:
-      - {cidr: 192.0.2.10/32, port: 1234}   # your model endpoint
+      - {cidr: 10.1.2.3/32, port: 8000}   # your model endpoint
     allowPublicHTTPS: true                   # your git host
 ```
 

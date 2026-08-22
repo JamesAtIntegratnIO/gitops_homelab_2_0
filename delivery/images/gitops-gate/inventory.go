@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"sigs.k8s.io/yaml"
 )
@@ -30,6 +31,54 @@ type Inventory struct {
 	Clusters []Cluster `json:"clusters"`
 	// GeneratedAt records when the export ran, so a reviewer can see the age.
 	GeneratedAt string `json:"generatedAt,omitempty"`
+}
+
+// Validate checks that the inventory can answer the questions the selectors
+// ask of it.
+//
+// This is what makes a stale inventory an ERROR rather than a wrong answer.
+// Selectors match on labels, and a label the inventory has never seen simply
+// does not match -- so a fixture written before someone added `cluster_role`
+// renders a fraction of the real Applications and then reports "no targeting
+// change" with total confidence. Measured: one missing label took a render
+// from 62 Applications to 7, silently.
+//
+// The known set is derived from the clusters themselves rather than recorded
+// separately. Recording it would be the same information written twice, and
+// a stale file's own record is stale too -- so it would detect nothing.
+func (inv *Inventory) Validate(selectorKeys []string, knownAbsent []string) error {
+	known := map[string]bool{}
+	for _, c := range inv.Clusters {
+		for k := range c.Labels {
+			known[k] = true
+		}
+	}
+	for _, k := range knownAbsent {
+		known[k] = true
+	}
+
+	var unknown []string
+	for _, k := range selectorKeys {
+		if !known[k] {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	return fmt.Errorf(
+		"selectors match on label(s) no cluster in the inventory carries: %s\n\n"+
+			"Either the inventory is stale -- re-run `gitops-gate clusters export` --\n"+
+			"or those labels genuinely exist nowhere, in which case the Applications\n"+
+			"selecting on them are generated for no cluster at all and that is worth\n"+
+			"knowing.\n\n"+
+			"If it is deliberate, list them under `clustersExport.knownAbsentLabels`\n"+
+			"in .gitops-gate.yaml.\n\n"+
+			"This is refused rather than assumed because the failure is silent: a\n"+
+			"missing label shrinks the render, and the gate would then compare two\n"+
+			"almost-empty sets and find no difference",
+		strings.Join(unknown, ", "))
 }
 
 func LoadInventory(path string) (*Inventory, error) {

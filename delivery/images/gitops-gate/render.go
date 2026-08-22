@@ -21,6 +21,7 @@ import (
 //	           -> one Application each per matching cluster   <- what we return
 func Render(repoRoot string, cfg *Config, inv *Inventory) (*Table, error) {
 	table := &Table{}
+	seenSelectorKeys := map[string]bool{}
 
 	for _, b := range cfg.Bootstraps {
 		bsPath := filepath.Join(repoRoot, b.Path)
@@ -38,12 +39,33 @@ func Render(repoRoot string, cfg *Config, inv *Inventory) (*Table, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", b.Path, err)
 		}
+		for _, k := range selectorKeys(gens) {
+			seenSelectorKeys[k] = true
+		}
 		params, warns, err := expandGenerators(gens, inv)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", b.Path, err)
 		}
 		for _, w := range warns {
 			table.Warnings = append(table.Warnings, b.Name+": "+w)
+		}
+
+		// A bootstrap matching no cluster is the loudest symptom of a stale
+		// inventory there is: nothing downstream renders at all, so the
+		// per-ApplicationSet warnings never even get a chance to fire. This
+		// is an ERROR rather than a warning -- a render that silently covers
+		// none of a bootstrap's Applications would then be compared against
+		// another such render and report no difference, which is exactly the
+		// false negative the gate exists to prevent.
+		if len(params) == 0 {
+			return nil, fmt.Errorf(
+				"bootstrap %q matched no cluster in the inventory.\n\n"+
+					"Nothing it generates can be checked, so the comparison would be\n"+
+					"made against an empty set and report no change.\n\n"+
+					"Almost always a stale inventory: re-run `gitops-gate clusters export`.\n"+
+					"If this bootstrap genuinely targets no cluster here, remove it from\n"+
+					".gitops-gate.yaml rather than leaving the gate blind to it",
+				b.Name)
 		}
 
 		for _, p := range params {
@@ -66,6 +88,11 @@ func Render(repoRoot string, cfg *Config, inv *Inventory) (*Table, error) {
 			}
 
 			for _, as := range appsets {
+				if gens, err := generatorsOf(as); err == nil {
+					for _, k := range selectorKeys(gens) {
+						seenSelectorKeys[k] = true
+					}
+				}
 				rows, warns, err := expandAppSet(as, inv)
 				if err != nil {
 					return nil, fmt.Errorf("%s (cluster %s): %w", b.Path, p.Cluster.Name, err)
@@ -76,6 +103,16 @@ func Render(repoRoot string, cfg *Config, inv *Inventory) (*Table, error) {
 				table.Rows = append(table.Rows, rows...)
 			}
 		}
+	}
+
+	// Validate AFTER expansion so every selector in the hierarchy has been
+	// seen, and refuse the whole render rather than return a diminished one.
+	keys := make([]string, 0, len(seenSelectorKeys))
+	for k := range seenSelectorKeys {
+		keys = append(keys, k)
+	}
+	if err := inv.Validate(keys, cfg.ClustersExport.KnownAbsentLabels); err != nil {
+		return nil, err
 	}
 
 	table.Rows = dedupeRows(table.Rows)
