@@ -29,6 +29,21 @@ that person out of their own merges. Two ways through:
   the automation merges with. Getting this backwards is the failure mode —
   it exempts exactly the actor the gate exists to constrain.
 
+## Rolling it out onto pull requests that already exist
+
+Order matters, and the middle step is the one people skip:
+
+1. **Merge the gate to `main`.** Nothing happens to open pull requests yet —
+   merging a workflow does not retroactively trigger runs on them.
+2. **Watch it run green on a handful of real pull requests** before protecting
+   anything. A gate with no track record is not evidence.
+3. **Enable branch protection on `addons-gate`.** Every open pull request is
+   now blocked, because none has reported the check. This is the protection —
+   it does not require them to have run.
+4. **Rebase each open pull request.** That fires `synchronize`, the check
+   finally runs, and each gets a verdict. `pull_request` workflows are read
+   from the merge commit, so a branch that predates the gate still picks it up.
+
 ## The token
 
 Agent pushes need a token that is *not* `GITHUB_TOKEN`: pushes made with it do

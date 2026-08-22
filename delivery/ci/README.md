@@ -32,6 +32,51 @@ single check, and adding or splitting jobs later never requires editing the
 protection rule — a rule change that is easy to forget and silently drops your
 gate.
 
+## Never filter the required check by path
+
+The trap that costs the most to discover late.
+
+A required status check that has **never reported** blocks a pull request —
+that is the mechanism by which the gate protects anything. But a workflow
+skipped by a `paths:` filter never reports *at all*. It is not "passed" and it
+is not "failed"; it sits at "expected" forever, and the pull request becomes
+permanently unmergeable with no way to clear it short of editing the
+protection rule.
+
+So a docs-only change, or a change to an unrelated directory, is bricked by a
+gate that was never meant to apply to it.
+
+The fix is structural: the workflow runs on **every** pull request, a cheap
+first job decides whether the expensive work is needed, and the aggregate job
+reports either way.
+
+```
+scope         always runs; outputs relevant=true|false
+render        if relevant
+diff          if relevant
+validate      if relevant
+addons-gate   always runs; treats `skipped` as a pass
+```
+
+Two details make it work. The aggregate needs `if: always()`, or it inherits
+the same never-reports problem from its own dependencies. And it must treat a
+`skipped` dependency as a pass while still failing on `cancelled` — skipped
+means "this change cannot affect what gets deployed", cancelled means the
+answer is unknown.
+
+## Enabling the gate on pull requests that already exist
+
+Merging the workflow does **not** retroactively run it on open pull requests;
+that needs a new event. Two things follow:
+
+- Turning on branch protection blocks every open pull request immediately,
+  because none of them has reported the required check yet. That is correct,
+  and it is the protection.
+- To give them a verdict, push to each branch — a rebase is the tidy way, and
+  it makes the diff current at the same time. Workflows for `pull_request` are
+  read from the merge commit, so a rebased branch picks up the gate from the
+  base even though the branch predates it.
+
 ## Two things that bite
 
 **The gate must be fast.** Kargo polls a pull request it is waiting to merge on

@@ -7,13 +7,11 @@
 
 name: Validate Addons
 
+# NO `paths:` filter -- see ../README.md. A required check skipped by a paths
+# filter never reports, so the pull request is blocked forever. The `scope` job
+# below does the filtering instead, and `addons-gate` always reports.
 on:
   pull_request:
-    paths:
-      - 'addons/**'          # <- your addon values
-      - 'bootstrap/**'       # <- your bootstrap ApplicationSets
-      - '.gitops-gate.yaml'
-      - '.gitops-gate/**'
 
 permissions:
   contents: read
@@ -26,9 +24,33 @@ env:
   GATE_IMAGE: ghcr.io/OWNER/delivery-kit/gitops-gate:latest   # <- pin a digest
 
 jobs:
+  scope:
+    name: Does this change what gets deployed?
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.check.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only \
+            '${{ github.event.pull_request.base.sha }}' \
+            '${{ github.event.pull_request.head.sha }}')
+          # <- adjust this pattern to your layout
+          if echo "$changed" | grep -qE '^(addons/|bootstrap/|\.gitops-gate)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
   render:
     name: Render (${{ matrix.ref }})
     runs-on: ubuntu-latest
+    needs: scope
+    if: needs.scope.outputs.relevant == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -65,15 +87,28 @@ jobs:
   addons-gate:
     name: addons-gate
     runs-on: ubuntu-latest
-    needs: render
+    needs: [scope, render]
+    # always(), or this inherits the never-reports problem from its own
+    # dependencies and blocks the pull request just as a paths filter would.
+    if: always()
     steps:
+      - name: Nothing affecting rendering changed
+        if: needs.scope.outputs.relevant != 'true'
+        run: |
+          echo "gate is green (no rendering-affecting paths in this change)"
+      - name: Fail if a needed job did not succeed
+        if: needs.scope.outputs.relevant == 'true' && needs.render.result != 'success'
+        run: echo "::error::render did not succeed (${{ needs.render.result }})" && exit 1
       - uses: actions/checkout@v4
+        if: needs.scope.outputs.relevant == 'true'
       - uses: actions/download-artifact@v4
+        if: needs.scope.outputs.relevant == 'true'
         with:
           pattern: targets-*
           merge-multiple: true
 
       - name: Diff
+        if: needs.scope.outputs.relevant == 'true'
         id: diff
         run: |
           set -euo pipefail
@@ -86,6 +121,7 @@ jobs:
           cat report.md >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
+        if: needs.scope.outputs.relevant == 'true'
         with:
           name: render-diff
           path: |
@@ -93,6 +129,7 @@ jobs:
             report.md
 
       - name: Report
+        if: needs.scope.outputs.relevant == 'true'
         run: |
           case "${{ steps.diff.outputs.exit }}" in
             0) echo "gate is green" ;;

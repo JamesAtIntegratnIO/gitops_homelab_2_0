@@ -9,15 +9,18 @@ name: Validate Addons
 # requires editing the protection rule, which is easy to forget and silently
 # drops the gate.
 
+# NO `paths:` FILTER, and that is deliberate.
+#
+# `addons-gate` is a required status check. GitHub blocks a pull request whose
+# required check has not reported -- and a workflow skipped by a paths filter
+# never reports at all, so it shows "Expected" forever and the pull request
+# becomes permanently unmergeable. A docs-only change would be stuck with no
+# way to unstick it short of editing the protection rule.
+#
+# So the workflow always runs, a cheap first job decides whether the expensive
+# work is needed, and the aggregate job always reports either way.
 on:
   pull_request:
-    paths:
-      - 'addons/**'
-      - 'terraform/cluster/bootstrap/**'
-      - '.gitops-gate.yaml'
-      - '.gitops-gate/**'
-      - 'delivery/images/gitops-gate/**'
-      - '.github/workflows/validate-addons.yaml'
 
 permissions:
   contents: read
@@ -27,9 +30,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    name: Does this change what gets deployed?
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.check.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Look for paths that affect rendering
+        id: check
+        run: |
+          set -euo pipefail
+          base='${{ github.event.pull_request.base.sha }}'
+          head='${{ github.event.pull_request.head.sha }}'
+          changed=$(git diff --name-only "$base" "$head")
+          echo "$changed" | sed 's/^/  /'
+
+          # delivery/images/gitops-gate is in the list because a change to the
+          # gate itself changes how every render is interpreted -- exactly when
+          # you most want the full run.
+          if echo "$changed" | grep -qE '^(addons/|terraform/cluster/bootstrap/|\.gitops-gate|delivery/images/gitops-gate/)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Rendering affected; running the full gate."
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Nothing that affects rendering changed; the gate passes trivially."
+          fi
+
   render:
+    if: needs.scope.outputs.relevant == 'true'
     name: Render (${{ matrix.ref }})
     runs-on: ubuntu-latest
+    needs: scope
     strategy:
       fail-fast: false
       matrix:
@@ -80,7 +114,8 @@ jobs:
   targets-diff:
     name: Targeting diff
     runs-on: ubuntu-latest
-    needs: render
+    needs: [scope, render]
+    if: needs.scope.outputs.relevant == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -128,6 +163,8 @@ jobs:
   schema:
     name: Schema validation
     runs-on: ubuntu-latest
+    needs: scope
+    if: needs.scope.outputs.relevant == 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -174,7 +211,11 @@ jobs:
   addons-gate:
     name: addons-gate
     runs-on: ubuntu-latest
-    needs: [targets-diff, schema, gate-tests]
+    needs: [scope, render, targets-diff, schema, gate-tests]
+    # always() so this reports even when the jobs above were skipped. This is
+    # the single name in the branch protection rule, so it must ALWAYS produce
+    # a conclusion -- a required check that never reports blocks the pull
+    # request with no way to clear it.
     if: always()
     steps:
       - name: Aggregate
@@ -183,9 +224,15 @@ jobs:
           results='${{ join(needs.*.result, ' ') }}'
           echo "job results: $results"
           for r in $results; do
-            if [ "$r" != "success" ]; then
-              echo "::error::A gate job did not succeed ($r)."
-              exit 1
-            fi
+            # `skipped` is a pass: it means this change cannot affect what
+            # gets deployed. `cancelled` is not -- that is an unknown answer.
+            case "$r" in
+              success|skipped) ;;
+              *) echo "::error::A gate job did not succeed ($r)."; exit 1 ;;
+            esac
           done
-          echo "gate is green"
+          if [ '${{ needs.scope.outputs.relevant }}' != 'true' ]; then
+            echo "gate is green (nothing affecting rendering changed)"
+          else
+            echo "gate is green"
+          fi
