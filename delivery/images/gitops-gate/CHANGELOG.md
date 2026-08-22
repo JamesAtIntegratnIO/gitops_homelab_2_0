@@ -7,6 +7,14 @@ All notable changes to `gitops-gate`. Format follows
 
 ### Added
 
+- **chart-diff** (`diff -repo <path>`) — every chart whose version moved is
+  rendered at BOTH versions, with that Application's own value files and
+  inline `valuesObject`, and the resources are compared. Turns "cert-manager
+  moved to v1.22.0" into "adds two RBAC objects, changes six CRDs and three
+  Deployments". Helm's per-object version stamps are excluded from the
+  comparison: hashing them reported 101 of 105 resources as changed on one
+  bump, burying the 15 that had.
+
 - **`type: rendered`** — reads manifests already committed to git and diffs
   them at RESOURCE level: added, removed, changed, and `apiVersion` changed
   called out separately as the one that blocks. Supports ArgoCD's source

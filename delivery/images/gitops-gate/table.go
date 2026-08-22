@@ -24,6 +24,17 @@ type Row struct {
 	Chart      string `json:"chart"`
 	Version    string `json:"version"`
 	Path       string `json:"path"`
+
+	// ValueFiles and ValuesInline are what this Application renders its chart
+	// with. Carried on the row so a diff can re-render the chart at both
+	// versions later, without a second pass over the repository.
+	//
+	// Rendering with the wrong values is worse than not rendering: a chart
+	// default that this repository overrides would show as a change when
+	// nothing changed, and the override that MATTERS -- the one being flipped
+	// out from under you -- would be invisible.
+	ValueFiles   []string `json:"valueFiles,omitempty"`
+	ValuesInline string   `json:"valuesInline,omitempty"`
 }
 
 // Key identifies an Application across renders. Deliberately excludes Version:

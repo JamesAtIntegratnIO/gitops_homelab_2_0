@@ -138,6 +138,13 @@ jobs:
           pattern: targets-*
           merge-multiple: true
 
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+
+      # -repo enables chart-diff: every chart whose version moved is rendered
+      # at BOTH versions and the resources are compared. Without it the report
+      # says a version changed; with it, it says what the change does.
       - name: Compare
         id: diff
         run: |
@@ -146,6 +153,7 @@ jobs:
           gitops-gate diff \
             -base targets-base.json \
             -head targets-head.json \
+            -repo . \
             -report report.md \
             -json render-diff.json
           echo "exit=$?" >> "$GITHUB_OUTPUT"

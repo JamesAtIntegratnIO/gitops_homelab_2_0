@@ -110,6 +110,8 @@ func cmdDiff(args []string) (bool, error) {
 	fs := flag.NewFlagSet("diff", flag.ExitOnError)
 	basePath := fs.String("base", "", "target table for the base revision (required)")
 	headPath := fs.String("head", "", "target table for the head revision (required)")
+	repo := fs.String("repo", "", "repository worktree; enables chart-diff -- renders every chart whose version moved, at BOTH versions, and diffs the resources")
+	cfgPath := fs.String("config", "", "path to .gitops-gate.yaml (default: <repo>/.gitops-gate.yaml)")
 	report := fs.String("report", "", "write a markdown report here (default: stdout)")
 	jsonOut := fs.String("json", "", "write the machine-readable diff here")
 	if err := fs.Parse(args); err != nil {
@@ -126,6 +128,20 @@ func cmdDiff(args []string) (bool, error) {
 	head, err := ReadTableFile(*headPath)
 	if err != nil {
 		return false, err
+	}
+
+	// Chart-diff turns "the version moved" into "here is what the version
+	// moving does". It needs the repository for the value files, so it is
+	// opt-in via -repo rather than assumed.
+	if *repo != "" {
+		cfg, _, err := load(*repo, *cfgPath)
+		if err != nil {
+			return false, err
+		}
+		beforeOb, afterOb, warns := ChartDiff(*repo, cfg, base, head)
+		base.Objects = append(base.Objects, beforeOb...)
+		head.Objects = append(head.Objects, afterOb...)
+		base.Warnings = append(base.Warnings, warns...)
 	}
 
 	res := Diff(base, head)

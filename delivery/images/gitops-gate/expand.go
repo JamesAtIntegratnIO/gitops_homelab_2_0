@@ -137,6 +137,7 @@ func rowFromApp(asName, clusterName string, app any) (Row, error) {
 			row.Chart = chart
 			row.ChartRepo, _ = src["repoURL"].(string)
 			row.Version, _ = src["targetRevision"].(string)
+			row.ValueFiles, row.ValuesInline = helmValues(src)
 			return row, nil
 		case path != "":
 			row.SourceType = "path"
@@ -151,4 +152,38 @@ func rowFromApp(asName, clusterName string, app any) (Row, error) {
 		return Row{}, fmt.Errorf("no source with a chart or path")
 	}
 	return row, nil
+}
+
+// helmValues extracts what a source renders its chart with: the value files it
+// layers, and any inline valuesObject serialised back to YAML.
+//
+// The inline block matters more than it looks. It is where a repository pins
+// the chart defaults it depends on -- `global.networkPolicy.create: false`,
+// `speaker.frr.enabled: false` -- so rendering without it reproduces upstream
+// defaults rather than this cluster's configuration, and the diff describes a
+// cluster nobody has.
+func helmValues(src map[string]any) ([]string, string) {
+	helm, _ := src["helm"].(map[string]any)
+	if helm == nil {
+		return nil, ""
+	}
+
+	var files []string
+	if raw, ok := helm["valueFiles"].([]any); ok {
+		for _, f := range raw {
+			if s, ok := f.(string); ok {
+				files = append(files, s)
+			}
+		}
+	}
+
+	inline := ""
+	if vo, ok := helm["valuesObject"]; ok && vo != nil {
+		if b, err := yaml.Marshal(vo); err == nil {
+			inline = string(b)
+		}
+	} else if v, ok := helm["values"].(string); ok {
+		inline = v
+	}
+	return files, inline
 }

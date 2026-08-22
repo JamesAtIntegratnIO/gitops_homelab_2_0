@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strings"
 
 	"sigs.k8s.io/yaml"
 )
@@ -40,10 +41,11 @@ func (o Object) ID() string {
 }
 
 func (o Object) Describe() string {
+	base := fmt.Sprintf("%s/%s", o.Kind, o.Name)
 	if o.Namespace != "" {
-		return fmt.Sprintf("%s/%s in %s", o.Kind, o.Name, o.Namespace)
+		base += " in " + o.Namespace
 	}
-	return fmt.Sprintf("%s/%s", o.Kind, o.Name)
+	return base
 }
 
 // objectFrom builds an Object, returning false for anything that is not a
@@ -61,7 +63,7 @@ func objectFrom(source, cluster string, obj map[string]any) (Object, bool) {
 	}
 	ns, _ := meta["namespace"].(string)
 
-	raw, err := yaml.Marshal(obj)
+	raw, err := yaml.Marshal(normalise(obj))
 	if err != nil {
 		return Object{}, false
 	}
@@ -118,11 +120,86 @@ func diffObjects(base, head []Object) []ObjectChange {
 		}
 	}
 
+	// The same resource changing identically on several clusters is one
+	// finding, not one per cluster. Collapse them and say where.
+	collapsed := map[string]*ObjectChange{}
+	var order []string
+	for i := range out {
+		c := out[i]
+		k := c.Kind + "|" + c.Object + "|" + c.From + "|" + c.To
+		if prev, ok := collapsed[k]; ok {
+			if c.Cluster != "" && !strings.Contains(prev.Cluster, c.Cluster) {
+				prev.Cluster += ", " + c.Cluster
+			}
+			continue
+		}
+		cp := c
+		collapsed[k] = &cp
+		order = append(order, k)
+	}
+	out = out[:0]
+	for _, k := range order {
+		out = append(out, *collapsed[k])
+	}
+
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Kind != out[j].Kind {
 			return out[i].Kind < out[j].Kind
 		}
 		return out[i].Object < out[j].Object
 	})
+	return out
+}
+
+// versionStamps are labels Helm writes into EVERY object it renders, carrying
+// the chart and app version.
+//
+// Hashing them makes a version bump report every single resource as changed --
+// measured at 101 of 105 on one cert-manager bump -- which buries the four
+// that actually changed. They are stripped before hashing, so "changed" means
+// something a reader should look at. The version itself is already reported,
+// in the Versions table, once.
+var versionStamps = []string{
+	"helm.sh/chart",
+	"app.kubernetes.io/version",
+	"app.kubernetes.io/managed-by",
+	"chart",
+}
+
+// normalise returns a copy of an object with version stamps removed.
+func normalise(obj map[string]any) map[string]any {
+	out := make(map[string]any, len(obj))
+	for k, v := range obj {
+		out[k] = v
+	}
+	meta, ok := obj["metadata"].(map[string]any)
+	if !ok {
+		return out
+	}
+	newMeta := make(map[string]any, len(meta))
+	for k, v := range meta {
+		newMeta[k] = v
+	}
+	for _, field := range []string{"labels", "annotations"} {
+		m, ok := meta[field].(map[string]any)
+		if !ok {
+			continue
+		}
+		cleaned := make(map[string]any, len(m))
+		for k, v := range m {
+			stamp := false
+			for _, s := range versionStamps {
+				if k == s {
+					stamp = true
+					break
+				}
+			}
+			if !stamp {
+				cleaned[k] = v
+			}
+		}
+		newMeta[field] = cleaned
+	}
+	out["metadata"] = newMeta
 	return out
 }
