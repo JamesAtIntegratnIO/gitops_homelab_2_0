@@ -2,9 +2,10 @@
 # top-level repo area. One entry == one Warehouse + one Stage; the Stage opens
 # a PR that rewrites the listed keys and merges it when `autoMerge` allows.
 #
-# Rendered by delivery/charts/kargo-pipelines -- the portable package this
-# repo also publishes. Schema and defaults live with that chart; its docs/
-# cover the target schema and promotion chains.
+# Rendered by the kargo-pipelines chart, which ships from
+# https://github.com/JamesAtIntegratnIO/bosun as a versioned OCI package.
+# Schema and defaults live with that chart; its docs/ cover the target schema
+# and promotion chains.
 # Rationale, policies and how to add an entry: docs/kargo.md.
 #
 # Merge policy in one line: `patch` for anything a bad minor could take the
@@ -173,9 +174,10 @@ projects:
               - cleanupJobs.updateRequests.image.tag
       gitops-gate:
         scope: images
-        # The pre-merge gate itself. Built by Build and Publish gitops-gate
-        # Image on every merge touching delivery/images/gitops-gate; the pin in
-        # .github/gate-image.yaml is what actually puts a new gate into service.
+        # The pre-merge gate itself. Built and published by
+        # https://github.com/JamesAtIntegratnIO/bosun, where its source lives;
+        # the pin in .github/gate-image.yaml is what actually puts a new gate
+        # into service here.
         #
         # `format: image` so the digest moves with the tag. A tag alone is how
         # an image changes underneath you, and this is the one image whose
@@ -191,12 +193,47 @@ projects:
         # have, and the only way to notice is to read the bump.
         image:
           <<: *promiseImage
-          repoURL: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/gitops-gate
+          repoURL: ghcr.io/jamesatintegratnio/gitops-gate
         autoMerge: never
         updates:
           - file: .github/gate-image.yaml
             format: image
             keys: [image]
+      kargo-pipelines:
+        scope: images
+        # The chart that renders every Warehouse and Stage in this file --
+        # including its own. Ships from JamesAtIntegratnIO/bosun.
+        #
+        # `never`, and the reason is circular in a way worth stating: a bad
+        # bump here rewrites the pipeline that would have promoted the fix.
+        # There is no `verify` that helps, because the Applications stay
+        # Healthy while the promotions they depend on quietly stop being
+        # generated.
+        chart: { repoURL: oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines }
+        autoMerge: never
+        verify:
+          apps:
+            - kargo-projects-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [kargo-projects.defaultVersion]
+      kargo-observability:
+        scope: images
+        # Its own repository now:
+        # https://github.com/JamesAtIntegratnIO/kargo-observability
+        #
+        # `patch`: this one only ever observes. A bad bump loses metrics and
+        # alerts, which is bad, but it cannot break a promotion or a merge --
+        # and KargoMetricsMissing fires when the metrics stop, which is the one
+        # alert in that chart that can fire without them.
+        chart: { repoURL: oci://ghcr.io/jamesatintegratnio/charts/kargo-observability }
+        autoMerge: patch
+        verify:
+          apps:
+            - kargo-observability-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [kargo-observability.defaultVersion]
       platform-status-reconciler:
         scope: platform-status-reconciler
         # Every merge to main that touches images/platform-status-reconciler
@@ -597,7 +634,8 @@ projects:
         # https://github.com/JamesAtIntegratnIO/bosun on a v* tag.
         #
         # Until 2026-08-23 this was not tracked at all: the addon pointed at
-        # `delivery/charts/bosun` in this repository and pinned the image to
+        # `delivery/charts/bosun` in this repository (it has since left) and
+        # pinned the image to
         # the branch tag `main`, so it moved whenever a build ran and no pin
         # ever recorded what was running.
         #

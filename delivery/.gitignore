@@ -1,2 +1,0 @@
-# Compiled binaries -- `go build` with no -o drops one next to the source.
-/images/*/gitops-gate

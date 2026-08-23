@@ -1,7 +1,8 @@
 # How gitops-gate renders this repository.
 #
 # The gate binary knows nothing about any particular repo layout -- this file
-# is the whole of that knowledge. See delivery/images/gitops-gate/README.md.
+# is the whole of that knowledge. See
+# https://github.com/JamesAtIntegratnIO/bosun/tree/main/gate.
 
 clusters: .gitops-gate/clusters.yaml
 
