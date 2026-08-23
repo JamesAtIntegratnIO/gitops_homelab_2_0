@@ -812,14 +812,26 @@ argo-rollouts:
 
 # The target list lives in kargo-projects/values.yaml next to this file.
 bosun:
+  # Bosun lives in its own repository now --
+  # https://github.com/JamesAtIntegratnIO/bosun -- and ships as a versioned OCI
+  # chart rather than a path into this one. So this is an ordinary third-party
+  # chart addon, and `defaultVersion` is a real pin that Kargo tracks (target
+  # `bosun` in kargo-projects/values.yaml) instead of the branch name it used
+  # to be.
+  #
+  # The image follows the chart: values.yaml leaves `image.tag` unset and the
+  # chart falls back to its own appVersion, so one bump moves both and they
+  # cannot drift apart.
+  #
   # The model endpoint is serving on the workstation and the credentials are in
   # 1Password. See
   # addons/cluster-roles/control-plane/addons/bosun/values.yaml.
   enabled: true
   namespace: bosun
+  chartName: bosun
   project: platform-services
-  defaultVersion: "main"
-  path: delivery/charts/bosun
+  chartRepository: oci://ghcr.io/jamesatintegratnio/charts/bosun
+  defaultVersion: "0.1.0"
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun

@@ -108,7 +108,7 @@ Each Stage runs the same generated pipeline
 ### Triage (Bosun)
 
 When a promotion opens a pull request, an `http` step hands the freight
-context to the [bosun](../delivery/images/bosun), which
+context to [Bosun](https://github.com/JamesAtIntegratnIO/bosun), which
 reads the gate, explains a red one, and fixes what the rendered diff proves.
 
 **Live since 2026-08-22 22:04Z** (PR #92), against a self-hosted
@@ -130,7 +130,7 @@ Two properties worth knowing:
   gate green by editing the gate, and it cannot invent a version number.
 
 Its measured behaviour, and why a 9B local model is enough, is in
-[the prompt contract](../delivery/images/bosun/docs/prompt-contract.md).
+[the prompt contract](https://github.com/JamesAtIntegratnIO/bosun/blob/main/docs/prompt-contract.md).
 
 Two things bite when standing this up, both verified the hard way on #92:
 

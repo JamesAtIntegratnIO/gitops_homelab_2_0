@@ -10,7 +10,7 @@ The gate is a container. An adapter's whole job is:
    step that fails the build.
 
 That is roughly fifteen lines. Everything opinionated lives in the image, on
-purpose — see [`../adr/0002-triage-in-cluster-not-ci.md`](../adr/0002-triage-in-cluster-not-ci.md).
+purpose — see [ADR 0002, *deterministic checks in CI, judgement in the cluster*](https://github.com/JamesAtIntegratnIO/bosun/blob/main/adr/0002-triage-in-cluster-not-ci.md).
 
 ## Step 4 is not optional, and it used to say the wrong thing
 

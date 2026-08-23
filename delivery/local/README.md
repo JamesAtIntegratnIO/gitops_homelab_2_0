@@ -15,11 +15,18 @@ No promotion had traversed a chain. The agent had never triaged anything.
 |---|---|
 | kind cluster, ArgoCD, Gitea, ingress | [idpbuilder](https://cnoe.io/docs/reference-implementation/local) |
 | cert-manager, Argo Rollouts, Prometheus, Grafana, Kargo | helm |
-| kargo-pipelines, kargo-observability, bosun | helm, from **this working tree** |
+| kargo-pipelines, kargo-observability | helm, from **this working tree** |
+| bosun | helm, **pulled** from `oci://ghcr.io/jamesatintegratnio/charts/bosun` |
 | the repository under test | `sample-repo/`, pushed into Gitea |
 
-The agent image is **built from your working tree**, not pulled. A proving
-ground that tests the last published image is testing the past.
+The kit's own charts come **from your working tree**, not from a release. A
+proving ground that tests the last published version is testing the past.
+
+Bosun is the exception, because it is no longer in this repository: it lives at
+[JamesAtIntegratnIO/bosun](https://github.com/JamesAtIntegratnIO/bosun) and is
+pulled at the same version the cluster runs. Here it is a dependency being
+exercised, not the thing under test. To prove a change to Bosun itself, use the
+proving ground in that repository — which does build from the working tree.
 
 ## Requirements
 
@@ -87,42 +94,20 @@ Each of these is a real defect or a real gap, found by running the thing:
 
 ## Seeing it actually fix things
 
+The nine replayed incidents moved to the Bosun repository along with the eval
+fixtures they read:
+
 ```bash
-make demo-scenarios              # all nine
-make demo-scenarios CASE=metallb # just one
+git clone https://github.com/JamesAtIntegratnIO/bosun && cd bosun/local
+export LLM_BASE_URL=http://<your-host>:1234/v1
+make up && make scenarios
 ```
 
-Nine incidents that really happened to this platform, replayed against the
-**live** agent on **real** pull requests. They are not invented: each is
-already written down once as an eval fixture, and this reads those same
-fixtures so the thing the eval measures and the thing you watch cannot drift.
-
-Four of them are mechanical, and on those the agent pushes a commit. MetalLB
-0.16.0 swapping its FRR sidecars for a DaemonSet, for instance:
-
-```
-==> metallb-frr-defaults-flip  (expected: mechanical)
-  bump metallb chart 0.15.2 -> 0.16.0
-  pull request #8
-  gate report posted, status gate=failure
-  ok    pushed a fix: f27ac09 -> 7a11247
-      -        enabled: true
-      +        enabled: false
-      -      enabled: true
-      +      enabled: false
-      Pushed a fix to `scenario/metallb-frr-defaults-flip` (attempt 1 of 2).
-```
-
-The other five are escalations and a no-action, and it should not touch those.
-
-**What is replayed and what is live.** The gate's REPORT is the recorded one
-from each incident, posted the way the gate posts it -- reproducing fourteen
-upstream chart versions locally would prove nothing extra. The agent, the
-model, the pull requests, the reasoning and every commit it pushes are live.
-
-The summary shows whether it *edited*, not whether the edit was *right*. The
-exact scalars are checked by the eval suite: `go test ./evals/...` in
-`images/bosun`.
+They belong there rather than here: the gate report each one posts is
+**recorded**, so the scenarios never needed the gate binary, Kargo or
+Prometheus — only Gitea and a model endpoint. Keeping them beside the fixtures
+is what stops the thing the eval measures and the thing you watch from
+drifting apart.
 
 ## What the agent will and will not fix
 
