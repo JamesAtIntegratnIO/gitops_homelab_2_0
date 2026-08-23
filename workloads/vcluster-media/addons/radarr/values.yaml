@@ -107,7 +107,7 @@ deployment:
         - SETGID
   image:
     repository: ghcr.io/linuxserver/radarr
-    tag: 6.3.0.10514-ls313
+    tag: 6.3.0.10514-ls314
     pullPolicy: IfNotPresent
   ports:
     - name: http
