@@ -31,6 +31,25 @@ git:
   existingSecret: bosun-github
   tokenKey: token
 
+  # Authenticate as the Bosun GitHub App rather than as the owner of a token.
+  #
+  # This is about IDENTITY. The PAT granted exactly the same access, but it is
+  # James's, so every comment the agent wrote carried his name and avatar and
+  # read like a colleague's review until the footer said otherwise. The
+  # `branding` block exists to compensate for that, and compensating was all it
+  # could do.
+  #
+  # Comments now come from bosun-mate[bot]. `branding.name` is unchanged, so
+  # the comment header and the `bosun` commit status read exactly as before --
+  # only the author changes.
+  #
+  # installationId is deliberately unset: it is discovered from the repository,
+  # which removes a value that can be silently wrong. GIT_TOKEN is not set at
+  # all in this mode.
+  app:
+    appId: "4694792"
+    privateKeyKey: private-key
+
 llm:
   # Self-hosted, OpenAI-compatible. LM Studio on the workstation.
   provider: openai
