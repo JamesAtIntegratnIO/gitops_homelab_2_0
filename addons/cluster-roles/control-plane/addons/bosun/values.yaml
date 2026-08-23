@@ -91,6 +91,27 @@ networkPolicy:
     fqdns:
       - api.github.com
       - github.com
+      # The registries this pipeline promotes from, and nothing else.
+      #
+      # Bosun reads an artifact's `org.opencontainers.image.source` label to
+      # find which GitHub repository published it, so it can quote the
+      # maintainers' own release notes rather than guess at what a bump did.
+      # The release notes themselves come from api.github.com, which it could
+      # already reach; only the label lookup is new.
+      #
+      # This list is DERIVED, not invented: it is every distinct registry host
+      # in kargo-projects/values.yaml. Kept explicit rather than opened up,
+      # because a bounded allow-list is the difference between "reads the
+      # registries we already pull from" and "reaches the internet".
+      #
+      # A registry missing from here is not an outage: the explanation falls
+      # back to the render alone and says that is all it had.
+      - ghcr.io
+      - quay.io
+      - registry.k8s.io
+      - docker.io
+      - registry-1.docker.io
+      - auth.docker.io
 
 resources:
   requests:
