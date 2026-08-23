@@ -139,10 +139,10 @@ route53-chart:
         eks.amazonaws.com/role-arn: '{{default "" (index .metadata.annotations "ack_route53_controller_role_arn")}}'
 external-secrets:
   enabled: true
-  namespace: external-secrets
+  namespace: external-secrets-system
   chartName: external-secrets
   project: platform-services
-  defaultVersion: "0.10.3"
+  defaultVersion: "0.11.0"
   chartRepository: "https://charts.external-secrets.io"
   annotationsApp:
     argocd.argoproj.io/sync-wave: "-3"
