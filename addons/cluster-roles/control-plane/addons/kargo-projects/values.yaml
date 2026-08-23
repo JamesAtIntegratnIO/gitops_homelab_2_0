@@ -10,7 +10,9 @@
 # Merge policy in one line: `patch` for anything a bad minor could take the
 # cluster down with (CNI, the deployer, admission, certs, the gateway),
 # `minor` for apps and tooling, `always` for our own CI images, `never` where
-# there is no version to judge by (digest of a mutable tag).
+# there is no version to judge by (digest of a mutable tag) -- or where the
+# artifact's failure mode is silence rather than an error, which is why
+# `bosun` is `never` despite having perfectly good versions.
 
 # The chart has no default repoURL: it must match the Kargo git credential
 # Secret's repoURL after normalisation, and a silent mismatch fails at
@@ -573,12 +575,29 @@ projects:
         # the branch tag `main`, so it moved whenever a build ran and no pin
         # ever recorded what was running.
         #
-        # patch-only, and note what auto-merging this means: Bosun is what
-        # triages gated pull requests, so a bad bump here takes triage down
-        # with it -- and the failure is silence, not an error. The `verify`
-        # app is the thing that catches it.
+        # `never`, and not because there is no version to judge by -- there
+        # is one. Because of what this particular artifact is.
+        #
+        # Bosun is what triages gated pull requests, so a bad bump takes
+        # triage down with it, and the failure is SILENCE rather than an
+        # error: promotions keep succeeding, pull requests keep opening, and
+        # nothing anywhere says the judgement half stopped answering. `verify`
+        # catches a Bosun that will not deploy. It cannot catch one that
+        # deploys cleanly and reasons badly, which is the likelier bad bump.
+        #
+        # Consequence worth knowing: `triage.when: gated` hands Bosun every
+        # pull request the policy will NOT auto-merge, so `never` means Bosun
+        # is asked to triage its own upgrade. Mostly fine -- it comments and
+        # escalates, it cannot merge, and its deny-list refuses THIS file
+        # outright. But its allowPaths include `addons/**` and
+        # `bosun.defaultVersion` lives in addons.yaml, so a red gate on its
+        # own bump is a path by which it could propose moving its own pin. A
+        # human still merges it, and the edit has to corroborate against a
+        # version named in the gate report. Worth knowing rather than worth
+        # blocking: a path-level deny cannot express "this one key of a file
+        # the agent legitimately edits every day".
         chart: { repoURL: oci://ghcr.io/jamesatintegratnio/charts/bosun }
-        autoMerge: patch
+        autoMerge: never
         verify:
           apps:
             - bosun-the-cluster
