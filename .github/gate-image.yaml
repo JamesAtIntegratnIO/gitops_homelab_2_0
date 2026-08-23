@@ -19,4 +19,4 @@
 #
 # Kargo rules apply to this file: `image` must stay a scalar, in the first
 # YAML document, with no trailing comment on its line.
-image: ghcr.io/jamesatintegratnio/gitops-gate:main-18166b7@sha256:e70da18300ba8c35708039c771b7e70b3a9231175ba00b585ed2b8973fa41567
+image: ghcr.io/jamesatintegratnio/gitops-gate:main-3a08d97@sha256:637e70790b76e08940085b5bf7b53dd9eca485f0dfaf4a2ed481ef1842baa9e2
