@@ -1,0 +1,146 @@
+{{- include "bosun.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bosun.fullname" . }}
+  labels:
+    {{- include "bosun.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "bosun.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bosun.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "bosun.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bosun
+          image: {{ include "bosun.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: AGENT_ADDR
+              value: ":{{ .Values.service.port }}"
+            - name: AGENT_BRAND
+              value: {{ .Values.branding.name | default "bosun" | quote }}
+            {{- with .Values.branding.mark }}
+            - name: AGENT_BRAND_MARK
+              value: {{ . | quote }}
+            {{- end }}
+            - name: GIT_PROVIDER
+              value: {{ .Values.git.provider | quote }}
+            - name: GIT_INSECURE_SKIP_TLS_VERIFY
+              value: {{ .Values.git.insecureSkipTLSVerify | default false | quote }}
+            {{- with .Values.git.apiBase }}
+            - name: GIT_API_BASE
+              value: {{ . | quote }}
+            {{- end }}
+            - name: GIT_OWNER
+              value: {{ .Values.git.owner | quote }}
+            - name: GIT_REPO
+              value: {{ .Values.git.repo | quote }}
+            - name: GIT_REPO_URL
+              value: {{ .Values.git.repoURL | quote }}
+            - name: GIT_AUTHOR_NAME
+              value: {{ .Values.git.author.name | quote }}
+            - name: GIT_AUTHOR_EMAIL
+              value: {{ .Values.git.author.email | quote }}
+            - name: GIT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.git.existingSecret }}
+                  key: {{ .Values.git.tokenKey }}
+            - name: LLM_PROVIDER
+              value: {{ .Values.llm.provider | quote }}
+            {{- with .Values.llm.baseURL }}
+            - name: LLM_BASE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: LLM_MODEL
+              value: {{ .Values.llm.model | quote }}
+            {{- with .Values.llm.reasoningEffort }}
+            - name: LLM_REASONING_EFFORT
+              value: {{ . | quote }}
+            {{- end }}
+            - name: LLM_TIMEOUT
+              value: {{ .Values.llm.timeout | quote }}
+            {{- if .Values.llm.existingSecret }}
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.llm.existingSecret }}
+                  key: {{ .Values.llm.apiKeyKey }}
+            {{- end }}
+            - name: GATE_CHECK_NAME
+              value: {{ .Values.gate.checkName | quote }}
+            - name: GATE_WAIT
+              value: {{ .Values.gate.wait | quote }}
+            - name: GATE_POLL
+              value: {{ .Values.gate.poll | quote }}
+            - name: MAX_ATTEMPTS
+              value: {{ .Values.triage.maxAttempts | quote }}
+            - name: ALLOW_PATHS
+              value: {{ join "," .Values.triage.allowPaths | quote }}
+            {{- with .Values.triage.denyPaths }}
+            - name: DENY_PATHS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            - name: CLONE_ROOT
+              value: /work
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            # The agent clones the pull request's branch here. emptyDir keeps
+            # the root filesystem read-only; nothing is worth persisting -- a
+            # restart mid-triage should start clean rather than resume.
+            - name: work
+              mountPath: /work
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: work
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

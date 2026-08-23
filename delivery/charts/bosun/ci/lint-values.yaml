@@ -1,0 +1,27 @@
+# Minimum values satisfying the chart's required fields, so helm lint and the
+# extraction test can render a chart that deliberately has no safe defaults.
+image:
+  repository: ghcr.io/example/bosun
+  tag: v0.1.0
+git:
+  owner: example
+  repo: platform
+  repoURL: https://github.com/example/platform.git
+  existingSecret: bosun-git
+llm:
+  provider: openai
+  baseURL: http://model.example.svc:1234/v1
+  model: example-model
+triage:
+  allowPaths:
+    - addons/**
+networkPolicy:
+  enabled: true
+  kargoNamespace: kargo
+  egress:
+    dnsNamespace: kube-system
+    ipBlocks:
+      - cidr: 192.0.2.10/32
+        port: 1234
+    fqdns:
+      - api.github.com

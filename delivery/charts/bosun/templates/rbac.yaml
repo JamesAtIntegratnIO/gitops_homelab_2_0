@@ -1,0 +1,42 @@
+{{- if .Values.rbac.create }}
+{{- /*
+Read-only, and deliberately so. The agent observes the cluster to correlate a
+failure against live state, and writes only to pull requests. There is no
+create, update, patch or delete verb anywhere in this chart -- if a future
+feature seems to need one, that is a signal to reconsider the feature.
+*/ -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "bosun.fullname" . }}
+  labels:
+    {{- include "bosun.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [kargo.akuity.io]
+    resources: [promotions, stages, warehouses, freights, projects]
+    verbs: [get, list, watch]
+  - apiGroups: [argoproj.io]
+    resources: [applications, analysisruns, analysistemplates]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "bosun.fullname" . }}
+  labels:
+    {{- include "bosun.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "bosun.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "bosun.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

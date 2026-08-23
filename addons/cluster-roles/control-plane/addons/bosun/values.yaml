@@ -1,0 +1,93 @@
+# Without this the chart's objects are named `bosun-bosun` -- release name
+# plus chart name, both of which are now `bosun`.
+fullnameOverride: bosun
+
+# Consumes delivery/charts/bosun. See that chart's README, and
+# delivery/images/bosun/docs/ for the safety model and the prompt
+# contract the eval numbers come from.
+#
+# ENABLED. Both preconditions hold: the model endpoint below is serving, and
+# LM Studio has "Serve on Local Network" on -- it binds 127.0.0.1 by default,
+# which the cluster cannot reach. If triage starts timing out, check those two
+# first; a sleeping workstation looks exactly like a wedged model.
+
+image:
+  repository: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/bosun
+  tag: main
+  pullPolicy: IfNotPresent
+
+git:
+  provider: github
+  owner: jamesatintegratnio
+  repo: gitops_homelab_2_0
+  repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
+  author:
+    name: bosun
+    email: bosun@users.noreply.github.com
+  existingSecret: bosun-github
+  tokenKey: token
+
+llm:
+  # Self-hosted, OpenAI-compatible. LM Studio on the workstation.
+  provider: openai
+  baseURL: http://192.168.0.57:1234/v1
+  model: qwen/qwen3.5-9b
+  # Generous: a local model reasoning over a 15k-token chart diff takes
+  # minutes, and nothing is waiting on it.
+  timeout: 10m
+  # The endpoint requires a key. Renders LLM_API_KEY from the ExternalSecret
+  # beside this file; the client sends it as a bearer token.
+  existingSecret: bosun-llm
+
+gate:
+  checkName: addons-gate
+  wait: 10m
+  poll: 30s
+
+triage:
+  maxAttempts: 2
+  # Where a fix may land. Everything else is refused -- and CI config, the
+  # gate and the Kargo target list are refused regardless, by a deny-list the
+  # agent's own configuration cannot remove from.
+  allowPaths:
+    - addons/**
+    - workloads/**
+    - promises/**
+
+# NOTE: this addon's NetworkPolicies come from the chart rather than from the
+# network-policies addon, unlike most namespaces here. That is deliberate --
+# the chart has to carry them to be usable outside this repo, and keeping them
+# beside the Deployment is what stops the two drifting apart.
+#
+# The half that CANNOT live here is the Kargo controller's own egress rule
+# permitting this service; it is in
+# network-policies/kargo.yaml (allow-controller-egress). Kyverno still
+# generates the namespace's default-deny baseline as normal.
+networkPolicy:
+  enabled: true
+  # This cluster runs Cilium, so take the tighter FQDN form for the git host.
+  flavor: cilium
+  kargoNamespace: kargo
+  egress:
+    dnsNamespace: kube-system
+    ipBlocks:
+      # The workstation running LM Studio. A /32 because it is one host, and
+      # because the standard "0.0.0.0/0 except RFC1918" shape used elsewhere
+      # in this repo would drop it -- 192.168.0.0/16 is in that exception list.
+      #
+      # This address must be a DHCP reservation. A lease change breaks triage
+      # silently, which is precisely the failure class this work exists to end.
+      - cidr: 192.168.0.57/32
+        port: 1234
+    fqdns:
+      - api.github.com
+      - github.com
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    memory: 512Mi
+
+priorityClassName: platform-batch

@@ -1,0 +1,341 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bosun values",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "image",
+    "git",
+    "llm",
+    "triage"
+  ],
+  "properties": {
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "nameOverride": {
+      "type": "string"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "imagePullSecrets": {
+      "type": "array"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        },
+        "pullPolicy": {
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "owner",
+        "repo",
+        "repoURL",
+        "existingSecret"
+      ],
+      "properties": {
+        "provider": {
+          "enum": [
+            "github",
+            "gitea",
+            "gitlab",
+            "bitbucket"
+          ]
+        },
+        "apiBase": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repoURL": {
+          "type": "string",
+          "minLength": 1
+        },
+        "author": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            }
+          }
+        },
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1,
+          "description": "This chart never creates a Secret; supply one."
+        },
+        "tokenKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "insecureSkipTLSVerify": {
+          "type": "boolean"
+        }
+      }
+    },
+    "llm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "model"
+      ],
+      "properties": {
+        "provider": {
+          "enum": [
+            "openai",
+            "anthropic"
+          ],
+          "description": "No default: a chart that silently spends money against a vendor you did not choose is a bad default."
+        },
+        "baseURL": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reasoningEffort": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "string",
+          "pattern": "^\\d+[smh]$|^\\d+[hm]\\d+[ms]$|^\\d+h\\d+m\\d+s$"
+        },
+        "existingSecret": {
+          "type": "string"
+        },
+        "apiKeyKey": {
+          "type": "string"
+        }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "checkName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "wait": {
+          "type": "string",
+          "pattern": "^\\d+[smh]$|^\\d+[hm]\\d+[ms]$|^\\d+h\\d+m\\d+s$"
+        },
+        "poll": {
+          "type": "string",
+          "pattern": "^\\d+[smh]$|^\\d+[hm]\\d+[ms]$|^\\d+h\\d+m\\d+s$"
+        }
+      }
+    },
+    "triage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allowPaths"
+      ],
+      "properties": {
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "allowPaths": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "description": "Empty means the agent can fix nothing; the process refuses to start."
+        },
+        "denyPaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Added to the built-in deny-list, which cannot be removed from."
+        }
+      }
+    },
+    "resources": {
+      "type": "object"
+    },
+    "priorityClassName": {
+      "type": "string"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "affinity": {
+      "type": "object"
+    },
+    "podAnnotations": {
+      "type": "object"
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": {
+          "type": "boolean"
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "flavor": {
+          "enum": [
+            "standard",
+            "cilium"
+          ]
+        },
+        "kargoNamespace": {
+          "type": "string",
+          "minLength": 1
+        },
+        "egress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dnsNamespace": {
+              "type": "string"
+            },
+            "ipBlocks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "cidr",
+                  "port"
+                ],
+                "properties": {
+                  "cidr": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": "integer"
+                  }
+                }
+              }
+            },
+            "fqdns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowPublicHTTPS": {
+              "type": "boolean"
+            },
+            "namespaces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "ports": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "branding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "mark": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

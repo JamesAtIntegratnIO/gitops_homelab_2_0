@@ -1,0 +1,143 @@
+replicaCount: 1
+
+image:
+  repository: ""          # REQUIRED
+  tag: ""                 # prefer a digest
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  port: 8080
+
+# Kargo calls this in-cluster. Nothing else needs to reach it, and publishing
+# something that can spend money and write to your repository would be
+# gratuitous exposure -- so this chart deliberately renders no Ingress or
+# HTTPRoute at all.
+
+# What the agent calls itself. This is NOT the same as the account its token
+# belongs to -- the token's owner is whoever minted it, and every comment and
+# commit will carry that person's name unless you give the agent an account of
+# its own. Create a dedicated bot user on your git host and mint the token as
+# that user; this only controls the name it signs with.
+branding:
+  name: Bosun
+  # Leading mark on each comment. Kept separate from the name so it can be
+  # dropped without renaming anything.
+  mark: "⚓"
+
+git:
+  # github, gitea (implemented) | gitlab | bitbucket (extension points)
+  provider: github
+  # What this means depends on the host, because the hosts differ:
+  #   github -- the API root, e.g. https://ghe.example.com/api/v3
+  #   gitea  -- the INSTANCE root, e.g. https://gitea.example.com. The client
+  #             appends /api/v1 itself, and also needs the root to build a
+  #             push remote.
+  apiBase: ""
+  # Accept a self-signed certificate. Self-hosted hosts commonly have one;
+  # this is scoped to the agent's git client and to the clone it pushes from,
+  # never to the process or to a global git config.
+  insecureSkipTLSVerify: false
+  owner: ""               # REQUIRED
+  repo: ""                # REQUIRED
+  # Clone URL. Must be reachable from the cluster.
+  repoURL: ""             # REQUIRED
+  author:
+    name: bosun
+    email: bosun@users.noreply.github.com
+  # Existing Secret holding the token. This chart never creates a Secret --
+  # how it gets there (ExternalSecret, Vault Agent, SOPS, kubectl) belongs to
+  # whoever installs this.
+  existingSecret: ""      # REQUIRED
+  tokenKey: token
+
+llm:
+  # openai | anthropic. NO DEFAULT: a component that installs cleanly and then
+  # quietly spends money against a vendor you did not choose is a bad default.
+  provider: ""            # REQUIRED
+  # Required for `openai`. This is what makes a self-hosted endpoint work.
+  baseURL: ""
+  model: ""               # REQUIRED
+  # Optional; only some models accept it.
+  reasoningEffort: ""
+  timeout: 10m
+  # Existing Secret holding the API key. Omit entirely for an unauthenticated
+  # local endpoint.
+  existingSecret: ""
+  apiKeyKey: api-key
+
+gate:
+  # The single aggregate check the agent waits on. Must match the name in your
+  # branch protection rule.
+  checkName: addons-gate
+  # How long to wait for the gate to reach a verdict.
+  wait: 10m
+  poll: 30s
+
+triage:
+  # Self-fix attempts per pull request, tracked by label so the cap survives a
+  # restart or a rescheduled pod.
+  maxAttempts: 2
+  # Paths the agent may edit. EMPTY MEANS IT CAN FIX NOTHING, and the process
+  # refuses to start that way rather than silently refusing every fix later.
+  allowPaths: []
+  # Added to the built-in deny-list, which already refuses CI config, the gate
+  # and the merge policy and cannot be removed from.
+  denyPaths: []
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    memory: 512Mi
+
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  # Read-only, cluster-scoped. The agent observes and writes to pull requests;
+  # it never mutates the cluster.
+  create: true
+
+networkPolicy:
+  enabled: true
+  # cilium emits CiliumNetworkPolicy with toFQDNs, which is materially tighter
+  # than an ipBlock. `standard` emits plain NetworkPolicy and works anywhere.
+  flavor: standard
+  # Namespace running the Kargo controller -- the only thing allowed to call
+  # this service.
+  kargoNamespace: kargo
+  # Egress the agent needs: the git host and the model endpoint.
+  # For `standard`, give CIDRs; for `cilium`, FQDNs are also honoured.
+  egress:
+    dnsNamespace: kube-system
+    # In-cluster destinations -- a self-hosted git host or a model endpoint
+    # running in this cluster. These CANNOT be expressed as ipBlocks: a
+    # ClusterIP is DNAT'd to a pod IP before policy evaluation, so a rule
+    # naming it matches nothing and the connection hangs with zero bytes.
+    # e.g. [{name: gitea, ports: [3000]}]
+    namespaces: []
+    # e.g. [{cidr: 10.1.2.3/32, port: 8000}] for a model endpoint on your LAN
+    ipBlocks: []
+    # e.g. [api.github.com] -- honoured only when flavor is `cilium`
+    fqdns: []
+    # Allow outbound 443 to everything except private ranges. Convenient for
+    # reaching a public git host; unnecessary if you list FQDNs.
+    allowPublicHTTPS: false
+
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s

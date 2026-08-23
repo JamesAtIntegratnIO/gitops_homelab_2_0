@@ -17,9 +17,9 @@ sources:
 
 # The LM Studio endpoint does not enforce its API key (found 2026-08-22)
 
-The delivery-agent authenticates to the model endpoint on the workstation
+Bosun authenticates to the model endpoint on the workstation
 (`192.168.0.57:1234`) with a bearer token from 1Password
-(`delivery-agent-llm`). The token is attached correctly and inference works —
+(`bosun-llm`). The token is attached correctly and inference works —
 but the endpoint accepts requests **without** it.
 
 Tested from inside the agent's own pod, so through the real network path:
