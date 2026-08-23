@@ -35,7 +35,12 @@ llm:
   # Self-hosted, OpenAI-compatible. LM Studio on the workstation.
   provider: openai
   baseURL: http://192.168.0.57:1234/v1
-  model: qwen/qwen3.5-9b
+  # The eval suite measures both: 9/9 classification on qwen3.8-27b against 8/9
+  # on qwen3.5-9b, with 0 unsafe actions either way. The 9B was chosen when the
+  # only question was "does a local model work at all"; now that Bosun is being
+  # asked to EXPLAIN a rendered diff and not merely classify it, the larger
+  # model is worth the latency -- nothing waits on this call.
+  model: qwen/qwen3.8-27b
   # Generous: a local model reasoning over a 15k-token chart diff takes
   # minutes, and nothing is waiting on it.
   timeout: 10m
