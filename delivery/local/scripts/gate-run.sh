@@ -62,10 +62,15 @@ step "gate exit ${GATE_EXIT} -- ${SUMMARY}"
 
 # The report goes up as a comment because that is the only artifact surface
 # every git host has, and it is where the agent looks for it.
+#
+# Posted VERBATIM. The gate binary leads its own report with the marker the
+# agent searches for, so nothing here has to know the magic string -- this
+# script used to be the only thing in the package that did, which is precisely
+# why no CI adapter ever published a report the agent could find.
 python3 - "$WORK/report.md" <<'PY' > "$WORK/comment.json"
 import json,sys
 body = open(sys.argv[1]).read() if len(sys.argv)>1 else ""
-print(json.dumps({"body": "<!-- gitops-gate -->\n" + body}))
+print(json.dumps({"body": body}))
 PY
 gitea_api POST "/repos/${GITEA_OWNER}/${SAMPLE_REPO_NAME}/issues/${PR}/comments" \
   --data-binary @"$WORK/comment.json" >/dev/null

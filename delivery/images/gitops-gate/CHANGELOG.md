@@ -5,6 +5,22 @@ All notable changes to `gitops-gate`. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- `ReportMarker` — `diff -report` now leads its output with
+  `<!-- gitops-gate -->`, and a test asserts it on both a blocking report and a
+  green one.
+
+  This is a contract, not decoration: a triage agent finds the gate's verdict
+  by searching a pull request's comments for that string. It previously lived
+  in one shell script in the local proving ground and in **no CI adapter at
+  all**, so a report published by CI was one no agent could locate. Emitting it
+  from the binary makes any adapter that posts the report verbatim correct by
+  construction, and makes the same bug unavailable to the GitLab and Bitbucket
+  adapters.
+
+  Adapters must no longer prepend it themselves or they will publish two.
+
 ### Fixed
 
 - Chart diff no longer reports a chart's whole resource set as removed and
