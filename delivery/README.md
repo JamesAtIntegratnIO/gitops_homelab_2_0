@@ -10,15 +10,29 @@ a promotion breaks. This kit closes those three gaps:
 | Piece | What it does |
 |---|---|
 | [`images/gitops-gate`](images/gitops-gate) | Renders your ApplicationSets at base and at head, fails when an app's **cluster targeting** changes, diffs the old and new chart render, and schema-validates the result. Run it from any CI system — the exit code is the verdict. |
-| [`images/bosun`](images/bosun) | **Bosun** — reads a red gate, explains it, and fixes the mechanical cases — a flipped chart default, a coupled pin, a metrics port a NetworkPolicy still names. Escalates everything else. |
+| [Bosun](https://github.com/JamesAtIntegratnIO/bosun) *(own repository)* | Reads a red gate, explains it, and fixes the mechanical cases — a flipped chart default, a coupled pin, a metrics port a NetworkPolicy still names. Escalates everything else. |
 | [`charts/kargo-pipelines`](charts/kargo-pipelines) | Warehouses and Stages from one target list, with **multi-stage promotion chains**, verification gating, bounded timeouts and a triage hook. |
 | [`charts/kargo-observability`](charts/kargo-observability) | Kargo's own state as Prometheus metrics, plus alerts and a dashboard. Kargo ships no domain metrics of its own. |
-| [`charts/bosun`](charts/bosun) | Runs Bosun in-cluster, triggered by Kargo rather than polled. |
+| [`bosun` chart](https://github.com/JamesAtIntegratnIO/bosun/tree/main/charts/bosun) *(own repository)* | Runs Bosun in-cluster, triggered by Kargo rather than polled. `oci://ghcr.io/jamesatintegratnio/charts/bosun`. |
 
 Bosun was called `delivery-agent` until 2026-08-23 — the name changed, the job
 did not. A bosun makes routine repairs on their own authority and reports
 serious damage to the captain, which is the split it draws between a mechanical
 fix and an escalation. It sits beside Argo (the ship) and Kargo (the cargo).
+
+**Bosun moved to its own repository on 2026-08-23** and is licensed separately
+(PolyForm Noncommercial 1.0.0 rather than this package's Apache 2.0). It is
+still a component of this kit — the pipelines chart's `triage` hook calls it,
+and `charts/kargo-pipelines` is what makes that call — but it is consumed from
+a registry now rather than a directory:
+
+```
+image  ghcr.io/jamesatintegratnio/bosun
+chart  oci://ghcr.io/jamesatintegratnio/charts/bosun
+```
+
+The kit works without it. Nothing in `images/gitops-gate` or either chart
+depends on Bosun being installed; `triage.enabled: false` is the default.
 
 ## What problem this actually solves
 

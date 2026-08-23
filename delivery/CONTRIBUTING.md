@@ -65,6 +65,11 @@ decision, and what it costs. Write the ADR before the code when the decision is
 contested, and note the alternatives you rejected — the next person needs to
 know they *were* considered.
 
+ADRs 0001, 0002 and 0004 are Bosun's and moved with it to
+[JamesAtIntegratnIO/bosun](https://github.com/JamesAtIntegratnIO/bosun/tree/main/adr).
+The numbering is not reused: 0003 stays 0003 here, and the next ADR written in
+this package is 0005.
+
 ## Running the checks
 
 ```bash

@@ -9,7 +9,7 @@ the verdict. Adapters in [`../../ci`](../../ci) are thin wrappers that pass a
 workspace in and turn the exit code into a commit status.
 
 > **Status: not yet implemented.** This README is the contract the
-> implementation is written against. See [`../../adr/0002-triage-in-cluster-not-ci.md`](../../adr/0002-triage-in-cluster-not-ci.md)
+> implementation is written against. See [ADR 0002, *deterministic checks in CI, judgement in the cluster*](https://github.com/JamesAtIntegratnIO/bosun/blob/main/adr/0002-triage-in-cluster-not-ci.md)
 > for why the AI half is deliberately *not* here.
 
 ## Subcommands

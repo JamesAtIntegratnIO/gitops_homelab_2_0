@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# Installs the delivery kit itself: the agent, the pipelines, the observability.
+# Installs the delivery kit itself: Bosun, the pipelines, the observability.
 #
-# The agent image is built from the WORKING TREE rather than pulled. That is
-# the point of a proving ground -- it exercises the code in front of you, not
-# whatever was last published. It also sidesteps the architecture question
-# entirely: the published images are amd64 and this machine may not be.
+# Bosun is PULLED here, not built. It lives in its own repository now
+# (github.com/JamesAtIntegratnIO/bosun) and this working tree has no source to
+# build. That is the right trade for THIS proving ground, whose job is the
+# gate, the pipelines and the observability chart -- Bosun is a dependency it
+# exercises rather than the thing under test. To prove a change to Bosun
+# itself, use the proving ground in that repository, which does build from the
+# working tree.
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 load_credentials
 : "${LLM_BASE_URL:?set LLM_BASE_URL to an OpenAI-compatible endpoint the cluster can reach, e.g. http://<host>:1234/v1}"
 : "${LLM_MODEL:=qwen/qwen3.5-9b}"
-: "${KIND_CLUSTER:=localdev}"
-: "${AGENT_IMAGE:=bosun:local}"
+: "${BOSUN_CHART:=oci://ghcr.io/jamesatintegratnio/charts/bosun}"
+# Pinned, and pinned to the same version the cluster runs -- see
+# `bosun.defaultVersion` in
+# addons/cluster-roles/control-plane/addons/addons.yaml. A proving ground on a
+# different version of a dependency proves something about a build nobody has.
+: "${BOSUN_VERSION:=0.1.0}"
 
 # Two addresses for one repository, because two consumers disagree about what
 # is acceptable:
@@ -35,16 +42,6 @@ GITEA_ROOT="${GITEA_SVC}"
 LLM_HOST="$(printf '%s' "$LLM_BASE_URL" | sed -E 's#^https?://##; s#[:/].*$##')"
 LLM_PORT="$(printf '%s' "$LLM_BASE_URL" | sed -nE 's#^https?://[^:/]+:([0-9]+).*#\1#p')"
 : "${LLM_PORT:=80}"
-
-say "building the agent image from the working tree"
-docker build -q -t "$AGENT_IMAGE" "$ROOT/../images/bosun" >/dev/null
-ok "built $AGENT_IMAGE"
-# kind nodes have their own image store; a locally built image is invisible
-# until it is loaded, and the pod would sit ImagePullBackOff against a
-# registry that has never heard of this tag.
-command -v kind >/dev/null 2>&1 || bad "kind is not on PATH -- idpbuilder embeds it but does not install it"
-kind load docker-image "$AGENT_IMAGE" --name "$KIND_CLUSTER" 2>&1 | sed 's/^/    /'
-ok "loaded into kind/$KIND_CLUSTER"
 
 say "the agent's own account"
 # The agent authenticates as whoever owns its token. Hand it the admin's and
@@ -90,13 +87,11 @@ kc -n bosun create secret generic agent-git \
   --from-literal=token="$AGENT_TOKEN" >/dev/null
 ok "agent-git"
 
-say "bosun"
-helm upgrade --install bosun "$ROOT/../charts/bosun" \
+say "bosun ${BOSUN_VERSION}"
+helm upgrade --install bosun "$BOSUN_CHART" --version "$BOSUN_VERSION" \
   --kube-context "$CLUSTER_CONTEXT" \
   --namespace bosun \
-  --set image.repository="${AGENT_IMAGE%%:*}" \
-  --set image.tag="${AGENT_IMAGE##*:}" \
-  --set image.pullPolicy=Never \
+  --set image.repository=ghcr.io/jamesatintegratnio/bosun \
   --set git.provider=gitea \
   --set git.apiBase="$GITEA_ROOT" \
   --set git.owner="$GITEA_OWNER" \
@@ -121,13 +116,8 @@ helm upgrade --install bosun "$ROOT/../charts/bosun" \
   --set 'triage.allowPaths[0]=apps/**' \
   --set 'triage.allowPaths[1]=addons/**' \
   --wait --timeout 5m >/dev/null
-# The image tag never changes, so helm sees an identical pod spec and keeps
-# the running pod -- with the OLD binary in it. Every rebuild therefore needs
-# an explicit rollout, or you spend an hour debugging code that is not
-# running.
-kc -n bosun rollout restart deploy/bosun-bosun >/dev/null
 kc -n bosun rollout status deploy/bosun-bosun --timeout=180s >/dev/null
-ok "bosun ready (restarted onto the freshly built image)"
+ok "bosun ready"
 
 say "kargo-pipelines"
 helm upgrade --install kargo-pipelines "$ROOT/../charts/kargo-pipelines" \

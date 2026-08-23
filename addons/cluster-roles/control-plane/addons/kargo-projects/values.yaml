@@ -28,9 +28,9 @@ nameLabel: kargo-projects
 # and Kargo never calls it -- enabling the addon alone deploys a service with
 # no caller.
 #
-# The Service name is doubled because the chart's fullname helper is
-# `<release>-<chart>` and the ApplicationSet sets releaseName from addonChart,
-# which is also `bosun`.
+# `bosun.bosun.svc` is service.namespace, not a doubled name: the chart's
+# fullname helper would give `bosun-bosun` (release plus chart, both `bosun`),
+# and the addon's values.yaml sets `fullnameOverride: bosun` to stop it.
 #
 # `gated` rather than `always`: only PRs the merge policy will NOT auto-merge,
 # which is exactly the set already waiting on a human. The happy path stays
@@ -564,6 +564,27 @@ projects:
         updates:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [argo-rollouts.defaultVersion]
+      bosun:
+        # Bosun's own chart, published from
+        # https://github.com/JamesAtIntegratnIO/bosun on a v* tag.
+        #
+        # Until 2026-08-23 this was not tracked at all: the addon pointed at
+        # `delivery/charts/bosun` in this repository and pinned the image to
+        # the branch tag `main`, so it moved whenever a build ran and no pin
+        # ever recorded what was running.
+        #
+        # patch-only, and note what auto-merging this means: Bosun is what
+        # triages gated pull requests, so a bad bump here takes triage down
+        # with it -- and the failure is silence, not an error. The `verify`
+        # app is the thing that catches it.
+        chart: { repoURL: oci://ghcr.io/jamesatintegratnio/charts/bosun }
+        autoMerge: patch
+        verify:
+          apps:
+            - bosun-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [bosun.defaultVersion]
 
   # ───────────────────────────────────────────────────────────────────────
   promises:

@@ -2,9 +2,10 @@
 # plus chart name, both of which are now `bosun`.
 fullnameOverride: bosun
 
-# Consumes delivery/charts/bosun. See that chart's README, and
-# delivery/images/bosun/docs/ for the safety model and the prompt
-# contract the eval numbers come from.
+# Consumes the bosun chart from https://github.com/JamesAtIntegratnIO/bosun.
+# See that chart's README, and the repository's docs/ for the safety model and
+# the prompt contract the eval numbers come from. The chart version is pinned
+# by `bosun.defaultVersion` in the addons.yaml beside this file.
 #
 # ENABLED. Both preconditions hold: the model endpoint below is serving, and
 # LM Studio has "Serve on Local Network" on -- it binds 127.0.0.1 by default,
@@ -12,8 +13,11 @@ fullnameOverride: bosun
 # first; a sleeping workstation looks exactly like a wedged model.
 
 image:
-  repository: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/bosun
-  tag: main
+  repository: ghcr.io/jamesatintegratnio/bosun
+  # Deliberately unset: the chart falls back to its own appVersion, so bumping
+  # the chart moves the image with it and the two cannot drift. This used to be
+  # the branch name `main` -- an unpinned tag, which is exactly the way an image
+  # silently changes underneath a cluster.
   pullPolicy: IfNotPresent
 
 git:
