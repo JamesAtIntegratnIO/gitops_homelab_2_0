@@ -8,8 +8,8 @@ generated: { by: claude-code/claude-opus-5, at: 2026-08-23T07:20:00Z }
 stale_after: 2026-09-23
 sources:
   - id: chart
-    resource: ../../../delivery/charts/kargo-pipelines/
-    title: kargo-pipelines factory chart (superseded addons/charts/kargo-projects in PR #86)
+    resource: https://github.com/JamesAtIntegratnIO/bosun/tree/main/charts/kargo-pipelines
+    title: kargo-pipelines factory chart (its own repository since 2026-08-23; superseded addons/charts/kargo-projects in PR #86)
   - id: targets
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
     title: target list (55 Warehouse/Stage pairs, measured live 2026-08-22)

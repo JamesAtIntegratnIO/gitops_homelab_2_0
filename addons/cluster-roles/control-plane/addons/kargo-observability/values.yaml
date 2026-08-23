@@ -1,5 +1,7 @@
-# Consumes delivery/charts/kargo-observability -- the portable package this
-# repo also publishes. See delivery/charts/kargo-observability/README.md.
+# Consumes the kargo-observability chart, which has its own repository:
+# https://github.com/JamesAtIntegratnIO/kargo-observability
+# The chart version is pinned by `kargo-observability.defaultVersion` in the
+# addons.yaml beside this file, and Kargo tracks it.
 #
 # Kargo exposes controller-runtime counters and nothing about promotions,
 # freight or stages, so until this landed a failed promotion or a failed

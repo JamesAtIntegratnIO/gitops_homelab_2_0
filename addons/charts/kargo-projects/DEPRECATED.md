@@ -1,7 +1,7 @@
-# Superseded by `delivery/charts/kargo-pipelines`
+# Superseded by the `kargo-pipelines` chart
 
 This chart is no longer rendered by anything. The `kargo-projects` addon points
-at `delivery/charts/kargo-pipelines`, which is the same chart generalised for
+at https://github.com/JamesAtIntegratnIO/bosun, which is the same chart generalised for
 reuse plus promotion chains.
 
 It is kept for one release as a rollback path, and because a chart that
@@ -13,5 +13,5 @@ The switch was verified byte-identical: rendered against the same values with
 subsequent change was additive — five canary Stages, no renames, no deletions.
 
 **Do not edit this copy.** Changes belong in
-`delivery/charts/kargo-pipelines`, whose own `docs/` covers the target schema
+the `kargo-pipelines` chart, whose own `docs/` covers the target schema
 and chaining. Delete this directory once the migration has held for a release.

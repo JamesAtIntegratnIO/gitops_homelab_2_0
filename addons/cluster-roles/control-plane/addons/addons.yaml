@@ -864,11 +864,20 @@ bosun:
       - RespectIgnoreDifferences=true
 
 kargo-observability:
+  # Its own repository now --
+  # https://github.com/JamesAtIntegratnIO/kargo-observability -- because it
+  # shares no contract with the gate or the agent and is useful to anyone
+  # running Kargo. Consumed as a versioned OCI chart; `defaultVersion` is a
+  # real pin that Kargo tracks.
+  #
+  # No valuesFolderName or releaseName override needed here: the addon key and
+  # the chart name are both `kargo-observability`, so nothing moves.
   enabled: true
   namespace: monitoring
+  chartName: kargo-observability
   project: platform-services
-  defaultVersion: "main"
-  path: delivery/charts/kargo-observability
+  chartRepository: oci://ghcr.io/jamesatintegratnio/charts/kargo-observability
+  defaultVersion: "0.1.1"
   # Ahead of kube-prometheus-stack. That chart now mounts the
   # CustomResourceState ConfigMap this addon creates, and a kube-state-metrics
   # pod that rolls before the ConfigMap exists sits in
@@ -890,11 +899,36 @@ kargo-observability:
       - SkipDryRunOnMissingResource=true
 
 kargo-projects:
+  # Renders the Warehouses and Stages from the target list in
+  # kargo-projects/values.yaml beside this file. The chart is `kargo-pipelines`
+  # and now ships from https://github.com/JamesAtIntegratnIO/bosun as a
+  # versioned OCI package, so `defaultVersion` is a real pin that Kargo tracks
+  # rather than the branch name it used to be.
+  #
+  # THE ADDON KEY STAYS `kargo-projects` AND TWO FIELDS PIN WHAT IT WOULD
+  # OTHERWISE DRAG WITH IT. Both default to the chart name, and both would
+  # change the moment `chartName` was introduced:
+  #
+  #   valuesFolderName  value files resolve by CHART name, not addon key, so
+  #                     without this the app would look for
+  #                     `addons/.../kargo-pipelines/values.yaml` -- which does
+  #                     not exist -- and render 0 Warehouses from an empty
+  #                     target list. Silently: an empty list is valid input.
+  #   releaseName       the Helm release would become `kargo-pipelines`, and a
+  #                     renamed release is a DELETE AND RECREATE of all 118
+  #                     Projects, Warehouses and Stages, taking every promotion
+  #                     with it.
+  #
+  # `nameLabel: kargo-projects` in the values file keeps the third one --
+  # app.kubernetes.io/name -- stable for the same reason.
   enabled: true
   namespace: kargo
+  chartName: kargo-pipelines
+  valuesFolderName: kargo-projects
+  releaseName: kargo-projects
   project: platform-services
-  defaultVersion: "main"
-  path: delivery/charts/kargo-pipelines
+  chartRepository: oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines
+  defaultVersion: "0.1.0"
   selectorMatchLabels:
     cluster_role: control-plane
   syncPolicy:
