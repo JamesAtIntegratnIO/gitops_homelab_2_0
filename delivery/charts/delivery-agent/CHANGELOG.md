@@ -7,6 +7,11 @@ All notable changes to the `delivery-agent` chart. Format follows
 
 ### Added
 
+- `branding.name` and `branding.mark`. The agent signs its comments, commits
+  and attempt labels with this. It is deliberately NOT the account its token
+  belongs to -- give it a dedicated bot user or a GitHub App, or every comment
+  carries the name of whoever minted the token and reads like a colleague's.
+
 - `git.provider: gitea`, and `git.insecureSkipTLSVerify` for a self-hosted host
   with a private or self-signed certificate.
 - `networkPolicy.egress.namespaces` — egress to an in-cluster destination by

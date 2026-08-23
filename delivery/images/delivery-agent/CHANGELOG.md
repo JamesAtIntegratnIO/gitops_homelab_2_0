@@ -7,6 +7,13 @@ All notable changes to `delivery-agent`. Format follows
 
 ### Added
 
+- `AGENT_BRAND` / `AGENT_BRAND_MARK`. Comments lead with the mark and name, so
+  a reader knows it is a bot before reaching the verdict rather than after,
+  and the footer names the model and says "automated triage, not a review".
+  The attempt label follows the brand too -- it was hardcoded to
+  `delivery-agent/attempt-`, and since the attempt CAP counts those labels, a
+  rename would have silently reset the cap.
+
 - `gitprovider.Gitea`. Gitea's API is deliberately GitHub-shaped, so most of
   it is the same request against a different base — but three places are not,
   and each fails silently rather than loudly: there is no check-runs API, so

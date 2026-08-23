@@ -18,6 +18,17 @@ service:
 # gratuitous exposure -- so this chart deliberately renders no Ingress or
 # HTTPRoute at all.
 
+# What the agent calls itself. This is NOT the same as the account its token
+# belongs to -- the token's owner is whoever minted it, and every comment and
+# commit will carry that person's name unless you give the agent an account of
+# its own. Create a dedicated bot user on your git host and mint the token as
+# that user; this only controls the name it signs with.
+branding:
+  name: delivery-agent
+  # Optional leading mark on each comment, e.g. an emoji. Kept separate from
+  # the name so it can be dropped without renaming anything.
+  mark: ""
+
 git:
   # github, gitea (implemented) | gitlab | bitbucket (extension points)
   provider: github

@@ -42,6 +42,13 @@ type Config struct {
 	LLMReasoningEffort string
 	LLMTimeout         time.Duration
 
+	// Identity. The agent signs its comments and commits with this, and it is
+	// deliberately NOT the same thing as the account the token belongs to --
+	// a reviewer should be able to tell a bot's comment from a colleague's at
+	// a glance, and the token's owner is whoever minted it.
+	Brand     string
+	BrandMark string
+
 	// Behaviour.
 	CheckName   string
 	MaxAttempts int
@@ -55,6 +62,8 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	c := &Config{
 		Addr:        env("AGENT_ADDR", ":8080"),
+		Brand:                    env("AGENT_BRAND", "delivery-agent"),
+		BrandMark:                os.Getenv("AGENT_BRAND_MARK"),
 		GitProvider:              env("GIT_PROVIDER", "github"),
 		GitInsecureSkipTLSVerify: os.Getenv("GIT_INSECURE_SKIP_TLS_VERIFY") == "true",
 		GitAPIBase:  os.Getenv("GIT_API_BASE"),
