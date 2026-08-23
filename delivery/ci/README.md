@@ -6,10 +6,43 @@ The gate is a container. An adapter's whole job is:
    revisions, so a shallow single-revision checkout is not enough.
 2. Run `gitops-gate` against both.
 3. Turn the exit code into a commit status the branch protection rule can require.
-4. Publish `render-diff.json` where the agent can fetch it.
+4. **Post `report.md` to the pull request as a comment**, verbatim, before the
+   step that fails the build.
 
 That is roughly fifteen lines. Everything opinionated lives in the image, on
 purpose — see [`../adr/0002-triage-in-cluster-not-ci.md`](../adr/0002-triage-in-cluster-not-ci.md).
+
+## Step 4 is not optional, and it used to say the wrong thing
+
+Until 2026-08-23 this list said *"publish `render-diff.json` where the agent
+can fetch it"*. Nothing fetches that file. A triage agent reads the gate's
+verdict by listing the pull request's **comments** and taking the most recent
+one that begins with the gate's marker:
+
+```
+<!-- gitops-gate -->
+```
+
+Every adapter here implemented the contract as written, so none of them posted
+a comment, so the verdict was reachable only by a human with the job summary
+open. The gate was green-and-doing-nothing for its most important consumer,
+and nothing failed — which is the failure mode this whole package exists to
+make visible.
+
+The marker is emitted by the **binary**, as the first line of `-report` output.
+An adapter posts the file verbatim and is correct by construction; it does not
+need to know the string. Do not prepend your own — you will get two.
+
+Three details worth copying from [`github/`](github):
+
+- **Post before you fail.** The step that turns exit `1` into a failed build
+  must come *after* the comment, or the report is published only when the gate
+  is green, which is precisely when nobody needs it.
+- **Update in place.** Find the existing comment by marker and edit it. A gate
+  that appends one comment per push is a gate people collapse and stop reading.
+- **Post on green too.** A green report says "no change to what gets deployed",
+  which is worth reading — and it means the publishing path runs on every pull
+  request rather than for the first time during an incident.
 
 | Adapter | Status |
 |---|---|

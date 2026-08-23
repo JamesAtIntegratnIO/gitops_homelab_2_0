@@ -91,6 +91,13 @@ jobs:
     # always(), or this inherits the never-reports problem from its own
     # dependencies and blocks the pull request just as a paths filter would.
     if: always()
+    # Widened for this job only: it is the one that publishes anything. The
+    # gate's verdict has to reach the pull request. A verdict that lives only
+    # in a job summary is invisible to every reader that is not a human with
+    # the tab open -- which includes any triage agent reading the gate.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Nothing affecting rendering changed
         if: needs.scope.outputs.relevant != 'true'
@@ -127,6 +134,47 @@ jobs:
           path: |
             render-diff.json
             report.md
+
+      # BEFORE the Report step, not after: Report exits non-zero on a blocking
+      # change, and a verdict published only when the gate is green is
+      # published only when nobody needs it.
+      #
+      # Skipped for pull requests from forks. `pull_request` hands those a
+      # read-only token whatever this asks for, so the call would 403 --
+      # skipping says so, failing would look like a broken gate. If you need
+      # fork coverage, do NOT reach for `pull_request_target`: it runs the
+      # fork's code with a write token.
+      - name: Publish the report to the pull request
+        if: needs.scope.outputs.relevant == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          # The marker is written by the gate binary itself and is what a
+          # triage agent searches comments for. Read it back out of the report
+          # rather than repeating it here -- a copy that drifts is exactly how
+          # this went unnoticed: the marker lived in one demo script and in no
+          # adapter, so no agent could ever find a report published by CI.
+          marker=$(head -n1 report.md)
+          case "$marker" in
+            '<!-- '*' -->') ;;
+            *) echo "::error::report.md does not lead with the gate marker; refusing to publish an unfindable report" >&2; exit 1 ;;
+          esac
+          id=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" \
+                 --jq "[.[] | select(.body | startswith(\"${marker}\"))] | last | .id // empty")
+          if [ -n "$id" ]; then
+            # Update in place: one comment per pull request however many times
+            # it is pushed to. A gate that appends is a gate people collapse
+            # and stop reading.
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${id}" \
+              -F body=@report.md >/dev/null
+            echo "updated gate report comment ${id}"
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" \
+              -F body=@report.md >/dev/null
+            echo "posted the gate report"
+          fi
 
       - name: Report
         if: needs.scope.outputs.relevant == 'true'

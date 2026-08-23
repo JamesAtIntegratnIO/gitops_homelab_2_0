@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func row(cluster, app, version string) Row {
 	return Row{
@@ -130,5 +133,47 @@ func TestExistingAddonGainingAClusterStillBlocks(t *testing.T) {
 	}
 	if len(d.Introduced) != 0 {
 		t.Fatalf("must not be classified as a new addon, got %+v", d.Introduced)
+	}
+}
+
+// The marker is a contract with whatever reads the gate's verdict off a pull
+// request -- a triage agent finds the report by searching comments for it.
+//
+// It is asserted on BOTH a blocking report and a green one. Before this test
+// existed the marker was prepended by one shell script in the local proving
+// ground and by no adapter at all, so the agent could never have found a
+// report published by CI. A report that leads with anything else is a report
+// nothing can locate, which is indistinguishable from no gate at all.
+func TestReportLeadsWithTheMarker(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		base, head *Table
+	}{
+		{
+			name: "blocking",
+			base: &Table{Rows: []Row{row("hub", "thing-hub", "1.0.0")}},
+			head: &Table{Rows: []Row{
+				row("hub", "thing-hub", "1.0.0"),
+				row("tenant", "thing-tenant", "1.0.0"),
+			}},
+		},
+		{
+			name: "no change at all",
+			base: &Table{Rows: []Row{row("hub", "thing-hub", "1.0.0")}},
+			head: &Table{Rows: []Row{row("hub", "thing-hub", "1.0.0")}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var b strings.Builder
+			Diff(tc.base, tc.head).Report(&b)
+
+			got := b.String()
+			if !strings.HasPrefix(got, ReportMarker+"\n") {
+				t.Fatalf("report must lead with %q, got:\n%s", ReportMarker, got)
+			}
+			if strings.Count(got, ReportMarker) != 1 {
+				t.Fatalf("marker must appear exactly once, got %d", strings.Count(got, ReportMarker))
+			}
+		})
 	}
 }

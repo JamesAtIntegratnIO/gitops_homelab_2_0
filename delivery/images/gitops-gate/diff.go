@@ -194,9 +194,22 @@ func sortChanges(c []Change) {
 	})
 }
 
+// ReportMarker leads every report, and it is load-bearing rather than
+// decorative. A triage agent finds the gate's verdict by looking for this
+// string among the pull request's comments, and an adapter that publishes the
+// report without it has published something nobody can find.
+//
+// It lives here, in the binary, for one reason: every CI adapter would
+// otherwise have to remember an undocumented magic string, and three of the
+// four did not. Emitting it means any adapter that posts the report verbatim
+// is correct by construction. It renders as nothing in every markdown surface,
+// including a CI job summary.
+const ReportMarker = "<!-- gitops-gate -->"
+
 // Report writes a markdown summary suitable for a pull-request comment or a CI
 // job summary.
 func (d *DiffResult) Report(w io.Writer) {
+	fmt.Fprintf(w, "%s\n", ReportMarker)
 	if len(d.Targeting) > 0 {
 		fmt.Fprintf(w, "### Cluster targeting changed\n\n")
 		fmt.Fprintf(w, "These Applications are generated for a different set of clusters than before. ")
