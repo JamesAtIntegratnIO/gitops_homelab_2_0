@@ -928,7 +928,11 @@ kargo-projects:
   releaseName: kargo-projects
   project: platform-services
   chartRepository: oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines
-  defaultVersion: "0.1.0"
+  # 0.1.1 carries the fix that makes the triage hook actually reach Bosun.
+  # Every call before it died at Kargo's own config validation -- the body
+  # rendered as an object where the http step requires a string -- and
+  # `continueOnError` on that step meant nothing ever said so.
+  defaultVersion: "0.1.1"
   selectorMatchLabels:
     cluster_role: control-plane
   syncPolicy:
