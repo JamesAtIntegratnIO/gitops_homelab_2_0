@@ -4,8 +4,8 @@ title: Kargo — automated image and chart version updates
 description: How every pinned image tag, digest and chart version in the repo is kept current — Kargo Warehouses watch the sources, one Stage per artifact opens a PR against main, merges it under a per-target policy, and verifies the affected ArgoCD Applications afterwards.
 tags: [kargo, updates, images, charts, automation, gitops]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-22T22:20:00Z }
-stale_after: 2026-09-22
+generated: { by: claude-code/claude-opus-5, at: 2026-08-23T07:20:00Z }
+stale_after: 2026-09-23
 sources:
   - id: chart
     resource: ../../../delivery/charts/kargo-pipelines/
@@ -26,8 +26,8 @@ sources:
     resource: ../../kargo.md
     title: docs/kargo.md — the operator guide
   - id: agent
-    resource: ../../../delivery/images/bosun/
-    title: bosun — the triage service the pipeline calls
+    resource: https://github.com/JamesAtIntegratnIO/bosun
+    title: Bosun — the triage service the pipeline calls (its own repository since 2026-08-23)
   - id: reference
     resource: https://github.com/Tensure/gitops-apps-config (private)
     title: Tensure's Kargo chart-updater pipelines, the implementation reference
@@ -89,8 +89,11 @@ trigger.
 the promotion until a human merges or closes; later Freight queues behind it).
 
 After `git-open-pr`, a **triage** `http` step POSTs the freight context to the
-[bosun](../../../delivery/images/bosun) — live since
-2026-08-22 (PR #92). `when: gated` means it fires only for pull requests the
+[Bosun](https://github.com/JamesAtIntegratnIO/bosun) — live since
+2026-08-22 (PR #92), and in its own repository since 2026-08-23, consumed as
+the pinned OCI chart `oci://ghcr.io/jamesatintegratnio/charts/bosun` (Kargo
+target `bosun` tracks the chart version; the image follows the chart's
+appVersion). `when: gated` means it fires only for pull requests the
 merge policy will *not* auto-merge, i.e. the ones already parked on
 `git-wait-for-pr` waiting for a human; all 55 Stages carry it. The step is
 `continueOnError: true` and the service answers `202` and works
