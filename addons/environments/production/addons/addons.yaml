@@ -252,7 +252,7 @@ metrics-server:
     matchExpressions:
       - key: cluster_role
         operator: In
-        values: ['control-plane']
+        values: ['vcluster']
 karpenter:
   enabled: false
   enableAckPodIdentity: false
