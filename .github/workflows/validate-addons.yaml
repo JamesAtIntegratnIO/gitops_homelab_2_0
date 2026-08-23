@@ -35,10 +35,21 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       relevant: ${{ steps.check.outputs.relevant }}
+      gateImage: ${{ steps.pin.outputs.image }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Read the pinned gate image
+        id: pin
+        # One place, read once, handed to every job below. See
+        # .github/gate-image.yaml for why the pin does not live in this file.
+        run: |
+          set -euo pipefail
+          image=$(sed -n 's/^image:[[:space:]]*//p' .github/gate-image.yaml | head -1)
+          [ -n "$image" ] || { echo "::error::no image in .github/gate-image.yaml"; exit 1; }
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "::notice::gate image $image"
       - name: Look for paths that affect rendering
         id: check
         run: |
@@ -48,10 +59,13 @@ jobs:
           changed=$(git diff --name-only "$base" "$head")
           echo "$changed" | sed 's/^/  /'
 
-          # delivery/images/gitops-gate is in the list because a change to the
-          # gate itself changes how every render is interpreted -- exactly when
-          # you most want the full run.
-          if echo "$changed" | grep -qE '^(addons/|terraform/cluster/bootstrap/|\.gitops-gate|delivery/images/gitops-gate/)'; then
+          # .github/gate-image.yaml is in the list because moving the pin
+          # changes which gate judges the render -- exactly when you most want
+          # the full run. The gate's SOURCE is not: CI runs the pinned image,
+          # so editing the source changes nothing here until the pin moves.
+          # That is deliberate. A pull request that alters the gate must not be
+          # judged by its own altered gate.
+          if echo "$changed" | grep -qE '^(addons/|terraform/cluster/bootstrap/|\.gitops-gate|\.github/gate-image\.yaml)'; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
             echo "::notice::Rendering affected; running the full gate."
           else
@@ -88,25 +102,28 @@ jobs:
         run: |
           set -euo pipefail
           git checkout --quiet "${{ github.event.pull_request.head.sha }}" -- \
-            .gitops-gate.yaml .gitops-gate delivery/images/gitops-gate
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: delivery/images/gitops-gate/go.mod
-          cache-dependency-path: delivery/images/gitops-gate/go.sum
-
-      - uses: azure/setup-helm@v4
-        with:
-          version: v3.19.0
-
-      - name: Build the gate
-        # `go build ./some/path` only works for a path inside the CURRENT
-        # module, and the gate is its own module. Build from its directory.
-        working-directory: delivery/images/gitops-gate
-        run: go build -o /usr/local/bin/gitops-gate .
+            .gitops-gate.yaml .gitops-gate
 
       - name: Render
-        run: gitops-gate render -repo . -out "targets-${{ matrix.ref }}.json"
+        env:
+          GATE_IMAGE: ${{ needs.scope.outputs.gateImage }}
+        # The gate is a container with an exit code. Running the PINNED image rather
+        # than building from the tree is what stops a pull request that changes the
+        # gate from being judged by its own changed gate -- the same reasoning the
+        # agent's deny-list uses. It also removes setup-go and setup-helm entirely:
+        # the image already carries helm 3.19.0 and kubeconform, so the helm that
+        # renders here cannot drift from the helm the gate was built against.
+        #
+        # --user, because the runner's workspace is owned by the runner and the image
+        # runs as uid 10001, which could not write its output into the mount.
+        # HOME, because helm needs somewhere to put its cache and the overridden uid
+        # has no home directory.
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/repo" -w /repo "$GATE_IMAGE" \
+            render -repo . -out "targets-${{ matrix.ref }}.json"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -130,40 +147,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: delivery/images/gitops-gate/go.mod
-          cache-dependency-path: delivery/images/gitops-gate/go.sum
-
-      - name: Build the gate
-        # `go build ./some/path` only works for a path inside the CURRENT
-        # module, and the gate is its own module. Build from its directory.
-        working-directory: delivery/images/gitops-gate
-        run: go build -o /usr/local/bin/gitops-gate .
-
       - uses: actions/download-artifact@v4
         with:
           pattern: targets-*
           merge-multiple: true
-
-      - uses: azure/setup-helm@v4
-        with:
-          version: v3.19.0
 
       # -repo enables chart-diff: every chart whose version moved is rendered
       # at BOTH versions and the resources are compared. Without it the report
       # says a version changed; with it, it says what the change does.
       - name: Compare
         id: diff
+        env:
+          GATE_IMAGE: ${{ needs.scope.outputs.gateImage }}
         run: |
           set -euo pipefail
           set +e
-          gitops-gate diff \
-            -base targets-base.json \
-            -head targets-head.json \
-            -repo . \
-            -report report.md \
-            -json render-diff.json
+          docker run --rm \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/repo" -w /repo "$GATE_IMAGE" \
+            diff \
+              -base targets-base.json \
+              -head targets-head.json \
+              -repo . \
+              -report report.md \
+              -json render-diff.json
           echo "exit=$?" >> "$GITHUB_OUTPUT"
           set -e
           cat report.md >> "$GITHUB_STEP_SUMMARY"
@@ -234,32 +241,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: delivery/images/gitops-gate/go.mod
-          cache-dependency-path: delivery/images/gitops-gate/go.sum
-
-      - uses: azure/setup-helm@v4
-        with:
-          version: v3.19.0
-
-      - name: Install kubeconform
-        run: |
-          set -euo pipefail
-          wget -qO- https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz \
-            | sudo tar -xz -C /usr/local/bin kubeconform
-          kubeconform -v
-
-      - name: Build the gate
-        # `go build ./some/path` only works for a path inside the CURRENT
-        # module, and the gate is its own module. Build from its directory.
-        working-directory: delivery/images/gitops-gate
-        run: go build -o /usr/local/bin/gitops-gate .
-
+      # No setup-go, no setup-helm, no kubeconform download: the image carries
+      # all three, at the versions the gate was built and tested against. The
+      # hand-installed kubeconform here was also hardcoded to linux-amd64,
+      # which would have broken silently on any other runner.
       - name: Validate
+        env:
+          GATE_IMAGE: ${{ needs.scope.outputs.gateImage }}
         run: |
           set -euo pipefail
-          gitops-gate validate -repo . -report schema.md
+          docker run --rm \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/repo" -w /repo "$GATE_IMAGE" \
+            validate -repo . -report schema.md
           cat schema.md >> "$GITHUB_STEP_SUMMARY"
 
   gate-tests:

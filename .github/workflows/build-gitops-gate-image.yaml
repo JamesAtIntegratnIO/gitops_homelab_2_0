@@ -67,10 +67,13 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./delivery/images/gitops-gate
-          # amd64 only: all three nodes are amd64 and the vcluster shares them,
-          # so an arm64 image has no consumer. Halves the build and removes the
-          # emulated runtime stage entirely.
-          platforms: linux/amd64
+          # Multi-arch, unlike every other image here, because the gate is the
+          # one that never runs in the cluster. The amd64-only rule is about
+          # the three nodes; the gate's consumers are CI runners (amd64) and
+          # developer machines (increasingly arm64 Macs). An amd64-only gate
+          # cannot be run locally at all except under emulation, which is how
+          # you end up with a gate nobody reproduces before pushing.
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
