@@ -189,7 +189,7 @@ external-secrets:
                 secretRef:
                   connectTokenSecretRef:
                     name: eso-onepassword-token
-                    namespace: external-secrets
+                    namespace: external-secrets-system
                     key: token
   syncPolicy:
     automated:
