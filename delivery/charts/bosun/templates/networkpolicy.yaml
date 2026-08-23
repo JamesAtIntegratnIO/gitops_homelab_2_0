@@ -1,0 +1,128 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy -}}
+{{- /*
+Two halves matter and only one of them lives here.
+
+This policy governs what reaches the agent and what the agent may reach. The
+OTHER half is the Kargo controller's own egress policy, which must permit this
+service -- a controller allowed "0.0.0.0/0 except RFC1918" cannot reach a
+ClusterIP at all, and the symptom is a hang with zero bytes rather than an
+error. See the chart README.
+*/ -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "bosun.fullname" . }}
+  labels:
+    {{- include "bosun.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "bosun.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Only Kargo calls this. Nothing else has any reason to.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.kargoNamespace }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+    {{- if .Values.metrics.serviceMonitor.enabled }}
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+    {{- end }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $np.egress.dnsNamespace }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- /* An in-cluster destination cannot be expressed as an ipBlock. A
+           Service's ClusterIP is DNAT'd to a pod IP before policy is
+           evaluated, so a rule naming the ClusterIP matches nothing and the
+           connection times out with no error anywhere -- the same shape of
+           failure as reaching a service through a gateway whose egress
+           allow-list has not learned the namespace. Select the namespace. */}}
+    {{- range $np.egress.namespaces }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .name }}
+      {{- with .ports }}
+      ports:
+        {{- range . }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- range $np.egress.ipBlocks }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr }}
+      ports:
+        - protocol: TCP
+          port: {{ .port }}
+    {{- end }}
+    {{- if $np.egress.allowPublicHTTPS }}
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
+{{- if eq $np.flavor "cilium" }}
+{{- with $np.egress.fqdns }}
+---
+{{- /* FQDN egress is materially tighter than an ipBlock: it names the hosts
+     the agent may reach rather than a range that happens to contain them. */}}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "bosun.fullname" $ }}-fqdn
+  labels:
+    {{- include "bosun.labels" $ | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "bosun.selectorLabels" $ | nindent 6 }}
+  egress:
+    - toFQDNs:
+        {{- range . }}
+        - matchName: {{ . | quote }}
+        {{- end }}
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: {{ $np.egress.dnsNamespace }}
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+          rules:
+            dns:
+              - matchPattern: "*"
+{{- end }}
+{{- end }}
+{{- end }}

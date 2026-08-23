@@ -69,9 +69,9 @@ ok "gate exit ${GATE_EXIT} -- blocked, as it should be"
 sed 's/^/    /' "/tmp/gate-report-${PR}.md" | head -20
 
 say "3. the agent triages"
-AGENT_POD="$(kc -n delivery-agent get pod -l app.kubernetes.io/name=delivery-agent -o name | head -1)"
+AGENT_POD="$(kc -n bosun get pod -l app.kubernetes.io/name=bosun -o name | head -1)"
 [ -n "$AGENT_POD" ] || { bad "no agent pod"; exit 1; }
-BEFORE="$(kc -n delivery-agent logs "$AGENT_POD" 2>/dev/null | wc -l | tr -d ' ')"
+BEFORE="$(kc -n bosun logs "$AGENT_POD" 2>/dev/null | wc -l | tr -d ' ')"
 step "agent log is ${BEFORE} lines; only what follows belongs to this run"
 HEAD_BEFORE="$(gitea_api GET "/repos/${GITEA_OWNER}/${SAMPLE_REPO_NAME}/pulls/${PR}" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["head"]["sha"])')"
@@ -91,18 +91,18 @@ print(json.dumps({
   'files': ['apps/podinfo-hub.yaml', 'apps/podinfo-tenant.yaml'],
   'verifyApps': ['podinfo-hub'],
 }))" "$PR" "$BRANCH")
-kc -n delivery-agent exec -i "$AGENT_POD" -- \
+kc -n bosun exec -i "$AGENT_POD" -- \
   wget -q -O- --post-data "$BODY" \
   --header 'Content-Type: application/json' \
   http://localhost:8080/v1/promotion-opened 2>&1 | sed 's/^/    /' || true
 
 step "waiting for the verdict (a local model takes a moment)"
 for _ in $(seq 1 60); do
-  kc -n delivery-agent logs "$AGENT_POD" 2>/dev/null | tail -n +"$BEFORE" \
+  kc -n bosun logs "$AGENT_POD" 2>/dev/null | tail -n +"$BEFORE" \
     | grep -qiE "triage done|escalat|applied|no fix|refus" && break
   sleep 5
 done
-kc -n delivery-agent logs "$AGENT_POD" 2>/dev/null | tail -n +"$BEFORE" | sed 's/^/    /'
+kc -n bosun logs "$AGENT_POD" 2>/dev/null | tail -n +"$BEFORE" | sed 's/^/    /'
 
 say "4. what the agent actually did"
 HEAD_AFTER="$(gitea_api GET "/repos/${GITEA_OWNER}/${SAMPLE_REPO_NAME}/pulls/${PR}" \

@@ -20,13 +20,13 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_credentials
 FILTER="${1:-}"
 CASES_JSON="$(mktemp)"; trap 'rm -f "$CASES_JSON"' EXIT
-(cd "$ROOT/../images/delivery-agent" && GOTOOLCHAIN=auto go run ./evals/export) > "$CASES_JSON"
+(cd "$ROOT/../images/bosun" && GOTOOLCHAIN=auto go run ./evals/export) > "$CASES_JSON"
 TOTAL=$(python3 -c "import json;print(len(json.load(open('$CASES_JSON'))))")
 say "$TOTAL recorded incidents; agent is live"
 
-AGENT_POD="$(kc -n delivery-agent get pod -l app.kubernetes.io/name=delivery-agent -o name | head -1)"
+AGENT_POD="$(kc -n bosun get pod -l app.kubernetes.io/name=bosun -o name | head -1)"
 [ -n "$AGENT_POD" ] || bad "no agent pod"
-MODEL="$(kc -n delivery-agent get deploy delivery-agent-delivery-agent \
+MODEL="$(kc -n bosun get deploy bosun-bosun \
   -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="LLM_MODEL")].value}')"
 step "model: ${MODEL}"
 
@@ -97,7 +97,7 @@ PY
   step "gate report posted, status gate=failure"
 
   # --- the live agent ---
-  BEFORE=$(kc -n delivery-agent logs "$AGENT_POD" 2>/dev/null | wc -l | tr -d ' ')
+  BEFORE=$(kc -n bosun logs "$AGENT_POD" 2>/dev/null | wc -l | tr -d ' ')
   BODY=$(python3 - "$CASES_JSON" "$i" "$PR" "$BRANCH" <<'PY'
 import json, sys
 case = json.load(open(sys.argv[1]))[int(sys.argv[2])]
@@ -110,12 +110,12 @@ print(json.dumps({
 }))
 PY
 )
-  kc -n delivery-agent exec -i "$AGENT_POD" -- \
+  kc -n bosun exec -i "$AGENT_POD" -- \
     wget -q -O- --post-data "$BODY" --header 'Content-Type: application/json' \
     http://localhost:8080/v1/promotion-opened >/dev/null 2>&1 || true
 
   for _ in $(seq 1 60); do
-    kc -n delivery-agent logs "$AGENT_POD" 2>/dev/null | tail -n +$((BEFORE + 1)) \
+    kc -n bosun logs "$AGENT_POD" 2>/dev/null | tail -n +$((BEFORE + 1)) \
       | grep -qE "PR ${PR}: triage done" && break
     sleep 5
   done

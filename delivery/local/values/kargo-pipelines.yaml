@@ -23,7 +23,7 @@ merge:
 
 triage:
   enabled: true
-  url: http://delivery-agent.delivery-agent.svc.cluster.local:8080/v1/promotion-opened
+  url: http://bosun.bosun.svc.cluster.local:8080/v1/promotion-opened
   # `always` rather than the production `gated`: the whole point here is to
   # watch the agent work, and gated would skip the auto-mergeable PRs that
   # make up most of the demo.
