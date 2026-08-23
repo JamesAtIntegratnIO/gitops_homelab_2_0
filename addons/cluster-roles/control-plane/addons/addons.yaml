@@ -831,12 +831,15 @@ bosun:
   chartName: bosun
   project: platform-services
   chartRepository: oci://ghcr.io/jamesatintegratnio/charts/bosun
-  # 0.3.0. Nothing since 0.1.0 had ever been published -- 0.2.0 was cut and
-  # never tagged -- so this is the first bump that carries any of it: edits
-  # scoped to the promotion's own files, a triage that waits for a gate that
-  # has not reported yet, a commit status on every outcome including the ones
-  # that do nothing, and an explanation of what a green bump actually changed.
-  defaultVersion: "0.3.0"
+  # 0.2.0 -- the first release since 0.1.0 to be published at all, and it
+  # carries everything: edits scoped to the promotion's own files, a triage
+  # that waits for a gate which has not reported yet, a commit status on every
+  # outcome including the ones that do nothing, an explanation of what a green
+  # bump actually changed, and the maintainers' own release notes saying why.
+  #
+  # Verified against the PUBLISHED chart rather than the tree: it renders
+  # EXPLAIN_GREEN and UPSTREAM_NOTES, and selects bosun:0.2.0.
+  defaultVersion: "0.2.0"
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
