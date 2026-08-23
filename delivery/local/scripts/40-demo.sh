@@ -53,22 +53,22 @@ say "5. triage -- the agent reads the gate's comment and decides"
 # ---------------------------------------------------------------------------
 # Kargo's triage step fires this on promotion, but calling it directly makes
 # the demo deterministic and shows the request and the verdict.
-AGENT_POD="$(kc -n delivery-agent get pod -l app.kubernetes.io/name=delivery-agent -o name | head -1)"
+AGENT_POD="$(kc -n bosun get pod -l app.kubernetes.io/name=bosun -o name | head -1)"
 if [ -n "$AGENT_POD" ]; then
   # The field is prNumber. The handler answers 202 immediately and triages
   # asynchronously -- Kargo's http step is synchronous, so a blocking handler
   # would put a model round trip inside every promotion's critical path. That
   # means the verdict is in the logs, not the response.
-  kc -n delivery-agent exec "$AGENT_POD" -- \
+  kc -n bosun exec "$AGENT_POD" -- \
     wget -q -O- --post-data "{\"prNumber\":${PR},\"stage\":\"podinfo-tenant\"}" \
     --header 'Content-Type: application/json' \
     http://localhost:8080/v1/promotion-opened 2>&1 | sed 's/^/    /' | head -5 || true
   step "accepted; triage runs asynchronously -- waiting for the verdict"
   for _ in $(seq 1 30); do
-    kc -n delivery-agent logs "$AGENT_POD" --tail=200 2>/dev/null | grep -qiE "triage done|nothing to triage|verdict|classif|applied|refus" && break
+    kc -n bosun logs "$AGENT_POD" --tail=200 2>/dev/null | grep -qiE "triage done|nothing to triage|verdict|classif|applied|refus" && break
     sleep 6
   done
-  kc -n delivery-agent logs "$AGENT_POD" --tail=25 2>/dev/null | sed 's/^/    /'
+  kc -n bosun logs "$AGENT_POD" --tail=25 2>/dev/null | sed 's/^/    /'
 else
   bad "no agent pod"; FAIL=1
 fi

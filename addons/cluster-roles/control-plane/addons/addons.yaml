@@ -811,18 +811,18 @@ argo-rollouts:
       - ServerSideApply=true
 
 # The target list lives in kargo-projects/values.yaml next to this file.
-delivery-agent:
+bosun:
   # The model endpoint is serving on the workstation and the credentials are in
   # 1Password. See
-  # addons/cluster-roles/control-plane/addons/delivery-agent/values.yaml.
+  # addons/cluster-roles/control-plane/addons/bosun/values.yaml.
   enabled: true
-  namespace: delivery-agent
+  namespace: bosun
   project: platform-services
   defaultVersion: "main"
-  path: delivery/charts/delivery-agent
+  path: delivery/charts/bosun
   additionalResources:
     type: manifest
-    path: addons/cluster-roles/control-plane/addons/delivery-agent
+    path: addons/cluster-roles/control-plane/addons/bosun
   selectorMatchLabels:
     cluster_role: control-plane
   # The ExternalSecret CRD defaults three fields inside every `remoteRef`

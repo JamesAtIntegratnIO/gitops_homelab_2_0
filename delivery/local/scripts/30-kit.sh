@@ -11,7 +11,7 @@ load_credentials
 : "${LLM_BASE_URL:?set LLM_BASE_URL to an OpenAI-compatible endpoint the cluster can reach, e.g. http://<host>:1234/v1}"
 : "${LLM_MODEL:=qwen/qwen3.5-9b}"
 : "${KIND_CLUSTER:=localdev}"
-: "${AGENT_IMAGE:=delivery-agent:local}"
+: "${AGENT_IMAGE:=bosun:local}"
 
 # Two addresses for one repository, because two consumers disagree about what
 # is acceptable:
@@ -37,7 +37,7 @@ LLM_PORT="$(printf '%s' "$LLM_BASE_URL" | sed -nE 's#^https?://[^:/]+:([0-9]+).*
 : "${LLM_PORT:=80}"
 
 say "building the agent image from the working tree"
-docker build -q -t "$AGENT_IMAGE" "$ROOT/../images/delivery-agent" >/dev/null
+docker build -q -t "$AGENT_IMAGE" "$ROOT/../images/bosun" >/dev/null
 ok "built $AGENT_IMAGE"
 # kind nodes have their own image store; a locally built image is invisible
 # until it is loaded, and the pod would sit ImagePullBackOff against a
@@ -84,16 +84,16 @@ AGENT_TOKEN="$(curl -sk -u "${AGENT_USER}:${AGENT_PASSWORD}" \
 ok "minted a token for ${AGENT_USER}"
 
 say "agent credentials"
-kc get namespace delivery-agent >/dev/null 2>&1 || kc create namespace delivery-agent >/dev/null
-kc -n delivery-agent delete secret agent-git >/dev/null 2>&1 || true
-kc -n delivery-agent create secret generic agent-git \
+kc get namespace bosun >/dev/null 2>&1 || kc create namespace bosun >/dev/null
+kc -n bosun delete secret agent-git >/dev/null 2>&1 || true
+kc -n bosun create secret generic agent-git \
   --from-literal=token="$AGENT_TOKEN" >/dev/null
 ok "agent-git"
 
-say "delivery-agent"
-helm upgrade --install delivery-agent "$ROOT/../charts/delivery-agent" \
+say "bosun"
+helm upgrade --install bosun "$ROOT/../charts/bosun" \
   --kube-context "$CLUSTER_CONTEXT" \
-  --namespace delivery-agent \
+  --namespace bosun \
   --set image.repository="${AGENT_IMAGE%%:*}" \
   --set image.tag="${AGENT_IMAGE##*:}" \
   --set image.pullPolicy=Never \
@@ -125,9 +125,9 @@ helm upgrade --install delivery-agent "$ROOT/../charts/delivery-agent" \
 # the running pod -- with the OLD binary in it. Every rebuild therefore needs
 # an explicit rollout, or you spend an hour debugging code that is not
 # running.
-kc -n delivery-agent rollout restart deploy/delivery-agent-delivery-agent >/dev/null
-kc -n delivery-agent rollout status deploy/delivery-agent-delivery-agent --timeout=180s >/dev/null
-ok "delivery-agent ready (restarted onto the freshly built image)"
+kc -n bosun rollout restart deploy/bosun-bosun >/dev/null
+kc -n bosun rollout status deploy/bosun-bosun --timeout=180s >/dev/null
+ok "bosun ready (restarted onto the freshly built image)"
 
 say "kargo-pipelines"
 helm upgrade --install kargo-pipelines "$ROOT/../charts/kargo-pipelines" \

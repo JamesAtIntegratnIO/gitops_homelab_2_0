@@ -1,0 +1,12 @@
+apiVersion: v2
+name: bosun
+description: In-cluster triage for automated dependency-bump pull requests, called by Kargo
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [kargo, argocd, gitops, triage, llm]
+home: https://github.com/JamesAtIntegratnIO/delivery-kit
+sources:
+  - https://github.com/JamesAtIntegratnIO/delivery-kit
+annotations:
+  delivery-kit/requires: kargo; a git host token; an OpenAI- or Anthropic-compatible model endpoint

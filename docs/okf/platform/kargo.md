@@ -26,8 +26,8 @@ sources:
     resource: ../../kargo.md
     title: docs/kargo.md — the operator guide
   - id: agent
-    resource: ../../../delivery/images/delivery-agent/
-    title: delivery-agent — the triage service the pipeline calls
+    resource: ../../../delivery/images/bosun/
+    title: bosun — the triage service the pipeline calls
   - id: reference
     resource: https://github.com/Tensure/gitops-apps-config (private)
     title: Tensure's Kargo chart-updater pipelines, the implementation reference
@@ -89,7 +89,7 @@ trigger.
 the promotion until a human merges or closes; later Freight queues behind it).
 
 After `git-open-pr`, a **triage** `http` step POSTs the freight context to the
-[delivery-agent](../../../delivery/images/delivery-agent) — live since
+[bosun](../../../delivery/images/bosun) — live since
 2026-08-22 (PR #92). `when: gated` means it fires only for pull requests the
 merge policy will *not* auto-merge, i.e. the ones already parked on
 `git-wait-for-pr` waiting for a human; all 55 Stages carry it. The step is

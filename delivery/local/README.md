@@ -15,7 +15,7 @@ No promotion had traversed a chain. The agent had never triaged anything.
 |---|---|
 | kind cluster, ArgoCD, Gitea, ingress | [idpbuilder](https://cnoe.io/docs/reference-implementation/local) |
 | cert-manager, Argo Rollouts, Prometheus, Grafana, Kargo | helm |
-| kargo-pipelines, kargo-observability, delivery-agent | helm, from **this working tree** |
+| kargo-pipelines, kargo-observability, bosun | helm, from **this working tree** |
 | the repository under test | `sample-repo/`, pushed into Gitea |
 
 The agent image is **built from your working tree**, not pulled. A proving
@@ -122,7 +122,7 @@ model, the pull requests, the reasoning and every commit it pushes are live.
 
 The summary shows whether it *edited*, not whether the edit was *right*. The
 exact scalars are checked by the eval suite: `go test ./evals/...` in
-`images/delivery-agent`.
+`images/bosun`.
 
 ## What the agent will and will not fix
 
