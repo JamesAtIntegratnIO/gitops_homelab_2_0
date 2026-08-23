@@ -23,7 +23,7 @@ type Config struct {
 	// on GitHub it is the API root (.../api/v3 for Enterprise), on Gitea it
 	// is the INSTANCE root and the client appends /api/v1 itself, because it
 	// also needs that root to build a push remote.
-	GitAPIBase string
+	GitAPIBase  string
 	GitOwner    string
 	GitRepo     string
 	GitRepoURL  string
@@ -61,18 +61,18 @@ type Config struct {
 
 func LoadConfig() (*Config, error) {
 	c := &Config{
-		Addr:        env("AGENT_ADDR", ":8080"),
+		Addr:                     env("AGENT_ADDR", ":8080"),
 		Brand:                    env("AGENT_BRAND", "Bosun"),
 		BrandMark:                os.Getenv("AGENT_BRAND_MARK"),
 		GitProvider:              env("GIT_PROVIDER", "github"),
 		GitInsecureSkipTLSVerify: os.Getenv("GIT_INSECURE_SKIP_TLS_VERIFY") == "true",
-		GitAPIBase:  os.Getenv("GIT_API_BASE"),
-		GitOwner:    os.Getenv("GIT_OWNER"),
-		GitRepo:     os.Getenv("GIT_REPO"),
-		GitRepoURL:  os.Getenv("GIT_REPO_URL"),
-		GitToken:    os.Getenv("GIT_TOKEN"),
-		AuthorName:  env("GIT_AUTHOR_NAME", "bosun"),
-		AuthorEmail: env("GIT_AUTHOR_EMAIL", "bosun@users.noreply.github.com"),
+		GitAPIBase:               os.Getenv("GIT_API_BASE"),
+		GitOwner:                 os.Getenv("GIT_OWNER"),
+		GitRepo:                  os.Getenv("GIT_REPO"),
+		GitRepoURL:               os.Getenv("GIT_REPO_URL"),
+		GitToken:                 os.Getenv("GIT_TOKEN"),
+		AuthorName:               env("GIT_AUTHOR_NAME", "bosun"),
+		AuthorEmail:              env("GIT_AUTHOR_EMAIL", "bosun@users.noreply.github.com"),
 
 		LLMProvider:        os.Getenv("LLM_PROVIDER"),
 		LLMBaseURL:         os.Getenv("LLM_BASE_URL"),
