@@ -940,7 +940,7 @@ kargo-projects:
   # Every call before it died at Kargo's own config validation -- the body
   # rendered as an object where the http step requires a string -- and
   # `continueOnError` on that step meant nothing ever said so.
-  defaultVersion: "0.1.1"
+  defaultVersion: 0.1.2
   selectorMatchLabels:
     cluster_role: control-plane
   syncPolicy:
