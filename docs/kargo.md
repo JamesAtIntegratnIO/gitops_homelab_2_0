@@ -27,7 +27,7 @@ registry / chart repo ──poll──▶ Warehouse ──▶ Freight ──auto
 |---|---|---|
 | `kargo` addon | [addons.yaml](../addons/cluster-roles/control-plane/addons/addons.yaml), values in [kargo/values.yaml](../addons/cluster-roles/control-plane/addons/kargo/values.yaml) | The Kargo chart (OCI, `ghcr.io/akuity/kargo-charts/kargo` 1.11.2) in namespace `kargo`, control-plane cluster only |
 | `kargo-extras/` | [kargo-extras/](../addons/cluster-roles/control-plane/addons/kargo-extras/) | Attached to the `kargo` app as an extra source: the two ExternalSecrets and the HTTPRoute for `kargo.cluster.integratn.tech` |
-| `kargo-projects` addon | local chart [addons/charts/kargo-projects](../addons/charts/kargo-projects/), targets in [kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml) | Renders the Projects, Warehouses and Stages from the target list |
+| `kargo-projects` addon | chart `oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines` (from the [Bosun repository](https://github.com/JamesAtIntegratnIO/bosun); the in-tree [addons/charts/kargo-projects](../addons/charts/kargo-projects/) is its deprecated predecessor), targets in [kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml) | Renders the Projects, Warehouses and Stages from the target list |
 | Network policy | [network-policies/kargo.yaml](../addons/cluster-roles/control-plane/addons/network-policies/kargo.yaml) **and** the `kargo` entry in [network-policies/nginx-gateway.yaml](../addons/cluster-roles/control-plane/addons/network-policies/nginx-gateway.yaml) | DNS, kube-apiserver, webhook ingress, gateway → API (both halves: the gateway's egress allow-list names backend namespaces one by one), controller → internet:443, API → Authentik |
 | `argo-rollouts` addon | [addons.yaml](../addons/cluster-roles/control-plane/addons/addons.yaml), values in [argo-rollouts/values.yaml](../addons/cluster-roles/control-plane/addons/argo-rollouts/values.yaml) | Argo Rollouts controller (chart 2.41.1, one replica, no dashboard) — Kargo *creates* the verification `AnalysisRun`s, this is what *executes* them; its netpol is [network-policies/argo-rollouts.yaml](../addons/cluster-roles/control-plane/addons/network-policies/argo-rollouts.yaml) |
 | Authentik blueprint | `07-kargo-provider.yaml` in [authentik-blueprints-configmap.yaml](../addons/clusters/the-cluster/addons/authentik/authentik-blueprints-configmap.yaml) | OIDC login for the UI/CLI — a PKCE *public* client, so no client secret exists anywhere |
@@ -108,16 +108,21 @@ Each Stage runs the same generated pipeline
 ### Triage (Bosun)
 
 When a promotion opens a pull request, an `http` step hands the freight
-context to [Bosun](https://github.com/JamesAtIntegratnIO/bosun), which
-reads the gate, explains a red one, and fixes what the rendered diff proves.
+context to [Bosun](https://github.com/JamesAtIntegratnIO/bosun), which reads
+the [gate](delivery.md)'s verdict and acts on it: a dropped-served-version
+red gets its consuming manifests migrated deterministically (no model
+involved), a red the render proves gets a proposed fix applied behind policy
+checks, a green gate gets explained — and flagged when it still warrants
+eyes — and everything needing a decision is escalated as a handoff. The full
+walk is in [delivery.md](delivery.md).
 
-**Live since 2026-08-22 22:04Z** (PR #92), against a self-hosted
-`qwen/qwen3.5-9b` on the workstation. It is wired at `triage:` in
+**Live since 2026-08-22 22:04Z** (PR #92), now against a self-hosted
+`qwen/qwen3.8-27b` on the workstation. It is wired at `triage:` in
 [kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml)
 with `when: gated` — only pull requests the merge policy refuses to
-auto-merge, which is exactly the set already waiting on a human. All 55
-Stages carry the step. The dozen patch bumps a week that merge themselves
-never reach the model.
+auto-merge, which is exactly the set already waiting on a human. Every Stage
+carries the step. The dozen patch bumps a week that merge themselves never
+reach the model.
 
 Two properties worth knowing:
 
@@ -169,7 +174,7 @@ rewrites them otherwise and ArgoCD reads the difference as permanent drift.
 | `patch` | patch / metadata only | CNI, ArgoCD, Kyverno, cert-manager, MetalLB, NGINX Gateway Fabric, external-secrets, Kargo — a bad minor here can take the cluster down |
 | `minor` (default) | patch, plus minor when major > 0 (`0.x` minors count as breaking) | everything else: apps, observability, tooling |
 | `always` | whatever the Warehouse found | our own CI images (`main-<sha>` of the reconciler and the promise pipelines) and the linuxserver media images, which were `latest` before and already updated themselves on every restart |
-| `never` | nothing | `mcpo`, which only publishes a moving `main` tag — there is no version to judge |
+| `never` | nothing | `mcpo` (a moving `main` tag — no version to judge); `authentik` (refuses major.minor skips in one step); and `gitops-gate`, `kargo-pipelines`, `bosun` — the components that judge everything else, whose failure mode is silence rather than an error. A human reads those bumps |
 
 Everything *not* merged automatically is still opened as a PR; the policy only
 decides who clicks merge. A first-time pin (e.g. `latest` → `v1.10.1`) is
