@@ -131,6 +131,41 @@ networkPolicy:
       - docker.io
       - registry-1.docker.io
       - auth.docker.io
+      # A registry is TWO hosts, and only the first one was here.
+      #
+      # `ghcr.io` serves the manifest and then redirects the BLOB -- which is
+      # where an image's labels live, and therefore where the
+      # `org.opencontainers.image.source` lookup has to go -- to a different
+      # host entirely. Allowing only the registry meant that fetch was dropped
+      # and hung until it timed out. Observed on PR #128:
+      #
+      #   context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+      #
+      # after which Bosun falls back to a render-only explanation and says so.
+      # That reads exactly like an artifact with no release notes, so the
+      # feature has been dead since it shipped in 0.2.0 without ever saying so.
+      # The symptom is a hang with zero bytes, not an error -- the same shape
+      # as every other missing-egress-half incident in this repository.
+      #
+      # DERIVED, not invented: each host below was found by asking the registry
+      # for a real config blob and reading the redirect it answered with.
+      - pkg-containers.githubusercontent.com
+      - production.cloudfront.docker.com
+
+    # Cilium matchPattern entries. Needs the bosun chart >= 0.6.0.
+    #
+    # quay serves blobs from cdn01.quay.io, cdn02, and so on -- a SET, not a
+    # name. Listing the ones that answered today would be a guess at the
+    # membership, and a guessed allow-list is how this breaks silently again.
+    #
+    # registry.k8s.io is deliberately absent: its blobs come from regional
+    # cloud buckets whose names vary by geography, and there is no pattern that
+    # covers them without opening far more than intended. Bosun degrades
+    # honestly there -- it explains from the render and says the notes are
+    # missing -- which is the right trade for a registry this repository pulls
+    # two images from.
+    fqdnPatterns:
+      - "*.quay.io"
 
 resources:
   requests:
