@@ -25,9 +25,14 @@ git:
   owner: jamesatintegratnio
   repo: gitops_homelab_2_0
   repoURL: https://github.com/jamesatintegratnio/gitops_homelab_2_0.git
-  author:
-    name: bosun
-    email: bosun@users.noreply.github.com
+  # No author block: empty means the agent derives its commit identity from
+  # the GitHub App itself (bosun-mate[bot] <id+bosun-mate[bot]@users.noreply.
+  # github.com>), which is what makes pushed commits render under the App's
+  # avatar. The block that used to sit here was the chart's old default --
+  # bosun <bosun@users.noreply.github.com> -- which is the noreply address of
+  # an UNRELATED GitHub account, so the first live repair's commits rendered
+  # under a stranger's face. Never put an author here whose
+  # users.noreply.github.com address is not your own bot's.
   existingSecret: bosun-github
   tokenKey: token
 
