@@ -839,7 +839,7 @@ bosun:
   #
   # Verified against the PUBLISHED chart rather than the tree: it renders
   # EXPLAIN_GREEN and UPSTREAM_NOTES, and selects bosun:0.2.0.
-  defaultVersion: 0.9.1
+  defaultVersion: 0.9.2
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
