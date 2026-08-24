@@ -130,11 +130,29 @@ liveReads:
   # A group missing from here is not an outage. It shows up in the brief as
   # "not permitted to check <group>/<version>/<plural>", which names itself and
   # is a one-line fix in this file.
+  # Verified against the live cluster with
+  #   kubectl auth can-i list <resource>.<group> --as=system:serviceaccount:bosun:bosun
+  # rather than reasoned about. Secrets, create and delete all answer `no`;
+  # every group below answers `yes`.
   apiGroups:
     - external-secrets.io
+    # ESO ships its generators in a SEPARATE API group, and the same is true of
+    # cert-manager's ACME types and Kyverno's reports. None of the three appears
+    # as an `apiVersion:` anywhere in this repository -- those objects are
+    # created at runtime, not declared -- so deriving the list from the tree
+    # missed them.
+    #
+    # They matter precisely because they belong to charts this pipeline bumps.
+    # If one of those bumps drops a served version, the brief would have said
+    # "not permitted to check generators.external-secrets.io/..." instead of a
+    # number, and "not permitted" is deliberately harmless -- so nobody would
+    # have chased it.
+    - generators.external-secrets.io
     - kyverno.io
     - policies.kyverno.io
+    - reports.kyverno.io
     - cert-manager.io
+    - acme.cert-manager.io
     - gateway.networking.k8s.io
     - gateway.nginx.org
     - cilium.io
