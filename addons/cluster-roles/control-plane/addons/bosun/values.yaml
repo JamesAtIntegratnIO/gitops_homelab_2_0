@@ -233,6 +233,29 @@ networkPolicy:
       - pkg-containers.githubusercontent.com
       - production.cloudfront.docker.com
 
+      # The CLASSIC Helm repositories. Twenty of this pipeline's forty-one
+      # artifacts are `https://` chart repos rather than OCI, and until bosun
+      # 0.14.0 it could not read one at all -- so this list did not need to
+      # exist. It does now: a chart's `sources:` lives in the repository's
+      # index.yaml, which is the analogue of the OCI label, and reaching it is
+      # a different set of hosts from any registry.
+      #
+      # The symptom of a missing one is not silence. It is the explanation
+      # saying, precisely:
+      #
+      #   Grounded in the gate's render diff ONLY -- reading
+      #   https://charts.goauthentik.io/index.yaml: ... i/o timeout
+      #
+      # DERIVED, not invented: every distinct `https://` chart repoURL in
+      # kargo-projects/values.yaml. A repo missing from here degrades to a
+      # render-only explanation that names the URL it could not read.
+      - charts.external-secrets.io
+      - charts.fairwinds.com
+      - charts.goauthentik.io
+      - charts.jetstack.io
+      - helm.cilium.io
+      - helm.openwebui.com
+
     # Cilium matchPattern entries. Needs the bosun chart >= 0.6.0.
     #
     # quay serves blobs from cdn01.quay.io, cdn02, and so on -- a SET, not a
@@ -247,6 +270,17 @@ networkPolicy:
     # two images from.
     fqdnPatterns:
       - "*.quay.io"
+      # Eleven of the chart repositories are GitHub Pages sites -- aquasecurity,
+      # argoproj, grafana, grafana-community, kubernetes-sigs, kyverno, metallb,
+      # prometheus-community, qdrant, stakater, starttoaster. A pattern rather
+      # than eleven names because that set grows every time a chart is adopted,
+      # and the failure mode of forgetting one is a silently render-only
+      # explanation.
+      #
+      # Wider than listing them, and bounded: it permits GitHub Pages and
+      # nothing else. The alternative -- a list that goes stale on the next
+      # adoption -- is the shape that has already broken this allow-list twice.
+      - "*.github.io"
 
 resources:
   requests:
