@@ -87,6 +87,64 @@ triage:
     - workloads/**
     - promises/**
 
+# Read what is actually running.
+#
+# The gate renders this repository and compares, so everything it knows is a
+# property of text: "3 manifests still declare a version this chart stops
+# serving" is a fact about the repo. Whether anything is STORED on that version
+# is a different question, it usually decides whether this needs a human, and
+# CI structurally cannot answer it. Bosun runs in the cluster; this is the first
+# release that spends that.
+#
+# Briefs gain lines like:
+#
+#   - externalsecrets.external-secrets.io on v1beta1 — 0 live object(s)
+#   - Application external-secrets-host — Degraded / OutOfSync
+#
+# Read-only: get and list, no watch, and no create/update/patch/delete anywhere
+# in the chart.
+#
+# NO EGRESS CHANGE NEEDED HERE. This cluster runs the `cilium` flavor, and the
+# chart emits `toEntities: [kube-apiserver]` for it -- the idiomatic answer,
+# which does not go stale when a control-plane node is replaced. The `standard`
+# flavor would need explicit endpoint CIDRs, because `kubernetes.default.svc`
+# is a ClusterIP and a ClusterIP is DNAT'd before policy is evaluated.
+#
+# The pod refuses to start if it cannot read the API, so a mistake here is a
+# crash loop with an explanation rather than a permanent quiet shrug.
+liveReads:
+  enabled: true
+
+  # `groups`, not `wide`. "Everything except the core group" is the intent and
+  # it is NOT EXPRESSIBLE in Kubernetes RBAC -- there are no deny rules, and
+  # apiGroups ["*"] includes the core group, which contains Secrets. With
+  # `groups` the core group is never granted beyond the pods/events the chart
+  # already had, so Secrets are unreadable by construction.
+  scope: groups
+
+  # DERIVED, not invented: every non-built-in API group that appears as an
+  # `apiVersion:` in addons/, workloads/ or platform/. Kept explicit for the
+  # same reason the FQDN allow-list above is -- a bounded list is the
+  # difference between "reads the CRDs we deploy" and "reads everything".
+  #
+  # A group missing from here is not an outage. It shows up in the brief as
+  # "not permitted to check <group>/<version>/<plural>", which names itself and
+  # is a one-line fix in this file.
+  apiGroups:
+    - external-secrets.io
+    - kyverno.io
+    - policies.kyverno.io
+    - cert-manager.io
+    - gateway.networking.k8s.io
+    - gateway.nginx.org
+    - cilium.io
+    - metallb.io
+    - monitoring.coreos.com
+    - platform.kratix.io
+    - platform.integratn.tech
+
+  argocdNamespace: argocd
+
 # NOTE: this addon's NetworkPolicies come from the chart rather than from the
 # network-policies addon, unlike most namespaces here. That is deliberate --
 # the chart has to carry them to be usable outside this repo, and keeping them
