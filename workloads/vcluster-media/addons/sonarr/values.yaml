@@ -18,7 +18,7 @@ extraObjects:
           ports:
             - protocol: TCP
               port: 5432
-  - apiVersion: external-secrets.io/v1beta1
+  - apiVersion: external-secrets.io/v1
     kind: ExternalSecret
     metadata:
       name: eso-homepage-secret
