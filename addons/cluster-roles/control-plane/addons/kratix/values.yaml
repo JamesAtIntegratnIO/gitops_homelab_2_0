@@ -27,7 +27,7 @@ destinations: []
 additionalResources:
   
   # ExternalSecret to pull GitHub App credentials from 1Password
-  - apiVersion: external-secrets.io/v1beta1
+  - apiVersion: external-secrets.io/v1
     kind: ExternalSecret
     metadata:
       name: kratix-github-credentials
