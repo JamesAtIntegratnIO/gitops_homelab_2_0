@@ -82,6 +82,12 @@ triage:
   # Where a fix may land. Everything else is refused -- and CI config, the
   # gate and the Kargo target list are refused regardless, by a deny-list the
   # agent's own configuration cannot remove from.
+  # Hosts Bosun must not contact, whatever the NetworkPolicy permits. An exact
+  # host or a `*.suffix` pattern; a pattern forbids the apex too. Empty because
+  # nothing has earned a place here yet -- the outbound log is the first place
+  # to look if that changes.
+  egressDeny: []
+
   allowPaths:
     - addons/**
     - workloads/**
@@ -188,126 +194,38 @@ networkPolicy:
       # silently, which is precisely the failure class this work exists to end.
       - cidr: 192.168.0.57/32
         port: 1234
-    fqdns:
-      - api.github.com
-      - github.com
-      # The registries this pipeline promotes from, and nothing else.
-      #
-      # Bosun reads an artifact's `org.opencontainers.image.source` label to
-      # find which GitHub repository published it, so it can quote the
-      # maintainers' own release notes rather than guess at what a bump did.
-      # The release notes themselves come from api.github.com, which it could
-      # already reach; only the label lookup is new.
-      #
-      # This list is DERIVED, not invented: it is every distinct registry host
-      # in kargo-projects/values.yaml. Kept explicit rather than opened up,
-      # because a bounded allow-list is the difference between "reads the
-      # registries we already pull from" and "reaches the internet".
-      #
-      # A registry missing from here is not an outage: the explanation falls
-      # back to the render alone and says that is all it had.
-      - ghcr.io
-      - quay.io
-      - registry.k8s.io
-      - docker.io
-      - registry-1.docker.io
-      - auth.docker.io
-      # A registry is TWO hosts, and only the first one was here.
-      #
-      # `ghcr.io` serves the manifest and then redirects the BLOB -- which is
-      # where an image's labels live, and therefore where the
-      # `org.opencontainers.image.source` lookup has to go -- to a different
-      # host entirely. Allowing only the registry meant that fetch was dropped
-      # and hung until it timed out. Observed on PR #128:
-      #
-      #   context deadline exceeded (Client.Timeout exceeded while awaiting headers)
-      #
-      # after which Bosun falls back to a render-only explanation and says so.
-      # That reads exactly like an artifact with no release notes, so the
-      # feature has been dead since it shipped in 0.2.0 without ever saying so.
-      # The symptom is a hang with zero bytes, not an error -- the same shape
-      # as every other missing-egress-half incident in this repository.
-      #
-      # DERIVED, not invented: each host below was found by asking the registry
-      # for a real config blob and reading the redirect it answered with.
-      - pkg-containers.githubusercontent.com
-      - production.cloudfront.docker.com
-
-      # Where the chart ARCHIVES actually come from.
-      #
-      # Reading an index.yaml is enough to find a chart's `sources:`, which is
-      # all the upstream-notes path needs. The STRUCTURAL migration goes
-      # further: it runs `helm template` at the target version to read the CRD
-      # schema the new chart ships, and that downloads the .tgz.
-      #
-      # Fifteen of the twenty-one chart repositories here publish their archive
-      # as a GitHub release asset. `github.com` (already allowed) answers the
-      # download URL with a 302 to this host, so without it every structural
-      # check dies at the second hop with a two-minute timeout and the comment
-      # says "no structural check -- could not render".
-      #
-      # DERIVED: every chart's `urls:` entry followed with `curl -IL` and the
-      # final host recorded. The remaining six serve their archives from the
-      # same host as their index, which is already permitted.
-      - release-assets.githubusercontent.com
-
-      # The CLASSIC Helm repositories. Twenty of this pipeline's forty-one
-      # artifacts are `https://` chart repos rather than OCI, and until bosun
-      # 0.14.0 it could not read one at all -- so this list did not need to
-      # exist. It does now: a chart's `sources:` lives in the repository's
-      # index.yaml, which is the analogue of the OCI label, and reaching it is
-      # a different set of hosts from any registry.
-      #
-      # The symptom of a missing one is not silence. It is the explanation
-      # saying, precisely:
-      #
-      #   Grounded in the gate's render diff ONLY -- reading
-      #   https://charts.goauthentik.io/index.yaml: ... i/o timeout
-      #
-      # DERIVED, not invented: every distinct `https://` chart repoURL in
-      # kargo-projects/values.yaml. A repo missing from here degrades to a
-      # render-only explanation that names the URL it could not read.
-      - charts.external-secrets.io
-      # ...which 302s to the APEX for its index. `charts.` serves the redirect
-      # and nothing else, so allowing only it fails at the second hop:
-      #
-      #   Get "https://external-secrets.io/index.yaml": context deadline exceeded
-      #
-      # The same two-hosts-per-thing shape as `ghcr.io` and its blob CDN above.
-      # Measured with `curl -IL`, not assumed: this is the only one of the
-      # twenty-one chart repositories that redirects its index.
-      - external-secrets.io
-      - charts.fairwinds.com
-      - charts.goauthentik.io
-      - charts.jetstack.io
-      - helm.cilium.io
-      - helm.openwebui.com
-
-    # Cilium matchPattern entries. Needs the bosun chart >= 0.6.0.
+    # No FQDN allow-list any more. See `allowInternet` below.
     #
-    # quay serves blobs from cdn01.quay.io, cdn02, and so on -- a SET, not a
-    # name. Listing the ones that answered today would be a guess at the
-    # membership, and a guessed allow-list is how this breaks silently again.
+    # There was one, it was correct, and it was unmaintainable. A chart
+    # repository redirects its index (charts.external-secrets.io ->
+    # external-secrets.io), serves its archive from a release-asset CDN (15 of
+    # this pipeline's 21 chart repositories use
+    # release-assets.githubusercontent.com), and GitHub renamed that CDN from
+    # objects.githubusercontent.com without telling anyone.
     #
-    # registry.k8s.io is deliberately absent: its blobs come from regional
-    # cloud buckets whose names vary by geography, and there is no pattern that
-    # covers them without opening far more than intended. Bosun degrades
-    # honestly there -- it explains from the render and says the notes are
-    # missing -- which is the right trade for a registry this repository pulls
-    # two images from.
-    fqdnPatterns:
-      - "*.quay.io"
-      # Eleven of the chart repositories are GitHub Pages sites -- aquasecurity,
-      # argoproj, grafana, grafana-community, kubernetes-sigs, kyverno, metallb,
-      # prometheus-community, qdrant, stakater, starttoaster. A pattern rather
-      # than eleven names because that set grows every time a chart is adopted,
-      # and the failure mode of forgetting one is a silently render-only
-      # explanation.
-      #
-      # Wider than listing them, and bounded: it permits GitHub Pages and
-      # nothing else. The alternative -- a list that goes stale on the next
-      # adoption -- is the shape that has already broken this allow-list twice.
-      - "*.github.io"
+    # Three separate incidents here added a host after the fact. The symptom
+    # each time was a two-minute timeout and a brief that said it had no
+    # evidence -- which is the exact quiet failure this agent exists to end. The
+    # allow-list was manufacturing the thing it was protecting.
+    fqdns: []
+    fqdnPatterns: []
+
+    # Let it reach the internet on 443, and hold it to account in the log.
+    #
+    # Bosun 0.15.0 logs EVERY outbound request -- method, host and path, with
+    # the query string redacted because release-asset URLs are pre-signed and
+    # carry a JWT -- and refuses anything named in `triage.egressDeny`.
+    # Accountability after the fact rather than permission before it, which is
+    # the right trade for a component whose job is reading public metadata about
+    # public artifacts.
+    #
+    # It does NOT widen what the agent may DO. It still writes only to the pull
+    # request's own branch, still refuses paths on a deny-list its own
+    # configuration cannot remove from, and still never mutates this cluster.
+    #
+    # Watch where it goes:
+    #   kubectl -n bosun logs deploy/bosun | grep outbound
+    allowInternet: true
 
 resources:
   requests:
