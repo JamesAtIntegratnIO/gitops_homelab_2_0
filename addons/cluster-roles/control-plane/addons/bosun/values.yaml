@@ -233,6 +233,24 @@ networkPolicy:
       - pkg-containers.githubusercontent.com
       - production.cloudfront.docker.com
 
+      # Where the chart ARCHIVES actually come from.
+      #
+      # Reading an index.yaml is enough to find a chart's `sources:`, which is
+      # all the upstream-notes path needs. The STRUCTURAL migration goes
+      # further: it runs `helm template` at the target version to read the CRD
+      # schema the new chart ships, and that downloads the .tgz.
+      #
+      # Fifteen of the twenty-one chart repositories here publish their archive
+      # as a GitHub release asset. `github.com` (already allowed) answers the
+      # download URL with a 302 to this host, so without it every structural
+      # check dies at the second hop with a two-minute timeout and the comment
+      # says "no structural check -- could not render".
+      #
+      # DERIVED: every chart's `urls:` entry followed with `curl -IL` and the
+      # final host recorded. The remaining six serve their archives from the
+      # same host as their index, which is already permitted.
+      - release-assets.githubusercontent.com
+
       # The CLASSIC Helm repositories. Twenty of this pipeline's forty-one
       # artifacts are `https://` chart repos rather than OCI, and until bosun
       # 0.14.0 it could not read one at all -- so this list did not need to
@@ -250,6 +268,15 @@ networkPolicy:
       # kargo-projects/values.yaml. A repo missing from here degrades to a
       # render-only explanation that names the URL it could not read.
       - charts.external-secrets.io
+      # ...which 302s to the APEX for its index. `charts.` serves the redirect
+      # and nothing else, so allowing only it fails at the second hop:
+      #
+      #   Get "https://external-secrets.io/index.yaml": context deadline exceeded
+      #
+      # The same two-hosts-per-thing shape as `ghcr.io` and its blob CDN above.
+      # Measured with `curl -IL`, not assumed: this is the only one of the
+      # twenty-one chart repositories that redirects its index.
+      - external-secrets.io
       - charts.fairwinds.com
       - charts.goauthentik.io
       - charts.jetstack.io
