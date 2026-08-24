@@ -26,6 +26,7 @@ Start with [Getting started](getting-started.md); consult
 * [Observability](platform/observability.md) - hub-and-spoke metrics, Loki logging, Matrix alerting with log deep-links.
 * [AI stack](platform/ai-stack.md) - Open WebUI, Qdrant, MCP servers, and the retired llmkube/git-indexer.
 * [Kargo version updates](platform/kargo.md) - the version-bump bot: Warehouses watch every pinned image and chart, one Stage each opens a PR against main and merges it by policy.
+* [The delivery gate and Bosun](platform/delivery-gate.md) - what judges those PRs and repairs them: the render-diff gate publishing the required `addons-gate` check, and the in-cluster agent that migrates dropped-API-version reds deterministically, fixes what the render proves, explains green gates, and escalates decisions as handoffs.
 
 # Live cluster (the-cluster)
 
