@@ -76,7 +76,7 @@ spec:
               # Must not run ahead of the Talos version on the nodes (v1.11.x);
               # Kargo tracks this line under addons.targets.talosctl and the
               # constraint there is bumped together with the Talos upgrade.
-              image: ghcr.io/siderolabs/talosctl:v1.11.5@sha256:7319acae2d4082662fd6dafeb6a2491d66cabb907c2227b2214d61242a6b1faa
+              image: ghcr.io/siderolabs/talosctl:v1.11.6@sha256:9f7d71e27190f19f04cbd5ad59752af75e54920c4601072cef93a578097be1b9
               args:
                 - --nodes=$(NODE_IP)
                 - --endpoints=$(NODE_IP)
