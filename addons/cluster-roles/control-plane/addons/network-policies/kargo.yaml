@@ -162,6 +162,28 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # Prometheus, which every promotion's `verify.apps` AnalysisRun queries to
+    # decide whether the Applications it just promoted came up Healthy.
+    #
+    # Needed for the SAME reason as the rule above, and missing for three days
+    # before anything noticed. The ClusterIP is 10.x, the exception list drops
+    # 10.0.0.0/8, and an AnalysisRun that cannot reach Prometheus does not fail
+    # the promotion -- it errors, the Stage goes `Ready=False` with reason
+    # `VerificationError`, and NOTHING ELSE CHANGES. No alert, no red check, no
+    # unhealthy Application: the Stage simply stops promoting anything, forever,
+    # while every dashboard stays green.
+    #
+    # Found by the pipeline supervisor on its first live sweep:
+    #   argo-cd, cert-manager and open-webui-image had been held since
+    #   2026-08-21T19:45Z with
+    #   `dial tcp 10.106.179.157:9090: connect: no route to host`.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
 ---
 # API server: OIDC discovery + JWKS from Authentik, reached through the
 # gateway's public hostname. Cilium performs DNAT before policy evaluation,
