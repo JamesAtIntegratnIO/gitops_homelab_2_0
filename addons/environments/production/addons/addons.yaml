@@ -607,7 +607,7 @@ kyverno:
   chartName: kyverno
   project: platform-services
   chartRepository: https://kyverno.github.io/kyverno/
-  defaultVersion: "3.2.8"
+  defaultVersion: 3.9.0
   annotationsApp:
     argocd.argoproj.io/compare-options: ServerSideDiff=true,IncludeMutationWebhook=true
   syncPolicy:
