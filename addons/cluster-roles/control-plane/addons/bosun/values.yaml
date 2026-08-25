@@ -73,7 +73,40 @@ llm:
   existingSecret: bosun-llm
 
 gate:
+  # THE AGENT IS THE GATE. It polls this repository's open pull requests,
+  # renders base and head against the LIVE ArgoCD cluster inventory, and posts
+  # the `addons-gate` status and the report comment itself. That is what let
+  # the CI half of this go away: no workflow to install, no checked-in cluster
+  # inventory to export and keep fresh, and no `paths:` filter to hand-edit.
+  #
+  # This is the chart's default from 0.16.0 on. It is written down anyway,
+  # because it is a decision rather than an inherited default -- and because
+  # what it COSTS deserves to be visible in the values file that chose it:
+  # get/list on Secrets in the `argocd` namespace. The inventory IS the ArgoCD
+  # cluster Secrets, and those same objects carry cluster credentials; RBAC
+  # cannot grant "the labels but not the data". The chart scopes the grant as
+  # far down as it goes -- a namespaced Role in `argocd` only, get/list only,
+  # rendered only while this line says `cluster` -- and `liveReads.scope:
+  # groups` below still keeps Secrets unreadable everywhere else.
+  #
+  # `ci` is the other half of the enum and keeps the old shape whole. It is the
+  # answer for a repository that takes fork pull requests, and for a gate that
+  # must keep answering while the cluster itself is down. Flipping back is this
+  # one line plus restoring the workflow and the inventory snapshot.
+  mode: cluster
+
+  # This repository is PUBLIC, so this is a real choice and not a formality.
+  # Off means a pull request from a fork gets an `error` status naming this
+  # value. That is the wanted outcome: in cluster mode the render runs helm
+  # over the pull request's own content INSIDE the cluster, and doing that to a
+  # stranger's chart values is a trust decision, not a default. Zero forks
+  # today; the refusal is what keeps that from mattering the day there is one.
+  forkPRs: false
+
   checkName: addons-gate
+  # Inert in cluster mode -- there is no external check to wait on, the gate
+  # runs in-process. Kept so that flipping `mode` back to `ci` is genuinely one
+  # line. `poll` does still apply: it paces the sweep for new pull requests.
   wait: 10m
   poll: 30s
 
