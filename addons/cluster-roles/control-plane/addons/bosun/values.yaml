@@ -260,6 +260,30 @@ networkPolicy:
     #   kubectl -n bosun logs deploy/bosun | grep outbound
     allowInternet: true
 
+# Prometheus scrapes the supervisor's findings.
+#
+# Enabling this is what makes the platform.promotion alerts able to fire: the
+# metrics carry findings by kind and severity, how long each has held, what the
+# sweep actually read, and a sweep timestamp. The chart's own NetworkPolicy
+# opens ingress from `monitoring` only when this is on.
+#
+# The rule worth having is the one on the TIMESTAMP's absence, not only on the
+# findings -- see platform-alerts/prometheus-rules.yaml. A supervisor whose
+# subject is silent failure has to be able to fail loudly itself.
+metrics:
+  serviceMonitor:
+    enabled: true
+
+# Watch the promotion pipeline itself. On by default in the chart; stated here
+# because it is the reason the ServiceMonitor above exists.
+#
+# It only ever LISTs, on the Kargo read the ClusterRole already grants, and
+# clones the default branch shallowly to check that every pin Kargo rewrites
+# still points at a key some file actually has.
+supervise:
+  enabled: true
+  interval: 10m
+
 resources:
   requests:
     cpu: 25m

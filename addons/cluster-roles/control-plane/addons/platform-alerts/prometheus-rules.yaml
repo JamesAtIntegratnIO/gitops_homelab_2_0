@@ -549,3 +549,81 @@ spec:
               The talos-etcd-snapshot CronJob is not deployed, so the host etcd is not being backed up
               and etcd loss means the full rebuild. It ships disabled until the Talos API access patch
               is applied; see the platform-backups-talos entry in addons.yaml.
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # platform.promotion — the delivery pipeline's own health.
+    #
+    # Distinct from the kargo-observability alerts, which watch individual
+    # promotions and stages the way Kargo reports them. These watch whether
+    # anything is DELIVERING at all, which is a question no single object
+    # answers: a Stage held by a failed verification, a Warehouse that stopped
+    # discovering, a promotion that errored and will never retry -- each leaves
+    # every Application Synced and Healthy on the version it already had.
+    #
+    # Measured before these existed: three Stages promoted nothing for three
+    # days because a NetworkPolicy dropped the verification's Prometheus
+    # queries, and every dashboard was green throughout.
+    #
+    # Fed by bosun's supervisor (>= 0.18.2); see its docs/supervisor.md.
+    - name: platform.promotion
+      rules:
+        - alert: PromotionPipelineBlocked
+          expr: |
+            sum(bosun_pipeline_findings{severity="blocking"}) > 0
+          for: 30m
+          labels:
+            severity: warning
+            component: kargo
+          annotations:
+            summary: "{{ $value }} thing(s) in the promotion pipeline have stopped"
+            description: >-
+              Something has stopped delivering and will not restart on its own — a promotion that
+              reached a terminal phase, a Warehouse that stopped discovering, or a verification that
+              already failed. Every Application involved is still Synced and Healthy on the older
+              version, which is why nothing else has mentioned it. The report names each one and
+              carries the exact command:
+              `kubectl -n bosun port-forward deploy/bosun 8080` then `curl -s localhost:8080/pipeline`.
+            logs_url: "https://grafana.cluster.integratn.tech/d/kargo-overview/kargo-overview"
+
+        # THE DEAD-MAN'S SWITCH, and the more important of the two.
+        #
+        # Every other rule here fires on a metric being present and wrong. This
+        # one fires on a metric being ABSENT — because a supervisor whose whole
+        # subject is silent failure has to be able to fail loudly itself.
+        # Without it, a supervisor that stopped sweeping looks exactly like a
+        # pipeline with nothing wrong, and that is the one failure this whole
+        # component would be embarrassed by.
+        - alert: PromotionSupervisorSilent
+          expr: |
+            absent(bosun_pipeline_sweep_timestamp_seconds)
+              or time() - bosun_pipeline_sweep_timestamp_seconds > 3600
+          for: 15m
+          labels:
+            severity: warning
+            component: kargo
+          annotations:
+            summary: "Nothing is watching the promotion pipeline"
+            description: >-
+              bosun has not completed a pipeline sweep in over an hour, so PromotionPipelineBlocked
+              cannot fire and the absence of findings proves nothing. Check the agent:
+              `kubectl -n bosun logs deploy/bosun | grep pipeline`. If `supervise.enabled` was turned
+              off deliberately, silence this rule rather than leaving it firing.
+            logs_url: "https://grafana.cluster.integratn.tech/d/kargo-overview/kargo-overview"
+
+        # A sweep that read zero Stages found no problems. That must never be
+        # read as having proved anything, so it is a distinct condition from
+        # the supervisor being down.
+        - alert: PromotionSupervisorReadNothing
+          expr: |
+            bosun_pipeline_checked{resource="stages"} == 0
+          for: 30m
+          labels:
+            severity: warning
+            component: kargo
+          annotations:
+            summary: "The promotion supervisor is sweeping but reading nothing"
+            description: >-
+              bosun completed a sweep that saw zero Stages. Usually the Kargo read is denied or Kargo
+              is not installed in a cluster that expects it. Findings from this sweep mean nothing
+              either way — it examined nothing.
+            logs_url: "https://grafana.cluster.integratn.tech/d/kargo-overview/kargo-overview"
