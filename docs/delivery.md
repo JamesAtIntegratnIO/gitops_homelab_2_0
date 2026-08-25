@@ -69,6 +69,16 @@ is about what judges and repairs the pull requests it opens.
   output**, except where chart-diff kicks in (any row whose helm version
   moved). Schema validation of an addon's *values* is therefore shallow — the
   values are an opaque block inside the ApplicationSet.
+- **A bump can stop reading a value you set, silently.** Helm ignores an
+  unknown value rather than failing on it, so a chart that renames or removes a
+  key takes the setting with it and renders identically. From bosun 0.17.0 the
+  gate compares the chart's declared surface at both versions and blocks on the
+  difference, under *Settings this bump stops reading*. kyverno 3.2.8 → 3.9.0
+  drops **48 of the 77 values this repository sets** and gated green before the
+  check existed. **Cross-check every dropped key against the
+  [kargo-projects target list](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml)**
+  — six of kyverno's seven tracked keys are in that set, and a tracked key the
+  chart no longer reads is a pin that updates forever and does nothing.
 - **`vcluster-coredns-config` and `gateway-api-crds-vcluster` match no
   cluster** and appear under "Not covered" in every report. Known; not an
   error.
