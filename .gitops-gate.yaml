@@ -4,8 +4,6 @@
 # is the whole of that knowledge. See
 # https://github.com/JamesAtIntegratnIO/bosun/tree/main/gate.
 
-clusters: .gitops-gate/clusters.yaml
-
 # The `ref:` name the bootstraps use for the values source, so `$values/...`
 # in a valueFiles entry maps back to a path in this repo.
 valuesRef: values
@@ -16,19 +14,26 @@ bootstraps:
   - name: vcluster
     path: terraform/cluster/bootstrap/addons-vcluster.yaml
 
+# NOT export configuration any more -- there is no export. `knownAbsentLabels`
+# is the only key left under here and it is consumed by the RENDER, at
+# gate/render.go's `inv.Validate(...)`, in cluster mode exactly as in CI. It
+# lives under `clustersExport:` because that is where the gate's Config struct
+# puts it, and nowhere else will be read.
+#
+# Selectors that match on a label no cluster carries normally mean a stale
+# inventory, so the gate refuses to render rather than quietly compare two
+# shrunken sets. These are the deliberate exceptions.
+#
+# aws_cluster_name comes from the `karpenter` addon, inherited from the
+# upstream application-sets chart and meaningless on bare metal. It is already
+# `enabled: false`; the selector is simply never satisfied.
+#
+# DELETING THIS BLOCK IS NOT A CLEANUP. Measured against the live config with
+# the gate binary itself: without it, `render` exits 2 with "selectors match on
+# label(s) no cluster in the inventory carries: aws_cluster_name" -- which in
+# cluster mode is an `error` status on every pull request, not a warning.
+# `clustersExport.ignoreKeys` did go, because only `clusters export` read it.
 clustersExport:
-  # Churns on every reconcile without changing what any selector or template
-  # sees; leaving it in would make `clusters export -check` fail constantly.
-  ignoreKeys:
-    - platform.integratn.tech/reconcile-at
-
-  # Selectors that match on a label no cluster carries normally mean a stale
-  # inventory, so the gate refuses to render. These are the deliberate
-  # exceptions.
-  #
-  # aws_cluster_name comes from the `karpenter` addon, inherited from the
-  # upstream application-sets chart and meaningless on bare metal. It is
-  # already `enabled: false`; the selector is simply never satisfied.
   knownAbsentLabels:
     - aws_cluster_name
 

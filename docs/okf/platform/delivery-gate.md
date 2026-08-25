@@ -1,21 +1,15 @@
 ---
 type: Platform Capability
 title: The delivery gate and Bosun — judging and repairing version-bump PRs
-description: What stands between Kargo opening a pull request and the merge — the gitops-gate render-diff in CI publishing the required addons-gate check, and the in-cluster Bosun agent that deterministically repairs dropped-API-version reds, proposes policy-checked fixes, explains green gates, and escalates decisions as handoffs.
-tags: [delivery, gate, bosun, kargo, ci, triage, llm]
+description: What stands between Kargo opening a pull request and the merge — the Bosun agent running the gitops-gate render-diff in-cluster against the live ArgoCD inventory, publishing the required addons-gate check itself, then deterministically repairing dropped-API-version reds, proposing policy-checked fixes, explaining green gates, and escalating decisions as handoffs.
+tags: [delivery, gate, bosun, kargo, triage, llm]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-24T02:10:00Z }
-stale_after: 2026-09-24
+generated: { by: claude-code/claude-opus-5, at: 2026-08-25T02:15:00Z }
+stale_after: 2026-09-25
 sources:
-  - id: workflow
-    resource: ../../../.github/workflows/validate-addons.yaml
-    title: the gate's CI adapter — five jobs, the report comment, the addons-gate check
   - id: gate-config
     resource: ../../../.gitops-gate.yaml
-    title: what the gate renders, and against which cluster inventory
-  - id: gate-pin
-    resource: ../../../.github/gate-image.yaml
-    title: the digest-pinned gate image, outside workflows/ so Kargo can bump it
+    title: what the gate renders — no cluster inventory, it is read live
   - id: addon
     resource: ../../../addons/cluster-roles/control-plane/addons/bosun/values.yaml
     title: the Bosun addon values — model endpoint, gate coupling, safety settings
@@ -32,11 +26,14 @@ sources:
 Kargo opens a pull request for every version its Warehouses discover
 ([kargo](kargo.md)). Two things then stand between that PR and the cluster.
 
-**The gate** runs in CI on every pull request
-([validate-addons.yaml][workflow]): it renders every bootstrap ApplicationSet
-for every cluster in [the inventory][gate-config], at base and at head, diffs
-what actually deploys, chart-diffs every moved version down to the field, and
-schema-validates the result. It publishes a report comment (marker
+**The gate** runs *inside the cluster*, as the Bosun agent itself
+(`gate.mode: cluster`, the chart default since bosun 0.16.0). It polls the open
+pull requests every 30s and, for each, renders every bootstrap ApplicationSet
+([what to render][gate-config]) for every cluster in the **live** ArgoCD
+inventory — read from the cluster Secrets on every run, so there is no
+checked-in snapshot to go stale — at base and at head, diffs what actually
+deploys, chart-diffs every moved version down to the field, and schema-validates
+the result. It publishes a report comment (marker
 `<!-- gitops-gate -->`, one per PR, updated in place) and the aggregate check
 **`addons-gate`** — which a repository ruleset (`validating protection`,
 created 2026-08-23) makes required on `main` with **no bypass actors**, so a
@@ -58,8 +55,11 @@ and escalates everything else as a handoff naming the file, key and decision.
 On a green gate it explains what the bump actually changed and flags renders
 that still warrant eyes. It never fails a check, never closes a PR, and its
 deny-list — enforced in code, plus a GitHub App with **no** `workflows`
-permission — keeps it from ever touching CI, [the gate's pin][gate-pin], or
-the merge policy.
+permission — keeps it from ever touching CI or the merge policy. It cannot
+change which gate judges it either, though the mechanism moved: the gate is
+now the agent's own image, pinned by `bosun.defaultVersion`, and that key sits
+in `addons/` which the agent *may* edit — so the protection there is
+`autoMerge: never` and a human reading the bump, not a path deny.
 
 Deep-dives: [docs/delivery.md](../../delivery.md) (this repository's wiring),
 and [Bosun's the-loop.md][upstream] (the full narrative). Merge policy and
@@ -70,9 +70,18 @@ verification live with [kargo](kargo.md).
 - The gate validates the rendered *bootstrap ApplicationSets*; addon values
   are an opaque block inside them, so a bad value inside a chart's values
   renders green unless chart-diff surfaces its consequence.
-- If the `render` job fails, the report comment is never posted and Bosun
-  reports a red gate with no explanation — the gate-is-broken case, exit
-  code 2, distinct from a bad change on purpose.
-- `gitops-gate`, `kargo-pipelines` and `bosun` are `autoMerge: never`: they
-  judge everything else and their failure mode is silence. Bosun triages its
-  own bumps; the deny-list holds even there.
+- A clean no-op gets the `addons-gate` status and **no report comment** —
+  the comment is posted only when there is something to read. Absence of a
+  comment is not absence of a verdict; read the status.
+- If the render fails, `addons-gate` goes to `error`, not `failure` — "the
+  gate is broken" versus "this change is bad", deliberately distinguishable
+  and worth a page. A required check that cannot report needs a human bypass
+  to exist *before* it is needed.
+- `clustersExport.knownAbsentLabels` in `.gitops-gate.yaml` is read by the
+  **render**, despite the key's name suggesting it belongs to the deleted
+  export path. Deleting it exits the gate 2 on `aws_cluster_name` — an
+  `error` on every PR, repo-wide, while looking like tidying up.
+- `kargo-pipelines` and `bosun` are `autoMerge: never`: they judge everything
+  else and their failure mode is silence. Bosun triages its own bumps; the
+  deny-list holds even there, and its own version pin is guarded by the
+  never-merge policy rather than by a path rule.

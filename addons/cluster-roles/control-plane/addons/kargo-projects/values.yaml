@@ -172,33 +172,6 @@ projects:
               - cleanupJobs.ephemeralReports.image.tag
               - cleanupJobs.clusterEphemeralReports.image.tag
               - cleanupJobs.updateRequests.image.tag
-      gitops-gate:
-        scope: images
-        # The pre-merge gate itself. Built and published by
-        # https://github.com/JamesAtIntegratnIO/bosun, where its source lives;
-        # the pin in .github/gate-image.yaml is what actually puts a new gate
-        # into service here.
-        #
-        # `format: image` so the digest moves with the tag. A tag alone is how
-        # an image changes underneath you, and this is the one image whose
-        # silent change would alter the verdict on every other pull request.
-        #
-        # The pin lives outside .github/workflows/ ON PURPOSE: a token without
-        # the `workflow` scope cannot push a change to workflow files at all,
-        # so a pin in the workflow could never be bumped here.
-        #
-        # `never`, for the same reason as bosun and then some. This is the
-        # thing that judges every other promotion. There is no `verify` that
-        # helps -- a gate that passes everything is Healthy by every signal we
-        # have, and the only way to notice is to read the bump.
-        image:
-          <<: *promiseImage
-          repoURL: ghcr.io/jamesatintegratnio/gitops-gate
-        autoMerge: never
-        updates:
-          - file: .github/gate-image.yaml
-            format: image
-            keys: [image]
       kargo-pipelines:
         scope: images
         # The chart that renders every Warehouse and Stage in this file --
