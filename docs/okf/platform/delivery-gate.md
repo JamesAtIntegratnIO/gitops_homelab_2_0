@@ -4,7 +4,7 @@ title: The delivery gate and Bosun — judging and repairing version-bump PRs
 description: What stands between Kargo opening a pull request and the merge — the Bosun agent running the gitops-gate render-diff in-cluster against the live ArgoCD inventory, publishing the required addons-gate check itself, then deterministically repairing dropped-API-version reds, proposing policy-checked fixes, explaining green gates, and escalating decisions as handoffs.
 tags: [delivery, gate, bosun, kargo, triage, llm]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-25T02:15:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-25T04:40:00Z }
 stale_after: 2026-09-25
 sources:
   - id: gate-config
@@ -70,9 +70,21 @@ verification live with [kargo](kargo.md).
 - The gate validates the rendered *bootstrap ApplicationSets*; addon values
   are an opaque block inside them, so a bad value inside a chart's values
   renders green unless chart-diff surfaces its consequence.
+- **A bump that stops declaring a values key takes the setting with it, and
+  helm does not complain.** The gate finds these from bosun 0.17.0 and blocks:
+  the chart's declared surface is read at both versions (its own `values.yaml`,
+  plus a helm-docs README table when there is one) and anything this repository
+  SETS that the new version no longer declares is reported under *Settings this
+  bump stops reading*. Measured on kyverno 3.2.8 → 3.9.0: **48 of the 77 values
+  we set**, six of them keys Kargo rewrites on every promotion — and that bump
+  gated green before the check existed. If a dropped key is in the
+  `kargo-projects` target list, the pin becomes silently useless; fix both.
 - A clean no-op gets the `addons-gate` status and **no report comment** —
   the comment is posted only when there is something to read. Absence of a
   comment is not absence of a verdict; read the status.
+- **One report comment per pull request, rewritten in place**, with earlier
+  verdicts kept in a collapsed history. A repaired pull request shows the green
+  verdict and, under it, the red it used to be.
 - If the render fails, `addons-gate` goes to `error`, not `failure` — "the
   gate is broken" versus "this change is bad", deliberately distinguishable
   and worth a page. A required check that cannot report needs a human bypass
