@@ -1,11 +1,11 @@
 ---
 type: CI Pipeline
 title: CI workflows and repo guardrails
-description: The five GitHub Actions workflows, the no-Secrets enforcement chain, and the local git hook / editor guardrails.
+description: The five GitHub Actions workflows, the no-Secrets enforcement chain, and the local git hook / editor guardrails. The delivery gate is NOT among them any more — it moved in-cluster.
 tags: [ci, github-actions, security, git-hooks]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
-stale_after: 2027-02-20
+generated: { by: claude-code/claude-opus-5, at: 2026-08-25T02:15:00Z }
+stale_after: 2027-02-25
 sources:
   - id: workflows
     resource: ../../../.github/workflows/
@@ -22,12 +22,20 @@ sources:
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `validate-addons.yaml` | every PR — deliberately **no** paths filter, because a required check a paths filter skips never reports and blocks the PR forever; a cheap `scope` job answers relevance instead | The delivery gate's CI adapter: renders every bootstrap ApplicationSet at base and head (image pinned in `.github/gate-image.yaml`, outside `workflows/` so Kargo's token can bump it), diffs targeting/sources/resources with chart-diff, schema-validates, posts the `<!-- gitops-gate -->` report comment, and aggregates into **`addons-gate`** — the check the `validating protection` ruleset requires on `main` with no bypass. See [delivery gate & Bosun](/platform/delivery-gate.md) |
 | `build-go-sdk-promises.yaml` | push/PR on `promises/*/workflows/**` or `promises/_shared/**` | Change-detection job emits a promise matrix (a `_shared` change rebuilds **all** promises); builds `ghcr.io/jamesatintegratnio/<promise>-configure` (and `-delete` if present) with `./promises` as build context; `go build` validation job; PRs build without pushing |
 | `validate-promises.yaml` | PR/push on `promises/**/*.yaml` | **The hard gate**: fails if any promise YAML contains `^kind: Secret$` (the kratix-platform-state repo is public); also yq-parses all YAML (yq fetched from `releases/latest`, unpinned) |
 | `build-kubectl-image.yaml` | `images/kubectl/**` | Multi-arch kubectl+bash image (exists because upstream kubectl images are distroless/discontinued); Dockerfile default v1.34.4 vs workflow default v1.34.1 — mismatched |
 | `build-git-indexer-image.yaml` | `images/git-indexer/**` | Multi-arch RAG indexer image (see [AI stack](/platform/ai-stack.md)) |
 | `build-platform-status-reconciler-image.yaml` | `images/platform-status-reconciler/**` | The custom status controller image (see [Kratix](/promises/kratix.md)) |
+
+**`validate-addons.yaml` is gone** (2026-08-25). It was the delivery gate's CI
+adapter and the publisher of the required **`addons-gate`** check; the gate now
+runs in-cluster inside Bosun (`gate.mode: cluster`), which posts that same check
+name itself against the live ArgoCD inventory. The check name and the
+`validating protection` ruleset did not change — only what reports it. Deleted
+with it: `.github/gate-image.yaml` (the image pin), `.gitops-gate/clusters.yaml`
+(the inventory snapshot) and the `gitops-gate` Kargo target. See
+[delivery gate & Bosun](/platform/delivery-gate.md).
 
 All image pushes authenticate to GHCR with the ephemeral `GITHUB_TOKEN` — no
 long-lived registry credentials in CI.[^workflows]
