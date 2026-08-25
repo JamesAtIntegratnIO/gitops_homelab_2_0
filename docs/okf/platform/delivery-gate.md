@@ -71,7 +71,7 @@ verification live with [kargo](kargo.md).
   are an opaque block inside them, so a bad value inside a chart's values
   renders green unless chart-diff surfaces its consequence.
 - **A bump that stops declaring a values key takes the setting with it, and
-  helm does not complain.** The gate finds these from bosun 0.17.0 and blocks:
+  helm does not complain.** The gate finds these from bosun 0.17.2 and blocks:
   the chart's declared surface is read at both versions (its own `values.yaml`,
   plus a helm-docs README table when there is one) and anything this repository
   SETS that the new version no longer declares is reported under *Settings this
