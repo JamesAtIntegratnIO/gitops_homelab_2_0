@@ -142,7 +142,7 @@ external-secrets:
   namespace: external-secrets
   chartName: external-secrets
   project: platform-services
-  defaultVersion: "0.10.3"
+  defaultVersion: 2.9.0
   chartRepository: "https://charts.external-secrets.io"
   annotationsApp:
     argocd.argoproj.io/sync-wave: "-3"
