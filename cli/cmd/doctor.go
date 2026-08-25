@@ -27,8 +27,7 @@ Checks include:
   - ArgoCD is accessible
   - Git repository is detected and clean
   - Platform namespace exists
-  - Kratix CRDs are installed
-  - The gate's cluster inventory still matches the live clusters`,
+  - Kratix CRDs are installed`,
 	RunE: runDoctor,
 }
 
@@ -50,7 +49,6 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		{Name: "Platform namespace", Run: checkPlatformNamespace},
 		{Name: "ArgoCD", Run: checkArgoCD},
 		{Name: "Kratix CRDs", Run: checkKratixCRDs},
-		{Name: "Gate cluster inventory", Run: checkGateInventory},
 	}
 
 	fmt.Printf("\n%s\n\n", tui.TitleStyle.Render("  hctl doctor"))
