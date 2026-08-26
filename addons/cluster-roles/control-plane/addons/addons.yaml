@@ -664,7 +664,7 @@ open-webui:
   namespace: ai
   chartName: open-webui
   chartRepository: "https://helm.openwebui.com/"
-  defaultVersion: 16.0.0
+  defaultVersion: 16.1.0
   project: platform-services
   selector:
     matchExpressions:
