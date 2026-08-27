@@ -111,7 +111,7 @@ deployment:
         - SETGID
   image:
     repository: ghcr.io/linuxserver/sabnzbd
-    tag: 5.1.2-ls269
+    tag: 5.1.2-ls270
     pullPolicy: IfNotPresent
   ports:
     - name: http
