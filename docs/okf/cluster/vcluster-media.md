@@ -51,6 +51,17 @@ the vcluster's own ArgoCD): **sonarr, radarr, sabnzbd, otterwiki** — each a
 Stakater application with config/media PVCs; the *arr apps use the external
 Postgres at 10.0.3.1.[^workloads]
 
+**configarr** is the fifth entry and the odd one out: the same Stakater chart,
+but rendered as a **CronJob** (`configarr-sync`, 04:00 America/Denver) rather
+than a Deployment, with `deployment.enabled` and `service.enabled` both forced
+off. It holds no state — no PVC, just `emptyDir` for its git clone cache — and
+its whole job is to reconcile Sonarr's and Radarr's **custom formats and
+quality profiles** from the TRaSH-Guides via their REST APIs, so that config
+lives in git instead of only in each app's database. It reads the two API keys
+from the existing `homepage-secret` and needs an egress NetworkPolicy for
+:443, because it clones the TRaSH-Guides and recyclarr template repos on every
+run. See [configarr](/addons/configarr.md).
+
 # Access
 
 - kubeconfig: ExternalSecret `vcluster-media-kubeconfig` (1Password item of

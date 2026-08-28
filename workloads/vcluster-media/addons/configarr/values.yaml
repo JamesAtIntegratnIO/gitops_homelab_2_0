@@ -1,0 +1,204 @@
+applicationName: configarr
+extraObjects:
+  # configarr git-clones the TRaSH-Guides and recyclarr template repos on every
+  # run; the media namespace has no default egress to the internet.
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: configarr-allow-github-egress
+      namespace: media
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: configarr
+      policyTypes:
+        - Egress
+      egress:
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+                except:
+                  - 10.0.0.0/8
+                  - 172.16.0.0/12
+                  - 192.168.0.0/16
+          ports:
+            - protocol: TCP
+              port: 443
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: configarr-config
+      namespace: media
+    data:
+      config.yml: |
+        trashGuideUrl: https://github.com/TRaSH-Guides/Guides
+        recyclarrConfigUrl: https://github.com/recyclarr/config-templates
+
+        sonarr:
+          series:
+            base_url: http://sonarr.media.svc.cluster.local:8989
+            api_key: !env SONARR_API_KEY
+
+            include:
+              - template: sonarr-quality-definition-series
+              - template: sonarr-v4-quality-profile-web-1080p
+              - template: sonarr-v4-custom-formats-web-1080p
+              - template: sonarr-v4-quality-profile-anime
+              - template: sonarr-v4-custom-formats-anime
+
+            quality_profiles:
+              # Extends the template's WEB-1080p profile with 2160p tiers ranked
+              # *below* 1080p, so 4K is a fallback that gets upgraded away rather
+              # than a target.
+              - name: WEB-1080p
+                upgrade:
+                  allowed: true
+                  until_quality: WEB 1080p
+                  until_score: 10000
+                min_format_score: 0
+                quality_sort: top
+                qualities:
+                  - name: WEB 1080p
+                    qualities:
+                      - WEBDL-1080p
+                      - WEBRip-1080p
+                  - name: Bluray-1080p
+                  - name: WEB 2160p
+                    qualities:
+                      - WEBDL-2160p
+                      - WEBRip-2160p
+                  - name: Bluray-2160p
+
+            custom_formats:
+              # Dolby Vision and DTS-family audio are rejected outright: the
+              # profile's min_format_score is 0, so -10000 puts any matching
+              # release below the download threshold.
+              - trash_ids:
+                  - 7c3a61a9c6cb04f52f1544be6d44a026 # DV Boost
+                  - ef4963043b0987f8485bc9106f16db38 # DV (Disk)
+                  - 9b27ab6498ec0f31a3353992e19434ca # DV (w/o HDR fallback)
+                  - 5964f2a8b3be407d083498e4459d05d0 # DTS
+                  - c1a25cd67b5d2e08287c957b1eb903ec # DTS-ES
+                  - cfa5fbd8f02a86fc55d8d223d06a5e1f # DTS-HD HRA
+                  - c429417a57ea8c41d57e6990a8b0033f # DTS-HD MA
+                  - 9d00418ba386a083fbf4d58235fc37ef # DTS X
+                assign_scores_to:
+                  - name: WEB-1080p
+                    score: -10000
+
+        radarr:
+          movies:
+            base_url: http://radarr.media.svc.cluster.local:7878
+            api_key: !env RADARR_API_KEY
+
+            include:
+              - template: radarr-quality-definition-movie
+              - template: radarr-quality-profile-hd-bluray-web
+              - template: radarr-custom-formats-hd-bluray-web
+              - template: radarr-quality-profile-anime
+              - template: radarr-custom-formats-anime
+
+            quality_profiles:
+              - name: HD Bluray + WEB
+                upgrade:
+                  allowed: true
+                  until_quality: Bluray-1080p
+                  until_score: 10000
+                min_format_score: 0
+                quality_sort: top
+                qualities:
+                  - name: Bluray-1080p
+                  - name: WEB 1080p
+                    qualities:
+                      - WEBDL-1080p
+                      - WEBRip-1080p
+                  - name: Bluray-2160p
+                  - name: WEB 2160p
+                    qualities:
+                      - WEBDL-2160p
+                      - WEBRip-2160p
+                  - name: Bluray-720p
+
+            custom_formats:
+              - trash_ids:
+                  - b337d6812e06c200ec9a2d3cfa9d20a7 # DV Boost
+                  - f700d29429c023a5734505e77daeaea7 # DV (Disk)
+                  - 923b6abef9b17f937fab56cfcf89e1f1 # DV (w/o HDR fallback)
+                  - 1c1a4c5e823891c75bc50380a6866f73 # DTS
+                  - f9f847ac70a0af62ea4a08280b859636 # DTS-ES
+                  - 8e109e50e0a0b83a5098b056e13bf6db # DTS-HD HRA
+                  - dcf3ec6938fa32445f590a4da84256cd # DTS-HD MA
+                  - 2f22d89048b01681dde8afe203bf2e95 # DTS X
+                assign_scores_to:
+                  - name: HD Bluray + WEB
+                    score: -10000
+deployment:
+  enabled: false
+service:
+  enabled: false
+cronJob:
+  enabled: true
+  jobs:
+    sync:
+      schedule: "0 4 * * *"
+      timeZone: America/Denver
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 3
+      backoffLimit: 2
+      restartPolicy: Never
+      image:
+        repository: ghcr.io/raydak-labs/configarr
+        tag: 1.30.2
+        imagePullPolicy: IfNotPresent
+      env:
+        TZ:
+          value: America/Denver
+        LOG_LEVEL:
+          value: info
+        SONARR_API_KEY:
+          valueFrom:
+            secretKeyRef:
+              name: homepage-secret
+              key: HOMEPAGE_VAR_SONARR_KEY
+        RADARR_API_KEY:
+          valueFrom:
+            secretKeyRef:
+              name: homepage-secret
+              key: HOMEPAGE_VAR_RADARR_KEY
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containerSecurityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+      volumeMounts:
+        - name: config
+          mountPath: /app/config/config.yml
+          subPath: config.yml
+        - name: repos
+          mountPath: /app/repos
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: configarr-config
+        - name: repos
+          emptyDir:
+            sizeLimit: 512Mi
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi

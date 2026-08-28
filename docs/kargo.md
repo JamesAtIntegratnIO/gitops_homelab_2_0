@@ -39,7 +39,7 @@ top-level areas:
 |---|---|---|
 | `addons` | chart versions in every `addons.yaml` (host *and* the vcluster copies, moved together, Argo Rollouts included) and the images in raw-manifest addons (`mcp-system`, reconciler, Jobs, nfs, authentik-redis, open-webui image, our own kubectl image) | 35 |
 | `promises` | the `*-configure` pipeline images in `promises/*/promise.yaml`, pinned to `main-<sha>` | 7 |
-| `workloads` | the media apps in `workloads/vcluster-media/` | 6 |
+| `workloads` | the media apps in `workloads/vcluster-media/` | 7 |
 
 The UI is at <https://kargo.cluster.integratn.tech>; ArgoCD deep-links are
 wired to <https://argocd.cluster.integratn.tech>.
