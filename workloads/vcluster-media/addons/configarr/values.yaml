@@ -41,49 +41,58 @@ extraObjects:
 
             include:
               - template: sonarr-quality-definition-series
-              - template: sonarr-v4-quality-profile-web-1080p
-              - template: sonarr-v4-custom-formats-web-1080p
+              # The 2160p template, not the 1080p one: it carries the HDR
+              # scoring that only matters at 4K.
+              - template: sonarr-v4-quality-profile-web-2160p
+              - template: sonarr-v4-custom-formats-web-2160p
               - template: sonarr-v4-quality-profile-anime
               - template: sonarr-v4-custom-formats-anime
 
             quality_profiles:
-              # Extends the template's WEB-1080p profile with 2160p tiers ranked
-              # *below* 1080p, so 4K is a fallback that gets upgraded away rather
-              # than a target.
-              - name: WEB-1080p
+              # Extends the template's 2160p-only profile downwards with the
+              # 1080p tiers, ranked below. An episode can therefore come in at
+              # 1080p and keep upgrading until it reaches 2160p, which is where
+              # the cutoff sits.
+              - name: WEB-2160p
                 upgrade:
                   allowed: true
-                  until_quality: WEB 1080p
+                  until_quality: WEB 2160p
                   until_score: 10000
                 min_format_score: 0
                 quality_sort: top
                 qualities:
-                  - name: WEB 1080p
-                    qualities:
-                      - WEBDL-1080p
-                      - WEBRip-1080p
-                  - name: Bluray-1080p
+                  - name: Bluray-2160p
                   - name: WEB 2160p
                     qualities:
                       - WEBDL-2160p
                       - WEBRip-2160p
-                  - name: Bluray-2160p
+                  - name: Bluray-1080p
+                  - name: WEB 1080p
+                    qualities:
+                      - WEBDL-1080p
+                      - WEBRip-1080p
 
             custom_formats:
-              # Dolby Vision and DTS-family audio are rejected outright: the
-              # profile's min_format_score is 0, so -10000 puts any matching
-              # release below the download threshold.
+              # DV carries no explicit score, so the TRaSH defaults apply:
+              # DV Boost +1000 and DV (Disk) +101 prefer Dolby Vision that has
+              # an HDR10 fallback, while DV (w/o HDR fallback) -10000 rejects
+              # the kind that looks wrong on non-DV hardware.
               - trash_ids:
                   - 7c3a61a9c6cb04f52f1544be6d44a026 # DV Boost
                   - ef4963043b0987f8485bc9106f16db38 # DV (Disk)
                   - 9b27ab6498ec0f31a3353992e19434ca # DV (w/o HDR fallback)
+                assign_scores_to:
+                  - name: WEB-2160p
+              # DTS is rejected outright: min_format_score is 0, so -10000 puts
+              # any DTS release below the download threshold.
+              - trash_ids:
                   - 5964f2a8b3be407d083498e4459d05d0 # DTS
                   - c1a25cd67b5d2e08287c957b1eb903ec # DTS-ES
                   - cfa5fbd8f02a86fc55d8d223d06a5e1f # DTS-HD HRA
                   - c429417a57ea8c41d57e6990a8b0033f # DTS-HD MA
                   - 9d00418ba386a083fbf4d58235fc37ef # DTS X
                 assign_scores_to:
-                  - name: WEB-1080p
+                  - name: WEB-2160p
                     score: -10000
 
         radarr:
@@ -93,44 +102,56 @@ extraObjects:
 
             include:
               - template: radarr-quality-definition-movie
-              - template: radarr-quality-profile-hd-bluray-web
-              - template: radarr-custom-formats-hd-bluray-web
+              # The UHD template, not the HD one: it carries the HDR scoring
+              # that only matters at 4K.
+              - template: radarr-quality-profile-uhd-bluray-web
+              - template: radarr-custom-formats-uhd-bluray-web
               - template: radarr-quality-profile-anime
               - template: radarr-custom-formats-anime
 
             quality_profiles:
-              - name: HD Bluray + WEB
+              # Same shape as Sonarr: the template's 2160p-only profile extended
+              # downwards, so a movie can arrive at 1080p and upgrade to 4K.
+              # The cutoff is WEB 2160p rather than the template's Bluray-2160p,
+              # so a 4K WEB release ends the search instead of leaving it
+              # hunting for a Bluray that may never appear.
+              - name: UHD Bluray + WEB
                 upgrade:
                   allowed: true
-                  until_quality: Bluray-1080p
+                  until_quality: WEB 2160p
                   until_score: 10000
                 min_format_score: 0
                 quality_sort: top
                 qualities:
-                  - name: Bluray-1080p
-                  - name: WEB 1080p
-                    qualities:
-                      - WEBDL-1080p
-                      - WEBRip-1080p
                   - name: Bluray-2160p
                   - name: WEB 2160p
                     qualities:
                       - WEBDL-2160p
                       - WEBRip-2160p
+                  - name: Bluray-1080p
+                  - name: WEB 1080p
+                    qualities:
+                      - WEBDL-1080p
+                      - WEBRip-1080p
                   - name: Bluray-720p
 
             custom_formats:
+              # No explicit score: TRaSH's defaults prefer DV that has an HDR10
+              # fallback and reject DV that does not. See the Sonarr block.
               - trash_ids:
                   - b337d6812e06c200ec9a2d3cfa9d20a7 # DV Boost
                   - f700d29429c023a5734505e77daeaea7 # DV (Disk)
                   - 923b6abef9b17f937fab56cfcf89e1f1 # DV (w/o HDR fallback)
+                assign_scores_to:
+                  - name: UHD Bluray + WEB
+              - trash_ids:
                   - 1c1a4c5e823891c75bc50380a6866f73 # DTS
                   - f9f847ac70a0af62ea4a08280b859636 # DTS-ES
                   - 8e109e50e0a0b83a5098b056e13bf6db # DTS-HD HRA
                   - dcf3ec6938fa32445f590a4da84256cd # DTS-HD MA
                   - 2f22d89048b01681dde8afe203bf2e95 # DTS X
                 assign_scores_to:
-                  - name: HD Bluray + WEB
+                  - name: UHD Bluray + WEB
                     score: -10000
 deployment:
   enabled: false
