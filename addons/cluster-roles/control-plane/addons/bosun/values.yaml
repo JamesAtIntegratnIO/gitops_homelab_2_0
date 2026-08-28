@@ -81,19 +81,51 @@ gate:
   #
   # This is the chart's default from 0.16.0 on. It is written down anyway,
   # because it is a decision rather than an inherited default -- and because
-  # what it COSTS deserves to be visible in the values file that chose it:
-  # get/list on Secrets in the `argocd` namespace. The inventory IS the ArgoCD
-  # cluster Secrets, and those same objects carry cluster credentials; RBAC
-  # cannot grant "the labels but not the data". The chart scopes the grant as
-  # far down as it goes -- a namespaced Role in `argocd` only, get/list only,
-  # rendered only while this line says `cluster` -- and `liveReads.scope:
-  # groups` below still keeps Secrets unreadable everywhere else.
+  # what it COSTS deserves to be visible in the values file that chose it.
+  # That cost used to be get/list on Secrets in the `argocd` namespace -- the
+  # inventory IS the ArgoCD cluster Secrets, and those same objects carry
+  # cluster credentials, and RBAC cannot grant "the labels but not the data".
+  # `inventorySource` below is how that grant went away; see the note there.
   #
   # `ci` is the other half of the enum and keeps the old shape whole. It is the
   # answer for a repository that takes fork pull requests, and for a gate that
   # must keep answering while the cluster itself is down. Flipping back is this
   # one line plus restoring the workflow and the inventory snapshot.
   mode: cluster
+
+  # WHERE THE INVENTORY COMES FROM, and the reason the Secret read is gone.
+  #
+  # The gate needs four fields per cluster -- name, server, labels,
+  # annotations. Reading them from the cluster Secrets meant get/list on
+  # Secrets in `argocd`, and that grant could not be made smaller: RBAC has no
+  # deny rules, `resourceNames` does not apply to `list`, and the label
+  # selector the gate sends is a filter the apiserver applies AFTER
+  # authorising. So the Role could read argocd-secret and every repository
+  # credential beside it, and no narrowing of it would have changed that.
+  #
+  # ArgoCD's own API draws the line RBAC cannot: `GET /api/v1/clusters`
+  # serves those four fields with no credential block at all. With this set,
+  # the chart stops creating the Role entirely.
+  #
+  # What it costs, because it is a trade and not a win: the token below, whose
+  # ArgoCD policy is one line (`p, role:bosun, clusters, get, *, allow`), and
+  # a gate that now needs argocd-server up to reach a verdict -- the Secrets
+  # were readable whenever the apiserver was. Flipping back is this one line.
+  inventorySource: argocd
+
+  argocd:
+    # In-cluster and plain HTTP, because this ArgoCD runs `server.insecure:
+    # true` behind the gateway -- so there is no certificate to verify and
+    # neither `caSecret` nor `insecureSkipTLSVerify` is needed. The traffic
+    # never leaves the cluster. Port 80 is what the chart opens to the
+    # `argocd` namespace in its NetworkPolicy; argocd-server's Service maps
+    # 80 and 443 to the same plaintext listener, and naming 443 here would
+    # hang on a TLS handshake that never completes.
+    baseURL: http://argo-cd-argocd-server.argocd.svc
+    port: 80
+    # Projected from 1Password by the ExternalSecret beside this file.
+    existingSecret: bosun-argocd
+    tokenKey: token
 
   # This repository is PUBLIC, so this is a real choice and not a formality.
   # Off means a pull request from a fork gets an `error` status naming this
