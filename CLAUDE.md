@@ -141,6 +141,21 @@ Addon value files resolve `environments/{env}` → `cluster-roles/{role}` →
   the file, or commenting the line breaks the target silently (the promotion
   fails, the pin goes stale). Add new pins to that list; do not let them rot.
 
+## Skills
+
+Task-shaped operating knowledge lives in [.claude/skills/](.claude/skills/).
+Load the one that matches what you are about to do — each carries the failure
+modes and the check that catches them, and several ship a script.
+
+| Skill | Use when |
+|---|---|
+| `homelab-toolchain` | before any `kubectl`/`helm`/`argocd`/`yq`/`talosctl` command — resolves the flake tools without `nix develop` |
+| `addon-change` | editing anything under `addons/`; renders both bootstraps and diffs which clusters each app targets |
+| `kargo-pins` | adding or moving a pin, or a Stage/Promotion/Warehouse that has silently stopped |
+| `gate-triage` | reading or acting on the `addons-gate` verdict and Bosun's report on a PR |
+| `cluster-triage` | a live symptom — zero-byte hangs, lost leases, stale config, write loops, empty metrics |
+| `ship-change` | branch → commit → PR → merge handoff → post-merge verification → OKF update |
+
 ## Working with the OKF bundle
 
 The bundle at [docs/okf/](docs/okf/index.md) is the platform's long-term memory —
