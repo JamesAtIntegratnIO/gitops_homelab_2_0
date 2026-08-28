@@ -54,34 +54,43 @@ would render an empty Deployment and a Service pointing at nothing.
 
 # What it manages
 
-One combined profile per app plus TRaSH's anime profile:
+**Two profiles per app**, plus TRaSH's anime profile:
 
-| App | Main profile | Anime profile |
-|---|---|---|
-| Sonarr | `WEB-2160p` | `Remux-1080p - Anime` |
-| Radarr | `UHD Bluray + WEB` | `Remux-1080p - Anime` |
+| App | Library default (1080p) | Opt-in 4K | Anime |
+|---|---|---|---|
+| Sonarr | `WEB-1080p` | `WEB-2160p` | `Remux-1080p - Anime` |
+| Radarr | `HD Bluray + WEB` | `UHD Bluray + WEB` | `Remux-1080p - Anime` |
 
-The main profile builds on the **2160p** template, not the 1080p one — the 4K
-templates carry the HDR scoring that only matters at that resolution — and is
-then extended *downwards* with the 1080p tiers. The upgrade cutoff sits at
-`WEB 2160p`, so media can arrive at 1080p and keeps upgrading until it reaches
-4K, at which point the search stops. On Radarr the cutoff is deliberately
-`WEB 2160p` rather than the template's `Bluray-2160p`, so a 4K WEB release
-ends the search instead of leaving it hunting for a Bluray that may never
-appear.
+The **default** profile has no 2160p tier at all. That is deliberate and both
+directions were tried: ranking 2160p *below* 1080p makes Sonarr replace
+existing 4K files with 1080p, and ranking it *above* makes every new grab
+chase 4K. Excluding it leaves neither failure mode, and the titles that should
+be 4K — including everything already at 2160p, so it is not downgraded — go on
+the opt-in profile instead.
 
-**Dolby Vision follows TRaSH's own defaults** — the config assigns the three
-DV formats with no explicit score. That means `DV Boost` (+1000) and
-`DV (Disk)` (+101) *prefer* Dolby Vision carrying an HDR10 fallback, while
-`DV (w/o HDR fallback)` (−10000) rejects the kind that renders wrong on
-non-DV hardware. Note `DV Boost` matches any DV release by title; the
-three scores compose so that DV-with-fallback nets positive and
-DV-without-fallback nets about −9000.
+**`until_score` is `-1000`, not the template's `10000`.** This is the setting
+that makes the library-wide purge surgical. A clean release scores at or above
+0 and is left alone; only the heavily penalised ones — DV and DTS at −10000 —
+fall below the bar and become eligible for replacement. At the template's
+`10000` virtually every file in the library would be cutoff-unmet and the
+first search would try to re-grab all of it.
 
-**The DTS family is rejected outright**: `DTS`, `DTS-ES`, `DTS-HD HRA`,
-`DTS-HD MA` and `DTS X` are scored `-10000` against a profile whose
-`min_format_score` is `0`. No upstream template scores DV or DTS, so this
-config is their sole source and there is no override conflict.
+**Dolby Vision and the DTS family are blocked outright** — all three DV
+formats (`DV Boost`, `DV (Disk)`, `DV (w/o HDR fallback)`) and all five DTS
+formats scored `-10000` against a profile whose `min_format_score` is `0`. So
+they are neither downloadable nor, once scored, retainable. Note `DV Boost`
+matches any DV release by *title*, which is what makes the blanket block work.
+
+An earlier revision followed TRaSH's own DV defaults instead, which *prefer*
+DV carrying an HDR10 fallback (+1000) and reject only the no-fallback kind.
+That is the better setting for hardware that handles DV well; it was replaced
+because this one does not.
+
+No upstream template scores DV or DTS, so this config is their sole source and
+there is no override conflict. The **anime profile is deliberately left
+alone** — it uses `score_set: anime-sonarr` with `min_format_score: 100`, and
+adding a −10000 there risks starving anime grabs, where dual-audio DTS is
+common.
 
 # Two traps worth knowing
 
