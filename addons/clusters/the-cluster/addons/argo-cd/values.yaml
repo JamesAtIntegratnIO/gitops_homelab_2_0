@@ -202,6 +202,21 @@ configs:
     # Local account for AI MCP platform (API key only, no UI login)
     accounts.mcp-readonly: apiKey
     accounts.mcp-readonly.enabled: "true"
+
+    # Local account for Bosun's gate (API key only, no UI login).
+    #
+    # It exists to REPLACE an RBAC grant, not to add access. The gate renders
+    # ApplicationSets against the live cluster inventory, and reading that
+    # inventory from the cluster Secrets means get/list on Secrets in this
+    # namespace -- which cannot be scoped to "the labels but not the data",
+    # because RBAC has no such predicate. This account reads the same four
+    # fields through ArgoCD's own API, which does draw that line, and the
+    # bosun chart then stops creating the Role.
+    #
+    # Its policy below is ONE line. A token with more than that would be a
+    # bigger credential than the Secret read it replaced.
+    accounts.bosun: apiKey
+    accounts.bosun.enabled: "true"
   
   rbac:
     policy.csv: |
@@ -222,6 +237,12 @@ configs:
       p, role:mcp-readonly, repositories, get, *, allow
       p, role:mcp-readonly, logs, get, */*, allow
       g, mcp-readonly, role:mcp-readonly
+      
+      # Bosun's gate: the cluster inventory it expands ApplicationSets
+      # against, and deliberately nothing else -- not applications, not repos,
+      # not logs. This is the whole reason the account exists.
+      p, role:bosun, clusters, get, *, allow
+      g, bosun, role:bosun
       
       # Map Authentik Admins group to ArgoCD admin role
       g, authentik Admins, role:admin
