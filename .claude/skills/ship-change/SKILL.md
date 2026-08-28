@@ -53,7 +53,11 @@ source .claude/skills/homelab-toolchain/scripts/tools.sh
 ./.claude/skills/addon-change/scripts/addon-targets.sh
 
 $HELM template addons/charts/application-sets -f <values...>
-$HELM template addons/charts/kargo-projects \
+# The live chart is the OCI kargo-pipelines from the Bosun repo; the in-tree
+# addons/charts/kargo-projects is its DEPRECATED predecessor and rendering it
+# verifies nothing. Version comes from the addon's `defaultVersion`.
+$HELM template kargo-projects \
+  oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines --version <defaultVersion> \
   -f addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
 
 cd promises/vcluster-orchestrator-v2/workflows/resource/configure && $GO build ./...

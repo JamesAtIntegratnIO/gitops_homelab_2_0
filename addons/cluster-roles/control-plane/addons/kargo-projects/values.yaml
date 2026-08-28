@@ -27,6 +27,35 @@ git:
 # app.kubernetes.io/name on all 111 objects.
 nameLabel: kargo-projects
 
+# WIDEN THE POST-MERGE VERIFICATION BUDGET. The chart defaults (count 5,
+# failureLimit 2) give an AnalysisRun `initialDelay + failureLimit * interval`
+# = 5 minutes for the named Applications to reach Synced/Healthy, and a
+# verification that runs out is TERMINAL -- Kargo never re-runs it, so the
+# Stage sits `Ready=False` for ever while the app it was watching is healthy.
+#
+# Measured on this cluster (open-webui v0.11.0 -> v0.11.1, 2026-08-26). Two
+# AnalysisRuns verified THE SAME Application with THE SAME args, 63 seconds
+# apart, and split across the pass/fail line:
+#
+#   open-webui-image  started 02:33:40  measured 02:36:40 [] 02:37:40 [] 02:38:40 []  -> Failed
+#   open-webui        started 02:34:43  measured 02:37:43 [] 02:38:43 [] 02:39:43 [1] -> Successful
+#
+# `open-webui-the-cluster` went Synced/Healthy at ~02:39:40, 6m00s after the
+# first run began. Nothing was wrong with the app or the query -- the budget
+# was simply shorter than the rollout, and the margin was under one interval.
+# Across 87 runs to date: 73 spent none of the budget, 5 spent one, 4 spent all
+# of it, and 3 ran out. A check that four passing runs finish on their last
+# tolerated measurement is not measuring what it thinks it is.
+#
+# 8 * 1m with 5 tolerated failures gives 8 minutes to go healthy -- a third
+# more than the worst case observed -- and still demands three consecutive
+# healthy measurements to pass. It costs 3 minutes of wall clock on the happy
+# path, which is free: verification runs after the merge is already deployed
+# and gates only the Stage's next promotion.
+verification:
+  count: 8
+  failureLimit: 5
+
 # Hand opened pull requests to Bosun. Without this the agent runs
 # and Kargo never calls it -- enabling the addon alone deploys a service with
 # no caller.
