@@ -790,6 +790,15 @@ projects:
         updates:
           - file: workloads/vcluster-media/addons/otterwiki/values.yaml
             keys: [deployment.image.tag]
+      configarr:
+        scope: vcluster-media
+        image:
+          repoURL: ghcr.io/raydak-labs/configarr
+          allowTags: ['^\d+\.\d+\.\d+$']
+        format: tag
+        updates:
+          - file: workloads/vcluster-media/addons/configarr/values.yaml
+            keys: [cronJob.jobs.sync.image.tag]
       stakater-application:
         scope: vcluster-media
         chart: { repoURL: https://stakater.github.io/stakater-charts, name: application }
