@@ -35,3 +35,7 @@ sabnzbd:
 otterwiki:
   <<: *mediaAppDefaults
   enabled: true
+
+configarr:
+  <<: *mediaAppDefaults
+  enabled: true
