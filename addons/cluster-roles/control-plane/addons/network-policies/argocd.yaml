@@ -77,6 +77,27 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # Bosun's gate reads the cluster inventory from the ArgoCD API.
+    #
+    # This is the half of the path the bosun chart CANNOT write. It emits its
+    # own egress rule to this namespace; argocd-server's ingress lives here,
+    # and until both exist the connection is dropped with no error at either
+    # end -- the pod blocks its full timeout and dies at start-up saying
+    # ArgoCD is unreachable, which is true and says nothing about why.
+    #
+    # Port 8080, not the Service's 80: a ClusterIP is DNAT'd to the pod's own
+    # port before policy is evaluated, so the number here is the container's
+    # and not the one in the URL. Same as the argocd-mcp rule above.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: bosun
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: bosun
+      ports:
+        - protocol: TCP
+          port: 8080
   egress:
     # Internal: repo-server, redis, dex
     - to:

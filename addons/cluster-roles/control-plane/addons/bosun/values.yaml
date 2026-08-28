@@ -117,12 +117,15 @@ gate:
     # In-cluster and plain HTTP, because this ArgoCD runs `server.insecure:
     # true` behind the gateway -- so there is no certificate to verify and
     # neither `caSecret` nor `insecureSkipTLSVerify` is needed. The traffic
-    # never leaves the cluster. Port 80 is what the chart opens to the
-    # `argocd` namespace in its NetworkPolicy; argocd-server's Service maps
-    # 80 and 443 to the same plaintext listener, and naming 443 here would
-    # hang on a TLS handshake that never completes.
+    # never leaves the cluster.
     baseURL: http://argo-cd-argocd-server.argocd.svc
-    port: 80
+    # 8080, and it is NOT the port in the URL above. `port` is the number the
+    # chart writes into its NetworkPolicy egress rule, and a ClusterIP is
+    # DNAT'd to the pod's own port BEFORE policy is evaluated -- so the rule
+    # has to name argocd-server's container port, while the URL names the
+    # Service's. Setting both to 80 passes every render and drops every
+    # packet, with no error at either end.
+    port: 8080
     # Projected from 1Password by the ExternalSecret beside this file.
     existingSecret: bosun-argocd
     tokenKey: token
