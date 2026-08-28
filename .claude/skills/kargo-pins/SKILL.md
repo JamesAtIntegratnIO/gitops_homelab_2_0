@@ -5,9 +5,12 @@ description: Work with Kargo — the repo's version-bump bot. Use when adding or
 
 # Kargo
 
-48 Warehouse/Stage pairs across 3 Projects (`addons`, `promises`, `workloads`),
-rendered by `addons/charts/kargo-projects` from
-[kargo-projects/values.yaml](../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml).
+Warehouse/Stage pairs across 3 Projects (`addons`, `promises`, `workloads`),
+rendered from
+[kargo-projects/values.yaml](../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml)
+by the **OCI `kargo-pipelines` chart** shipped from the Bosun repo — pinned by
+the addon's `defaultVersion`. The in-tree `addons/charts/kargo-projects` is its
+deprecated predecessor: editing it changes nothing in the cluster.
 Background: [docs/kargo.md](../../../docs/kargo.md). Kargo merging its own
 version-bump PRs is the one sanctioned exception to "never push to main".
 
@@ -37,7 +40,12 @@ Three semantics that make the silence permanent:
   `Ready=False`, declines to start the next promotion, and nothing else changes.
 - **A failed verification is ALSO terminal.** Fixing the cause does nothing;
   Kargo does not re-run it. Proved by merging a NetworkPolicy fix and watching
-  three Stages not move until they were asked again.
+  three Stages not move until they were asked again. Because it is terminal,
+  the *budget* matters: an AnalysisRun gets
+  `initialDelay + failureLimit * interval` for the named Applications to reach
+  Synced/Healthy, and running out costs the Stage permanently. Tuned in the
+  `verification:` block of `kargo-projects/values.yaml`, which carries the
+  measurement that set it.
 
 Kargo does **not** execute AnalysisRuns itself — the Argo Rollouts controller
 does (installed as the `argo-rollouts` addon). Verification checks

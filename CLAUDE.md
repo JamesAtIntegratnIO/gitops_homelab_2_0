@@ -70,11 +70,16 @@ nix develop
 
 - These tools are **not on the default PATH**. In an agent worktree under
   `.claude/worktrees/*` there is no `secrets.env`, so `nix develop` either warns
-  or stalls building `hctl`. The fast escape hatch:
+  or stalls building `hctl`. The escape hatch:
   ```bash
-  K=$(ls -d /nix/store/*-kubectl-*/bin/kubectl | sort -V | tail -1)
+  source .claude/skills/homelab-toolchain/scripts/tools.sh   # $KUBECTL $HELM $JQ $YQ ...
   ```
-  The same glob works for `jq`, `yq`, `talosctl`, `kubecm`, `kubernetes-helm`.
+  Do **not** hand-roll it as `ls -d /nix/store/*-<pkg>-*/bin/<exe> | sort -V |
+  tail -1`: `sort -V` on a full store path sorts by the *hash*, so that returns
+  an arbitrary build — today it hands you kubectl 1.36.3 against a 1.34.1
+  apiserver, outside the supported skew. `tools.sh` sorts on the version field
+  and pins kubectl to the server minor. The bare `*-yq-*` glob is ambiguous the
+  same way: it also matches `python3.13-yq`, a different tool with jq syntax.
 - The Bash tool runs **zsh** on macOS: unquoted `$var` does not word-split (use
   `${=var}`), and there is no `timeout` binary.
 - There is **no talosconfig on this workstation**. Anything needing
@@ -198,8 +203,11 @@ the flake directly.
 # render an addon's ApplicationSet the way ArgoCD will
 helm template addons/charts/application-sets -f <values...>
 
-# Kargo Warehouses/Stages from the target list
-helm template addons/charts/kargo-projects \
+# Kargo Warehouses/Stages from the target list. The live chart is the OCI
+# `kargo-pipelines` from the Bosun repo -- the in-tree addons/charts/kargo-projects
+# is its DEPRECATED predecessor, and rendering it verifies nothing.
+helm template kargo-projects \
+  oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines --version <defaultVersion> \
   -f addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
 
 # promise pipelines (Go) -- no tests here, so it is a build gate
