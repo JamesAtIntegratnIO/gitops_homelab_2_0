@@ -831,15 +831,31 @@ bosun:
   chartName: bosun
   project: platform-services
   chartRepository: oci://ghcr.io/jamesatintegratnio/charts/bosun
-  # 0.2.0 -- the first release since 0.1.0 to be published at all, and it
-  # carries everything: edits scoped to the promotion's own files, a triage
-  # that waits for a gate which has not reported yet, a commit status on every
-  # outcome including the ones that do nothing, an explanation of what a green
-  # bump actually changed, and the maintainers' own release notes saying why.
+  # 0.25.1 -- a security review of the agent and the chart, and five chart
+  # versions of accumulated drift closed in one move. What it needs from the
+  # values file beside this one, because none of it is optional:
   #
-  # Verified against the PUBLISHED chart rather than the tree: it renders
-  # EXPLAIN_GREEN and UPSTREAM_NOTES, and selects bosun:0.2.0.
-  defaultVersion: 0.20.0
+  #   - `gate.mode`, `gate.wait` and `gate.inventorySource` are gone (0.22.0).
+  #     One gate, in the cluster, reading its inventory from the ArgoCD API.
+  #   - `gate.argocd.port` is `gate.argocd.podPort` (0.21.0).
+  #   - `metrics.serviceMonitor.namespace` is REQUIRED with the ServiceMonitor
+  #     and the NetworkPolicy both on (0.24.0). Without it the render fails by
+  #     name; the old rule admitted any pod labelled prometheus in any
+  #     namespace, to a port serving the whole HTTP surface.
+  #
+  # The agent is breaking too: internal address space is refused at the dial
+  # unless named in `triage.egressAllowPrivate`, and the edit scope is read
+  # from the pull request's diff rather than from the promotion body. Neither
+  # needs a value here; see the notes in that file.
+  #
+  # 0.25.1 and not 0.25.0: 0.25.0's ClusterRole is not YAML when `liveReads`
+  # is on, which is on here.
+  #
+  # Verified against the PUBLISHED chart rather than the tree: 0.25.1 renders
+  # these values to eight valid documents, selects bosun:0.25.0, mounts the
+  # credentials as files with no secretKeyRef env left, and scopes the metrics
+  # ingress to the monitoring namespace.
+  defaultVersion: 0.25.1
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
