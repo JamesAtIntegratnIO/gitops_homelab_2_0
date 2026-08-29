@@ -554,6 +554,38 @@ goldilocks:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
 
+podinfo:
+  # The delivery-flow demo app, ported from bosun's local proving ground
+  # (bosun local/sample-repo). It exists to be promoted: pinned deliberately
+  # old so Kargo has freight to move the moment it looks, and its Kargo
+  # target sets `autoMerge: patch` so a minor bump parks as a pull request
+  # and `triage.when: gated` hands it to bosun instead of merging it quietly.
+  # Nothing in the cluster depends on it; it is safe to watch, break, and
+  # delete.
+  enabled: true
+  namespace: podinfo
+  releaseName: podinfo
+  chartName: podinfo
+  project: platform-services
+  chartRepository: https://stefanprodan.github.io/podinfo
+  defaultVersion: 6.7.0
+  valuesObject:
+    replicaCount: 1
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
 trivy-operator:
   enabled: true
   namespace: trivy-system
