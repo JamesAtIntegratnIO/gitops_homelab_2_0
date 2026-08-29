@@ -855,7 +855,20 @@ bosun:
   # these values to eight valid documents, selects bosun:0.25.0, mounts the
   # credentials as files with no secretKeyRef env left, and scopes the metrics
   # ingress to the monitoring namespace.
-  defaultVersion: 0.25.1
+  #
+  # 0.27.0 -- the gate stops passing a chart it could not render, and gains the
+  # repair for one. Two things arrive together:
+  #
+  #   - a render that fails at the head revision now blocks instead of being
+  #     filed under "not covered", which is the defect that let 0.25.1 through
+  #     green while its values.schema.json refused four keys this file was
+  #     still setting (bosun#83);
+  #   - the gate derives what to render from ArgoCD, so `.gitops-gate.yaml`
+  #     becomes optional and `.bosun.yaml` is the filename it moves to.
+  #
+  # Rendered against this repository's own bosun values at 0.27.0 before the
+  # bump: clean, so nothing in the file beside this one has to move with it.
+  defaultVersion: 0.27.0
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
