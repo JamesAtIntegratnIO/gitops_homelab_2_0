@@ -71,10 +71,32 @@ extraObjects:
               # 839 -> 844 while churning ~1500 grabs. The scores below still
               # earn their place as a DOWNLOAD filter, which is all they can
               # be: DV fell 236 -> 213 over the same window.
+              #
+              # The cutoff is Bluray-1080p -- the LOWEST 1080p tier here, not
+              # the template's WEB 1080p. quality_sort: top ranks WEB above
+              # Bluray, so the template's value makes every Bluray-1080p file
+              # in the library read as cutoff-unmet: 5035 of the 8956 episodes
+              # flagged were Bluray-1080p being pulled toward WEB, which trades
+              # a lossless source for a lossy one. Naming the bottom tier keeps
+              # both 1080p qualities at cutoff while everything outside the
+              # profile -- DVD 1518, SDTV 424, WEBDL-480p 476, the 720p tail --
+              # still ranks below it and is still swept up to 1080p. Grab
+              # preference is untouched: WEB stays ranked top, so new grabs
+              # still prefer WEBDL-1080p. Same fix as Radarr's in the block
+              # below, mirrored: there the cutoff had to move down to WEB,
+              # here it has to move down to Bluray.
+              #
+              # This deliberately stops DTS falling on Sonarr. 1750 of those
+              # 5035 carried DTS-HD MA or DV, and the only reason the number
+              # was moving is that the sweep was replacing lossless Bluray
+              # audio with WEB. That is not a trade worth making -- see the
+              # mediaInfo audit in scripts/arr-audio-audit.py: 75% of Sonarr's
+              # DTS files never declare DTS in the release title, so no custom
+              # format and no cutoff can target them anyway.
               - name: WEB-1080p
                 upgrade:
                   allowed: true
-                  until_quality: WEB 1080p
+                  until_quality: Bluray-1080p
                   until_score: -100000
                 min_format_score: 0
                 quality_sort: top

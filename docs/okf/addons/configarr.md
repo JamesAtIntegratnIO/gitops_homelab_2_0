@@ -4,7 +4,7 @@ title: configarr
 description: The daily CronJob in vcluster-media that reconciles Sonarr's and Radarr's custom formats and quality profiles from the TRaSH-Guides, so that config lives in git rather than only in each app's database.
 tags: [media, vcluster-media, custom-formats, trash-guides, cronjob]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-28T20:35:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-29T18:40:00Z }
 stale_after: 2026-11-28
 sources:
   - id: values
@@ -18,6 +18,9 @@ sources:
     title: kargo-projects target list
   - id: dryrun
     resource: configarr 1.30.2 DRY_RUN against live sonarr/radarr via port-forward, 2026-08-28
+  - id: cutoff-audit
+    resource: live sonarr/radarr API (qualityprofile, wanted/cutoff, release) via port-forward, 2026-08-29
+    title: cutoff-unmet and mediaInfo measurement behind the Bluray-1080p cutoff
     title: Pre-merge dry run
 ---
 
@@ -86,6 +89,34 @@ The lesson generalises: **custom formats are a download filter, not a library
 auditor.** For the library side see
 [scripts/arr-audio-audit.py](../../../scripts/arr-audio-audit.py), which reads
 `mediaInfo` instead — the only place the real codec is recorded.
+
+**The cutoff names the lowest acceptable 1080p tier, not the template's
+default.** Both apps needed the same correction and it points in opposite
+directions, because the two profiles rank the tiers differently under
+`quality_sort: top`:
+
+| Profile | Tier order, highest first | TRaSH cutoff | Ours |
+|---|---|---|---|
+| Sonarr `WEB-1080p` | WEB 1080p, Bluray-1080p | `WEB 1080p` | `Bluray-1080p` |
+| Radarr `HD Bluray + WEB` | Bluray-1080p, WEB 1080p, Bluray-720p | `Bluray-1080p` | `WEB 1080p` |
+
+Keeping the template value makes every file in the *other* 1080p tier read as
+cutoff-unmet, and the app spends the library chasing a sideways move. Radarr
+had **499** WEBDL/WEBRip files being pulled toward Bluray. Sonarr had **4,997**
+Bluray-1080p episodes being pulled toward WEB, which trades a lossless source
+for a lossy one. Naming the bottom tier keeps both 1080p qualities at cutoff,
+while everything outside the profile — DVD, SDTV, the 480p and 720p tail —
+still ranks below it and is still swept up to 1080p. Grab *preference* is
+unchanged either way: the tier order is untouched, only the stopping point
+moves.
+
+Measured on Sonarr immediately before the change: **8,956 episodes
+cutoff-unmet, 5,035 of them Bluray-1080p**, leaving a genuine tail of **3,959**.
+Sonarr stores the profile with `Bluray-1080p` at item index 19 and `WEB 1080p`
+at index 20, and the cutoff pointed at index 20 — which is the whole bug, read
+straight off the API. This deliberately **stops DTS falling on Sonarr**: 1,750
+of those 5,035 carried DTS-HD MA or DV, and the only reason that number moved
+was the sweep replacing lossless Bluray audio with WEB.
 
 **Dolby Vision and the DTS family are blocked outright** — all three DV
 formats (`DV Boost`, `DV (Disk)`, `DV (w/o HDR fallback)`) and all five DTS
