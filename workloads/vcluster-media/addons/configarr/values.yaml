@@ -150,10 +150,16 @@ extraObjects:
               # The library default -- same reasoning as Sonarr's WEB-1080p:
               # no 2160p tier at all, and until_score disabled -- see the
               # Sonarr block for why the DV/DTS purge was abandoned.
+              # The cutoff is WEB 1080p, not the template's Bluray-1080p.
+              # Bluray-1080p ranks above WEB, so the template's value makes
+              # every WEB file cutoff-unmet and Radarr chases a Bluray for all
+              # of them -- 499 of the 626 still flagged were WEBDL/WEBRip
+              # 1080p being pulled toward Bluray, against 24 that were the DTS
+              # we actually meant to fix. WEB 1080p is good enough here.
               - name: HD Bluray + WEB
                 upgrade:
                   allowed: true
-                  until_quality: Bluray-1080p
+                  until_quality: WEB 1080p
                   until_score: -100000
                 min_format_score: 0
                 quality_sort: top
