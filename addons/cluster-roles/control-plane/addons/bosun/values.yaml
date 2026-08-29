@@ -12,6 +12,27 @@ fullnameOverride: bosun
 # which the cluster cannot reach. If triage starts timing out, check those two
 # first; a sleeping workstation looks exactly like a wedged model.
 
+# Credentials as mounted files rather than environment variables.
+#
+# Every credential below still names the same Secret and the same key. What
+# changes is delivery: the chart projects them read-only into
+# /etc/bosun/credentials and sets GIT_TOKEN_FILE and its siblings instead of
+# the plain variables, and the configuration loader reads the paths at
+# start-up.
+#
+# The reason is child processes. An environment variable is inherited by every
+# one of them, and this service shells out to git and to helm constantly, so
+# the GitHub App private key was sitting in the environment of a chart
+# renderer. A path is not a secret. `kubectl exec -- env` and
+# /proc/<pid>/environ stop carrying them too.
+#
+# REQUIRES an image that reads the _FILE variants, which is 0.25.0 and later.
+# `image.tag` is unset, so the chart's appVersion decides that -- chart 0.25.0
+# selects bosun:0.25.0 and both halves move together. Setting this against an
+# older image leaves every credential unset and the pod refuses to start.
+credentials:
+  mountAsFiles: true
+
 image:
   repository: ghcr.io/jamesatintegratnio/bosun
   # Deliberately unset: the chart falls back to its own appVersion, so bumping
@@ -79,21 +100,13 @@ gate:
   # the CI half of this go away: no workflow to install, no checked-in cluster
   # inventory to export and keep fresh, and no `paths:` filter to hand-edit.
   #
-  # This is the chart's default from 0.16.0 on. It is written down anyway,
-  # because it is a decision rather than an inherited default -- and because
-  # what it COSTS deserves to be visible in the values file that chose it.
-  # That cost used to be get/list on Secrets in the `argocd` namespace -- the
-  # inventory IS the ArgoCD cluster Secrets, and those same objects carry
-  # cluster credentials, and RBAC cannot grant "the labels but not the data".
-  # `inventorySource` below is how that grant went away; see the note there.
+  # There is no longer a `mode` to set, and no `inventorySource` either. Chart
+  # 0.22.0 removed both: one gate, in the cluster, reading its inventory from
+  # the ArgoCD API. The `ci` placement and the Secret-backed inventory are gone
+  # rather than defaulted, so what used to be a decision recorded here is now
+  # the only behaviour. See ADR 0009.
   #
-  # `ci` is the other half of the enum and keeps the old shape whole. It is the
-  # answer for a repository that takes fork pull requests, and for a gate that
-  # must keep answering while the cluster itself is down. Flipping back is this
-  # one line plus restoring the workflow and the inventory snapshot.
-  mode: cluster
-
-  # WHERE THE INVENTORY COMES FROM, and the reason the Secret read is gone.
+  # WHY THE SECRET READ IS GONE, which is the part still worth knowing.
   #
   # The gate needs four fields per cluster -- name, server, labels,
   # annotations. Reading them from the cluster Secrets meant get/list on
@@ -104,14 +117,14 @@ gate:
   # credential beside it, and no narrowing of it would have changed that.
   #
   # ArgoCD's own API draws the line RBAC cannot: `GET /api/v1/clusters`
-  # serves those four fields with no credential block at all. With this set,
-  # the chart stops creating the Role entirely.
+  # serves those four fields with no credential block at all, and the chart
+  # creates no Role over Secrets at all now.
   #
   # What it costs, because it is a trade and not a win: the token below, whose
   # ArgoCD policy is one line (`p, role:bosun, clusters, get, *, allow`), and
-  # a gate that now needs argocd-server up to reach a verdict -- the Secrets
-  # were readable whenever the apiserver was. Flipping back is this one line.
-  inventorySource: argocd
+  # a gate that needs argocd-server up to reach a verdict -- the Secrets were
+  # readable whenever the apiserver was. There is no longer a line to flip
+  # back.
 
   argocd:
     # In-cluster and plain HTTP, because this ArgoCD runs `server.insecure:
@@ -119,13 +132,15 @@ gate:
     # neither `caSecret` nor `insecureSkipTLSVerify` is needed. The traffic
     # never leaves the cluster.
     baseURL: http://argo-cd-argocd-server.argocd.svc
-    # 8080, and it is NOT the port in the URL above. `port` is the number the
-    # chart writes into its NetworkPolicy egress rule, and a ClusterIP is
+    # 8080, and it is NOT the port in the URL above. `podPort` is the number
+    # the chart writes into its NetworkPolicy egress rule, and a ClusterIP is
     # DNAT'd to the pod's own port BEFORE policy is evaluated -- so the rule
     # has to name argocd-server's container port, while the URL names the
     # Service's. Setting both to 80 passes every render and drops every
     # packet, with no error at either end.
-    port: 8080
+    #
+    # Renamed from `port` in chart 0.21.0, for exactly that confusion.
+    podPort: 8080
     # Projected from 1Password by the ExternalSecret beside this file.
     existingSecret: bosun-argocd
     tokenKey: token
@@ -139,10 +154,9 @@ gate:
   forkPRs: false
 
   checkName: addons-gate
-  # Inert in cluster mode -- there is no external check to wait on, the gate
-  # runs in-process. Kept so that flipping `mode` back to `ci` is genuinely one
-  # line. `poll` does still apply: it paces the sweep for new pull requests.
-  wait: 10m
+  # `wait` went with `mode` in chart 0.22.0: it named how long to wait for an
+  # external check, and there is no external check. `poll` is the one that
+  # still applies, and it paces the sweep for new pull requests.
   poll: 30s
 
 triage:
@@ -155,6 +169,25 @@ triage:
   # nothing has earned a place here yet -- the outbound log is the first place
   # to look if that changes.
   egressDeny: []
+
+  # Internal networks the agent may reach anyway. EMPTY ON PURPOSE, and worth
+  # a note because agent 0.25.0 closed them by default.
+  #
+  # Loopback, link-local (169.254/16, so the metadata service), RFC1918 and
+  # CGNAT are refused at the dial, whatever the NetworkPolicy permits, and
+  # naming a network here is the only way past. Nothing here needs one:
+  #
+  #   - the guard is on the chart-index and registry clients only, and every
+  #     repository this pipeline tracks is public;
+  #   - the model endpoint at 192.168.0.57 is NOT affected. The LLM client
+  #     builds its own transport and never passes through the guard, which was
+  #     checked rather than assumed;
+  #   - argocd-server is a ClusterIP on a private address and is likewise not
+  #     behind the guard.
+  #
+  # If an internal chart museum or an HTTP proxy ever appears, the symptom is a
+  # refusal in the log naming the network, and the fix is one CIDR here.
+  egressAllowPrivate: []
 
   allowPaths:
     - addons/**
@@ -192,8 +225,13 @@ liveReads:
   # `groups`, not `wide`. "Everything except the core group" is the intent and
   # it is NOT EXPRESSIBLE in Kubernetes RBAC -- there are no deny rules, and
   # apiGroups ["*"] includes the core group, which contains Secrets. With
-  # `groups` the core group is never granted beyond the pods/events the chart
-  # already had, so Secrets are unreadable by construction.
+  # `groups` the core group is never granted beyond pods/events, so Secrets are
+  # unreadable by construction.
+  #
+  # Those pods/events reads moved inside this feature in chart 0.24.0. They
+  # used to be granted whether it was on or not, and nothing read them with it
+  # off, so every install that never enabled this was paying cluster-wide pod
+  # read for nothing. This install enables it, so the grant is unchanged here.
   scope: groups
 
   # DERIVED, not invented: every non-built-in API group that appears as an
@@ -308,6 +346,15 @@ networkPolicy:
 metrics:
   serviceMonitor:
     enabled: true
+    # REQUIRED from chart 0.24.0, and the render fails by name without it.
+    #
+    # The ingress rule used to be `namespaceSelector: {}` plus a pod label of
+    # `app.kubernetes.io/name: prometheus`. Pod labels are chosen by whoever
+    # creates the pod, so any workload in any namespace could label itself
+    # prometheus and reach this port -- and the port serves the whole HTTP
+    # surface, including /v1/promotion-opened, not only /metrics. Naming the
+    # namespace is what puts that back inside the intent.
+    namespace: monitoring
 
 # Watch the promotion pipeline itself. On by default in the chart; stated here
 # because it is the reason the ServiceMonitor above exists.
