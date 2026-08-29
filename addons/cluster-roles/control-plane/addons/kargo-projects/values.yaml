@@ -571,6 +571,20 @@ projects:
             keys: [promtail.defaultVersion]
           - file: addons/cluster-roles/vcluster/addons/addons.yaml
             keys: [promtail-vcluster.defaultVersion]
+      podinfo:
+        chart: { repoURL: https://stefanprodan.github.io/podinfo, name: podinfo }
+        # `patch`, not the default `minor`, and that is the whole point of this
+        # target: podinfo is the demo app for the delivery flow, pinned old on
+        # purpose, and a minor bump that auto-merged would be a demo nobody
+        # saw. Parked minors are exactly the set `triage.when: gated` hands to
+        # bosun.
+        autoMerge: patch
+        verify:
+          apps:
+            - podinfo-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/addons.yaml
+            keys: [podinfo.defaultVersion]
       goldilocks:
         chart: { repoURL: https://charts.fairwinds.com/stable, name: goldilocks }
         verify:
