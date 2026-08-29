@@ -68,12 +68,24 @@ chase 4K. Excluding it leaves neither failure mode, and the titles that should
 be 4K — including everything already at 2160p, so it is not downgraded — go on
 the opt-in profile instead.
 
-**`until_score` is `-1000`, not the template's `10000`.** This is the setting
-that makes the library-wide purge surgical. A clean release scores at or above
-0 and is left alone; only the heavily penalised ones — DV and DTS at −10000 —
-fall below the bar and become eligible for replacement. At the template's
-`10000` virtually every file in the library would be cutoff-unmet and the
-first search would try to re-grab all of it.
+**`until_score` is effectively disabled (`-100000`).** No file falls below it,
+so nothing is ever flagged for replacement on score alone; quality upgrades
+still work, because a file below the *quality* cutoff is still searched.
+
+It was briefly `-1000`, to purge DV and DTS out of existing files. **That does
+not work, and the reason is worth keeping**: every TRaSH DV and DTS custom
+format is a `ReleaseTitleSpecification` — a regex over the release *name*. It
+can refuse a release that advertises DTS; it can never see the audio track of a
+file already on disk. Measured over one night on this library: of 131 Radarr
+imports, **0** had DTS in the title and **14 (10.7%) had actual DTS audio**.
+Library DTS went **839 → 844** while ~1,500 grabs churned through the queue,
+and the 236 DV files that never declared themselves were never even flagged.
+DV did fall 236 → 213, because DV is advertised in titles more consistently.
+
+The lesson generalises: **custom formats are a download filter, not a library
+auditor.** For the library side see
+[scripts/arr-audio-audit.py](../../../scripts/arr-audio-audit.py), which reads
+`mediaInfo` instead — the only place the real codec is recorded.
 
 **Dolby Vision and the DTS family are blocked outright** — all three DV
 formats (`DV Boost`, `DV (Disk)`, `DV (w/o HDR fallback)`) and all five DTS

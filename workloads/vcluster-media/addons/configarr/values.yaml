@@ -57,16 +57,25 @@ extraObjects:
               # every new grab chase 4K. Series that should be 4K go on
               # WEB-2160p instead.
               #
-              # until_score is -1000, not the template's 10000. A clean release
-              # scores at or above 0 and is left alone; only the heavily
-              # penalised ones -- DV and DTS at -10000 -- fall below and become
-              # eligible for replacement. That is what makes the purge surgical
-              # instead of re-grabbing the whole library for a few points.
+              # until_score is effectively disabled (-100000): no file ever
+              # falls below it, so nothing is flagged for replacement on score
+              # alone. Quality upgrades still work -- an episode below the
+              # quality cutoff is still searched.
+              #
+              # It was briefly -1000 to purge DV/DTS from existing files. That
+              # does not work: every TRaSH DV and DTS custom format is a
+              # ReleaseTitleSpecification, i.e. a regex over the release NAME,
+              # so it cannot see the audio track of a file already on disk.
+              # Measured over one night -- of 131 imports, 0 had DTS in the
+              # title and 14 (10.7%) had actual DTS audio. Library DTS went
+              # 839 -> 844 while churning ~1500 grabs. The scores below still
+              # earn their place as a DOWNLOAD filter, which is all they can
+              # be: DV fell 236 -> 213 over the same window.
               - name: WEB-1080p
                 upgrade:
                   allowed: true
                   until_quality: WEB 1080p
-                  until_score: -1000
+                  until_score: -100000
                 min_format_score: 0
                 quality_sort: top
                 qualities:
@@ -81,7 +90,7 @@ extraObjects:
                 upgrade:
                   allowed: true
                   until_quality: WEB 2160p
-                  until_score: -1000
+                  until_score: -100000
                 min_format_score: 0
                 quality_sort: top
                 qualities:
@@ -98,9 +107,14 @@ extraObjects:
 
             custom_formats:
               # Dolby Vision blocked outright -- all three formats, not just the
-              # no-fallback one. min_format_score is 0, so -10000 puts any DV or
-              # DTS release below the download threshold, and puts existing
-              # files below until_score so they are replaced.
+              # no-fallback one. min_format_score is 0, so -10000 keeps any DV
+              # or DTS release below the download threshold.
+              #
+              # This is a filter on what gets GRABBED, and nothing more. Each of
+              # these formats matches the release title by regex, so a release
+              # that carries DTS audio without saying so passes straight
+              # through. Purging what is already on disk needs mediaInfo, which
+              # custom formats never see.
               - trash_ids:
                   - 7c3a61a9c6cb04f52f1544be6d44a026 # DV Boost
                   - ef4963043b0987f8485bc9106f16db38 # DV (Disk)
@@ -134,13 +148,13 @@ extraObjects:
 
             quality_profiles:
               # The library default -- same reasoning as Sonarr's WEB-1080p:
-              # no 2160p tier at all, and until_score -1000 so only DV/DTS
-              # files fall below the bar and get replaced.
+              # no 2160p tier at all, and until_score disabled -- see the
+              # Sonarr block for why the DV/DTS purge was abandoned.
               - name: HD Bluray + WEB
                 upgrade:
                   allowed: true
                   until_quality: Bluray-1080p
-                  until_score: -1000
+                  until_score: -100000
                 min_format_score: 0
                 quality_sort: top
                 qualities:
@@ -155,7 +169,7 @@ extraObjects:
                 upgrade:
                   allowed: true
                   until_quality: WEB 2160p
-                  until_score: -1000
+                  until_score: -100000
                 min_format_score: 0
                 quality_sort: top
                 qualities:
