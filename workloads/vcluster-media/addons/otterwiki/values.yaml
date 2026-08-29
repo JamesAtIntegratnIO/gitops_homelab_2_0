@@ -73,7 +73,7 @@ deployment:
         - SETGID
   image:
     repository: redimp/otterwiki
-    tag: 2.23.0
+    tag: 2.24.0
     pullPolicy: IfNotPresent
   resources:
     requests:
