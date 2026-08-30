@@ -423,15 +423,11 @@ data:
           meta_description: Vector Database Dashboard
           policy_engine_mode: all
 
-      # Outpost (embedded — runs inside Authentik server)
-      - model: authentik_outposts.outpost
-        identifiers:
-          name: authentik Embedded Outpost
-        attrs:
-          type: proxy
-          managed: goauthentik.io/outposts/embedded
-          providers:
-            - !Find [authentik_providers_proxy.proxyprovider, [name, qdrant-proxy-provider]]
+      # The embedded outpost entry that used to sit here now lives in
+      # 09-embedded-outpost.yaml. It is one shared object, its `providers` is
+      # a whole list rather than a membership, and a second blueprint setting
+      # it would have evicted this provider on every reconcile instead of
+      # joining it.
 
   07-kargo-provider.yaml: |
     # Authentik Blueprint: Kargo OAuth2 Provider (public client, PKCE)
@@ -496,3 +492,79 @@ data:
           group: Platform Services
           meta_description: Automated version bumps for gitops_homelab_2_0
           policy_engine_mode: all
+
+  08-bosun-proxy-provider.yaml: |
+    # Authentik Blueprint: Bosun Status Page Proxy Provider
+    # Forward-auth for the delivery agent's read-only status page. Same shape
+    # as the qdrant provider above: forward_single against the embedded
+    # outpost, no standalone outpost to deploy.
+    #
+    # The page has no authentication of its own and reveals operational state
+    # -- repository name, open pull request titles, Stage and Warehouse names,
+    # findings -- so this provider IS its access control. The nginx half is
+    # the SnippetsFilter in addons/cluster-roles/control-plane/addons/bosun/.
+    version: 1
+    metadata:
+      name: bosun-proxy-provider
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # Proxy Provider (forward_single mode)
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: bosun-proxy-provider
+        id: bosun-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          # Must match the HTTPRoute's hostname exactly, scheme included: the
+          # outpost compares it against the request it is asked to authorise.
+          external_host: https://bosun.cluster.integratn.tech
+          access_token_validity: minutes=60
+
+      # Application
+      - model: authentik_core.application
+        identifiers:
+          slug: bosun
+        attrs:
+          name: Bosun
+          provider: !Find [authentik_providers_proxy.proxyprovider, [name, bosun-proxy-provider]]
+          open_in_new_tab: true
+          launch_url: https://bosun.cluster.integratn.tech
+          group: Platform Services
+          meta_description: Delivery agent status -- gate verdicts and the pipeline sweep
+          policy_engine_mode: all
+
+  09-embedded-outpost.yaml: |
+    # Authentik Blueprint: the embedded outpost's provider list
+    #
+    # ONE OBJECT, EVERY FORWARD-AUTH PROVIDER. `providers` here is the whole
+    # list and not a membership, so this cannot be split across the blueprints
+    # that define the providers: each would set the list to its own single
+    # entry and evict the others on every reconcile. It lived inside
+    # 06-qdrant-proxy-provider.yaml while qdrant was the only one, which was
+    # fine right up until it was not.
+    #
+    # ADD EVERY NEW forward_single PROVIDER HERE, and keep this file numbered
+    # after the ones that define them: `!Find` resolves against what has
+    # already been applied, so a provider defined in a later-sorting blueprint
+    # fails this one until the next reconcile catches up.
+    #
+    # `managed` is what makes this the outpost that runs inside authentik-server
+    # rather than a Deployment of its own; nothing here has to be scheduled.
+    version: 1
+    metadata:
+      name: embedded-outpost
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_outposts.outpost
+        identifiers:
+          name: authentik Embedded Outpost
+        attrs:
+          type: proxy
+          managed: goauthentik.io/outposts/embedded
+          providers:
+            - !Find [authentik_providers_proxy.proxyprovider, [name, qdrant-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, bosun-proxy-provider]]
