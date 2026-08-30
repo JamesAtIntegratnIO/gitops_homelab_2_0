@@ -298,6 +298,66 @@ liveReads:
 
   argocdNamespace: argocd
 
+# The status page, published at https://bosun.cluster.integratn.tech.
+#
+# The report has been served as markdown on /pipeline since the supervisor was
+# written, and markdown in a browser tab is source code -- so the people who
+# most need it, whoever is wondering why an addon has not updated in three
+# days, are exactly the people who were never going to port-forward and pipe
+# curl through a renderer. 0.29.0 renders it as a page and gives it a port.
+#
+# THE PORT IS THE WHOLE DESIGN. `service.port` also answers
+# POST /v1/promotion-opened -- the endpoint that names the pull request this
+# agent edits and the files it reads into a published prompt -- and this route
+# targets `service.webPort` (8081) and only that. Publishing the read-only
+# page is a smaller decision than publishing the endpoint that spends money
+# and writes to this repository only because the two never share a listener.
+# The chart renders no route for `service.port` and there is nothing to
+# configure here that would.
+#
+# AUTHENTIK SITS IN FRONT OF IT, which is why the chart renders no route here.
+# The page reveals operational state -- this repository's name, open pull
+# request titles, Stage and Warehouse names, findings and the command that
+# ends each one -- and no credential, no prompt and no rendered diff. It has no
+# authentication of its own, so the gateway supplies it: forward-auth to
+# authentik's embedded outpost, the same shape qdrant uses.
+#
+# That is a filter on the route, and the chart's HTTPRoute takes none -- it
+# renders `matches` and `backendRefs` and stops. So the route is hand-written
+# in httproute.yaml beside this file, with the SnippetsFilter in
+# snippetsfilter.yaml and the proxy provider in the authentik blueprint
+# ConfigMap under addons/clusters/the-cluster/addons/authentik/.
+#
+# WHAT THAT COSTS, because it is a trade. The chart's route could not name the
+# wrong port; a hand-written one can, and 8080 answers
+# POST /v1/promotion-opened. httproute.yaml carries that warning where the
+# number is. Turning `httpRoute.enabled` back on and deleting the three
+# hand-written pieces is how this goes back, and it takes the SSO with it.
+web:
+  httpRoute:
+    enabled: false
+
+  # Who may reach 8081. Empty is the chart's default and it admits nobody, so
+  # this is what turns httproute.yaml from a rendered object into a page that
+  # answers. It is the one part of publishing the page that stays in the
+  # chart's hands, and it is the part that names the port.
+  #
+  # The pod selector names the DATA PLANE and not the controller.
+  # nginx-gateway-fabric watches Gateway API objects and writes nginx config;
+  # `nginx-gateway-nginx` is the pod that actually opens the connection to
+  # this service, and it is the one whose SYN gets dropped if this is wrong.
+  # Namespace and pods sit in one entry so the chart ANDs them.
+  #
+  # The matching half is the gateway's OWN egress rule, in
+  # network-policies/nginx-gateway.yaml (allow-nginx-dataplane). That side has
+  # an explicit allow-list, so without an entry there this rule is moot and the
+  # symptom is a request that hangs with zero bytes rather than an error --
+  # the same failure the kargo entry there documents.
+  allowFrom:
+    - namespace: nginx-gateway
+      podSelector:
+        app.kubernetes.io/name: nginx-gateway-nginx
+
 # NOTE: this addon's NetworkPolicies come from the chart rather than from the
 # network-policies addon, unlike most namespaces here. That is deliberate --
 # the chart has to carry them to be usable outside this repo, and keeping them

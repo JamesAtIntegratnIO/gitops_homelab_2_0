@@ -971,7 +971,16 @@ bosun:
   # 0.28.2 -- a value that names the addon itself no longer claims that
   # addon's label churn as "values this repository sets" (bosun#91), and the
   # report stops escaping backticks it wrote itself (bosun#89).
-  defaultVersion: 0.28.2
+  # 0.29.0 -- the pipeline report renders itself as a page. `web.enabled`
+  # defaults on in this version, so the bump alone opens a second container
+  # port; what makes it reachable is spread across four places and none of
+  # them works alone: `web.allowFrom` in bosun/values.yaml, the matching
+  # egress in network-policies/nginx-gateway.yaml, the hand-written routes and
+  # SnippetsFilter in bosun/, and the proxy provider in the authentik
+  # blueprint ConfigMap. Published at bosun.cluster.integratn.tech, behind
+  # authentik forward-auth. `web.httpRoute` stays OFF: the chart's route
+  # cannot carry the filter that puts authentik in front.
+  defaultVersion: 0.29.0
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
@@ -994,6 +1003,27 @@ bosun:
         - .spec.data[]?.remoteRef.conversionStrategy
         - .spec.data[]?.remoteRef.decodingStrategy
         - .spec.data[]?.remoteRef.metadataPolicy
+    # Same reason as the block above, different CRDs. The API server defaults
+    # `group` and `kind` inside every parentRef and backendRef, and `weight`
+    # on every backendRef; the two routes this addon now owns set none of
+    # them, so the predicted live state lacks what the server writes and the
+    # app reports OutOfSync forever while syncing successfully every time.
+    # `.status` is the same story on both objects -- the gateway writes the
+    # attachment result there. Union of what the authentik and qdrant entries
+    # in this file already carry, because this addon now ships both kinds.
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .status
+        - .spec.parentRefs[]?.group
+        - .spec.parentRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
+      jqPathExpressions:
+        - .status
   syncPolicy:
     automated:
       selfHeal: true

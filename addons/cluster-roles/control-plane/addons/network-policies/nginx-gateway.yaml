@@ -215,6 +215,27 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # Bosun's status page (bosun.cluster.integratn.tech). Port 8081 and NOT
+    # 8080: the agent's 8080 answers POST /v1/promotion-opened, which names
+    # the pull request it edits and the files it reads into a published
+    # prompt. The page is read-only and lives on its own listener so that
+    # publishing one never publishes the other, and this rule is where that
+    # distinction is kept.
+    #
+    # The other half is `web.allowFrom` in bosun/values.yaml, which admits
+    # this pod to that port. Without THIS entry that one is moot: nginx's SYN
+    # never leaves, and the page hangs with zero bytes instead of erroring --
+    # same as the kargo entry above.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: bosun
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: bosun
+      ports:
+        - protocol: TCP
+          port: 8081
     # LLMKube inference backends (bare-metal/metal agent on LAN).
     # Cilium DNATs service ClusterIP → Mac endpoint before policy evaluation,
     # so the post-DNAT destination is 10.0.x.x:ephemeral — ipBlock is required.

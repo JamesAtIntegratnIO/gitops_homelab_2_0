@@ -151,9 +151,6 @@
     "!Condition sequence",
     "!Format sequence"
   ],
-  "yaml.schemas": {
-    ".vscode/authentik-blueprint.schema.json": "addons/**/authentik/blueprints/*.yaml"
-  },
   "chat.mcp.gallery.enabled": true,
   "chat.agent.maxRequests": 1000,
   "chat.agent.thinking.collapsedTools": "off",

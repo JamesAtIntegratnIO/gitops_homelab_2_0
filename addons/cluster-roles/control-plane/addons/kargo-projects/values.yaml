@@ -76,6 +76,49 @@ triage:
   url: http://bosun.bosun.svc:8080/v1/promotion-opened
   when: gated
 
+# POLLING CADENCE. The chart keys these by artifact KIND, not by target:
+# `image` is every SemVer/Digest image subscription, `build` is the NewestBuild
+# `main-<sha>` images we publish ourselves, `chart` is every Helm repo. A target
+# may still override with its own `interval`. Kargo enforces a 5m floor and its
+# webhook normalises durations, so write Go's canonical form (15m0s, not 15m) or
+# ArgoCD sees permanent drift and re-syncs every Warehouse on every reconcile.
+#
+# Measured 2026-08-30, working out how far these could safely come down.
+#
+# IMAGES ARE NEARLY FREE TO POLL FASTER. `cacheByTag` makes a steady-state
+# SemVer cycle a tag listing rather than a manifest fetch per candidate, so the
+# only cost that scales with the interval is one Warehouse status write per
+# cycle -- Kargo stamps `status.discoveredArtifacts.discoveredAt` on EVERY poll
+# whether it discovered anything or not. (Proof: the 15m Warehouses were 12
+# minutes fresh while the newest Freight anywhere in the cluster was 13 hours
+# old.) 6h -> 15m on 17 image targets is +1,530 status writes/day against an
+# etcd that is I/O-starved but only sees ~869 of these a day in total. That is
+# affordable. 30s across all 55 Warehouses -- 158,400/day -- is not, which is
+# why this is 15m and not less: see known-issues.md, "etcd is unhealthy, and a
+# status write loop is feeding it".
+#
+# CHARTS ARE THE OPPOSITE, and it is invisible from the CR. A classic Helm HTTP
+# repo has no incremental protocol: index.yaml is fetched and parsed WHOLE every
+# cycle, and cacheByTag is an image-side feature that does nothing for it.
+# Measured index.yaml sizes among the 22 classic-HTTP repos subscribed here:
+#
+#   prometheus-community  6.3 MB       argo-helm  1.6 MB (x2 warehouses)
+#   grafana               4.0 MB       fairwinds  1.2 MB
+#   cilium                1.7 MB       kyverno    0.6 MB
+#
+# ~20 MB for one full sweep. At 24h that is 20 MB/day; at 15m it would be
+# ~1.9 GB/day -- ~58 GB/month, mostly off community GitHub Pages sites that
+# have a 100 GB/month budget of their own -- to notice chart releases that land
+# every few weeks. 6h is 4x faster than before and still only ~80 MB/day.
+# (The five `oci://` chart repos use the registry tag API and are cheap; the
+# default is one number for both, set by the expensive kind.)
+defaults:
+  interval:
+    image: 15m0s
+    chart: 6h0m0s
+    # `build` stays at the chart's 15m0s -- our own CI images, already the
+    # fastest thing here and unaffected by the change above.
+
 # Two image shapes are shared across targets by YAML anchor: `&promiseImage`
 # (our own CI images, defined on platform-status-reconciler) and
 # `&linuxserverImage` (defined on radarr). Each anchor lives on the first
@@ -116,6 +159,9 @@ projects:
             keys: [spec.template.spec.containers.0.image]
       grafana-mcp:
         scope: mcp-system
+        # Docker Hub, polled anonymously -- held at the old cadence while the
+        # rest of the images go to 15m. See defaults.interval above.
+        interval: 6h0m0s
         image:
           repoURL: docker.io/grafana/mcp-grafana
           allowTags: ['^\d+\.\d+\.\d+$']     # not the -alpine variants
@@ -256,6 +302,9 @@ projects:
       # ── other raw-manifest images ────────────────────────────────────
       matrix-alertmanager-receiver:
         scope: monitoring
+        # Docker Hub, polled anonymously -- held at the old cadence while the
+        # rest of the images go to 15m. See defaults.interval above.
+        interval: 6h0m0s
         image:
           repoURL: metio/matrix-alertmanager-receiver
           allowTags: ['^\d{4}\.\d+\.\d+$']   # calver: YYYY.M.D
@@ -267,6 +316,9 @@ projects:
             keys: [spec.template.spec.containers.0.image]
       alpine-k8s:
         scope: images
+        # Docker Hub, polled anonymously -- held at the old cadence while the
+        # rest of the images go to 15m. See defaults.interval above.
+        interval: 6h0m0s
         # kubectl carrier for the two one-shot Jobs. Tracks the cluster's
         # minor (+1 is within kubectl's supported skew); bump the constraint
         # when Kubernetes is upgraded.
@@ -327,6 +379,9 @@ projects:
         autoMerge: patch
       authentik-redis:
         scope: authentik
+        # Docker Hub, polled anonymously -- held at the old cadence while the
+        # rest of the images go to 15m. See defaults.interval above.
+        interval: 6h0m0s
         image:
           repoURL: redis
           # `-alpine` is also a semver prerelease. This works only because
@@ -835,6 +890,9 @@ projects:
             keys: [deployment.additionalContainers.0.image]
       otterwiki:
         scope: vcluster-media
+        # Docker Hub, polled anonymously -- held at the old cadence while the
+        # rest of the images go to 15m. See defaults.interval above.
+        interval: 6h0m0s
         image:
           repoURL: redimp/otterwiki
           allowTags: ['^\d+\.\d+\.\d+$']
