@@ -4,7 +4,7 @@ title: Resilience — how the cluster heals itself
 description: The seven layers that make the-cluster self-healing, what each one covers, and the failure modes that remain outside git's reach.
 tags: [resilience, self-healing, availability, scheduling, disruption]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-21T08:00:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-30T18:20:00Z }
 stale_after: 2027-02-21
 sources:
   - id: gameday
@@ -93,8 +93,17 @@ rule, which was 8.399.)
 - **Upstream DNS.** CoreDNS forwards to the Talos host resolver at
   `169.254.116.108`. When that stalls, CoreDNS saturates and *cluster-internal*
   resolution fails with it — the documented cause of the vcluster-media restart
-  storms. Talos owns the CoreDNS Deployment and Corefile as bootstrap manifests
-  and re-applies them, so only a PodDisruptionBudget could be added from git.
+  storms. The ownership half is nearly closed: the Corefile has been git-owned
+  since 2026-08-30 (`coredns-host-config`), and on the same day ArgoCD adopted
+  the Deployment, Service, SA and RBAC (`coredns-workload`) and
+  `cluster.coreDNS.disabled: true` went on all three nodes. **CoreDNS is fully
+  git-owned now** — Talos renders nothing, so there is no re-apply to out-live.
+  Two things that closes and two it does not: it ends the ConfigMap fight and
+  makes CoreDNS upgrades ours (so the image needs a digest pin and a Kargo
+  target, or it rots at v1.12.4), but `disable success/denial cluster.local` is
+  still in the Corefile because it was captured from Talos verbatim, and
+  `forwardKubeDNSToHost` is untouched — the single upstream remains the point of
+  failure and the disabled cache remains its amplifier.
   See [known issues](/cluster/known-issues.md) and the Talos runbook.[^talos-cmds]
 - **Host etcd snapshots** — no longer outside git's reach: the Talos API access
   patch was applied 2026-08-22 and `platform-backups-talos` is enabled. See

@@ -1,10 +1,10 @@
 ---
 type: Inventory
 title: Addon inventory
-description: Every addon defined under addons/ — enabled state, namespace, chart/version, defining layer, and purpose — as of 2026-08-20, plus the kargo/kargo-projects pair added 2026-08-21 and the removal of vcluster-coredns-config on 2026-08-30.
+description: Every addon defined under addons/ — enabled state, namespace, chart/version, defining layer, and purpose — as of 2026-08-20, plus the kargo/kargo-projects pair added 2026-08-21, and on 2026-08-30 the removal of vcluster-coredns-config and the addition of the coredns-host-config / coredns-workload pair.
 tags: [addons, inventory]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-30T17:13:35Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-30T17:52:00Z }
 stale_after: 2026-11-20
 sources:
   - id: env-prod
@@ -66,6 +66,8 @@ kro, kro-resource-groups.[^env-prod]
 | kargo | kargo | kargo @ 1.11.2 (OCI, +kargo-extras: ExternalSecrets, HTTPRoute) | [Kargo](/platform/kargo.md) — version-bump bot; control-plane only |
 | argo-rollouts | argo-rollouts | argo-rollouts @ 2.41.1 (controller only, no dashboard) | Executes Kargo's verification AnalysisRuns; no Rollout objects exist |
 | kargo-projects | kargo (resources land in `addons`, `promises`, `workloads`) | local chart `addons/charts/kargo-projects` | 3 Projects, 48 Warehouse/Stage pairs from one target list |
+| coredns-host-config | kube-system | manifest (`addons/.../coredns/`) | Owns the host Corefile so the `auth.cluster.integratn.tech` rewrite survives; `selfHeal: true`, `prune: false` |
+| coredns-workload | kube-system | manifest (`addons/.../coredns-workload/`) | SA, RBAC, Deployment, `kube-dns` Service — Talos's own render, adopted 2026-08-30; `prune: false` |
 
 Disabled: ai-platform (superseded by mcp-system; its path no longer exists).[^role-cp]
 

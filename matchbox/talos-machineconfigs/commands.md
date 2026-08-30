@@ -72,17 +72,26 @@ kubectl -n kube-system get pod kube-apiserver-<node> -o jsonpath='{.spec.contain
 #    directly and its own health checks get two targets -- untested, and it
 #    changes how Talos renders the CoreDNS manifest, so it is its own task.
 
-# 4. CoreDNS handover -- DO NOT RUN THIS BEFORE THE ADDON IS ON. Stops Talos
-#    rendering 11-core-dns / 11-core-dns-svc so the Corefile can be owned from
-#    git. Talos does not delete what it already applied, so the moment this
-#    lands nothing breaks -- but nothing recreates CoreDNS either. The
-#    ArgoCD-side prerequisite, the checks and the rollback are in
+# 4. CoreDNS handover -- APPLIED 2026-08-30 on all three nodes. Kept as the
+#    procedure for a rebuilt node or a rollback-and-retry. DO NOT RUN THIS
+#    BEFORE THE ADDON IS ON: it stops Talos rendering 11-core-dns /
+#    11-core-dns-svc, and Talos does not delete what it already applied, so
+#    nothing breaks at the moment it lands but nothing recreates CoreDNS
+#    either. Prerequisite, checks and rollback are in
 #    addons/cluster-roles/control-plane/addons/coredns-workload/README.md.
-#    No reboot; dry-run on 2026-08-30 was a clean two-line addition.
-talosctl -n 10.0.4.101 patch mc --patch-file live-coredns-disabled.yaml --dry-run
+#    No reboot, no static pod restart -- both CoreDNS pods kept their AGE
+#    (145m) and 0 restarts straight through the patch on all three nodes.
 talosctl -n 10.0.4.101 patch mc --patch-file live-coredns-disabled.yaml
+talosctl -n 10.0.4.102 patch mc --patch-file live-coredns-disabled.yaml
+talosctl -n 10.0.4.103 patch mc --patch-file live-coredns-disabled.yaml
 #    Verify Talos has let go -- the manifests should stop being rendered:
-talosctl -n 10.0.4.101 get manifests | grep core-dns          # expect nothing
+talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 get manifests | grep core-dns   # expect nothing
+#    Two nodes (.101, .102) also printed "WARNING: extra kernel arguments are
+#    not supported when booting using SDBoot". Pre-existing and unrelated to
+#    this patch -- it is all.yaml's extraKernelArgs against a UKI-booted node,
+#    and `talosctl get securitystate` confirms why only those two: they report
+#    `bootedWithUKI: true` and .103 does not. Expect it on any patch mc there.
+#    All three said "Applied configuration without a reboot".
 
 # 5. etcd defragmentation. Found 2026-08-21: ~600 MB on disk, ~110 MB in use
 #    on every member. Blocks that member for a few seconds; non-leader first,
@@ -111,17 +120,19 @@ kubectl -n kube-system get pods -l component=kube-apiserver -o wide
 | `cp.yaml` | VIP, CNI none, kube-proxy disabled, metrics bind addresses, apiserver toleration defaults | Cilium replaces CNI and kube-proxy. The toleration defaults cut node-failure failover from 5 minutes to 1 for *every* pod, including ones from charts this repo does not control. |
 | `work.yaml` | DHCP networking | No dedicated workers exist today; kept for when one is added. |
 | `dns.yaml` | `machine.network.nameservers` | Nothing set this, so nodes took a single DHCP resolver and CoreDNS forwarded everything to it. One upstream means "upstream unhealthy" and "no healthy upstream" are the same event, which is how a router stall becomes a cluster-internal DNS outage. |
-| `live-coredns-disabled.yaml` | `cluster.coreDNS.disabled` | Hands CoreDNS to ArgoCD. `cluster.coreDNS` accepts only `disabled` and `image` — `talosctl validate` rejects `corefile`/`Corefile`/`extraConfig` as unknown keys — so a Corefile that needs a custom line has to be owned from git. Paired with the `coredns-workload` addon; apply it **second**. |
+| `live-coredns-disabled.yaml` | `cluster.coreDNS.disabled` | Hands CoreDNS to ArgoCD. `cluster.coreDNS` accepts only `disabled` and `image` — `talosctl validate` rejects `corefile`/`Corefile`/`extraConfig` as unknown keys — so a Corefile that needs a custom line has to be owned from git. Paired with the `coredns-workload` addon; apply it **second**. Applied 2026-08-30. |
 | `watchdog.yaml` | `WatchdogTimerConfig` | Talos reboots itself on a kernel panic already. The watchdog covers the case where nothing panics — a hung kernel or a hardware fault — by resetting the machine after 2 minutes without a heartbeat. |
 
 ## Still open at the Talos layer
 
-**Upstream DNS reliability.** Now covered by `dns.yaml` above, pending its two
-pre-checks. The measurement that motivated it, from both CoreDNS replicas:
-~2,000 upstream health-check failures and ~4,200-4,700 occasions of forwarding
-with no healthy upstream at all, over roughly five months of pod uptime. Since
-there is only one upstream those are the same event. Also worth a look while
-you are on the node:
+**Upstream DNS reliability.** Still open, and `dns.yaml` is not the answer —
+it was withdrawn on 2026-08-21 when both its pre-checks failed its premise (see
+step 3). The lever is `machine.features.hostDNS.forwardKubeDNSToHost: false`,
+still untested. The measurement that motivated the work, from both CoreDNS
+replicas: ~2,000 upstream health-check failures and ~4,200-4,700 occasions of
+forwarding with no healthy upstream at all, over roughly five months of pod
+uptime. Since CoreDNS sees only one upstream — the Talos host-DNS proxy — those
+are the same event. Also worth a look while you are on the node:
 
 ```bash
 talosctl -n 10.0.4.101 dmesg | grep -i dns
@@ -133,14 +144,31 @@ and `cluster.coreDNS` is not an escape hatch: it takes `disabled` and `image`
 and nothing else, confirmed by feeding `corefile:` to `talosctl validate` and
 getting "unknown keys found during decoding".
 
-Half-done as of 2026-08-30. The ConfigMap is owned from git by the
-`coredns-host-config` addon, which carries the `rewrite` line the Kargo UI's
-OIDC login needs and wins by `selfHeal` rather than by ownership — Talos still
-overwrites it after a reboot and ArgoCD puts it back within the sync interval.
-The rest (`live-coredns-disabled.yaml` here, plus the staged `coredns-workload`
-addon) ends the fight for good and is ready to apply; step 4 above is the
-procedure. Doing it also re-enables `cluster.local` caching, which the Talos
-default Corefile disables, and makes CoreDNS upgrades yours rather than Talos's.
+**Done 2026-08-30.** `coredns-workload` went on in PR #303 and the machine
+config patch followed on all three nodes; `talosctl get manifests | grep
+core-dns` now returns nothing anywhere, `coreDNS.disabled: true` is in all three
+configs, and the `coredns` ConfigMap is owned solely by
+`coredns-host-config-the-cluster` — no more `selfHeal` race with Talos after a
+reboot. Both CoreDNS pods went through the whole cutover untouched.
+
+Two things this unlocked but did **not** do on its own, and the first was
+previously stated here as automatic:
+
+- **`cluster.local` caching is still disabled.** The Corefile was captured from
+  Talos verbatim, so `disable success cluster.local` / `disable denial
+  cluster.local` came with it and are still in the ConfigMap. Owning the file
+  makes removing them a one-line git change; taking the handover did not remove
+  them. This is the amplifier in the vcluster restart storms — with it on, every
+  internal lookup is a live query, so a stalled upstream saturates CoreDNS
+  instead of being absorbed.
+- **CoreDNS upgrades are now yours.** The image is still Talos's unpinned tag
+  `registry.k8s.io/coredns/coredns:v1.12.4`, left that way so the adoption was a
+  no-op. Nothing bumps it now, so it needs a digest pin and a line in the Kargo
+  target list or it stays on v1.12.4 forever.
+
+Still separate and still untouched: `machine.features.hostDNS.forwardKubeDNSToHost`,
+the single-upstream problem itself. `forward . /etc/resolv.conf` in the Corefile
+continues to point at the Talos host-DNS proxy.
 
 ## A `patch mc --dry-run` diff prints private keys
 
