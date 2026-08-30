@@ -116,10 +116,16 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.promise }}-configure
+          # {{branch}} is empty on pull_request events, so the plain
+          # prefix={{branch}}- form yields the invalid tag ":-<sha>" and
+          # fails every promise-touching PR. Keep the branch-prefixed tag
+          # the promises pin (main-<sha>) for pushes, and give PRs a plain
+          # sha- tag -- PRs build without pushing, so the name is throwaway.
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha,prefix={{branch}}-
+            type=sha,prefix={{branch}}-,enable=${{ github.event_name != 'pull_request' }}
+            type=sha,enable=${{ github.event_name == 'pull_request' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push configure pipeline
@@ -188,10 +194,16 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.promise }}-delete
+          # {{branch}} is empty on pull_request events, so the plain
+          # prefix={{branch}}- form yields the invalid tag ":-<sha>" and
+          # fails every promise-touching PR. Keep the branch-prefixed tag
+          # the promises pin (main-<sha>) for pushes, and give PRs a plain
+          # sha- tag -- PRs build without pushing, so the name is throwaway.
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=sha,prefix={{branch}}-
+            type=sha,prefix={{branch}}-,enable=${{ github.event_name != 'pull_request' }}
+            type=sha,enable=${{ github.event_name == 'pull_request' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push delete pipeline
