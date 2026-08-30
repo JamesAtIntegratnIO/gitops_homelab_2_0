@@ -904,7 +904,11 @@ bosun:
   # inserted flag is one line), namespace stamps that change no applied byte
   # vanish, and the fields this repository's own values set surface above a
   # fold whose summary is the whole read for most bumps.
-  defaultVersion: 0.28.0
+  # 0.28.1 -- the two values.yaml files in this repository's own bosun and
+  # nginx-gateway-fabric directory sources stop counting as schema
+  # rejections. They put a standing schema=2 on every pull request here,
+  # blocking, on apps the pull request had not touched.
+  defaultVersion: 0.28.1
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
