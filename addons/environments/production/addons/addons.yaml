@@ -173,7 +173,7 @@ external-secrets:
     serviceAccount:
       name: "external-secrets-sa"
     extraObjects:
-      - apiVersion: external-secrets.io/v1beta1
+      - apiVersion: external-secrets.io/v1
         kind: ClusterSecretStore
         metadata:
           name: onepassword-store
