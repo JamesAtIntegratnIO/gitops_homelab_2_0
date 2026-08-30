@@ -202,7 +202,27 @@ external-secrets:
         duration: 5s
         factor: 2
         maxDuration: 10m
+    # SERVER-SIDE APPLY IS LOAD-BEARING HERE, and the bump to 2.10.0 is why.
+    #
+    # Client-side apply records the whole manifest in the
+    # kubectl.kubernetes.io/last-applied-configuration annotation, and an
+    # annotation may not exceed 262144 bytes. The v2 SecretStore and
+    # ClusterSecretStore CRDs are past that, so ArgoCD failed to patch exactly
+    # those two while the other 23 applied:
+    #
+    #   CustomResourceDefinition "clustersecretstores.external-secrets.io" is
+    #   invalid: metadata.annotations: Too long: may not be more than 262144 bytes
+    #
+    # ExternalSecret therefore gained v1 and SecretStore did not. The 2.10.0
+    # controller watches *v1.SecretStore, its cache never synced, and it
+    # crash-looped for four and a half hours while every ExternalSecret in the
+    # cluster quietly stopped refreshing -- with the Application reporting
+    # Healthy, because the workload it measures was the webhook, not this.
+    #
+    # Server-side apply keeps ownership in managedFields, which has no such
+    # ceiling.
     syncOptions:
+      - ServerSideApply=true
       - CreateNamespace=true
       - SkipDryRunOnMissingResource=true
       - RespectIgnoreDifferences=true
