@@ -16,7 +16,36 @@
 # (PIPELINE_ADAPTER_IMG) with no value to override, so it still tracks the
 # chart. Bump both deliberately, together: update this digest, then sync with a
 # hard refresh so the chart is re-pulled too.
-image: syntasso-community.docker.reo.dev/syntasso/kratix-platform@sha256:1f64172e382ab6bc943dad4ed7a27abc0680ce046e3b3d37b40de34909776c9f
+#
+# 2026-08-28: this pin is also how the pin BREAKS things, and the failure is
+# not the one the paragraph above anticipated. Syntasso republished 0.0.1 at
+# 11:30Z (same appVersion 1.16.0, new chart digest) with a new entrypoint:
+#
+#   command: [/sbin/tini, --, /manager]      # was: [/manager]
+#
+# `command` comes verbatim from the chart's files/deployment.yaml. The chart's
+# only container override is `containerPatch`, which merges `image` and
+# `resources` -- there is no value that can move `command`. So pinning the
+# image alone does not freeze the container, it desynchronises it: the new
+# command was rendered against the old image, which has no /sbin/tini. Every
+# new pod since 20:35Z that day died with
+#
+#   StartError, exit 128: unable to start container process:
+#   exec: "/sbin/tini": stat /sbin/tini: no such file or directory
+#
+# and only the 8-day-old pod from the previous ReplicaSet kept Kratix running.
+# The pin must therefore track the chart's own default image, not merely be
+# "some known-good digest": they are two halves of one artifact. When bumping,
+# read the digest straight out of the chart and take both together:
+#
+#   helm pull kratix --repo https://syntasso.github.io/helm-charts \
+#     --version 0.0.1 --untar --untardir /tmp/k
+#   grep -n 'image:\|/sbin/tini' /tmp/k/kratix/files/deployment.yaml
+#
+# The durable fix is to stop consuming a mutable chart version at all -- vendor
+# the chart into addons/charts/ so its content is a reviewable diff. Until then
+# this pin is a tripwire that has to be re-armed by hand after every republish.
+image: syntasso-community.docker.reo.dev/syntasso/kratix-platform@sha256:88809ecdb4eba20835c3ddf78c5c89dd31acdfe33ce6ebd5e01a0ceaa942a6a8
 
 stateStores: []
 
