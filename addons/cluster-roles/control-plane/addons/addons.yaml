@@ -125,24 +125,28 @@ coredns-host-config:
       selfHeal: true
       prune: false
 
-# STAGED, DELIBERATELY OFF. The other half of the CoreDNS story: the
+# STEP 1 OF THE CoreDNS CUTOVER. The other half of the CoreDNS story: the
 # ServiceAccount, RBAC, Deployment and Service that Talos stops shipping the
-# moment `cluster.coreDNS.disabled: true` is on. Enabling this without that
-# machine config change is harmless (the manifests are byte-identical to what
-# Talos renders today -- `kubectl diff` is empty), but pointless.
+# moment `cluster.coreDNS.disabled: true` is on.
 #
-# Cutover order, and it matters -- see
-# addons/cluster-roles/control-plane/addons/coredns-workload/README.md:
-#   1. flip this to true, confirm the app is Synced/Healthy with an empty diff;
-#   2. only then apply matchbox/talos-machineconfigs/live-coredns-disabled.yaml,
-#      one node at a time.
-# Doing it the other way round leaves a window where Talos has stopped
-# recreating CoreDNS and nothing else has started.
+# On its own this changes nothing running. The manifests are Talos 1.11.3's
+# own, captured verbatim, and `kubectl diff -f
+# addons/cluster-roles/control-plane/addons/coredns-workload` was empty against
+# the live cluster on 2026-08-30 -- so ArgoCD adopts the objects without a
+# rollout and the two CoreDNS pods keep their AGE. If they restart, the
+# manifests have drifted from Talos and the cutover should stop there.
+#
+# Both owners are live until step 2. That is the point: Talos stays as the
+# safety net while ArgoCD takes ownership, and only then does
+# matchbox/talos-machineconfigs/live-coredns-disabled.yaml go on, one node at a
+# time. The reverse order leaves a window where Talos has stopped recreating
+# CoreDNS and nothing else has started. Full procedure and rollback in
+# addons/cluster-roles/control-plane/addons/coredns-workload/README.md.
 #
 # prune stays false for the same reason as coredns-host-config: these objects
 # are cluster DNS, and Talos will not put them back once disabled.
 coredns-workload:
-  enabled: false
+  enabled: true
   type: manifest
   namespace: kube-system
   project: platform-services
