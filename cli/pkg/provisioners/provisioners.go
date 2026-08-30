@@ -79,7 +79,7 @@ func (p *PostgresProvisioner) Provision(name string, resource score.Resource, wo
 
 	// Generate ExternalSecret
 	externalSecret := map[string]interface{}{
-		"apiVersion": "external-secrets.io/v1beta1",
+		"apiVersion": "external-secrets.io/v1",
 		"kind":       "ExternalSecret",
 		"metadata": map[string]interface{}{
 			"name": secretName,
@@ -157,7 +157,7 @@ func (p *RedisProvisioner) Provision(name string, resource score.Resource, workl
 	opItem := fmt.Sprintf("%s-%s-redis", workloadName, name)
 
 	externalSecret := map[string]interface{}{
-		"apiVersion": "external-secrets.io/v1beta1",
+		"apiVersion": "external-secrets.io/v1",
 		"kind":       "ExternalSecret",
 		"metadata": map[string]interface{}{
 			"name": secretName,

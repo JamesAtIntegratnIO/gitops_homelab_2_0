@@ -1,0 +1,22 @@
+# LIVE patch -- hands CoreDNS to ArgoCD. Strategic merge, maps only, for
+# `talosctl patch mc` against a running control-plane node. See
+# live-talos-api-access.yaml for why the gen-time fragments and JSON 6902
+# patches are not used.
+#
+# DO NOT APPLY THIS FIRST. It stops Talos rendering bootstrap manifests
+# `11-core-dns` and `11-core-dns-svc`; Talos does not delete what it has
+# already applied, so nothing breaks at the moment it lands, but from then on
+# nothing recreates CoreDNS either. The ArgoCD addon has to own the objects
+# before this goes on -- the order, the checks and the rollback are in
+# addons/cluster-roles/control-plane/addons/coredns-workload/README.md.
+#
+# `disabled` and `image` are the only two keys `cluster.coreDNS` accepts.
+# Verified against Talos 1.11.3's own decoder on a throwaway config: `corefile`,
+# `Corefile` and `extraConfig` are all rejected with "unknown keys found during
+# decoding". That is the whole reason the Corefile has to be owned from git.
+#
+# No reboot, no static pod restart -- this only changes what the manifest
+# controller renders.
+cluster:
+  coreDNS:
+    disabled: true

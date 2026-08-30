@@ -4,7 +4,7 @@ title: external-secret (PlatformExternalSecret)
 description: Leaf promise that renders external-secrets.io ExternalSecret resources bound to the 1Password ClusterSecretStore.
 tags: [kratix, promise, external-secrets, 1password]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-30T16:10:00Z }
 stale_after: 2027-02-20
 sources:
   - id: promise-yaml
@@ -27,7 +27,7 @@ least one `secrets[]` entry (`onePasswordItem` + `keys[]` of
 
 # Behavior
 
-Emits one `external-secrets.io/v1beta1 ExternalSecret` per entry into a single
+Emits one `external-secrets.io/v1 ExternalSecret` per entry into a single
 multi-doc file, each labeled `kratix.io/promise-name: {ownerPromise}` for
 attribution. Delete writes one stub per secret. This is the promise-shaped
 face of the platform's [no-secrets-in-git rule](/platform/secret-management.md):

@@ -72,7 +72,19 @@ kubectl -n kube-system get pod kube-apiserver-<node> -o jsonpath='{.spec.contain
 #    directly and its own health checks get two targets -- untested, and it
 #    changes how Talos renders the CoreDNS manifest, so it is its own task.
 
-# 4. etcd defragmentation. Found 2026-08-21: ~600 MB on disk, ~110 MB in use
+# 4. CoreDNS handover -- DO NOT RUN THIS BEFORE THE ADDON IS ON. Stops Talos
+#    rendering 11-core-dns / 11-core-dns-svc so the Corefile can be owned from
+#    git. Talos does not delete what it already applied, so the moment this
+#    lands nothing breaks -- but nothing recreates CoreDNS either. The
+#    ArgoCD-side prerequisite, the checks and the rollback are in
+#    addons/cluster-roles/control-plane/addons/coredns-workload/README.md.
+#    No reboot; dry-run on 2026-08-30 was a clean two-line addition.
+talosctl -n 10.0.4.101 patch mc --patch-file live-coredns-disabled.yaml --dry-run
+talosctl -n 10.0.4.101 patch mc --patch-file live-coredns-disabled.yaml
+#    Verify Talos has let go -- the manifests should stop being rendered:
+talosctl -n 10.0.4.101 get manifests | grep core-dns          # expect nothing
+
+# 5. etcd defragmentation. Found 2026-08-21: ~600 MB on disk, ~110 MB in use
 #    on every member. Blocks that member for a few seconds; non-leader first,
 #    leader (`talosctl etcd status` shows it) last.
 talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status
@@ -99,6 +111,7 @@ kubectl -n kube-system get pods -l component=kube-apiserver -o wide
 | `cp.yaml` | VIP, CNI none, kube-proxy disabled, metrics bind addresses, apiserver toleration defaults | Cilium replaces CNI and kube-proxy. The toleration defaults cut node-failure failover from 5 minutes to 1 for *every* pod, including ones from charts this repo does not control. |
 | `work.yaml` | DHCP networking | No dedicated workers exist today; kept for when one is added. |
 | `dns.yaml` | `machine.network.nameservers` | Nothing set this, so nodes took a single DHCP resolver and CoreDNS forwarded everything to it. One upstream means "upstream unhealthy" and "no healthy upstream" are the same event, which is how a router stall becomes a cluster-internal DNS outage. |
+| `live-coredns-disabled.yaml` | `cluster.coreDNS.disabled` | Hands CoreDNS to ArgoCD. `cluster.coreDNS` accepts only `disabled` and `image` — `talosctl validate` rejects `corefile`/`Corefile`/`extraConfig` as unknown keys — so a Corefile that needs a custom line has to be owned from git. Paired with the `coredns-workload` addon; apply it **second**. |
 | `watchdog.yaml` | `WatchdogTimerConfig` | Talos reboots itself on a kernel panic already. The watchdog covers the case where nothing panics — a hung kernel or a hardware fault — by resetting the machine after 2 minutes without a heartbeat. |
 
 ## Still open at the Talos layer
@@ -115,7 +128,24 @@ talosctl -n 10.0.4.101 dmesg | grep -i dns
 ```
 
 **CoreDNS tuning.** Talos owns the CoreDNS Deployment and ConfigMap as bootstrap
-manifests and re-applies them, so the Corefile cannot be changed from git. To
-own it — for example to re-enable `cluster.local` caching, which is disabled in
-the Talos default Corefile and makes every internal lookup a live query — set
-`cluster.coreDNS.disabled: true` and deploy CoreDNS as a normal addon.
+manifests and re-applies them, so the Corefile cannot be changed from git —
+and `cluster.coreDNS` is not an escape hatch: it takes `disabled` and `image`
+and nothing else, confirmed by feeding `corefile:` to `talosctl validate` and
+getting "unknown keys found during decoding".
+
+Half-done as of 2026-08-30. The ConfigMap is owned from git by the
+`coredns-host-config` addon, which carries the `rewrite` line the Kargo UI's
+OIDC login needs and wins by `selfHeal` rather than by ownership — Talos still
+overwrites it after a reboot and ArgoCD puts it back within the sync interval.
+The rest (`live-coredns-disabled.yaml` here, plus the staged `coredns-workload`
+addon) ends the fight for good and is ready to apply; step 4 above is the
+procedure. Doing it also re-enables `cluster.local` caching, which the Talos
+default Corefile disables, and makes CoreDNS upgrades yours rather than Talos's.
+
+## A `patch mc --dry-run` diff prints private keys
+
+`talosctl patch mc --dry-run` renders a diff of the **whole** machine config,
+which includes `cluster.etcd.ca.key` and the other embedded PEM blocks as
+base64. That is why the rendered configs are gitignored, and it applies just as
+much to terminal scrollback, a shared screen, or anything that captures command
+output. Read the diff, do not paste it.

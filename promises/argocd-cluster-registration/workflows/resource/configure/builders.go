@@ -9,7 +9,7 @@ func buildKubeconfigExternalSecret(config *RegistrationConfig) Resource {
 	}, baseLabels(config))
 
 	return Resource{
-		APIVersion: "external-secrets.io/v1beta1",
+		APIVersion: "external-secrets.io/v1",
 		Kind:       "ExternalSecret",
 		Metadata: resourceMeta(
 			fmt.Sprintf("%s-kubeconfig", config.Name),
@@ -52,7 +52,7 @@ func buildKubeconfigSyncRBAC(config *RegistrationConfig) []Resource {
 	onePasswordTokenName := fmt.Sprintf("%s-onepassword-token", config.Name)
 
 	externalSecret := Resource{
-		APIVersion: "external-secrets.io/v1beta1",
+		APIVersion: "external-secrets.io/v1",
 		Kind:       "ExternalSecret",
 		Metadata: resourceMeta(
 			onePasswordTokenName,
@@ -411,7 +411,7 @@ func buildArgoCDClusterExternalSecret(config *RegistrationConfig) Resource {
 	}
 
 	return Resource{
-		APIVersion: "external-secrets.io/v1beta1",
+		APIVersion: "external-secrets.io/v1",
 		Kind:       "ExternalSecret",
 		Metadata:   resourceMeta(esName, "argocd", labels, metadataAnnotations),
 		Spec: ExternalSecretSpec{

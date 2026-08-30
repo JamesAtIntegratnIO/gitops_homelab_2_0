@@ -43,7 +43,7 @@ check_for_secrets() {
         echo "  Replace 'kind: Secret' with 'kind: ExternalSecret'"
         echo ""
         echo -e "${YELLOW}Example:${NC}"
-        echo "  apiVersion: external-secrets.io/v1beta1"
+        echo "  apiVersion: external-secrets.io/v1"
         echo "  kind: ExternalSecret"
         echo "  metadata:"
         echo "    name: my-credentials"

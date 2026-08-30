@@ -4,8 +4,8 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-22T22:20:00Z }
-stale_after: 2026-09-22
+generated: { by: claude-code/claude-opus-5, at: 2026-08-30T16:10:00Z }
+stale_after: 2026-09-30
 sources:
   - id: live-cluster
     resource: kubectl sweep of the-cluster (admin@the-cluster), 2026-08-20
@@ -169,24 +169,167 @@ inert on this cluster, so no workload picks up a ConfigMap or Secret change
 without a rollout of its own. That is what makes the CRS issue above a manual
 step rather than a one-line annotation.
 
-## external-secrets 0.10.3 → 2.9.0 (PR #37) — two majors, and an API removal
+## external-secrets → 2.10.0 — the API removal landed; the rewrite it needed did not (updated 2026-08-30)
 
-The 2.9.0 CRDs make `v1` the storage version and serve `v1beta1` **only** when
-`crds.unsafeServeV1Beta1: true` — a flag upstream documents as removed on
-2026-05-01. This repo has **39 `external-secrets.io/v1beta1` references across
-29 files**, including Go code in `promises/external-secret` and
-`promises/argocd-cluster-registration`, and the `onepassword-store`
-ClusterSecretStore itself in `addons/environments/production/addons/addons.yaml`.
-Live CRD is `v1alpha1` + `v1beta1` with `storedVersions: ["v1beta1"]`.
+This entry used to describe a three-step path, **none of which is done**. The
+upgrade has since taken steps 1 and 3 and skipped step 2. `external-secrets` is
+on 2.10.0 and the live CRD serves `v1` only:
 
-Taking the bump alone stops every ExternalSecret manifest in the repo from
-applying, on the component every credential on the platform depends on (it also
-has no `cluster_role` exclusion, so it moves on the host *and* in
-vcluster-media). The staged path, none of which is done:
+```
+$ kubectl get crd externalsecrets.external-secrets.io \
+    -o jsonpath='{range .spec.versions[*]}{.name} served={.served}{"\n"}{end}'
+v1      served=true
+v1beta1 served=false
+```
 
-1. upgrade with `crds.unsafeServeV1Beta1: true` so both versions are served;
-2. rewrite all 39 references to `external-secrets.io/v1`;
-3. let the objects re-write to `v1` storage, then drop the flag.
+So the repo spent some number of days emitting an apiVersion the cluster no
+longer serves. The bill arrived on 2026-08-30: `kratix-state-reconciler` had
+been `OutOfSync` since 04:54Z with
+
+```
+one or more synchronization tasks are not valid:
+ExternalSecret.external-secrets.io "" not found (retried 5 times)
+```
+
+**The empty name is the tell.** It is not a missing object — it is ArgoCD
+failing to resolve the GVK, so it has nothing to name. All three ExternalSecrets
+the app manages are `Ready=True`: they were created while `v1beta1` was served
+and the apiserver has since rewritten them to `v1` storage. Only *re-applying*
+them fails, which is why this presents as a stuck sync on a healthy app rather
+than as broken credentials.
+
+Step 2 is now done in code — **18 references across 11 files**, verified by
+`grep -rn 'external-secrets.io/v1beta1' . --exclude-dir=.git` returning only
+this file, which narrates the migration and keeps the old string on purpose.
+The five that mattered are the manifest generators:
+`promises/argocd-cluster-registration/workflows/resource/configure/builders.go`
+(3) and `promises/external-secret/workflows/resource/configure/main.go` (2).
+Two more in `cli/pkg/provisioners/provisioners.go` had hctl generating
+manifests that could not apply; the rest were examples in docs, the pre-commit
+hook's error message, and the `mcp-system` system prompt — all of them places
+someone or something copies from.
+
+**Not clean yet, and it cannot be fixed from this repo directly:** the generated
+files in `kratix-platform-state` still say `external-secrets.io/v1beta1`,
+because that repo holds pipeline *output*. It clears on its own — a merge to
+`main` builds the pipeline images, Kargo bumps the promise pins (`autoMerge:
+always` for both targets), and Kratix re-runs the workflows, which rewrites the
+files. `kratix-state-reconciler` goes `Synced` at that point and not before, so
+a red app immediately after the merge is expected, not a regression.
+
+## The host CoreDNS Corefile is Talos-owned, and the platform needs it not to be (found 2026-08-30)
+
+`auth.cluster.integratn.tech` resolves to the MetalLB VIP `10.0.4.205`, which is
+unreachable *from inside a pod* — Cilium with kube-proxy replacement does not
+hairpin traffic to a MetalLB L2 address, so the packet gets "no route to host".
+The fix is a `rewrite` line in the host Corefile sending the name at the gateway
+Service instead, which keeps the hostname (and so the TLS SNI and the OIDC
+issuer claim) intact while taking a path that exists. Without it the Kargo UI's
+login is a hang with zero bytes.
+
+That line lived only in the cluster. Talos owns `kube-system/coredns`: it ships
+as bootstrap manifest `11-core-dns`, rendered by `k8s.ManifestController` and
+re-applied on every boot and every machine config change.
+
+```
+talosctl -n 10.0.4.101 get manifest 11-core-dns -o yaml \
+  | yq '.spec[] | select(.kind=="ConfigMap") | .data.Corefile'
+```
+
+**`cluster.coreDNS` in the machine config carries only `disabled` and `image`.**
+There is no Corefile field, so "put it in the Talos config instead" is not
+available — the choice is to out-live Talos's writes or to take the component
+over entirely.
+
+Now covered by the `coredns-host-config` addon
+(`addons/cluster-roles/control-plane/addons/coredns/`), which owns the ConfigMap
+with `selfHeal: true` and `prune: false`. This is deliberately the second-best
+option: Talos still wins the instant after a reboot, ArgoCD reverts it within
+the sync interval, and CoreDNS's `reload` picks the file up ~30s later. A reboot
+costs a few minutes without the rewrite instead of losing it until someone
+notices. `prune: false` because pruning `kube-system/coredns` is a cluster-wide
+DNS outage.
+
+The clean version is **staged, not applied**: `cluster.coreDNS.disabled: true`
+lives in
+[live-coredns-disabled.yaml](../../../matchbox/talos-machineconfigs/live-coredns-disabled.yaml)
+and the ServiceAccount, RBAC, Deployment and Service Talos would stop shipping
+are in the `coredns-workload` addon, deliberately `enabled: false`. Both halves
+are Talos's own render captured verbatim, so `kubectl diff` against the live
+cluster is empty — enabling the addon is an adoption, not a rollout of the
+resolver.
+
+Order matters and is the whole risk: **ArgoCD takes ownership first, Talos is
+switched off second.** The reverse leaves a window where Talos has stopped
+recreating CoreDNS and nothing else has started. The procedure, the checks and
+the rollback are in
+[coredns-workload/README.md](../../../addons/cluster-roles/control-plane/addons/coredns-workload/README.md);
+step 4 of [commands.md](../../../matchbox/talos-machineconfigs/commands.md) is
+the Talos half. It needs a machine config change on all three nodes, so it
+waits for James.
+
+What it costs once taken: **a Talos upgrade stops bumping CoreDNS.** The image
+is left as Talos's unpinned tag precisely so the adoption is a no-op, which
+means the first follow-up after cutover is to digest-pin it and add it to
+Kargo — otherwise it rots at whatever version Talos last shipped.
+
+Found while writing the patch: **`talosctl patch mc --dry-run` prints the whole
+machine config as a diff, embedded PEM private keys included.** Read it, do not
+paste it.
+
+## Pinning the kratix image froze half an artifact (found 2026-08-30)
+
+The `kratix` chart has exactly **one** version, `v0.0.1`, and Syntasso
+republishes it in place. The 2026-08-21 pin
+(`addons/cluster-roles/control-plane/addons/kratix/values.yaml`) was added to
+stop the controller image moving on ordinary syncs. It did — and by doing so it
+desynchronised the container from the chart that renders it.
+
+On 2026-08-28 at 11:30Z the index was regenerated: same `appVersion: 1.16.0`,
+new chart digest, new entrypoint.
+
+```
+command: [/sbin/tini, --, /manager]      # was: [/manager]
+```
+
+`command` comes verbatim from the chart's `files/deployment.yaml`. The chart's
+only container override is `containerPatch`, which merges `image` and
+`resources` — **no value can move `command`**. So the new command was rendered
+against the pinned old image, which has no `/sbin/tini`. From 20:35Z that day
+every new pod died:
+
+```
+StartError, exit 128: unable to start container process:
+exec: "/sbin/tini": stat /sbin/tini: no such file or directory
+```
+
+509 restarts over 43 hours. Nothing user-facing broke, because the 8-day-old pod
+from the previous ReplicaSet kept serving — the Deployment sat at
+`maxSurge`-plus-one with both ReplicaSets at `DESIRED=1`, old one Available, new
+one never Ready.
+
+**The platform did detect it.** `KubePodCrashLooping`, `KubePodNotReady`,
+`KubeDeploymentRolloutStuck`, `ArgoCDAppDegraded` and `TargetDown` were all
+firing continuously from 20:35–20:45Z. This was an attention failure, not a
+monitoring gap; treat any claim that "nothing caught it" as unverified until the
+firing list is read.
+
+A second incoherence came with it and is easy to miss: the chart hard-codes
+`PIPELINE_ADAPTER_IMG` in a ConfigMap with no override, so **pipeline Jobs were
+already running the new image while the manager ran the old one.** Manager and
+adapter are meant to be the same build.
+
+Pin bumped to the digest the chart itself ships
+(`sha256:88809ecd…`), which restores both halves at once. The durable fix is to
+stop consuming a mutable chart version — vendor the chart into `addons/charts/`
+so its content is a reviewable diff. Until then the pin is a tripwire that has
+to be re-armed by hand after every republish, and the check is:
+
+```
+helm pull kratix --repo https://syntasso.github.io/helm-charts \
+  --version 0.0.1 --untar --untardir /tmp/k
+grep -n 'image:\|/sbin/tini' /tmp/k/kratix/files/deployment.yaml
+```
 
 ## kyverno 3.2.8 → 3.9.0 (PR #41) — seven minors under a `failurePolicy: Fail` webhook
 

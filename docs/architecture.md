@@ -511,7 +511,7 @@ flowchart LR
 
 2. **Create ClusterSecretStore** (one-time setup):
    ```yaml
-   apiVersion: external-secrets.io/v1beta1
+   apiVersion: external-secrets.io/v1
    kind: ClusterSecretStore
    metadata:
      name: onepassword-connect
@@ -531,7 +531,7 @@ flowchart LR
 
 3. **Create ExternalSecret:**
    ```yaml
-   apiVersion: external-secrets.io/v1beta1
+   apiVersion: external-secrets.io/v1
    kind: ExternalSecret
    metadata:
      name: grafana-admin
@@ -588,7 +588,7 @@ data:
 **Example (Correct):**
 ```yaml
 # ✅ Always use ExternalSecret
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: my-app-password
