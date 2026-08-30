@@ -542,30 +542,6 @@ metallb-config:
       - ServerSideApply=true
       - SkipDryRunOnMissingResource=true
 
-vcluster-coredns-config:
-  enabled: true
-  type: manifest
-  namespace: kube-system
-  project: platform-services
-  path: addons/environments/production/addons/coredns
-  selector:
-    matchExpressions:
-      - key: cluster_role
-        operator: In
-        values: ['worker']
-      - key: cluster_role
-        operator: NotIn
-        values: ['vcluster']
-  syncPolicy:
-    automated: {}
-    syncOptions:
-      - CreateNamespace=true
-      - SkipDryRunOnMissingResource=true
-  ignoreDifferences:
-    - kind: ConfigMap
-      jsonPointers:
-        - /data/NodeHosts
-
 gateway-api-crds:
   enabled: true
   type: manifest
