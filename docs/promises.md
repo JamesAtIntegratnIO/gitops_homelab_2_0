@@ -301,7 +301,7 @@ data:
 
 **Pipeline Actions:**
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: media-kubeconfig
@@ -826,7 +826,7 @@ data:
 **REQUIRED:**
 ```yaml
 # ✅ ALWAYS use ExternalSecret
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: my-credentials

@@ -120,7 +120,7 @@ func handleDelete(sdk *kratix.KratixSDK, config *ExternalSecretConfig) error {
 		}
 
 		deleteObj := u.DeleteResource(
-			"external-secrets.io/v1beta1",
+			"external-secrets.io/v1",
 			"ExternalSecret",
 			secretName,
 			config.Namespace,
@@ -164,7 +164,7 @@ func buildExternalSecrets(config *ExternalSecretConfig) []u.Resource {
 		}
 
 		es := u.Resource{
-			APIVersion: "external-secrets.io/v1beta1",
+			APIVersion: "external-secrets.io/v1",
 			Kind:       "ExternalSecret",
 			Metadata: u.ObjectMeta{
 				Name:      secretName,

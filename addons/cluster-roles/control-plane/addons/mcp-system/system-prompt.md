@@ -46,7 +46,7 @@ The `resources_list` and `resources_get` tools **always require `apiVersion`**. 
 | Ingress, NetworkPolicy | `networking.k8s.io/v1` |
 | ClusterRole, ClusterRoleBinding, Role, RoleBinding | `rbac.authorization.k8s.io/v1` |
 | Certificate, Issuer, ClusterIssuer | `cert-manager.io/v1` |
-| ExternalSecret, ClusterSecretStore | `external-secrets.io/v1beta1` |
+| ExternalSecret, ClusterSecretStore | `external-secrets.io/v1` |
 | PolicyReport, ClusterPolicyReport | `wgpolicyk8s.io/v1alpha2` |
 | PolicyException | `kyverno.io/v2` |
 | ClusterPolicy, Policy | `kyverno.io/v1` |

@@ -643,7 +643,7 @@ metadata:
 Create [addons/cluster-roles/control-plane/addons/velero/external-secret-aws-credentials.yaml](../addons/cluster-roles/control-plane/addons/velero/external-secret-aws-credentials.yaml):
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: velero-aws-credentials
