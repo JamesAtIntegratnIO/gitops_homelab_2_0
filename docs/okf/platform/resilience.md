@@ -4,7 +4,7 @@ title: Resilience — how the cluster heals itself
 description: The seven layers that make the-cluster self-healing, what each one covers, and the failure modes that remain outside git's reach.
 tags: [resilience, self-healing, availability, scheduling, disruption]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-21T08:00:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-30T17:52:00Z }
 stale_after: 2027-02-21
 sources:
   - id: gameday
@@ -93,8 +93,13 @@ rule, which was 8.399.)
 - **Upstream DNS.** CoreDNS forwards to the Talos host resolver at
   `169.254.116.108`. When that stalls, CoreDNS saturates and *cluster-internal*
   resolution fails with it — the documented cause of the vcluster-media restart
-  storms. Talos owns the CoreDNS Deployment and Corefile as bootstrap manifests
-  and re-applies them, so only a PodDisruptionBudget could be added from git.
+  storms. The ownership half is nearly closed: the Corefile has been git-owned
+  since 2026-08-30 (`coredns-host-config`), and on the same day ArgoCD adopted
+  the Deployment, Service, SA and RBAC too (`coredns-workload`). Talos still
+  renders `11-core-dns` / `11-core-dns-svc` and re-applies them on every boot
+  and machine config change until `cluster.coreDNS.disabled: true` goes on all
+  three nodes, which is a manual `talosctl patch mc`. The upstream itself —
+  `forwardKubeDNSToHost` — is untouched and remains the single point of failure.
   See [known issues](/cluster/known-issues.md) and the Talos runbook.[^talos-cmds]
 - **Host etcd snapshots** — no longer outside git's reach: the Talos API access
   patch was applied 2026-08-22 and `platform-backups-talos` is enabled. See

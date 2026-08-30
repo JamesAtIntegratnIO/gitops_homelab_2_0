@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-30T16:10:00Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-30T17:50:00Z }
 stale_after: 2026-09-30
 sources:
   - id: live-cluster
@@ -250,23 +250,44 @@ costs a few minutes without the rewrite instead of losing it until someone
 notices. `prune: false` because pruning `kube-system/coredns` is a cluster-wide
 DNS outage.
 
-The clean version is **staged, not applied**: `cluster.coreDNS.disabled: true`
-lives in
-[live-coredns-disabled.yaml](../../../matchbox/talos-machineconfigs/live-coredns-disabled.yaml)
-and the ServiceAccount, RBAC, Deployment and Service Talos would stop shipping
-are in the `coredns-workload` addon, deliberately `enabled: false`. Both halves
-are Talos's own render captured verbatim, so `kubectl diff` against the live
-cluster is empty — enabling the addon is an adoption, not a rollout of the
-resolver.
+The clean version is **half done as of 2026-08-30**, and the order is the whole
+risk: **ArgoCD takes ownership first, Talos is switched off second.** The
+reverse leaves a window where Talos has stopped recreating CoreDNS and nothing
+else has started.
 
-Order matters and is the whole risk: **ArgoCD takes ownership first, Talos is
-switched off second.** The reverse leaves a window where Talos has stopped
-recreating CoreDNS and nothing else has started. The procedure, the checks and
-the rollback are in
-[coredns-workload/README.md](../../../addons/cluster-roles/control-plane/addons/coredns-workload/README.md);
-step 4 of [commands.md](../../../matchbox/talos-machineconfigs/commands.md) is
-the Talos half. It needs a machine config change on all three nodes, so it
-waits for James.
+**Step 1 is landed and verified** (PR #303, `a84e7e1`). The `coredns-workload`
+addon is `enabled: true` and `coredns-workload-the-cluster` is `Synced`/
+`Healthy` over five objects — ServiceAccount, ClusterRole, ClusterRoleBinding,
+Deployment and the `kube-dns` Service — each now carrying an
+`argocd.argoproj.io/tracking-id`. It behaved as an adoption exactly as the empty
+`kubectl diff` predicted: **both CoreDNS pods kept their names and their AGE
+(133m before the merge, 138m after) with 0 restarts**, and the staged image
+`registry.k8s.io/coredns/coredns:v1.12.4` matched the live Deployment's. That
+pod-AGE check is the one that matters — a restart there means the captured
+manifests have drifted from what Talos renders, and the cutover stops rather
+than continuing. Resolution verified afterwards from a policy-allowed pod:
+`kubernetes.default.svc.cluster.local` → `10.96.0.1`, `github.com` → resolves,
+and the rewrite `auth.cluster.integratn.tech` → `10.107.19.15`, which is the
+`nginx-gateway-nginx` ClusterIP.
+
+Worth knowing before the next person smoke-tests DNS the obvious way: **an
+ad-hoc `kubectl run` pod in `kube-system` cannot resolve anything**. That
+namespace carries the Kyverno-generated `default-deny-all`, and only the named
+components have allow rules, so `nslookup` from a throwaway pod times out with
+"no servers could be reached" whether CoreDNS is healthy or not. Exec into an
+existing pod instead.
+
+**Step 2 has not been applied.** `talosctl -n <node> get manifests` still lists
+`11-core-dns` and `11-core-dns-svc` on all three nodes, so Talos and ArgoCD both
+own the objects right now — which is the intended interim state, with Talos as
+the safety net. `cluster.coreDNS.disabled: true` lives in
+[live-coredns-disabled.yaml](../../../matchbox/talos-machineconfigs/live-coredns-disabled.yaml);
+the procedure, the checks and the rollback are in
+[coredns-workload/README.md](../../../addons/cluster-roles/control-plane/addons/coredns-workload/README.md),
+and step 4 of
+[commands.md](../../../matchbox/talos-machineconfigs/commands.md) is the Talos
+half. It needs a machine config change on all three nodes, so it waits for
+James.
 
 What it costs once taken: **a Talos upgrade stops bumping CoreDNS.** The image
 is left as Talos's unpinned tag precisely so the adoption is a no-op, which
