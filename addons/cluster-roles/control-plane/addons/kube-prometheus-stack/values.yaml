@@ -408,18 +408,28 @@ grafana:
 defaultRules:
   rules:
     etcd: true
-  additionalPrometheusRules:
-  - name: etcd-override
-    groups:
-    - name: etcd
-      rules:
-      - alert: etcdInsufficientMembers
-        annotations:
-          description: 'etcd cluster "{{ $labels.job }}": insufficient members ({{ $value }}).'
-          summary: etcd cluster has insufficient number of members.
-        expr: 'sum(up{job=~".*etcd.*"} == bool 1) < ((count(up{job=~".*etcd.*"}) + 1) / 2)
+  # Turn off exactly one mixin rule. It needs ratio < 0.5 AND in_use > 100MiB,
+  # and this cluster's live keyspace sits at ~100MiB -- so the floor, not the
+  # ratio, decides whether it fires. Measured over 30 days of this cluster's own
+  # series it was silent at ratio 0.18 (in_use 71MiB, the worst fragmentation in
+  # the window), fired for 86 hours straight at 0.42-0.48 (the mildest), and
+  # went quiet again on 2026-08-29 as fragmentation deepened because in_use
+  # dipped 800KB below the floor. It covered 86 of the 310 hours the cluster was
+  # actually fragmented. Replaced by EtcdReclaimableSpaceHigh in the
+  # platform-alerts addon, which alerts on absolute reclaimable bytes and is
+  # therefore scale-free. The other 14 etcd mixin rules stay on.
+  disabled:
+    etcdDatabaseHighFragmentationRatio: true
 
-          '
-        for: 3m
-        labels:
-          severity: critical
+# NOTE 2026-08-30: a `defaultRules.additionalPrometheusRules` block lived here
+# from 2026-01 until today, carrying an etcdInsufficientMembers rewrite that
+# dropped the mixin's `without (instance, pod)` grouping. It never rendered
+# anything. That key does not exist in this chart -- `helm show values
+# kube-prometheus-stack --version 88.5.3` declares `defaultRules.disabled` and a
+# TOP-LEVEL `additionalPrometheusRulesMap`, and Helm silently ignores a value it
+# does not recognise. So the override sat dead for 218 days while the live rule
+# stayed the mixin's, and `kubectl get prometheusrules -n monitoring` showed no
+# etcd-override object. Removed rather than repaired: activating an alert change
+# nobody has validated since January is its own decision, and the text is in git
+# history. If it is still wanted, it belongs in platform-alerts with the mixin
+# copy turned off via `disabled:` above -- the pattern this file now uses.
