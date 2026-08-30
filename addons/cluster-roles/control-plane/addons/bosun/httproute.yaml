@@ -70,7 +70,20 @@ spec:
   hostnames:
     - bosun.cluster.integratn.tech
   rules:
-    - filters:
+      # Written out rather than left off. A rule with no `matches` is defaulted
+      # by the API SERVER to exactly this, and a manifest that omits it is
+      # OutOfSync against its own live object forever -- which is what this
+      # route did from the moment it landed. The other `-http-redirect` routes
+      # in this repository omit it and get away with it because their apps do
+      # not sync with ServerSideApply; this addon does. Stating it is better
+      # than adding another entry to ignoreDifferences: the difference stops
+      # existing instead of being hidden, and the route now says out loud that
+      # it redirects every path.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             scheme: https
