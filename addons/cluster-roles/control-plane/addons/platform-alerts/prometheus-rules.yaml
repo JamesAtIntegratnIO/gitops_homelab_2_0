@@ -395,13 +395,41 @@ spec:
             description: "Node {{ $labels.instance }} logged {{ $value | printf \"%.0f\" }} NFS RPC retransmissions in 15 minutes. All cluster PVs are NFS-backed, so this degrades everything with a volume."
 
     # ── etcd (host control plane) ────────────────────────────────────────────
-    # Fragmentation is intentionally NOT alerted here — upstream ships
-    # etcdDatabaseHighFragmentationRatio and the local copy both duplicated it
-    # and had a broken description template. Quota headroom has no upstream
-    # equivalent, so it stays.
+    # Fragmentation IS alerted here now. Upstream's
+    # etcdDatabaseHighFragmentationRatio is disabled in the
+    # kube-prometheus-stack values, because measured against 30 days of this
+    # cluster's own data it is inverted: it requires ratio < 0.5 AND
+    # in_use > 100MiB, and this cluster's live keyspace sits at ~100MiB, so the
+    # floor rather than the ratio decides whether it fires.
+    #
+    #   2026-08-15..20  ratio 0.18  in_use  71MiB  SILENT   <- worst in the window
+    #   2026-08-23..28  ratio 0.42-0.48                     firing 86h straight
+    #   2026-08-29      ratio 0.39  in_use  99MiB  SILENT   <- got worse, went quiet
+    #
+    # Over 30 days: fragmented (ratio < 0.5) for 310h, alerted for 86h of them.
+    # Loudest when mildest, silent when worst.
+    #
+    # Absolute reclaimable bytes is scale-free and says exactly what the
+    # operator needs to know: how much a defrag would give back. 150MiB is
+    # ~16 days of this cluster's measured 9.4MiB/day high-water creep, so it
+    # asks for maintenance roughly biweekly and would have caught the
+    # 08-15..20 stretch the ratio rule slept through. Per-instance on purpose:
+    # `talosctl etcd defrag` is run per member.
     - name: platform.etcd
       interval: 60s
       rules:
+        - alert: EtcdReclaimableSpaceHigh
+          expr: |
+            etcd_mvcc_db_total_size_in_bytes - etcd_mvcc_db_total_size_in_use_in_bytes
+              > 150 * 1024 * 1024
+          for: 1h
+          labels:
+            severity: warning
+            component: etcd
+          annotations:
+            summary: "etcd on {{ $labels.instance }} would reclaim {{ $value | humanize1024 }}B from a defrag"
+            description: "boltdb never shrinks: the file is the high-water mark of pages ever needed at once, and this cluster writes ~12/s against ~6,200 live keys (~80% of it Lease renewals), so the mark creeps up ~9.4MiB/day. This is scheduled maintenance, not an incident — there is no capacity risk until the 2GB quota. Run step 5 of matchbox/talos-machineconfigs/commands.md: non-leaders first, leader last."
+
         - alert: EtcdDBSizeApproachingQuota
           expr: |
             etcd_mvcc_db_total_size_in_bytes > 1.5 * 1024 * 1024 * 1024
