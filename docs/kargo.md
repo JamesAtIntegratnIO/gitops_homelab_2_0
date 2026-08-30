@@ -222,9 +222,19 @@ scraped by the host Prometheus, so there is no `argocd_app_info` to ask.
 
 (The chart also supports `git` targets that follow a repository's release tags; nothing uses one today.)
 
-Polling: images 6h, our own build images 15m, linuxserver 12h, charts 24h.
+Polling: images 15m, our own build images 15m, linuxserver 12h, the anonymous
+Docker Hub targets 6h, charts 6h. Set as `defaults.interval` by artifact *kind*
+in [kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml),
+where the measurements behind those numbers live; a target may override with
+its own `interval`.
+
 `cacheByTag` is on for every immutable-tag strategy, so a registry is only
-asked about tags it has not seen before.
+asked about tags it has not seen before — which is why images are cheap to poll
+often and **charts are not**. A classic Helm HTTP repo has no incremental
+protocol: `index.yaml` is fetched and parsed whole every cycle and no cache
+applies, ~20 MB across the 22 classic-HTTP repos subscribed here
+(prometheus-community alone is 6.3 MB, grafana 4.0 MB). That is 80 MB/day at
+6h and would be ~1.9 GB/day at 15m.
 
 ## Before the first sync — what needs a human
 
@@ -357,11 +367,21 @@ Pausing: set `autoPromotion: false` on a target (Freight is still discovered,
 nothing is promoted until someone clicks), or `enabled: false` on the
 `kargo-projects` addon to stop everything while keeping Kargo installed.
 
-Registry budget: Docker Hub is polled anonymously. Seven targets at 6h with
-`cacheByTag` stay well under the anonymous limit; if Kargo ever logs 429s,
-add a Docker Hub credential Secret labelled `kargo.akuity.io/cred-type: image`
-with `repoURL: docker.io` in `kargo-shared-resources`, or lengthen the
-intervals.
+Registry budget: Docker Hub is polled anonymously, so the five Docker Hub
+targets (`alpine-k8s`, `authentik-redis`, `grafana-mcp`,
+`matrix-alertmanager-receiver`, `otterwiki`) carry an explicit `interval:
+6h0m0s` and did **not** follow the rest of the images down to 15m. Docker Hub
+rate-limits per source IP and the cluster NATs out one address, so tripping the
+limit costs kubelet's Docker Hub image pulls too, not only Kargo's discovery —
+and Kargo's half of that failure is silent (`NoImageReferencesDiscovered`, zero
+Freight, no error). To let them follow the 15m default, add a Docker Hub
+credential Secret labelled `kargo.akuity.io/cred-type: image` with
+`repoURL: docker.io` in `kargo-shared-resources`, then delete the five
+per-target overrides. `sonarr` is also Docker Hub but stays at 12h for a
+different reason: it is `NewestBuild` + `autoMerge: always`, so a poll landing
+inside a publisher's push window could merge a half-published tag with no human
+in the loop. The other two linuxserver targets are held at 12h for the same
+reason.
 
 Inbound webhooks (GitHub push, registry events) are not exposed — the
 `externalWebhooksServer` is off and nothing routes to it. Polling is the only
