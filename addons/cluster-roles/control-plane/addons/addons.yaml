@@ -900,7 +900,11 @@ bosun:
   #
   # Rendered against this repository's own bosun values at 0.27.0 before the
   # bump: clean, so nothing in the file beside this one has to move with it.
-  defaultVersion: 0.27.0
+  # 0.28.0 -- the report stops burying its signal: scalar lists align (one
+  # inserted flag is one line), namespace stamps that change no applied byte
+  # vanish, and the fields this repository's own values set surface above a
+  # fold whose summary is the whole read for most bumps.
+  defaultVersion: 0.28.0
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
