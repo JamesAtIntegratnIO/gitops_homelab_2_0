@@ -4,15 +4,15 @@ title: Kargo — automated image and chart version updates
 description: How every pinned image tag, digest and chart version in the repo is kept current — Kargo Warehouses watch the sources, one Stage per artifact opens a PR against main, merges it under a per-target policy, and verifies the affected ArgoCD Applications afterwards.
 tags: [kargo, updates, images, charts, automation, gitops]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-23T07:20:00Z }
-stale_after: 2026-09-23
+generated: { by: claude-code/claude-opus-5, at: 2026-08-30T16:20:00Z }
+stale_after: 2026-09-30
 sources:
   - id: chart
     resource: https://github.com/JamesAtIntegratnIO/bosun/tree/main/charts/kargo-pipelines
     title: kargo-pipelines factory chart (its own repository since 2026-08-23; superseded addons/charts/kargo-projects in PR #86)
   - id: targets
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
-    title: target list (55 Warehouse/Stage pairs, measured live 2026-08-22)
+    title: target list (55 Warehouse/Stage pairs, measured live 2026-08-30)
   - id: install
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo/values.yaml
     title: Kargo chart values
@@ -109,9 +109,24 @@ images and the linuxserver media images (previously `latest`); `never` for
 
 Strategies: `SemVer` with `allowTags` regexes for most things; `NewestBuild`
 (+`platform: linux/amd64`, `discoveryLimit: 5`) for `main-<sha>` and
-linuxserver's four-part tags; `Digest` for `mcpo:main`. Intervals 6h images /
-15m own builds / 12h linuxserver / 24h charts; `cacheByTag` on for immutable
-tags.
+linuxserver's four-part tags; `Digest` for `mcpo:main`. Intervals come from
+`defaults.interval`, keyed by artifact *kind* rather than per target — **15m
+images / 15m own builds / 6h charts** — with two per-target holds: the five
+anonymous Docker Hub targets at 6h and linuxserver at 12h.[^targets]
+
+`cacheByTag` is on for immutable tags, and it is why images and charts sit at
+different numbers rather than one. A cached SemVer image cycle is a tag listing,
+so the only cost that scales with the interval is one Warehouse status write —
+Kargo stamps `status.discoveredArtifacts.discoveredAt` on every poll whether it
+discovered anything or not. A chart has no such cache: a classic Helm HTTP repo
+re-fetches and re-parses the whole `index.yaml` every cycle, ~20 MB across the
+22 classic-HTTP repos subscribed here (prometheus-community alone 6.3 MB,
+grafana 4.0 MB), which is ~80 MB/day at 6h and would be ~1.9 GB/day at 15m.
+Docker Hub is held back because its limit is per source IP and the cluster NATs
+out one address, so a 429 costs kubelet's image pulls too, not only Kargo's
+discovery; linuxserver is held back because it is `NewestBuild` +
+`autoMerge: always`, where a poll landing in a publisher's push window would
+merge a half-published tag unattended.
 
 # Constraints that shape the target list
 
@@ -217,7 +232,7 @@ each merge to `main` moves every other PR's base; `git-merge-pr` with
 [^guide]: docs/kargo.md.
 [^install]: Kargo chart values.
 [^chart]: kargo-projects factory chart.
-[^targets]: target list (48 Warehouse/Stage pairs).
+[^targets]: target list (55 Warehouse/Stage pairs).
 [^extras]: ExternalSecrets and HTTPRoute.
 [^netpol]: kargo namespace network policy.
 [^kargo-src]: Kargo v1.11.2 — yaml-update semantics and step schemas.
