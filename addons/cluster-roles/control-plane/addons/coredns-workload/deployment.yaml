@@ -1,0 +1,118 @@
+# The CoreDNS Deployment, taken verbatim from Talos bootstrap manifest
+# `11-core-dns` as rendered by Talos 1.11.3 on 2026-08-30. Byte-faithful on
+# purpose: enabling this addon while Talos still owns CoreDNS must be an
+# adoption with an empty diff, not a rollout of the cluster's resolver.
+#
+# The image is Talos's tag, unpinned, deliberately -- pinning it here would
+# make enabling this addon a CoreDNS restart instead of a no-op. Once the
+# takeover is verified, pin it: the digest running on 2026-08-30 was
+#   registry.k8s.io/coredns/coredns@sha256:986f04c2e15e147d00bdd51e8c51bcef3644b13ff806be7d2ff1b261d6dfbae1
+# and it belongs in the Kargo target list once pinned, because from the moment
+# `cluster.coreDNS.disabled: true` is on, a Talos upgrade no longer bumps
+# CoreDNS for you. That is the real cost of owning it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    k8s-app: kube-dns
+    kubernetes.io/name: CoreDNS
+  name: coredns
+  namespace: kube-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      k8s-app: kube-dns
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        k8s-app: kube-dns
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: k8s-app
+                      operator: In
+                      values:
+                        - kube-dns
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+      containers:
+        - args:
+            - -conf
+            - /etc/coredns/Corefile
+          env:
+            - name: GOMEMLIMIT
+              value: 161MiB
+          image: registry.k8s.io/coredns/coredns:v1.12.4
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: coredns
+          ports:
+            - containerPort: 53
+              name: dns
+              protocol: UDP
+            - containerPort: 53
+              name: dns-tcp
+              protocol: TCP
+            - containerPort: 9153
+              name: metrics
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8181
+              scheme: HTTP
+          resources:
+            limits:
+              cpu: 200m
+              memory: 170Mi
+            requests:
+              cpu: 100m
+              memory: 70Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - NET_BIND_SERVICE
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - mountPath: /etc/coredns
+              name: config-volume
+              readOnly: true
+      dnsPolicy: Default
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-cluster-critical
+      serviceAccountName: coredns
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+        - effect: NoSchedule
+          key: node.cloudprovider.kubernetes.io/uninitialized
+          operator: Exists
+      volumes:
+        - configMap:
+            items:
+              - key: Corefile
+                path: Corefile
+            name: coredns
+          name: config-volume
