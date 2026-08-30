@@ -277,6 +277,62 @@ Found while writing the patch: **`talosctl patch mc --dry-run` prints the whole
 machine config as a diff, embedded PEM private keys included.** Read it, do not
 paste it.
 
+## A retrying ArgoCD sync pins its revision and never re-plans (found 2026-08-30)
+
+**This is why merging the fix did not fix it.**
+
+`kratix-the-cluster` carries `retry.limit: -1` — unlimited retries. On
+2026-08-28 at 20:35:34Z an automated sync started, applied the Deployment
+(which is where the tini crashloop below came from), and then failed on a
+resource the cluster could no longer serve:
+
+```
+one or more synchronization tasks are not valid: failed to discover server
+resources for group version external-secrets.io/v1beta1: the server could not
+find the requested resource. Retrying attempt #270 at 5:14PM.
+```
+
+It was still retrying **44 hours and 270 attempts later** — against revision
+`d0f430a3`, a commit from PR #247, where every ExternalSecret in `addons/` was
+still `v1beta1`.
+
+**An in-flight operation is pinned to the revision it started on.** The
+Application reconciled forward perfectly well — `status.sync.revisions` tracked
+current `main` and reported `OutOfSync` — while underneath it
+`status.operationState.operation.sync.revisions` stayed frozen on the old
+commit. The two are different fields and they disagreed for two days. So no
+number of new commits could rescue it: the fix landed on main, the app noticed,
+and the operation carried on retrying a manifest set from months earlier.
+
+Diagnose it by comparing exactly those two:
+
+```bash
+kubectl -n argocd get application <app> -o json | jq -r '
+  "opPinnedTo=\(.status.operationState.operation.sync.revisions[0][0:8])
+   appNowAt=\(.status.sync.revisions[0][0:8])
+   started=\(.status.operationState.startedAt)
+   retries=\(.status.operationState.retryCount)"'
+```
+
+If `opPinnedTo` differs from `appNowAt`, the operation is stale. The cure is to
+terminate it so the controller re-plans from git — `argocd app terminate-op
+<app>`, or the same thing without a CLI session:
+
+```bash
+kubectl -n argocd patch application <app> --type merge \
+  -p '{"status":{"operationState":{"phase":"Terminating"}}}'
+```
+
+A fresh operation started immediately on current `main`, retry count reset to
+0, and went `Synced`/`Healthy` inside a minute.
+
+**What makes this dangerous is that nothing looks broken.** There is no
+`Errored` phase and no failed Promotion — the phase is `Running`, which reads
+as progress. `ArgoCDAppDegraded` fired, but on the *health* of the workload,
+not on the age of the operation. Nothing anywhere alerts on "a sync has been
+retrying for two days", and `retry.limit: -1` guarantees it never converts into
+a failure that would.
+
 ## Pinning the kratix image froze half an artifact (found 2026-08-30)
 
 The `kratix` chart has exactly **one** version, `v0.0.1`, and Syntasso
@@ -330,6 +386,21 @@ helm pull kratix --repo https://syntasso.github.io/helm-charts \
   --version 0.0.1 --untar --untardir /tmp/k
 grep -n 'image:\|/sbin/tini' /tmp/k/kratix/files/deployment.yaml
 ```
+
+**Resolved 2026-08-30** (PR #293). Live: `kratix-the-cluster` `Synced`/`Healthy`,
+one pod, 0 restarts, `status.imageID` on the pinned digest, and manager ==
+`PIPELINE_ADAPTER_IMG` again.
+
+One correction worth carrying, because it was got wrong the first time: **this
+app had two faults, not one.** The image pin explains the `Degraded` *health*.
+It does not explain the sync, which was wedged by the external-secrets version
+above and needed the operation terminated — see the entry on retrying syncs.
+Fixing the pin alone would have left the app stuck.
+
+(Note for whoever reads `status.containerStatuses[].image` to confirm the
+digest: it reports containerd's local image-config ID, a different digest
+entirely. `status.containerStatuses[].imageID` is the one that carries the
+pulled reference.)
 
 ## kyverno 3.2.8 → 3.9.0 (PR #41) — seven minors under a `failurePolicy: Fail` webhook
 
