@@ -59,14 +59,22 @@ OAuth2/OIDC credentials for Grafana integration:
 
 ## Authentik Configuration (Blueprints)
 
-Blueprints are YAML files that declaratively configure Authentik:
+Blueprints are YAML files that declaratively configure Authentik. They live in
+exactly one place — as the `data` keys of
+[authentik-blueprints-configmap.yaml](../../../../clusters/the-cluster/addons/authentik/authentik-blueprints-configmap.yaml),
+which `blueprints.configMaps` in [values.yaml](values.yaml) mounts. Edit them
+there; a loose copy under this directory is applied by nothing.
 
 - `00-admin-group.yaml`: Superuser admin group
 - `01-argocd-provider.yaml`: OAuth2 provider for ArgoCD
 - `02-grafana-provider.yaml`: OAuth2 provider for Grafana
 - `03-default-authentication-flow.yaml`: Standard login flow
+- `04-google-oauth-source.yaml`: Google as a social login source
+- `05-openwebui-provider.yaml`: OAuth2 provider for Open WebUI
+- `06-qdrant-proxy-provider.yaml`: forward-auth proxy provider for the Qdrant dashboard
+- `07-kargo-provider.yaml`: PKCE public client for Kargo
 
-Blueprints are mounted as ConfigMap and auto-applied on startup. All provider configuration is code-driven; no manual UI configuration required.
+Blueprints are auto-applied on startup. All provider configuration is code-driven; no manual UI configuration required.
 
 ## Service Integration
 
