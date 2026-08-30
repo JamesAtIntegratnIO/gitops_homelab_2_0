@@ -1,0 +1,19 @@
+# What the gate cannot derive from ArgoCD, and nothing else.
+#
+# Everything else this file's predecessor (.gitops-gate.yaml) carried is
+# served better elsewhere: the sources are derived live from what ArgoCD
+# serves (which needs `applications, get` and `applicationsets, get` on
+# role:bosun in the argo-cd values), `validate` is host policy in the bosun
+# chart's values beside the other addons, `valuesRef` was set to its own
+# default, and `clustersExport.knownAbsentLabels` guarded against a gate bug
+# that collected DoesNotExist selector keys into the presence-demand list --
+# fixed, so the line would now only mask a real stale-inventory refusal.
+# See https://github.com/JamesAtIntegratnIO/bosun/tree/main/gate/docs.
+
+# The two bootstrap ApplicationSets are applied by Terraform, so they carry no
+# ArgoCD tracking annotation and derivation cannot attribute them. Naming them
+# here renders them from the pull request's own checkout -- which is also the
+# only way an edit to one is gated before it applies.
+roots:
+  - terraform/cluster/bootstrap/addons-control-plane.yaml
+  - terraform/cluster/bootstrap/addons-vcluster.yaml

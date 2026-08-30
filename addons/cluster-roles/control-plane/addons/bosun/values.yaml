@@ -121,10 +121,20 @@ gate:
   # creates no Role over Secrets at all now.
   #
   # What it costs, because it is a trade and not a win: the token below, whose
-  # ArgoCD policy is one line (`p, role:bosun, clusters, get, *, allow`), and
-  # a gate that needs argocd-server up to reach a verdict -- the Secrets were
-  # readable whenever the apiserver was. There is no longer a line to flip
-  # back.
+  # ArgoCD policy is three read grants (`clusters`, `applications`,
+  # `applicationsets` -- see the argo-cd values), and a gate that needs
+  # argocd-server up to reach a verdict -- the Secrets were readable whenever
+  # the apiserver was. There is no longer a line to flip back.
+  #
+  # The same token is how the gate knows WHAT to render: it derives its
+  # sources from the Applications and ApplicationSets ArgoCD serves for this
+  # repository (ADR 0012), so the `.gitops-gate.yaml` that used to repeat them
+  # is gone. `.bosun.yaml` at the repo root still names the two
+  # Terraform-applied bootstraps, the one fact ArgoCD cannot supply. Without
+  # the `applications`/`applicationsets` grants the derivation is not an
+  # error: ArgoCD RBAC-filters the list to empty and the gate sees a cluster
+  # serving nothing, so "Derived 0 sources" in a report is this comment's
+  # first suspect.
 
   argocd:
     # In-cluster and plain HTTP, because this ArgoCD runs `server.insecure:
@@ -152,6 +162,19 @@ gate:
   # stranger's chart values is a trust decision, not a default. Zero forks
   # today; the refusal is what keeps that from mattering the day there is one.
   forkPRs: false
+
+  # Host policy, moved here from the retired `.gitops-gate.yaml` (ADR 0012):
+  # the renders and the kubeconform pass happen in this pod, against this
+  # pod's limits, so what to check is a decision about this cluster rather
+  # than about the repository under review. Same list as the old file;
+  # `ignoreMissingSchemas` because the smaller CRDs appear in no published
+  # catalogue, and the report says how many kinds it skipped.
+  validate:
+    enabled: true
+    ignoreMissingSchemas: true
+    schemaLocations:
+      - default
+      - 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
   checkName: addons-gate
   # `wait` went with `mode` in chart 0.22.0: it named how long to wait for an

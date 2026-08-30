@@ -91,9 +91,11 @@ see the file list in `terraform/cluster/bootstrap/addons-vcluster.yaml`.
 - **If the key is Kargo-tracked**, obey the pin rules — see the `kargo-pins`
   skill. Adding a new pinned artifact means adding it to
   [kargo-projects/values.yaml](../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml).
-- **Do not delete `clustersExport.knownAbsentLabels` from `.gitops-gate.yaml`.**
-  The key name lies — it is *render* configuration, read in both gate modes.
-  Without it the gate exits 2 and posts `error` on every open PR.
+- **`.bosun.yaml` at the repo root names the Terraform-applied bootstrap
+  ApplicationSets; everything else the gate renders is derived from ArgoCD**
+  (bosun ADR 0012). A new Terraform-applied root means a new line there —
+  derivation cannot see an ApplicationSet nothing in ArgoCD created, and a PR
+  introducing one renders nothing at all without it.
 - **No `kind: Secret` near `promises/`** (the Kratix state repo is public) —
   use an `ExternalSecret` against the `onepassword-store` ClusterSecretStore.
 

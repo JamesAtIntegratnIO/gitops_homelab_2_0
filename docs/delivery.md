@@ -14,7 +14,7 @@ is about what judges and repairs the pull requests it opens.
 | Piece | Where | What it does |
 |---|---|---|
 | The gate (in-cluster) | `gate.mode: cluster` in the [bosun addon](../addons/cluster-roles/control-plane/addons/bosun/values.yaml) | The agent *is* the gate. It polls open PRs, renders every bootstrap ApplicationSet at base and head against the **live** ArgoCD inventory, diffs what actually deploys, chart-diffs every moved version, schema-validates, and posts the **`addons-gate`** status itself |
-| Gate configuration | [.gitops-gate.yaml](../.gitops-gate.yaml) | The repo layout the gate binary knows nothing about. No `clusters:` key any more — the inventory is read live from the ArgoCD cluster Secrets on every run |
+| Gate configuration | [.bosun.yaml](../.bosun.yaml) | Only what cannot be derived: the two Terraform-applied bootstrap roots. Everything else the gate renders is derived live from the Applications and ApplicationSets ArgoCD serves (bosun ADR 0012), and validate policy lives in the bosun addon's values |
 | Bosun (in-cluster) | [bosun addon](../addons/cluster-roles/control-plane/addons/bosun/values.yaml) | The agent: repairs, fixes, explains, escalates. Comments as `bosun-mate[bot]`, status context `bosun` |
 | The triage hook | `triage:` in [kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml) | Kargo POSTs every **gated** promotion's pull request to Bosun — only PRs the merge policy will not auto-merge |
 | Branch protection | repository ruleset `validating protection` | `addons-gate` is a required check on `main`, no bypass actors. A blocking finding is an unmergeable pull request — for Kargo too |
@@ -86,10 +86,12 @@ is about what judges and repairs the pull requests it opens.
   and there is no separate gate image to pin or bump. That target is gone.
   `bosun` remains `autoMerge: never`: it judges every other promotion, and a
   gate that passes everything is Healthy by every signal there is.
-- **`clustersExport.knownAbsentLabels` in `.gitops-gate.yaml` is load-bearing
-  despite its name.** The render reads it, not just the deleted export path.
-  Remove it and the gate exits 2 on `aws_cluster_name` — an `error` status on
-  every PR, repo-wide, looking exactly like tidying.
+- **`clustersExport.knownAbsentLabels` is gone, and staying gone is right.**
+  It only ever guarded a gate bug: `DoesNotExist` selector keys were collected
+  into the presence-demand list, and `aws_cluster_name` appears in a selector
+  only under `DoesNotExist`. Bosun fixed the collection (in by 0.27.0), so the
+  workaround left with the file — and putting it back would mask the
+  stale-inventory refusal it piggybacked on for every other selector.
 - **Bosun triages its own bump** (`bosun` is `never`, so its upgrade PRs are
   gated). The deny-list keeps it from touching the gate, CI or the merge
   policy even there.

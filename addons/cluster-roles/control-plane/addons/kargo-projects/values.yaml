@@ -76,16 +76,12 @@ triage:
   url: http://bosun.bosun.svc:8080/v1/promotion-opened
   when: gated
 
-# Shared shapes -- YAML anchors are resolved before Helm sees the file.
-x-promise-image: &promiseImage
-  strategy: NewestBuild
-  allowTags: ['^main-[0-9a-f]{7}$']
-  platform: linux/amd64
-
-x-linuxserver-image: &linuxserverImage
-  strategy: NewestBuild
-  allowTags: ['^\d+\.\d+\.\d+\.\d+-ls\d+$']
-  platform: linux/amd64
+# Two image shapes are shared across targets by YAML anchor: `&promiseImage`
+# (our own CI images, defined on platform-status-reconciler) and
+# `&linuxserverImage` (defined on radarr). Each anchor lives on the first
+# target that uses it, not on a carrier key up here: the chart's schema is
+# strict at the top level from 0.2.3 on, so a key it does not read is a
+# refused render, not a convention.
 
 projects:
   # ───────────────────────────────────────────────────────────────────────
@@ -241,7 +237,13 @@ projects:
         # Every merge to main that touches images/platform-status-reconciler
         # publishes main-<sha>; bumping this pin is what deploys it.
         image:
-          <<: *promiseImage
+          # Defines `&promiseImage`, the shared shape every promise-style
+          # target below aliases. Moving or removing this target means moving
+          # the anchor with it.
+          <<: &promiseImage
+            strategy: NewestBuild
+            allowTags: ['^main-[0-9a-f]{7}$']
+            platform: linux/amd64
           repoURL: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler
         autoMerge: always
         verify:
@@ -784,7 +786,14 @@ projects:
       # behaviour but makes each update a visible, revertable commit.
       radarr:
         scope: vcluster-media
-        image: { <<: *linuxserverImage, repoURL: ghcr.io/linuxserver/radarr }
+        image:
+          # Defines `&linuxserverImage`, aliased by the other linuxserver
+          # targets below. Moving or removing radarr means moving the anchor.
+          <<: &linuxserverImage
+            strategy: NewestBuild
+            allowTags: ['^\d+\.\d+\.\d+\.\d+-ls\d+$']
+            platform: linux/amd64
+          repoURL: ghcr.io/linuxserver/radarr
         interval: 12h0m0s
         format: tag
         autoMerge: always

@@ -57,9 +57,11 @@ close-and-re-promote. GitHub also reuses check runs per head SHA, so re-opening
 a PR on an unchanged branch does not re-run the gate — push an empty commit to
 force a fresh revision when replaying.
 
-A PR whose head predates `.gitops-gate.yaml` gets a correct `error` ("no
-.gitops-gate.yaml at the head revision"). The gate is right about those; rebase
-or close them.
+The gate derives its sources from the Applications and ApplicationSets ArgoCD
+serves (bosun ADR 0012), so a PR whose head predates the config file still
+renders — derivation supplies the sources, and the Terraform-applied bootstraps
+are found by scanning the head for their manifests. The old "no
+.gitops-gate.yaml at the head revision" `error` is history.
 
 ## When the gate blocks
 
@@ -85,9 +87,10 @@ time. When you fix something the gate missed, ask what rule it becomes.
 
 ## Do not
 
-- **Delete `clustersExport` from `.gitops-gate.yaml`.** It reads as tidying and
-  is a repo-wide outage: the key is render configuration despite its name, and
-  without it the gate exits 2 and posts `error` on every PR.
+- **Delete `.bosun.yaml`.** Its `roots:` list is the one fact derivation
+  cannot supply: a bootstrap ApplicationSet this PR *introduces* has no live
+  object to be found by, so nothing would render it at all — and the named
+  files are what save the head scan from missing an existing one.
 - **Rebuild an egress allow-list for Bosun.** Egress is deliberately open since
   0.15.0 (`toFQDNs: "*"` on 443, every request logged); naming hosts was a
   full-time job manufacturing exactly the silent failure Bosun exists to end.
