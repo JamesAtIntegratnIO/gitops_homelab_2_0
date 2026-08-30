@@ -60,7 +60,9 @@ $HELM template kargo-projects \
   oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines --version <defaultVersion> \
   -f addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
 
-cd promises/vcluster-orchestrator-v2/workflows/resource/configure && $GO build ./...
+# Keep the `-o /dev/null` -- a bare `go build ./...` writes a 54MB binary named
+# after the promise into the source tree (each module is a single main package).
+cd promises/vcluster-orchestrator-v2/workflows/resource/configure && $GO build -o /dev/null ./...
 cd cli && $GO build -o /dev/null . && $GO test ./...     # the only real tests
 cd images/platform-status-reconciler && $GO test ./...
 ```
