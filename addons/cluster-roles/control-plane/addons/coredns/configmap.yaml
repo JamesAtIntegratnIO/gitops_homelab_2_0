@@ -1,0 +1,69 @@
+# The host cluster's CoreDNS Corefile.
+#
+# Talos owns this ConfigMap. It ships as bootstrap manifest `11-core-dns`
+# (`talosctl -n 10.0.4.101 get manifest 11-core-dns -o yaml`), rendered by
+# k8s.ManifestController and re-applied on every boot and on every machine
+# config change. `cluster.coreDNS` in the machine config only carries
+# `disabled` and `image` -- there is no Corefile field -- so the only ways to
+# change the Corefile are to out-live Talos's writes (this file) or to set
+# `cluster.coreDNS.disabled: true` and own the whole Deployment as an addon.
+# See "CoreDNS tuning" under "Still open at the Talos layer" in
+# matchbox/talos-machineconfigs/commands.md.
+#
+# This addon takes the second-best option deliberately: ArgoCD syncs with
+# selfHeal, so a Talos re-apply is reverted within the sync interval rather
+# than becoming permanent, and CoreDNS's `reload` plugin picks the file back
+# up ~30s later. A node reboot therefore costs a few minutes of the rewrite
+# below being absent, not an outage that waits for a human.
+#
+# prune is off on purpose: pruning this ConfigMap is a cluster-wide DNS outage.
+#
+# The body below is everything Talos renders, verbatim, plus the `rewrite`
+# line. Keep it that way -- diff against Talos before editing, or a Talos
+# upgrade's Corefile improvements get silently pinned to the old text:
+#
+#   talosctl -n 10.0.4.101 get manifest 11-core-dns -o yaml \
+#     | yq '.spec[] | select(.kind=="ConfigMap") | .data.Corefile'
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+            lameduck 5s
+        }
+        ready
+        log . {
+            class error
+        }
+        prometheus :9153
+
+        # auth.cluster.integratn.tech is our own authentik behind nginx-gateway.
+        # From outside the cluster it resolves to the MetalLB VIP 10.0.4.205, and
+        # from inside a pod that VIP is unreachable -- Cilium with kube-proxy
+        # replacement does not hairpin traffic to a MetalLB L2 address, so the
+        # packet gets "no route to host". Sending the name at the Service instead
+        # keeps the hostname (and therefore the TLS SNI and the OIDC issuer claim)
+        # identical while taking a path that exists.
+        rewrite name auth.cluster.integratn.tech nginx-gateway-nginx.nginx-gateway.svc.cluster.local
+
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+            ttl 30
+        }
+        forward . /etc/resolv.conf {
+           max_concurrent 1000
+        }
+        cache 30 {
+           disable success cluster.local
+           disable denial cluster.local
+        }
+        loop
+        reload
+        loadbalance
+    }

@@ -98,6 +98,33 @@ platform-http-services:
     - name: Description
       value: Kratix ResourceRequests for HTTP service provisioning
 
+# The host cluster's CoreDNS Corefile. Talos also writes this ConfigMap, as
+# bootstrap manifest `11-core-dns`, and re-applies it on every boot and machine
+# config change -- `cluster.coreDNS` has no Corefile field, so there is nowhere
+# in the machine config to put the `rewrite` line instead. selfHeal is what
+# makes this durable rather than decorative: it reverts a Talos re-apply within
+# the sync interval instead of the rewrite being lost until someone notices.
+#
+# prune is off deliberately. Everything else here prunes; pruning
+# kube-system/coredns is a cluster-wide DNS outage, so disabling this addon
+# must leave Talos's copy standing rather than delete the ConfigMap.
+coredns-host-config:
+  enabled: true
+  type: manifest
+  namespace: kube-system
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/coredns
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: In
+        values: ['control-plane']
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+
 observability-secrets:
   enabled: true
   type: manifest
