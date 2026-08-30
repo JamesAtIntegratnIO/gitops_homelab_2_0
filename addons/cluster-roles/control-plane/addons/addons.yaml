@@ -908,7 +908,10 @@ bosun:
   # nginx-gateway-fabric directory sources stop counting as schema
   # rejections. They put a standing schema=2 on every pull request here,
   # blocking, on apps the pull request had not touched.
-  defaultVersion: 0.28.1
+  # 0.28.2 -- a value that names the addon itself no longer claims that
+  # addon's label churn as "values this repository sets" (bosun#91), and the
+  # report stops escaping backticks it wrote itself (bosun#89).
+  defaultVersion: 0.28.2
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
