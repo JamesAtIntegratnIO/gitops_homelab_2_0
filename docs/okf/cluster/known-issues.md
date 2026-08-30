@@ -250,9 +250,32 @@ costs a few minutes without the rewrite instead of losing it until someone
 notices. `prune: false` because pruning `kube-system/coredns` is a cluster-wide
 DNS outage.
 
-The clean version is still open and still costs a machine config change:
-`cluster.coreDNS.disabled: true` plus a full CoreDNS addon — see "CoreDNS
-tuning" in [matchbox/talos-machineconfigs/commands.md](../../../matchbox/talos-machineconfigs/commands.md).
+The clean version is **staged, not applied**: `cluster.coreDNS.disabled: true`
+lives in
+[live-coredns-disabled.yaml](../../../matchbox/talos-machineconfigs/live-coredns-disabled.yaml)
+and the ServiceAccount, RBAC, Deployment and Service Talos would stop shipping
+are in the `coredns-workload` addon, deliberately `enabled: false`. Both halves
+are Talos's own render captured verbatim, so `kubectl diff` against the live
+cluster is empty — enabling the addon is an adoption, not a rollout of the
+resolver.
+
+Order matters and is the whole risk: **ArgoCD takes ownership first, Talos is
+switched off second.** The reverse leaves a window where Talos has stopped
+recreating CoreDNS and nothing else has started. The procedure, the checks and
+the rollback are in
+[coredns-workload/README.md](../../../addons/cluster-roles/control-plane/addons/coredns-workload/README.md);
+step 4 of [commands.md](../../../matchbox/talos-machineconfigs/commands.md) is
+the Talos half. It needs a machine config change on all three nodes, so it
+waits for James.
+
+What it costs once taken: **a Talos upgrade stops bumping CoreDNS.** The image
+is left as Talos's unpinned tag precisely so the adoption is a no-op, which
+means the first follow-up after cutover is to digest-pin it and add it to
+Kargo — otherwise it rots at whatever version Talos last shipped.
+
+Found while writing the patch: **`talosctl patch mc --dry-run` prints the whole
+machine config as a diff, embedded PEM private keys included.** Read it, do not
+paste it.
 
 ## Pinning the kratix image froze half an artifact (found 2026-08-30)
 
