@@ -8,8 +8,8 @@ generated: { by: claude-code/claude-opus-5, at: 2026-08-25T04:40:00Z }
 stale_after: 2026-09-25
 sources:
   - id: gate-config
-    resource: ../../../.gitops-gate.yaml
-    title: what the gate renders — no cluster inventory, it is read live
+    resource: ../../../.bosun.yaml
+    title: the Terraform-applied roots — everything else derives from ArgoCD
   - id: addon
     resource: ../../../addons/cluster-roles/control-plane/addons/bosun/values.yaml
     title: the Bosun addon values — model endpoint, gate coupling, safety settings
