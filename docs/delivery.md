@@ -98,6 +98,15 @@ is about what judges and repairs the pull requests it opens.
 
 ## Verifying a change to any of this
 
+Start at <https://bosun.cluster.integratn.tech> -- from bosun 0.29.0 the agent
+renders its own status page: what it is watching, which open pull requests have
+a verdict, and the last pipeline sweep with the command that ends each finding.
+It is the same report that has been on `/pipeline` as markdown all along, and
+it is read-only: the port it answers on serves the page and nothing else, so
+nothing there can trigger a triage. Sign-in is authentik forward-auth, the same
+as qdrant. Everything below is what to reach for when the page says something
+you want to see the working for.
+
 ```bash
 # the gate is in the cluster: watch it work
 kubectl -n bosun logs deploy/bosun -f | grep 'gate:'
