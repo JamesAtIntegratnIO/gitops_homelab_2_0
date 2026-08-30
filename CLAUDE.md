@@ -210,8 +210,11 @@ helm template kargo-projects \
   oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines --version <defaultVersion> \
   -f addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
 
-# promise pipelines (Go) -- no tests here, so it is a build gate
-cd promises/vcluster-orchestrator-v2/workflows/resource/configure && go build ./...
+# promise pipelines (Go) -- no tests here, so it is a build gate.
+# Keep the `-o /dev/null`: each module is a single main package, so a bare
+# `go build ./...` drops a 54MB binary named after the promise into the source
+# tree. CI's validate-go job builds the same way.
+cd promises/vcluster-orchestrator-v2/workflows/resource/configure && go build -o /dev/null ./...
 
 # CLI (has real tests)
 cd cli && go build -o /dev/null . && go test ./...
