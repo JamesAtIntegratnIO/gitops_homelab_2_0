@@ -108,7 +108,7 @@ spec:
           spec:
             containers:
               - name: configure
-                image: ghcr.io/jamesatintegratnio/external-secret-configure:main-19c4355@sha256:f83c3dcf65de66fef9b6f6113cffc07f5d5d1b4a48565f2ee3b2ac7dcd807269
+                image: ghcr.io/jamesatintegratnio/external-secret-configure:main-ecc337c@sha256:af2cfb3be4aa2ef48934340cc1621e6108181127a46c1ca87447e884c79d4b11
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
@@ -127,7 +127,7 @@ spec:
           spec:
             containers:
               - name: delete
-                image: ghcr.io/jamesatintegratnio/external-secret-configure:main-19c4355@sha256:f83c3dcf65de66fef9b6f6113cffc07f5d5d1b4a48565f2ee3b2ac7dcd807269
+                image: ghcr.io/jamesatintegratnio/external-secret-configure:main-ecc337c@sha256:af2cfb3be4aa2ef48934340cc1621e6108181127a46c1ca87447e884c79d4b11
                 imagePullPolicy: Always
                 securityContext:
                   allowPrivilegeEscalation: false
