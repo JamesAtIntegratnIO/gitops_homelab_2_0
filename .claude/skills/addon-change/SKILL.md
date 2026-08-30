@@ -43,9 +43,12 @@ Deployments inside vcluster-media froze mid-rollout. (Also: vcluster's syncer
 does not propagate `priorityClassName` to the host pod, so inside a vcluster
 that field only satisfies admission.)
 
-`-> <none>` means the selector matches no cluster. That is benign and permanent
-for `vcluster-coredns-config` and `gateway-api-crds-vcluster`; for anything else
-it means the addon is not running.
+`-> <none>` means the selector matches no cluster. That is benign for
+`gateway-api-crds-vcluster` — it is the non-production vcluster fallback, and
+the only vcluster today is production. For anything else it means the addon is
+not running, and is worth checking against the reason it was added: an addon
+whose selector can never match anything is dead weight the gate reports on
+every PR.
 
 ## Value-layer precedence
 

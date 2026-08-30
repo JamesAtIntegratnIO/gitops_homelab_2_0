@@ -1,10 +1,10 @@
 ---
 type: Inventory
 title: Addon inventory
-description: Every addon defined under addons/ — enabled state, namespace, chart/version, defining layer, and purpose — as of 2026-08-20, plus the kargo/kargo-projects pair added 2026-08-21.
+description: Every addon defined under addons/ — enabled state, namespace, chart/version, defining layer, and purpose — as of 2026-08-20, plus the kargo/kargo-projects pair added 2026-08-21 and the removal of vcluster-coredns-config on 2026-08-30.
 tags: [addons, inventory]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-22T13:51:03Z }
+generated: { by: claude-code/claude-opus-5, at: 2026-08-30T17:13:35Z }
 stale_after: 2026-11-20
 sources:
   - id: env-prod
@@ -37,7 +37,6 @@ Layer key: **env** = environments/production, **cp** = cluster-roles/control-pla
 | cert-manager | cert-manager | @ v1.16.2 | TLS (wave -1) |
 | kratix | kratix-platform-system | @ 0.0.1 (also in cp layer: syncPolicy override, Destination, state-reconciler app, delete-RBAC) | [Kratix](/promises/kratix.md) |
 | metallb + metallb-config | metallb-system | @ 0.16.1 + manifests | L2 LB pool 10.0.4.200-253 |
-| vcluster-coredns-config | kube-system | manifest | CoreDNS config (cluster_role=worker targets) |
 | gateway-api-crds | kube-system | manifest from kubernetes-sigs/gateway-api @ v1.5.1 | Gateway API CRDs |
 | nginx-gateway-fabric | nginx-gateway | OCI @ 2.6.7 (+tc: wildcard cert, CF secret, ReferenceGrant) | [Gateway](/platform/networking.md) |
 | kyverno | kyverno | @ 3.2.8 | [Policy engine](/platform/security-posture.md) |

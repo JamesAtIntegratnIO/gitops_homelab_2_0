@@ -79,9 +79,11 @@ is about what judges and repairs the pull requests it opens.
   [kargo-projects target list](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml)**
   — six of kyverno's seven tracked keys are in that set, and a tracked key the
   chart no longer reads is a pin that updates forever and does nothing.
-- **`vcluster-coredns-config` and `gateway-api-crds-vcluster` match no
-  cluster** and appear under "Not covered" in every report. Known; not an
-  error.
+- **`gateway-api-crds-vcluster` matches no cluster** and appears under "Not
+  covered" in every report. Known; not an error — it is the non-production
+  vcluster fallback (`environment NotIn ['production']`) and the only vcluster
+  today is production. `vcluster-coredns-config` used to sit alongside it; that
+  one was genuinely dead and was removed.
 - **The gate ships inside Bosun now**, so its version is `bosun.defaultVersion`
   and there is no separate gate image to pin or bump. That target is gone.
   `bosun` remains `autoMerge: never`: it judges every other promotion, and a
