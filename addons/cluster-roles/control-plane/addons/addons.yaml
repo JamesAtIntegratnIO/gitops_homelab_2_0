@@ -594,7 +594,7 @@ goldilocks:
   chartName: goldilocks
   project: platform-services
   chartRepository: https://charts.fairwinds.com/stable
-  defaultVersion: 11.0.0
+  defaultVersion: 11.1.0
   selector:
     matchExpressions:
       - key: cluster_role
