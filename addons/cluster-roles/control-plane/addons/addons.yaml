@@ -849,7 +849,7 @@ kargo:
   chartName: kargo
   project: platform-services
   chartRepository: oci://ghcr.io/akuity/kargo-charts/kargo
-  defaultVersion: "1.11.2"
+  defaultVersion: 1.11.3
   selectorMatchLabels:
     cluster_role: control-plane
   additionalResources:
