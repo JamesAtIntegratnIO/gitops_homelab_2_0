@@ -110,7 +110,7 @@ spec:
                   subPath: backups/the-cluster-etcd
           containers:
             - name: finalize
-              image: docker.io/alpine/k8s:1.35.6@sha256:b7a12c5ddf261994c33d2eaaa06fd69a0803ff6b38683bfa3d30a76dcdf92807
+              image: docker.io/alpine/k8s:1.35.8@sha256:aaeed1de1399aa816535d376c7d5c9bea905892301649ffaee0905397c7d4956
               command: [/bin/sh, -euo, pipefail, -c]
               args:
                 - |
