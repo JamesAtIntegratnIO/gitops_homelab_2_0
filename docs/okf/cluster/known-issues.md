@@ -4,8 +4,8 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-30T18:20:00Z }
-stale_after: 2026-09-30
+generated: { by: claude-code/claude-opus-5, at: 2026-09-01T00:00:00Z }
+stale_after: 2026-10-01
 sources:
   - id: live-cluster
     resource: kubectl sweep of the-cluster (admin@the-cluster), 2026-08-20
@@ -13,7 +13,88 @@ sources:
   - id: repo-review
     resource: full-repo review (source, docs, workflows, hooks), 2026-08-20
     title: Repository review
+  - id: alert-sweep-0901
+    resource: Prometheus /api/v1/alerts + kubectl sweep of the-cluster, 2026-09-01
+    title: Alert triage sweep 2026-09-01
 ---
+
+# Trivy scan coverage silently fell to zero, and one report 4% too big did it (2026-09-01)
+
+`the-cluster` held **2 VulnerabilityReports**. The `trivy-operator` values file
+records 149 as recently as 2026-08-21. Every ArgoCD Application was
+`Synced`/`Healthy`, no alert fired, and nothing in the alert set watches scan
+coverage at all.[^alert-sweep-0901]
+
+The scanner had been wedged since `2026-08-28T09:07`. Thirteen scan Jobs were
+created in that one second; nine of their Pods died on a Trivy fs-cache lock
+timeout, and two — both for `ghcr.io/goauthentik/server:2025.12.4` — entered a
+retry loop that never ends:
+
+```
+Reconciler error ... controllerKind=Job Job=scan-vulnerabilityreport-6c985449f5
+error="rpc error: code = ResourceExhausted desc = trying to send message larger
+than max (2190230 vs 2097152)"
+```
+
+The VulnerabilityReport for that image is **2190230 bytes against the 2097152
+apiserver/etcd gRPC ceiling — 4% over**. It can never be written, so the Job
+can never succeed, so it retries every ~17 minutes forever. With
+`operator.scanJobsConcurrentLimit: 3`, those two Jobs hold two thirds of the
+scanner's capacity permanently. The queue stops draining, existing reports age
+out, and the count walks down to nothing.
+
+Three things make this hard to see:
+
+- **The margin is tiny.** A routine authentik image bump was enough to cross
+  the line. Nothing about the change looks like it touches the scanner.
+- **The Jobs report `active=0 succeeded=0 failed=0`.** They are not `Failed`,
+  so `KubeJobFailed` never fires and a `kubectl get jobs` skim reads as idle.
+- **`scanJobTTL: 30s` only reaps completed Jobs**, so the stuck ones accumulate
+  rather than being cleaned up.
+
+Fixed in git by `trivy.ignoreUnfixed: true` — unfixed findings are not
+actionable, the same rationale the `severity` list already carries, and it buys
+far more than the 4% needed. **The observability gap is still open**: there is
+no alert on `count(vulnerabilityreports)` collapsing, and per the house pattern
+(see `KargoMetricsMissing` in [observability](/platform/observability.md)) a
+dead-man's-switch on scan coverage is the only thing that would have caught it.
+
+Cleanup still owed once the fix reconciles: the 13 stale Jobs and 9 `Failed`
+Pods in `trivy-system` must be deleted so the operator recreates them under the
+new configuration. They are orphans — nothing in git manages them individually.
+
+# Two of cert-manager's three scrape targets had never been reachable (2026-09-01)
+
+`TargetDown{job="webhook"}` and `TargetDown{job="cainjector"}` had been firing
+at 100% since 2026-08-22, and are the older half of a policy that has probably
+been wrong since it was written.[^alert-sweep-0901]
+
+Pods `Running`, EndpointSlices populated on 9402, and Prometheus reporting a
+**timeout rather than a refusal** — the house signature for a NetworkPolicy
+drop:
+
+```
+Get "http://10.244.0.245:9402/metrics": context deadline exceeded
+```
+
+`network-policies/cert-manager.yaml` carried three policies and only the first
+admitted monitoring:
+
+| Policy | podSelector | Ingress allowed |
+|---|---|---|
+| `allow-cert-manager` | `component: controller` | monitoring → 9402 ✅ |
+| `allow-cert-manager-webhook` | `component: webhook` | node IPs + pod CIDR → **10250 only** |
+| `allow-cert-manager-cainjector` | `component: cainjector` | `ingress: []` — **deny-all** |
+
+cert-manager v1.21.1 serves metrics on 9402 from all three components, and the
+chart ships a **single** ServiceMonitor whose selector matches all three. So
+two of its three targets were denied from the start; only the controller ever
+scraped. Fixed by adding the monitoring:9402 rule to both policies.
+
+The generalisable form: a ServiceMonitor that selects several components needs
+a matching ingress rule for **each** podSelector the namespace's policies carve
+out. `ingress: []` under `policyTypes: [Ingress]` is deny-all, not "no
+restriction" — it reads like an empty placeholder and behaves like a wall.
 
 # The LM Studio endpoint does not enforce its API key (found 2026-08-22)
 
@@ -1031,3 +1112,4 @@ scan init failures (#4).
 
 [^live-cluster]: Live cluster observation
 [^repo-review]: Repository review
+[^alert-sweep-0901]: Alert triage sweep 2026-09-01

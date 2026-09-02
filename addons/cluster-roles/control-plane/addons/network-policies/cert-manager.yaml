@@ -124,6 +124,17 @@ spec:
       ports:
         - protocol: TCP
           port: 10250
+    # Prometheus metrics scraping. cert-manager v1.21 serves metrics on 9402
+    # from all three components; only the controller had a rule, so the
+    # `webhook` and `cainjector` scrape targets timed out (a drop, not a
+    # refusal) and TargetDown fired continuously from 2026-08-22.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9402
 ---
 # cert-manager cainjector
 apiVersion: networking.k8s.io/v1
@@ -137,4 +148,12 @@ spec:
       app.kubernetes.io/component: cainjector
   policyTypes:
     - Ingress
-  ingress: []
+  ingress:
+    # Prometheus metrics scraping -- see the note on allow-cert-manager-webhook.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9402
