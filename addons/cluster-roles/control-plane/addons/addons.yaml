@@ -984,7 +984,7 @@ bosun:
   # blueprint ConfigMap. Published at bosun.cluster.integratn.tech, behind
   # authentik forward-auth. `web.httpRoute` stays OFF: the chart's route
   # cannot carry the filter that puts authentik in front.
-  defaultVersion: 0.31.0
+  defaultVersion: 0.34.1
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
