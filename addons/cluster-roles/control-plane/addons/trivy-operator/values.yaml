@@ -62,6 +62,21 @@ trivy:
   mode: Standalone
   # Only report actionable severities
   severity: LOW,MEDIUM,HIGH,CRITICAL
+  # Drop vulnerabilities with no fixed version available.
+  #
+  # Without this the VulnerabilityReport for ghcr.io/goauthentik/server crossed
+  # the 2 MiB apiserver/etcd gRPC message limit -- 2190230 vs 2097152, only 4%
+  # over -- so trivy-operator could never write it:
+  #
+  #   Reconciler error ... rpc error: code = ResourceExhausted desc = trying to
+  #   send message larger than max (2190230 vs 2097152)
+  #
+  # The two authentik scan Jobs then retried forever, permanently holding 2 of
+  # the 3 scanJobsConcurrentLimit slots. The queue never drained: the cluster
+  # went from 149 VulnerabilityReports to 2 between 2026-08-28 and 2026-09-01
+  # while every dashboard stayed green. Unfixed findings are not actionable
+  # anyway, which is the same rationale as the severity list above.
+  ignoreUnfixed: true
   # Resource limits for scan jobs — raised CPU to reduce CPUThrottling alerts
   resources:
     requests:
