@@ -893,7 +893,7 @@ argo-rollouts:
   chartName: argo-rollouts
   project: platform-services
   chartRepository: https://argoproj.github.io/argo-helm
-  defaultVersion: "2.41.1"
+  defaultVersion: 2.42.0
   annotationsApp:
     argocd.argoproj.io/sync-wave: "-1"
   selectorMatchLabels:
