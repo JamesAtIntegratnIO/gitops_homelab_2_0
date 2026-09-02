@@ -4,12 +4,15 @@ title: Workload inventory (live snapshot)
 description: Everything running on the-cluster by namespace — deployments, statefulsets, daemonsets — as observed 2026-08-20.
 tags: [inventory, workloads, snapshot]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
-stale_after: 2026-09-20
+generated: { by: claude-code/claude-opus-5, at: 2026-09-01T00:00:00Z }
+stale_after: 2026-10-01
 sources:
   - id: live-workloads
     resource: kubectl get deploy,sts,ds -A on the-cluster (admin@the-cluster), 2026-08-20
     title: Live workload listing
+  - id: alert-sweep-0901
+    resource: kubectl sweep of the-cluster, 2026-09-01 (trivy-system Jobs/Pods)
+    title: Alert triage sweep 2026-09-01
 ---
 
 All workloads were Ready at snapshot time except where noted.[^live-workloads]
@@ -32,7 +35,7 @@ All workloads were Ready at snapshot time except where noted.[^live-workloads]
 | `loki` | loki (STS), loki-gateway, chunks-cache + results-cache (STS), loki-canary DS |
 | `promtail` | promtail DS |
 | `kyverno` | admission, background, cleanup, reports controllers + 4 cleanup CronJobs (*/10m) |
-| `trivy-system` | trivy-operator, trivy-operator-explorer (+ 3 stuck scan pods — see [known issues](/cluster/known-issues.md)) |
+| `trivy-system` | trivy-operator, trivy-operator-explorer (+ 13 stuck scan Jobs and 9 `Failed` Pods from 2026-08-28 — see [known issues](/cluster/known-issues.md)) |
 | `goldilocks` | controller, dashboard, vpa-recommender |
 | `authentik` | server ×2, worker, redis |
 | `nfs-provisioner` | config-, data-, and plain nfs-subdir provisioners |
