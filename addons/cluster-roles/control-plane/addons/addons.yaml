@@ -657,7 +657,7 @@ trivy-operator:
   chartName: trivy-operator
   project: platform-services
   chartRepository: https://aquasecurity.github.io/helm-charts/
-  defaultVersion: 0.35.0
+  defaultVersion: 0.36.0
   selector:
     matchExpressions:
       - key: cluster_role
