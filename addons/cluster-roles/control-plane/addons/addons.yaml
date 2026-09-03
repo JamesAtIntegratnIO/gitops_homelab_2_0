@@ -760,7 +760,7 @@ open-webui:
   namespace: ai
   chartName: open-webui
   chartRepository: "https://helm.openwebui.com/"
-  defaultVersion: 16.3.2
+  defaultVersion: 16.5.0
   project: platform-services
   selector:
     matchExpressions:
