@@ -632,7 +632,7 @@ podinfo:
   chartName: podinfo
   project: platform-services
   chartRepository: https://stefanprodan.github.io/podinfo
-  defaultVersion: 6.7.0
+  defaultVersion: 6.14.1
   valuesObject:
     replicaCount: 1
     resources:
