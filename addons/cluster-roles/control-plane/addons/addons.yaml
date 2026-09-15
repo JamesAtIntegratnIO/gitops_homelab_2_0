@@ -703,7 +703,7 @@ trivy-explorer:
   chartName: trivy-operator-explorer
   project: platform-services
   chartRepository: https://starttoaster.github.io/trivy-operator-explorer
-  defaultVersion: 0.5.1
+  defaultVersion: 0.5.2
   selector:
     matchExpressions:
       - key: cluster_role
