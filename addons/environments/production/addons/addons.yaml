@@ -617,7 +617,7 @@ cilium:
   namespace: kube-system
   project: platform-services
   chartRepository: https://helm.cilium.io/
-  defaultVersion: 1.20.1
+  defaultVersion: 1.20.2
   selector:
     matchExpressions:
       - key: cluster_role
