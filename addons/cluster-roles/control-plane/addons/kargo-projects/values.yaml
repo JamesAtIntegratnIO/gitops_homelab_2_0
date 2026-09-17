@@ -659,7 +659,17 @@ projects:
           - file: addons/cluster-roles/control-plane/addons/addons.yaml
             keys: [trivy-operator.defaultVersion]
       trivy-operator-explorer:
-        chart: { repoURL: https://starttoaster.github.io/trivy-operator-explorer, name: trivy-operator-explorer }
+        # v1.0.0 re-architected the explorer: the frontend no longer reads the
+        # Trivy CRDs directly, it reads report bundles that separate collectors
+        # write to an S3 bucket, and it exits 1 on "s3-bucket flag is required"
+        # when none is set. There is no bucket here, so 0.5.x can never start.
+        # The chart line splits cleanly: 0.4.9 (appVersion v0.6.1) is the last
+        # chart that renders no S3 env at all; 0.4.10 keeps v0.6.1 but adds the
+        # S3 wiring. Hold below 0.4.10 until there is a bucket to point at.
+        chart:
+          repoURL: https://starttoaster.github.io/trivy-operator-explorer
+          name: trivy-operator-explorer
+          constraint: ">=0.4.0 <0.4.10"
         verify:
           apps:
             - trivy-explorer-the-cluster
