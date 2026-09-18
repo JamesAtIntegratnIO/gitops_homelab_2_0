@@ -1,0 +1,114 @@
+# The Specmarshal orchestrator: `specmarshal serve`, the standing process that
+# reads every project for work marked ready, works it, and reads again.
+#
+# REPLICAS 0 UNTIL THE PRECONDITIONS IN README.md HOLD -- the 1Password items,
+# the database, and an image that carries the kubernetes launcher. Scaling this
+# up is the deploy.
+#
+# It never runs an agent itself. Each iteration is a Job in specmarshal-agents
+# that the orchestrator starts through the API server and reaches into with
+# `kubectl exec` (rbac.yaml); the orchestrator only holds the clones, the
+# tickets, and the verdicts.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: specmarshal
+  namespace: specmarshal
+  labels:
+    app.kubernetes.io/name: specmarshal
+spec:
+  replicas: 0
+  # One holder at a time. Specmarshal's project lease is a row in the store, so
+  # two pods would not corrupt anything -- but a rolling update would start the
+  # new pod while the old one is still draining its runs, and the new one would
+  # sit on the lease doing nothing. Recreate lets the old one finish first.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: specmarshal
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: specmarshal
+    spec:
+      serviceAccountName: specmarshal
+      imagePullSecrets:
+        - name: specmarshal-ghcr
+      # Longer than an iteration may run (iteration-timeout, 2h by default),
+      # plus the gate after it. The first SIGTERM starts the wind-down: nothing
+      # new is taken and the runs in flight are let finish. SIGKILL at the end of
+      # this cuts them off instead, and the iteration Jobs they started are left
+      # to their own activeDeadlineSeconds. Raise it with iteration-timeout.
+      terminationGracePeriodSeconds: 7500
+      initContainers:
+        # Stores the GitHub App under the Specmarshal home on every start --
+        # exactly `specmarshal github-app` on a laptop -- so rotating the key in
+        # 1Password reaches the pod on its next restart, and the key is a file
+        # the tracker reads rather than a variable every git and gh process the
+        # orchestrator spawns would inherit.
+        - name: github-app
+          image: ghcr.io/integratnio/specmarshal-orchestrator:sha-0fe895f594cb0a397e95f105a691388170ec1d96
+          args:
+            - github-app
+            - --app-id=$(APP_ID)
+            - --installation-id=$(INSTALLATION_ID)
+            - --key=/etc/specmarshal/github/private-key
+          env:
+            - name: APP_ID
+              valueFrom: { secretKeyRef: { name: specmarshal-github-app, key: app-id } }
+            - name: INSTALLATION_ID
+              valueFrom: { secretKeyRef: { name: specmarshal-github-app, key: installation-id } }
+          volumeMounts:
+            - { name: home, mountPath: /var/lib/ralph }
+            - { name: github-app, mountPath: /etc/specmarshal/github, readOnly: true }
+      containers:
+        - name: specmarshal
+          # Bump to the sha- tag of the merge that carries the kubernetes
+          # launcher (IntegratnIO/specmarshal#152) before scaling up: this one
+          # predates it and refuses `launcher: kubernetes`. Not Kargo-tracked --
+          # see README.md.
+          image: ghcr.io/integratnio/specmarshal-orchestrator:sha-0fe895f594cb0a397e95f105a691388170ec1d96
+          args: ["serve", "--web", "0.0.0.0:4200"]
+          ports:
+            - name: http
+              containerPort: 4200
+          env:
+            - name: SPECMARSHAL_LAUNCHER
+              value: kubernetes
+            - name: SPECMARSHAL_KUBERNETES_NAMESPACE
+              value: specmarshal-agents
+            - name: SPECMARSHAL_KUBERNETES_PULL_SECRET
+              value: specmarshal-ghcr
+            # The operator's half of the page's loopback guard. The other half
+            # is Specmarshal seeing that it is in a container, which it reads
+            # off the pod's mount table. Both are needed for the page to bind
+            # the pod's interface; authentik in front is what makes that safe.
+            # Still spelled with the old prefix: Specmarshal reads this one
+            # literal, and SPECMARSHAL_WEB_BIND_NONLOOPBACK does nothing yet.
+            - name: RALPH_WEB_BIND_NONLOOPBACK
+              value: "1"
+          envFrom:
+            # SPECMARSHAL_STORE and PGPASSWORD.
+            - secretRef: { name: specmarshal-db }
+            # ANTHROPIC_API_KEY, which the orchestrator forwards to each
+            # iteration through a Secret of its own.
+            - secretRef: { name: specmarshal-anthropic }
+          volumeMounts:
+            - { name: home, mountPath: /var/lib/ralph }
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          # No liveness probe: a serve that is busy draining a long iteration is
+          # alive, and one killed for being slow strands the Jobs it started.
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { memory: 2Gi }
+      volumes:
+        - name: home
+          persistentVolumeClaim: { claimName: specmarshal-home }
+        - name: github-app
+          secret:
+            secretName: specmarshal-github-app
+            items:
+              - { key: private-key, path: private-key }
