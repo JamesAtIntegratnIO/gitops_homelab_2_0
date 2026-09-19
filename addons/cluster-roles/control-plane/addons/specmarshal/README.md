@@ -25,16 +25,13 @@ provider is `08a-specmarshal-proxy-provider.yaml` in the blueprint ConfigMap.
 
 Scaling the Deployment to 1 is the deploy. It needs all of these first.
 
-### 1. An image with the kubernetes launcher
+### 1. The model
 
-The pinned `sha-0fe895f…` predates it and refuses `launcher: kubernetes`. Once
-IntegratnIO/specmarshal#150 and #152 are merged, set both `image:` lines in
-`deployment.yaml` (the `github-app` init container and `specmarshal`) to the
-`sha-<merge commit>` tag the publish workflow pushes.
-
-The image is not Kargo-tracked. The package is private, and Kargo has no GHCR
-credential for `ghcr.io/integratnio`, so a Warehouse for it would fail forever.
-Tracking it needs that credential first.
+Iterations run Pi against LM Studio on the workstation, `192.168.0.57:1234`,
+the same server and DHCP reservation bosun uses. LM Studio needs "Serve on
+Local Network" on and `qwen/qwen3.6-35b-a3b` available. Nothing is billed per
+token, and there is no provider key. To use a hosted model instead, set
+`SPECMARSHAL_AGENT`/`SPECMARSHAL_PROVIDER` back and add the key's ExternalSecret.
 
 ### 2. The database
 
@@ -61,16 +58,14 @@ Renaming a field breaks the ExternalSecret that reads it.
 | Item | Fields | Notes |
 |---|---|---|
 | `specmarshal-db-connection` | `host`, `port`, `text` (the role name), `password` | the connection string is assembled in `externalsecret.yaml`, and the password reaches the pod as `PGPASSWORD`, never in the URL |
-| `specmarshal-anthropic` | `api-key` | an Anthropic API key. An iteration Job has no sign-in volume, so Claude Code runs on a key or not at all |
 | `specmarshal-github-app` | `app-id`, `installation-id`, `private-key` | the GitHub App Specmarshal acts as. It needs Administration, Contents, Issues and Pull requests (write), plus Metadata (read). `specmarshal github-app` with no flags prints the walk-through |
 | `specmarshal-ghcr` | `username`, `token` | a classic PAT with `read:packages`, for the private orchestrator and sandbox images. Used in both namespaces |
 
-### 4. A project
+### 4. Projects
 
-`serve` with no projects says so and exits, so the Deployment would crash-loop.
-Set `SPECMARSHAL_PROJECTS` in `deployment.yaml` to the repositories it holds, as
-clone URLs, comma separated. Or set it to one, and register the rest on the
-surface.
+Register them on the surface. `serve` stands with none, so the first can be
+added from the page. Or declare them in `SPECMARSHAL_PROJECTS` in
+`deployment.yaml` as clone URLs, comma separated.
 
 ## Running it
 
@@ -87,3 +82,6 @@ surface.
 - Stopping drains. The first SIGTERM lets runs in flight finish, and
   `terminationGracePeriodSeconds` is 7500 so a two-hour iteration can. A
   rollout therefore waits for work in progress. That is deliberate.
+- The image is pinned by `sha-` tag and not Kargo-tracked. The package is
+  private, and Kargo has no GHCR credential for `ghcr.io/integratnio`, so a
+  Warehouse for it would fail forever. Tracking it needs that credential first.

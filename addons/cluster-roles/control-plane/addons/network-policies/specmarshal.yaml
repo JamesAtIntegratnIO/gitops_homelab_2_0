@@ -176,3 +176,24 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
+---
+# The model: LM Studio on the workstation, which Pi calls from inside each
+# iteration's Job. A /32 because the rule above excepts every private range,
+# and this is the one private host an agent has any business with -- the same
+# host and port bosun is allowed (bosun/values.yaml), a DHCP reservation.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workstation-model-egress
+  namespace: specmarshal-agents
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 192.168.0.57/32
+      ports:
+        - protocol: TCP
+          port: 1234

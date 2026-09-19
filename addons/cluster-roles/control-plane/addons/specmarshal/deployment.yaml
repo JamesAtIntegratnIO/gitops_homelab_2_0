@@ -1,9 +1,8 @@
 # The Specmarshal orchestrator: `specmarshal serve`, the standing process that
 # reads every project for work marked ready, works it, and reads again.
 #
-# REPLICAS 0 UNTIL THE PRECONDITIONS IN README.md HOLD -- the 1Password items,
-# the database, and an image that carries the kubernetes launcher. Scaling this
-# up is the deploy.
+# REPLICAS 0 UNTIL THE PRECONDITIONS IN README.md HOLD -- the 1Password items
+# and the database. Scaling this up is the deploy.
 #
 # It never runs an agent itself. Each iteration is a Job in specmarshal-agents
 # that the orchestrator starts through the API server and reaches into with
@@ -48,7 +47,7 @@ spec:
         # the tracker reads rather than a variable every git and gh process the
         # orchestrator spawns would inherit.
         - name: github-app
-          image: ghcr.io/integratnio/specmarshal-orchestrator:sha-0fe895f594cb0a397e95f105a691388170ec1d96
+          image: ghcr.io/integratnio/specmarshal-orchestrator:sha-34a3348710d0927da4d7f9e9ebbdfbed2c809f6e
           args:
             - github-app
             - --app-id=$(APP_ID)
@@ -64,11 +63,10 @@ spec:
             - { name: github-app, mountPath: /etc/specmarshal/github, readOnly: true }
       containers:
         - name: specmarshal
-          # Bump to the sha- tag of the merge that carries the kubernetes
-          # launcher (IntegratnIO/specmarshal#152) before scaling up: this one
-          # predates it and refuses `launcher: kubernetes`. Not Kargo-tracked --
-          # see README.md.
-          image: ghcr.io/integratnio/specmarshal-orchestrator:sha-0fe895f594cb0a397e95f105a691388170ec1d96
+          # main at IntegratnIO/specmarshal@34a33487: the kubernetes launcher
+          # (#152), and a surface that stands with no projects so they can be
+          # registered from it. Not Kargo-tracked -- see README.md.
+          image: ghcr.io/integratnio/specmarshal-orchestrator:sha-34a3348710d0927da4d7f9e9ebbdfbed2c809f6e
           args: ["serve", "--web", "0.0.0.0:4200"]
           ports:
             - name: http
@@ -80,6 +78,26 @@ spec:
               value: specmarshal-agents
             - name: SPECMARSHAL_KUBERNETES_PULL_SECRET
               value: specmarshal-ghcr
+            # The model is LM Studio on the workstation -- the same server and
+            # the same DHCP-reserved address bosun uses -- through Pi's `local`
+            # provider, so an iteration costs nothing per token. Pi reaches it
+            # from inside each iteration's Job, which is why the agents'
+            # namespace has an egress rule for exactly this host and port
+            # (network-policies/specmarshal.yaml). LM Studio must have "Serve on
+            # Local Network" on and these models available; a sleeping
+            # workstation reads as every iteration timing out.
+            - name: SPECMARSHAL_AGENT
+              value: pi
+            - name: SPECMARSHAL_PROVIDER
+              value: local
+            - name: SPECMARSHAL_BASE_URL
+              value: http://192.168.0.57:1234/v1
+            - name: SPECMARSHAL_IMPLEMENT_MODEL
+              value: qwen/qwen3.6-35b-a3b
+            - name: SPECMARSHAL_REVIEW_MODEL
+              value: qwen/qwen3.6-35b-a3b
+            - name: SPECMARSHAL_ANSWER_MODEL
+              value: qwen/qwen3.6-35b-a3b
             # The operator's half of the page's loopback guard. The other half
             # is Specmarshal seeing that it is in a container, which it reads
             # off the pod's mount table. Both are needed for the page to bind
@@ -91,9 +109,6 @@ spec:
           envFrom:
             # SPECMARSHAL_STORE and PGPASSWORD.
             - secretRef: { name: specmarshal-db }
-            # ANTHROPIC_API_KEY, which the orchestrator forwards to each
-            # iteration through a Secret of its own.
-            - secretRef: { name: specmarshal-anthropic }
           volumeMounts:
             - { name: home, mountPath: /var/lib/ralph }
           readinessProbe:
