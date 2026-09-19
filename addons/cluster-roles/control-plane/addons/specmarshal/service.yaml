@@ -1,0 +1,16 @@
+# The web surface. ClusterIP only: it is reached through the gateway, behind
+# authentik (httproute.yaml), and nowhere else.
+apiVersion: v1
+kind: Service
+metadata:
+  name: specmarshal
+  namespace: specmarshal
+  labels:
+    app.kubernetes.io/name: specmarshal
+spec:
+  selector:
+    app.kubernetes.io/name: specmarshal
+  ports:
+    - name: http
+      port: 4200
+      targetPort: http

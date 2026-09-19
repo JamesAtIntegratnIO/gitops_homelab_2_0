@@ -1037,6 +1037,63 @@ bosun:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
 
+specmarshal:
+  # Specmarshal -- https://github.com/IntegratnIO/specmarshal -- the
+  # orchestrator that works a spec's tickets with coding agents. Raw manifests
+  # beside this file: the orchestrator (`specmarshal serve`) in `specmarshal`,
+  # and a Role letting it run each agent iteration as a Job in
+  # `specmarshal-agents`. The namespaces and their NetworkPolicies are in
+  # network-policies/specmarshal.yaml.
+  #
+  # Ships at replicas 0. README.md beside the manifests lists what has to be
+  # true before it is scaled up: the 1Password items, the database, and an
+  # orchestrator image that carries the kubernetes launcher.
+  enabled: true
+  type: manifest
+  namespace: specmarshal
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/specmarshal
+  selector:
+    matchExpressions:
+      - key: cluster_role
+        operator: NotIn
+        values: ['vcluster']
+  # Defaulted fields the manifests do not set, so the app is not OutOfSync
+  # forever while syncing successfully every time. The ExternalSecret and
+  # HTTPRoute blocks are bosun's, for the same reasons; the template's
+  # mergePolicy is defaulted on the two ExternalSecrets that use one.
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.target.template.mergePolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .status
+        - .spec.parentRefs[]?.group
+        - .spec.parentRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
+      jqPathExpressions:
+        - .status
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+
 kargo-observability:
   # Its own repository now --
   # https://github.com/JamesAtIntegratnIO/kargo-observability -- because it

@@ -1,0 +1,38 @@
+# Guardrails on the iteration Jobs, set here rather than in Specmarshal: how big
+# an agent's container may be is this cluster's decision, and Specmarshal's
+# launcher deliberately leaves resources unset so the namespace decides.
+#
+# The LimitRange gives every iteration container a request (so the scheduler
+# places it honestly) and a memory ceiling (so a runaway test suite is
+# OOM-killed rather than squeezing the node). Sized for the heaviest gate the
+# sandbox runs -- the node image's vitest plus a Storybook pass in Chromium.
+#
+# The ResourceQuota caps how many run at once, whatever `width` a project asks
+# for: two per ticket at most (the agent's Job, then the gate's), so six pods is
+# three tickets in flight. Raise it with the nodes, not before.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: iteration-defaults
+  namespace: specmarshal-agents
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 500m
+        memory: 1Gi
+      default:
+        memory: 6Gi
+      max:
+        memory: 8Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: iteration-ceiling
+  namespace: specmarshal-agents
+spec:
+  hard:
+    pods: "6"
+    requests.memory: 12Gi
+    limits.memory: 36Gi

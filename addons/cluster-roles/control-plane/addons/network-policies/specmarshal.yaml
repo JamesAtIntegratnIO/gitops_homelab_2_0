@@ -1,0 +1,199 @@
+# Specmarshal: the orchestrator in `specmarshal`, and the iteration Jobs it
+# starts in `specmarshal-agents`. Both namespaces start from the default-deny
+# Kyverno generates (kyverno-generate-default-deny.yaml); everything each is
+# allowed is below.
+#
+# The two are split so an agent -- which runs arbitrary code a model wrote --
+# shares nothing with the process that holds the GitHub App key and the
+# database password: not a namespace's Secrets, not a network policy, not a
+# ServiceAccount token (the Jobs mount none). The orchestrator reaches into
+# an agent's pod through the API server (`kubectl exec`), which is the
+# kubelet's traffic, not the pod network's, so no policy here admits it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: specmarshal
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: specmarshal-agents
+---
+# ── specmarshal: the orchestrator ────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: specmarshal
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# The launcher: Jobs, pods/exec and Secrets in specmarshal-agents, all through
+# the API server.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-api
+  namespace: specmarshal
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+---
+# GitHub: the tracker (issues, pull requests) and the clones it holds.
+# Everything public on 443 rather than GitHub's published ranges, which move.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-https-egress
+  namespace: specmarshal
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: specmarshal
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# The measurement store: the external Postgres the media apps also use.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-egress
+  namespace: specmarshal
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: specmarshal
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.3.1/32
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# The surface, from the gateway's data plane only. The other half is the
+# specmarshal entry in allow-nginx-dataplane (nginx-gateway.yaml); without it
+# the page hangs with zero bytes rather than erroring.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-ingress
+  namespace: specmarshal
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: specmarshal
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+      ports:
+        - protocol: TCP
+          port: 4200
+---
+# ── specmarshal-agents: the iterations ───────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: specmarshal-agents
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# The internet and nothing else: the model provider's API, and the package
+# registries a project's `make verify` installs from (npm, the Go proxy, PyPI).
+# Port 80 as well as 443 because some package mirrors still redirect through
+# it. Every private range is excepted, so an agent cannot reach the cluster's
+# services, the NAS, the database, or anything else on the lab network --
+# including the orchestrator, which has nothing to say to it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internet-egress
+  namespace: specmarshal-agents
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+---
+# The model: LM Studio on the workstation, which Pi calls from inside each
+# iteration's Job. A /32 because the rule above excepts every private range,
+# and this is the one private host an agent has any business with -- the same
+# host and port bosun is allowed (bosun/values.yaml), a DHCP reservation.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workstation-model-egress
+  namespace: specmarshal-agents
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 192.168.0.57/32
+      ports:
+        - protocol: TCP
+          port: 1234

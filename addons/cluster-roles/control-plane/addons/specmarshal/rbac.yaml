@@ -1,0 +1,64 @@
+# What the orchestrator may do on the cluster: run iterations as Jobs in
+# specmarshal-agents, and nothing else anywhere.
+#
+# Specmarshal's kubernetes launcher (ADR-0023 in the specmarshal repository)
+# starts one Job per iteration -- and one more per gate -- running the sandbox
+# image with nothing in it but `sleep`, then reaches into its pod with
+# `kubectl exec` to clone, run the agent, and run `make verify`. The agent's
+# credentials ride in a short-lived Secret the orchestrator creates beside each
+# Job and hands to it (ownerReferences), so the cluster deletes it with the Job.
+#
+# That is the whole grant. It is a Role in the agents' namespace, not a
+# ClusterRole, and the orchestrator's own namespace grants it nothing: it cannot
+# read its own Secrets through the API, and an agent -- which runs with no
+# ServiceAccount token at all -- cannot reach the API server to use any of this.
+#
+# `pods/exec` is both `create` and `get`: kubectl 1.31+ opens exec over a
+# WebSocket, which the API server authorises as a GET on some versions and a
+# CREATE on others, and a grant of one alone fails on the other with a 403 that
+# names neither. Specmarshal checks every verb it needs with `kubectl auth
+# can-i` before a run claims a ticket, and the page's health section asks the
+# same question.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: specmarshal
+  namespace: specmarshal
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: specmarshal-launcher
+  namespace: specmarshal-agents
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create", "get", "patch", "delete"]
+  # Read only, and only for the error message: a Job whose pod admission
+  # refused has no pod to report on, and says why only in its events.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: specmarshal-launcher
+  namespace: specmarshal-agents
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: specmarshal-launcher
+subjects:
+  - kind: ServiceAccount
+    name: specmarshal
+    namespace: specmarshal

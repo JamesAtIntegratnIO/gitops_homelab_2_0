@@ -1,0 +1,19 @@
+# The Specmarshal home: settings, the project registry, the run artifacts, the
+# cloned repositories and the GitHub App key. The measurements are NOT here --
+# they are in Postgres (SPECMARSHAL_STORE), because the file backend is SQLite
+# and SQLite's locking is not safe on NFS.
+#
+# One volume, one backup: this is all of the orchestrator's state that is not
+# in the database or on GitHub. Nothing an iteration does is written here --
+# iterations run in their own Jobs and hand back a bundle.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: specmarshal-home
+  namespace: specmarshal
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: config-nfs-client
+  resources:
+    requests:
+      storage: 5Gi
