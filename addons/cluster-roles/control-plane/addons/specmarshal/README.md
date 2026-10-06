@@ -65,7 +65,7 @@ role and database.
 
 Iterations run Pi against LM Studio on the workstation, `192.168.0.57:1234`,
 the same server and DHCP reservation bosun uses. LM Studio needs "Serve on
-Local Network" on and `qwen/qwen3.6-35b-a3b` available. Nothing is billed per
+Local Network" on and `qwen3.6-35b-a3b-splash` available. Nothing is billed per
 token, and there is no provider key. To use a hosted model instead, change the
 `SPECMARSHAL_PROVIDER` lines in `externalsecret.yaml` and add the provider's key
 to the same Secret.
