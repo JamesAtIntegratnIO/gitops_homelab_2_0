@@ -75,14 +75,14 @@ to the same Secret.
 Each of these is a command in the orchestrator's pod, and what it writes is
 kept in the home, so it is done once and survives a restart.
 
-1. **Enter the license.** The key is read from standard input, never from an
-   argument:
+1. **The license enters itself.** `license.secret` in `values.yaml` names the
+   Secret `specmarshal-license`, and an init container runs
+   `specmarshal license add` with it on every start. Read what it grants with
+   `kubectl -n specmarshal exec deploy/specmarshal -- specmarshal license status`.
+   A key Keygen does not know stops the pod in its `license` container:
+   `kubectl -n specmarshal logs deploy/specmarshal -c license`.
 
-   ```bash
-   kubectl -n specmarshal exec -i deploy/specmarshal -- specmarshal license add < key.txt
-   ```
-
-   This orchestrator then counts as one against the license. Its identity is in
+   This orchestrator counts as one against the license. Its identity is in
    the home, so deleting the claim `specmarshal-home` makes the next pod a new
    orchestrator that takes a new slot.
 

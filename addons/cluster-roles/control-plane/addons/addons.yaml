@@ -1068,7 +1068,9 @@ specmarshal:
   # 0.2.0-rc.2 -- the first chart that asks `serve` for its surface
   # (IntegratnIO/specmarshal-pro#124). 0.1.0 ran a bare `serve`, which starts
   # none: with no projects it printed "No projects" and exited, in a loop.
-  defaultVersion: 0.2.0-rc.2
+  # 0.2.0-rc.3 -- the chart can enter the license itself, from a Secret
+  # (IntegratnIO/specmarshal-pro#126). `license.secret` in values.yaml.
+  defaultVersion: 0.2.0-rc.3
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/specmarshal
