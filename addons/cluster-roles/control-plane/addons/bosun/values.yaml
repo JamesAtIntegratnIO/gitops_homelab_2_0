@@ -155,6 +155,15 @@ gate:
     existingSecret: bosun-argocd
     tokenKey: token
 
+  # The login the gate's helm renders with, for the one chart here a registry
+  # will not serve anonymously: `specmarshal`, from registry.integratn.io.
+  # Projected from 1Password by the ExternalSecret beside this file. Bosun
+  # refuses to start if the file is not there, which is the wanted failure: a
+  # missing login would otherwise be a healthy pod and a red gate on every
+  # specmarshal bump. No egress change: `allowInternet` already reaches it.
+  registryAuth:
+    existingSecret: bosun-registry
+
   # This repository is PUBLIC, so this is a real choice and not a formality.
   # Off means a pull request from a fork gets an `error` status naming this
   # value. That is the wanted outcome: in cluster mode the render runs helm
