@@ -38,8 +38,8 @@ spec:
           Image '{{request.object.spec.containers[].image}}' is from an unapproved
           registry. Allowed registries: docker.io, ghcr.io, quay.io,
           registry.k8s.io, mirror.gcr.io, ecr-public.aws.com, lscr.io,
-          syntasso-community.docker.reo.dev, us-docker.pkg.dev, plus
-          approved Docker Hub organizations.
+          syntasso-community.docker.reo.dev, us-docker.pkg.dev,
+          registry.integratn.io, plus approved Docker Hub organizations.
         foreach:
           - list: "request.object.spec.[initContainers, ephemeralContainers, containers][]"
             deny:
@@ -58,6 +58,7 @@ spec:
                       - "lscr.io/*"
                       - "syntasso-community.docker.reo.dev/*"
                       - "us-docker.pkg.dev/*"  # Google Artifact Registry (Fairwinds/Goldilocks)
+                      - "registry.integratn.io/*"  # Specmarshal's licensed registry (orchestrator and sandbox images)
                       # Docker Hub shorthand — library images (no org prefix)
                       - "alpine:*"
                       - "alpine"
