@@ -236,6 +236,20 @@ spec:
       ports:
         - protocol: TCP
           port: 8081
+    # Specmarshal's surface (specmarshal.cluster.integratn.tech), behind
+    # authentik. The other half is allow-gateway-ingress in specmarshal.yaml,
+    # which admits this pod to 4200; without THIS entry that one is moot and
+    # the page hangs with zero bytes.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: specmarshal
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: specmarshal
+      ports:
+        - protocol: TCP
+          port: 4200
     # LLMKube inference backends (bare-metal/metal agent on LAN).
     # Cilium DNATs service ClusterIP → Mac endpoint before policy evaluation,
     # so the post-DNAT destination is 10.0.x.x:ephemeral — ipBlock is required.

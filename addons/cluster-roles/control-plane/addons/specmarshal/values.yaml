@@ -1,0 +1,34 @@
+# Values for the published Specmarshal chart,
+# registry.integratn.io/integratn/charts/specmarshal. The chart's surface is
+# small on purpose: `helm show values` prints all of it. The image is left to
+# the chart, which pins it by digest to the Version the chart was cut with, so
+# bumping `defaultVersion` in addons.yaml moves both.
+
+image:
+  # The docker-registry Secret the kubelet pulls the orchestrator with, and the
+  # sandbox image of every iteration Job (the chart hands the same name to
+  # SPECMARSHAL_KUBERNETES_PULL_SECRET). It is the license key, from
+  # externalsecret.yaml beside this file. No container ever holds it.
+  pullSecret: specmarshal-registry
+
+# No projects are declared here. `serve` stands with none, and a project is
+# registered on the surface and kept in the store.
+projects: ""
+
+# The orchestrator's environment, from externalsecret.yaml: the Postgres store
+# and the model provider's settings. Everything Specmarshal reads from a
+# SPECMARSHAL_* variable can be set there, and nothing else in this chart takes
+# an environment variable.
+credentials:
+  secret: specmarshal-env
+
+home:
+  size: 20Gi
+  # The cluster's default class, named so that a change of default never moves
+  # the home. It is NFS, which is why the measurements are in Postgres.
+  storageClassName: config-nfs-client
+
+# Above the iteration timeout, which is 3h on the `local` provider, so a stop
+# drains the run in flight instead of cutting it off. A rollout therefore waits
+# for work in progress; that is deliberate.
+terminationGracePeriodSeconds: 11100
