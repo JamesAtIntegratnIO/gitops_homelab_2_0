@@ -1,23 +1,20 @@
-# Specmarshal: the orchestrator in `specmarshal`, and the iteration Jobs it
-# starts in `specmarshal-agents`. Both namespaces start from the default-deny
-# Kyverno generates (kyverno-generate-default-deny.yaml); everything each is
-# allowed is below.
+# Specmarshal: the orchestrator and the iteration Jobs it starts, in one
+# namespace, because that is where the published chart runs them. The namespace
+# starts from the default-deny Kyverno generates
+# (kyverno-generate-default-deny.yaml); everything each is allowed is below.
 #
-# The two are split so an agent -- which runs arbitrary code a model wrote --
-# shares nothing with the process that holds the GitHub App key and the
-# database password: not a namespace's Secrets, not a network policy, not a
-# ServiceAccount token (the Jobs mount none). The orchestrator reaches into
-# an agent's pod through the API server (`kubectl exec`), which is the
-# kubelet's traffic, not the pod network's, so no policy here admits it.
+# The two kinds of pod are told apart by label, and no policy but DNS selects
+# both. The orchestrator is `app.kubernetes.io/name: specmarshal` (the chart's).
+# An iteration is `app.kubernetes.io/name: specmarshal-iteration` (the
+# launcher's), and it runs code a model wrote: it gets the internet and the
+# model's host and nothing else, and it mounts no ServiceAccount token. The
+# orchestrator reaches into an iteration's pod through the API server
+# (`kubectl exec`), which is the kubelet's traffic, not the pod network's, so
+# no policy here admits it.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: specmarshal
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: specmarshal-agents
 ---
 # ── specmarshal: the orchestrator ────────────────────────────────────────
 apiVersion: networking.k8s.io/v1
@@ -43,21 +40,24 @@ spec:
         - protocol: TCP
           port: 53
 ---
-# The launcher: Jobs, pods/exec and Secrets in specmarshal-agents, all through
-# the API server.
+# The launcher: Jobs, pods/exec and Secrets in this namespace, all through the
+# API server. The orchestrator only; an iteration has no route to it.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: allow-kube-api
   namespace: specmarshal
 spec:
-  endpointSelector: {}
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: specmarshal
   egress:
     - toEntities:
         - kube-apiserver
 ---
-# GitHub: the tracker (issues, pull requests) and the clones it holds.
-# Everything public on 443 rather than GitHub's published ranges, which move.
+# GitHub (the tracker and the clones it holds) and Keygen, which the
+# orchestrator asks about its license every hour. Everything public on 443
+# rather than either's published ranges, which move.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -124,43 +124,22 @@ spec:
         - protocol: TCP
           port: 4200
 ---
-# ── specmarshal-agents: the iterations ───────────────────────────────────
+# ── the iterations ───────────────────────────────────────────────────────
+# The internet and nothing else: the package registries a project's
+# `make verify` installs from (npm, the Go proxy, PyPI). Port 80 as well as 443
+# because some package mirrors still redirect through it. Every private range
+# is excepted, so an agent cannot reach the cluster's services, the NAS, the
+# database, or anything else on the lab network -- including the orchestrator,
+# which has nothing to say to it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-dns
-  namespace: specmarshal-agents
+  name: allow-iteration-internet-egress
+  namespace: specmarshal
 spec:
-  podSelector: {}
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
----
-# The internet and nothing else: the model provider's API, and the package
-# registries a project's `make verify` installs from (npm, the Go proxy, PyPI).
-# Port 80 as well as 443 because some package mirrors still redirect through
-# it. Every private range is excepted, so an agent cannot reach the cluster's
-# services, the NAS, the database, or anything else on the lab network --
-# including the orchestrator, which has nothing to say to it.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-internet-egress
-  namespace: specmarshal-agents
-spec:
-  podSelector: {}
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: specmarshal-iteration
   policyTypes:
     - Egress
   egress:
@@ -184,10 +163,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-workstation-model-egress
-  namespace: specmarshal-agents
+  name: allow-iteration-model-egress
+  namespace: specmarshal
 spec:
-  podSelector: {}
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: specmarshal-iteration
   policyTypes:
     - Egress
   egress:

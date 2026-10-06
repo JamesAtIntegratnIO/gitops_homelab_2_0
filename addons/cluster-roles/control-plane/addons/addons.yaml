@@ -1039,21 +1039,36 @@ bosun:
 
 specmarshal:
   # Specmarshal -- https://github.com/IntegratnIO/specmarshal -- the
-  # orchestrator that works a spec's tickets with coding agents. Raw manifests
-  # beside this file: the orchestrator (`specmarshal serve`) in `specmarshal`,
-  # and a Role letting it run each agent iteration as a Job in
-  # `specmarshal-agents`. The namespaces and their NetworkPolicies are in
-  # network-policies/specmarshal.yaml.
+  # orchestrator that works a spec's tickets with coding agents, installed the
+  # way a licensee installs it: the published chart from the licensed registry.
+  # The chart is the Deployment (`specmarshal serve`), its home on a PVC, a
+  # ClusterIP Service, and a ServiceAccount whose Role lets it run each agent
+  # iteration as a Job beside it, in this namespace.
   #
-  # Ships at replicas 0. README.md beside the manifests lists what has to be
-  # true before it is scaled up: the 1Password items, the database, and an
-  # orchestrator image that carries the kubernetes launcher.
+  # What the chart leaves to the cluster is beside this file, in specmarshal/:
+  # the two Secrets its values name (from 1Password), the route behind
+  # authentik, and the limits on the iteration Jobs. The namespace and its
+  # NetworkPolicies are in network-policies/specmarshal.yaml.
+  #
+  # The registry is private. ArgoCD pulls the chart with the repository Secret
+  # `specmarshal-registry-repo` (clusters/the-cluster/addons/argo-cd/manifests),
+  # and the kubelet pulls the images with `specmarshal-registry`; both are the
+  # license key in the 1Password item `specmarshal-license`. No `oci://` on the URL:
+  # that is the form ArgoCD matches a Helm OCI repository Secret against.
+  #
+  # The chart runs one replica, so merging this starts the orchestrator.
+  # README.md beside the manifests lists what has to exist first.
+  #
+  # Not Kargo-tracked: Kargo holds no credential for this registry.
   enabled: true
-  type: manifest
   namespace: specmarshal
+  chartName: specmarshal
   project: platform-services
-  defaultVersion: "main"
-  path: addons/cluster-roles/control-plane/addons/specmarshal
+  chartRepository: registry.integratn.io/integratn/charts
+  defaultVersion: 0.1.0
+  additionalResources:
+    type: manifest
+    path: addons/cluster-roles/control-plane/addons/specmarshal
   selector:
     matchExpressions:
       - key: cluster_role
