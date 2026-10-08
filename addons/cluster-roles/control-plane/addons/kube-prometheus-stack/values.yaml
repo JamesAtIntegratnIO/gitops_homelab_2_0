@@ -15,6 +15,19 @@ alertmanager:
           resources:
             requests:
               storage: 5Gi
+    # The dead-man's-switch ping URL (see the deadman-heartbeat receiver below).
+    # Mounted as an optional volume rather than through `secrets:` on purpose:
+    # a `secrets:` entry that does not exist yet leaves the pod unable to start,
+    # and a missing heartbeat URL must never be able to take Alertmanager down.
+    volumes:
+    - name: deadman-heartbeat
+      secret:
+        secretName: alertmanager-deadman-heartbeat
+        optional: true
+    volumeMounts:
+    - name: deadman-heartbeat
+      mountPath: /etc/alertmanager/deadman
+      readOnly: true
   config:
     global:
       resolve_timeout: 5m
@@ -83,6 +96,23 @@ alertmanager:
       repeat_interval: 24h
       routes:
 
+      # 0. The dead-man's switch. Watchdog fires permanently by design, so its
+      #    arrival proves the whole chain: Prometheus is evaluating rules,
+      #    Alertmanager is routing, and the cluster can reach the outside. It is
+      #    pushed every 5 minutes to a checker OUTSIDE the cluster, which raises
+      #    the alarm when the pings stop.
+      #    This is the only alert that can report "monitoring itself is down".
+      #    On 2026-10-07 Prometheus sat in CreateContainerConfigError on a stale
+      #    NFS mount for 21 hours and every rule in the platform went silent with
+      #    it; Watchdog was routed to `null`, so nothing noticed.
+      - receiver: deadman-heartbeat
+        matchers:
+        - alertname = Watchdog
+        group_wait: 0s
+        group_interval: 1m
+        repeat_interval: 5m
+        continue: false
+
       # 1. Muted: permanently true on this cluster by design, tracked in Grafana.
       #    CPUThrottlingHigh — fires for any container that has a CPU limit and
       #    uses it; upstream's own docs call it noisy.
@@ -94,7 +124,7 @@ alertmanager:
       #    only when N+1 has regressed. Do not re-mute it; fix the requests.
       - receiver: 'null'
         matchers:
-        - alertname =~ Watchdog|InfoInhibitor|CPUThrottlingHigh
+        - alertname =~ InfoInhibitor|CPUThrottlingHigh
         continue: false
 
       # 2. Info: awareness only, never messaged.
@@ -134,6 +164,13 @@ alertmanager:
 
     receivers:
     - name: 'null'
+    # The URL is a credential (anyone holding it can keep the check green), so
+    # it is read from the alertmanager-deadman-heartbeat Secret, never inlined.
+    # Set the external check's period to 5 minutes with a grace of ~10.
+    - name: deadman-heartbeat
+      webhook_configs:
+      - url_file: /etc/alertmanager/deadman/url
+        send_resolved: false
     # Both receivers currently target the same Matrix room via two distinct
     # receiver paths. To split warnings into a dedicated digest room: create the
     # room, add its ID as `digest-room-id` on the matrix-alertmanager-receiver
