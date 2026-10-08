@@ -394,6 +394,76 @@ spec:
             summary: "NFS RPC retransmissions on {{ $labels.instance }}"
             description: "Node {{ $labels.instance }} logged {{ $value | printf \"%.0f\" }} NFS RPC retransmissions in 15 minutes. All cluster PVs are NFS-backed, so this degrades everything with a volume."
 
+        # ── Stuck on a stale mount ───────────────────────────────────────────
+        # NFSMountErrors above cannot see a stale handle: ESTALE is an immediate
+        # error, not a retransmission. What a stale handle does produce is a
+        # container that can never be created again, and a workload with nothing
+        # running.
+        #
+        # Both conditions already raise upstream warnings (KubeContainerWaiting,
+        # KubePodNotReady, KubeDeploymentReplicasMismatch). Those fired for the
+        # Kratix controller for 18 days straight in 2026-09/10 and changed
+        # nothing, because a warning repeats once a day in the digest. These two
+        # are not copies of them: they are the escalation, for the narrower case
+        # that is never a rollout in progress.
+        #
+        # Counted by namespace+container over a window, with no `for:`, on
+        # purpose. The cleanup-pods-stuck-creating-container policy deletes such
+        # a pod every 15 minutes; each replacement is a new pod name and a gap in
+        # the series, which would reset a per-pod `for:` timer forever and make
+        # the self-healing hide the failure it could not heal.
+        - alert: PodStuckCreatingContainer
+          expr: |
+            count_over_time((
+                (sum by (namespace, container) (kube_pod_container_status_waiting_reason{reason=~"CreateContainerError|CreateContainerConfigError"}) > 0)
+              or
+                (sum by (namespace, container) (kube_pod_init_container_status_waiting_reason{reason=~"CreateContainerError|CreateContainerConfigError"}) > 0)
+            )[1h:1m]) >= 45
+          labels:
+            severity: critical
+            component: storage
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.container }} cannot create its container"
+            description: >-
+              Container {{ $labels.container }} in {{ $labels.namespace }} has been in
+              CreateContainerError or CreateContainerConfigError for {{ $value }} of the last 60
+              minutes, and the cleanup policy has already replaced the pod at least once without
+              fixing it. `kubectl -n {{ $labels.namespace }} describe pod` names the cause: "stale NFS
+              file handle" on a fresh pod means the Unraid export itself is unhealthy (two nodes
+              failing a fresh mount is the server, not the kubelet); otherwise it is a missing
+              Secret or ConfigMap.
+
+        - alert: WorkloadHasNoReadyReplicas
+          expr: |
+            (kube_deployment_status_replicas_available == 0)
+              and on (namespace, deployment)
+            (kube_deployment_spec_replicas > 0)
+          for: 30m
+          labels:
+            severity: critical
+            component: workload
+          annotations:
+            summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has had nothing running for 30 minutes"
+            description: >-
+              Every replica of {{ $labels.namespace }}/{{ $labels.deployment }} has been unavailable
+              for 30+ minutes. Unlike KubeDeploymentReplicasMismatch this is never a rollout in
+              progress -- the workload is down. Check `kubectl -n {{ $labels.namespace }} get pods`.
+
+        - alert: WorkloadHasNoReadyReplicas
+          expr: |
+            (kube_statefulset_status_replicas_ready == 0)
+              and on (namespace, statefulset)
+            (kube_statefulset_replicas > 0)
+          for: 30m
+          labels:
+            severity: critical
+            component: workload
+          annotations:
+            summary: "StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has had nothing running for 30 minutes"
+            description: >-
+              Every replica of {{ $labels.namespace }}/{{ $labels.statefulset }} has been unready for
+              30+ minutes. Check `kubectl -n {{ $labels.namespace }} get pods`.
+
     # ── etcd (host control plane) ────────────────────────────────────────────
     # Fragmentation IS alerted here now. Upstream's
     # etcdDatabaseHighFragmentationRatio is disabled in the
