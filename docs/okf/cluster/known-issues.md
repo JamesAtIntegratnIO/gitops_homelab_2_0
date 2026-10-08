@@ -16,7 +16,53 @@ sources:
   - id: alert-sweep-0901
     resource: Prometheus /api/v1/alerts + kubectl sweep of the-cluster, 2026-09-01
     title: Alert triage sweep 2026-09-01
+  - id: nfs-stale-1008
+    resource: kubectl sweep of the-cluster + Prometheus ALERTS history, 2026-10-08
+    title: Stale NFS mount triage 2026-10-08
 ---
+
+# Stale NFS handles strand pods in CreateContainerError, and the alerts for it were ignored for 18 days (2026-10-08)
+
+Five host pods were found stuck on stale `config-nfs-client` mounts in one
+afternoon: Prometheus and specmarshal (since 2026-10-07 20:51Z), Grafana
+(23:53Z), the Kratix controller (since **2026-09-20**), and the
+`config-nfs-client` provisioner, which went the same way mid-triage after
+losing its lease to an etcd timeout.[^nfs-stale-1008] The kubelet keeps a pod's
+stale mount and never remounts it, so the next container start fails with
+`CreateContainerError` (`failed to stat ...kubernetes.io~nfs/pvc-...: stale NFS
+file handle`) or `CreateContainerConfigError` (`failed to prepare subPath`)
+until the pod is deleted. Every replacement mounted cleanly. The parent-export
+mount is **not** immune: the provisioner's own `nfs-client-root` went stale.
+
+What it cost:
+
+- **Prometheus recorded nothing from 2026-10-07 20:50Z to 2026-10-08 17:40Z.**
+  Earlier history is intact. `Watchdog` was routed to `null`, so nothing
+  outside the cluster noticed.
+- **The 2026-10-08 `vcluster-media` etcd snapshot failed** (`no route to host`
+  to the etcd ClusterIP, both attempts, deadline at 04:00Z). That is what
+  surfaced all of this, via `platform-backups-the-cluster` going Degraded. A
+  manual run at 17:48Z closed the gap.
+- **Kratix did not reconcile for 18 days.**
+
+It was not undetected. `KubePodNotReady`, `KubeContainerWaiting`,
+`KubeDeploymentReplicasMismatch` and `TargetDown` fired for
+`kratix-platform-system` continuously for the whole 18 days. They are warnings,
+which repeat once a day in the digest. Nothing self-heals this state either:
+the descheduler protects pods with PVCs and a container that never starts
+accumulates no restarts, `cleanup-failed-pods` only matches phase `Failed`, and
+`NFSMountErrors` watches retransmissions, which a stale handle does not cause.
+
+Long-running pods are not evidence of health. Alertmanager was still `Running`
+on 2026-10-08 with its data directory already stale (`chdir to cwd
+("/alertmanager") ... stale NFS file handle` on exec); it will stick on its
+next restart.
+
+**Fix, on branch `feat/nfs-stale-mount-resilience`, not merged at time of
+writing:** a Kyverno cleanup policy that deletes owned pods stuck in either
+state; critical `PodStuckCreatingContainer` and `WorkloadHasNoReadyReplicas`
+alerts; and `Watchdog` pushed to an external dead-man's switch. The server-side
+cause (Unraid shfs invalidating handles) is untouched.
 
 # Trivy scan coverage silently fell to zero, and one report 4% too big did it (2026-09-01)
 
