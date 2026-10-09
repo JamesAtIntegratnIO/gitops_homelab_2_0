@@ -29,7 +29,7 @@ spec:
         runAsGroup: 65532
       containers:
         - name: github-mcp
-          image: ghcr.io/github/github-mcp-server:v1.14.0@sha256:7aaeeec9ae4fe9a736d100c1ff0798f3c219b5009e05f5d3945fcacb13cc196b
+          image: ghcr.io/github/github-mcp-server:v2.0.0@sha256:be0fd047ad902a704337c73e2a3d406cfea5afd0f00404a6bc08bd9d768b07ba
           args:
             - "http"
           ports:
