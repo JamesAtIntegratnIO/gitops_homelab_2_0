@@ -2,10 +2,15 @@
 # authentik.
 #
 # The surface is not read-only: it registers projects, marks work ready, and
-# steers runs, and Specmarshal has no authentication of its own yet. authentik's
-# forward-auth (snippetsfilter.yaml, provider `specmarshal-proxy-provider` in the
-# authentik blueprint ConfigMap) IS its access control. Never attach a route to
-# this Service without that filter.
+# steers runs. Since chart 0.2.0-rc.9 it signs people in with GitHub itself
+# (`signIn` in values.yaml) and holds each to their leave on the repository.
+# authentik's forward-auth (snippetsfilter.yaml, provider
+# `specmarshal-proxy-provider` in the authentik blueprint ConfigMap) stays in
+# front as the outer door, so a caller meets authentik first and GitHub second;
+# GitHub's return to /sign-in/callback passes it on the authentik session the
+# browser already holds. Never attach a route to this Service without one of
+# the two. The gateway passes the browser's `Host` to the pod unchanged, which
+# sign-in needs to accept a change made from its own pages.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
