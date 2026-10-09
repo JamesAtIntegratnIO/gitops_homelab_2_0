@@ -326,7 +326,7 @@ descheduler:
   chartName: descheduler
   project: platform-services
   chartRepository: https://kubernetes-sigs.github.io/descheduler/
-  defaultVersion: "0.36.0"
+  defaultVersion: 0.37.0
   selector:
     matchExpressions:
       - key: cluster_role
