@@ -68,7 +68,7 @@ kro, kro-resource-groups.[^env-prod]
 | kargo-projects | kargo (resources land in `addons`, `promises`, `workloads`) | local chart `addons/charts/kargo-projects` | 3 Projects, 48 Warehouse/Stage pairs from one target list |
 | coredns-host-config | kube-system | manifest (`addons/.../coredns/`) | Owns the host Corefile so the `auth.cluster.integratn.tech` rewrite survives; `selfHeal: true`, `prune: false` |
 | coredns-workload | kube-system | manifest (`addons/.../coredns-workload/`) | SA, RBAC, Deployment, `kube-dns` Service — Talos's own render, adopted 2026-08-30; `prune: false` |
-| specmarshal | specmarshal | `registry.integratn.io/integratn/charts/specmarshal` 0.2.0-rc.3 (licensed, private) + manifests (`addons/.../specmarshal/`) | Specmarshal's orchestrator from its published chart; each agent iteration is a Job beside it that it `kubectl exec`s into. Preconditions and first-run steps in the addon's README.md. Added 2026-10-06 |
+| specmarshal | specmarshal | `registry.integratn.io/integratn/charts/specmarshal` 0.2.0-rc.9 (licensed, private) + manifests (`addons/.../specmarshal/`) | Specmarshal's orchestrator from its published chart; each agent iteration is a Job beside it that it `kubectl exec`s into. Preconditions and first-run steps in the addon's README.md. Added 2026-10-06 |
 
 Disabled: ai-platform (superseded by mcp-system; its path no longer exists).[^role-cp]
 

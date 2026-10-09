@@ -1070,7 +1070,11 @@ specmarshal:
   # none: with no projects it printed "No projects" and exited, in a loop.
   # 0.2.0-rc.3 -- the chart can enter the license itself, from a Secret
   # (IntegratnIO/specmarshal-pro#126). `license.secret` in values.yaml.
-  defaultVersion: 0.2.0-rc.3
+  # 0.2.0-rc.9 -- people sign in with GitHub (IntegratnIO/specmarshal-pro#128),
+  # and the chart stores the GitHub App from a Secret the same way it enters
+  # the license (IntegratnIO/specmarshal-pro#201). `signIn` and
+  # `githubApp.secret` in values.yaml, both Secrets in externalsecret.yaml.
+  defaultVersion: 0.2.0-rc.9
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/specmarshal
