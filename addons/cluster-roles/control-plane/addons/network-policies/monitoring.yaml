@@ -313,6 +313,19 @@ spec:
       ports:
         - protocol: TCP
           port: 12345
+    # Dead-man's-switch heartbeat to a checker outside the cluster (the
+    # deadman-heartbeat receiver). Public HTTPS only: a checker on the LAN or
+    # in-cluster is RFC1918 and needs its own rule here.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
 ---
 # matrix-alertmanager-receiver
 apiVersion: networking.k8s.io/v1
