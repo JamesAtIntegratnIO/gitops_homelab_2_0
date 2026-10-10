@@ -32,7 +32,7 @@ spec:
           # 1.1.0 (2026-08-10) on the first restart in three months, and 1.1.0's
           # /healthz rejects an unauthenticated Grafana connection where 0.14.0
           # tolerated it -- turning a stale token into a CrashLoop.
-          image: docker.io/grafana/mcp-grafana:1.5.1@sha256:07c6614a8f8b6477e572444874c8c07baf145473977f014497cb59262af1944c
+          image: docker.io/grafana/mcp-grafana:2.0.2@sha256:78d208116ec52b09b44f0eca66892073b39aefcb64483c54d43255c8eab7e97a
           # These *append* to the image's entrypoint, which already supplies
           # `--transport sse --address 0.0.0.0:8000`. The running argv therefore
           # carries --address twice and both transports; Go's flag package takes
