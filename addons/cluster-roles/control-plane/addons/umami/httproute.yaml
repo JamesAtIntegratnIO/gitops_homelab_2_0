@@ -1,0 +1,123 @@
+# Umami's two LAN routes. Neither is the public path: that is the cloudflared
+# tunnel (addons/.../cloudflared/), which reaches the Service directly and
+# exposes /c.js and /api/c and nothing else.
+---
+# stats.cluster.integratn.tech -- the dashboard, behind authentik.
+#
+# Umami has its own login (and ships with admin/umami until someone changes
+# it), and authentik's forward-auth (snippetsfilter.yaml, provider
+# `umami-proxy-provider` in the authentik blueprint ConfigMap) stands in front
+# of it as the outer door, the way it does for qdrant, bosun and specmarshal.
+# Never attach a route to this Service's dashboard without it.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: umami
+  namespace: umami
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  # external-dns runs with `--source=gateway-httproute`, so this hostname is
+  # also what creates the DNS record -- to the LAN VIP, like every other.
+  hostnames:
+    - stats.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: authentik-forward-auth
+      backendRefs:
+        - name: umami
+          port: 3000
+---
+# The http half: a redirect to https, naming no backend. `matches` is written
+# out for the reason bosun's is -- the API server defaults it, and omitting it
+# leaves the route OutOfSync against its own live object.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: umami-http-redirect
+  namespace: umami
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - stats.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+# mcp.cluster.integratn.tech/umami/mcp -- Umami's read-only MCP endpoint, beside
+# the servers in mcp-system/httproutes.yaml and reached the same way: a client
+# opens <host>/<server>/mcp.
+#
+# It lives here and not in mcp-system/httproutes.yaml because its backend is in
+# this namespace. A backendRef across namespaces needs a ReferenceGrant in the
+# target namespace; an HTTPRoute in the backend's own namespace needs none (the
+# gateway's listeners admit routes from all namespaces), which is the repo's
+# pattern -- see addons/clusters/the-cluster/HTTPROUTE_PATTERN.md.
+#
+# NO authentik IN FRONT, like every other MCP route: MCP clients cannot follow
+# a browser login. Umami authenticates the call itself and accepts only an API
+# key (`Authorization: Bearer umami_...`); a session token is refused.
+#
+# ONLY /mcp. The siblings strip their prefix to `/`, which would publish all of
+# Umami -- the dashboard and its API -- on this host without authentik. Here
+# the two rules rewrite exactly `/umami` and `/umami/mcp...` to `/mcp...`, and
+# anything else under /umami matches neither and gets the gateway's 404.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mcp-umami
+  namespace: umami
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - mcp.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /umami/mcp
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /mcp
+      backendRefs:
+        - name: umami
+          port: 3000
+    - matches:
+        - path:
+            type: Exact
+            value: /umami
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /mcp
+      backendRefs:
+        - name: umami
+          port: 3000
