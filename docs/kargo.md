@@ -27,7 +27,7 @@ registry / chart repo ──poll──▶ Warehouse ──▶ Freight ──auto
 |---|---|---|
 | `kargo` addon | [addons.yaml](../addons/cluster-roles/control-plane/addons/addons.yaml), values in [kargo/values.yaml](../addons/cluster-roles/control-plane/addons/kargo/values.yaml) | The Kargo chart (OCI, `ghcr.io/akuity/kargo-charts/kargo` 1.11.2) in namespace `kargo`, control-plane cluster only |
 | `kargo-extras/` | [kargo-extras/](../addons/cluster-roles/control-plane/addons/kargo-extras/) | Attached to the `kargo` app as an extra source: the two ExternalSecrets and the HTTPRoute for `kargo.cluster.integratn.tech` |
-| `kargo-projects` addon | chart `oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines` (from the [Bosun repository](https://github.com/JamesAtIntegratnIO/bosun); the in-tree [addons/charts/kargo-projects](../addons/charts/kargo-projects/) is its deprecated predecessor), targets in [kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml) | Renders the Projects, Warehouses and Stages from the target list |
+| `kargo-projects` addon | chart `oci://ghcr.io/integratnio/charts/kargo-pipelines` (from the [Bosun repository](https://github.com/IntegratnIO/bosun); the in-tree [addons/charts/kargo-projects](../addons/charts/kargo-projects/) is its deprecated predecessor), targets in [kargo-projects/values.yaml](../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml) | Renders the Projects, Warehouses and Stages from the target list |
 | Network policy | [network-policies/kargo.yaml](../addons/cluster-roles/control-plane/addons/network-policies/kargo.yaml) **and** the `kargo` entry in [network-policies/nginx-gateway.yaml](../addons/cluster-roles/control-plane/addons/network-policies/nginx-gateway.yaml) | DNS, kube-apiserver, webhook ingress, gateway → API (both halves: the gateway's egress allow-list names backend namespaces one by one), controller → internet:443, API → Authentik |
 | `argo-rollouts` addon | [addons.yaml](../addons/cluster-roles/control-plane/addons/addons.yaml), values in [argo-rollouts/values.yaml](../addons/cluster-roles/control-plane/addons/argo-rollouts/values.yaml) | Argo Rollouts controller (chart 2.41.1, one replica, no dashboard) — Kargo *creates* the verification `AnalysisRun`s, this is what *executes* them; its netpol is [network-policies/argo-rollouts.yaml](../addons/cluster-roles/control-plane/addons/network-policies/argo-rollouts.yaml) |
 | Authentik blueprint | `07-kargo-provider.yaml` in [authentik-blueprints-configmap.yaml](../addons/clusters/the-cluster/addons/authentik/authentik-blueprints-configmap.yaml) | OIDC login for the UI/CLI — a PKCE *public* client, so no client secret exists anywhere |
@@ -108,7 +108,7 @@ Each Stage runs the same generated pipeline
 ### Triage (Bosun)
 
 When a promotion opens a pull request, an `http` step hands the freight
-context to [Bosun](https://github.com/JamesAtIntegratnIO/bosun), which reads
+context to [Bosun](https://github.com/IntegratnIO/bosun), which reads
 the [gate](delivery.md)'s verdict and acts on it: a dropped-served-version
 red gets its consuming manifests migrated deterministically (no model
 involved), a red the render proves gets a proposed fix applied behind policy
@@ -135,7 +135,7 @@ Two properties worth knowing:
   gate green by editing the gate, and it cannot invent a version number.
 
 Its measured behaviour, and why a 9B local model is enough, is in
-[the prompt contract](https://github.com/JamesAtIntegratnIO/bosun/blob/main/docs/prompt-contract.md).
+[the prompt contract](https://github.com/IntegratnIO/bosun/blob/main/docs/prompt-contract.md).
 
 Two things bite when standing this up, both verified the hard way on #92:
 

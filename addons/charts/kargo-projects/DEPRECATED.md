@@ -1,7 +1,7 @@
 # Superseded by the `kargo-pipelines` chart
 
 This chart is no longer rendered by anything. The `kargo-projects` addon points
-at https://github.com/JamesAtIntegratnIO/bosun, which is the same chart generalised for
+at https://github.com/IntegratnIO/bosun, which is the same chart generalised for
 reuse plus promotion chains.
 
 It is kept for one release as a rollback path, and because a chart that

@@ -3,7 +3,7 @@
 How a version bump travels from "a new release exists" to "verified running on
 the cluster", and what stands between those two points. This is the
 consumer-side companion to
-[Bosun's own end-to-end narrative](https://github.com/JamesAtIntegratnIO/bosun/blob/main/docs/the-loop.md);
+[Bosun's own end-to-end narrative](https://github.com/IntegratnIO/bosun/blob/main/docs/the-loop.md);
 that page tells the story, this one names the wiring in *this* repository.
 
 [docs/kargo.md](kargo.md) covers the promotion machinery in depth. This page
