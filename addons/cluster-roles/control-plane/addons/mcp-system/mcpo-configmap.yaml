@@ -5,6 +5,11 @@
 # - github: remote streamable-http (repos, issues, PRs, actions)
 # - argocd: remote streamable-http (applications, sync, resource trees)
 # - fetch: stdio subprocess via uvx (fetches web pages as markdown)
+# - umami: remote streamable-http, in the umami namespace (read-only web
+#   analytics for integratn.io and bosun.integratn.io). Umami accepts only an
+#   API key (`umami_...`), from 1Password item `umami-mcp` / `token` via
+#   externalsecret-umami-mcp.yaml; the init container in mcpo-deployment.yaml
+#   renders it in the way it renders ${GITHUB_TOKEN}.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -49,6 +54,13 @@ data:
         "sequential-thinking": {
           "type": "streamable-http",
           "url": "http://sequential-thinking.mcp-system.svc.cluster.local:8000/mcp"
+        },
+        "umami": {
+          "type": "streamable-http",
+          "url": "http://umami.umami.svc.cluster.local:3000/mcp",
+          "headers": {
+            "Authorization": "Bearer ${UMAMI_MCP_TOKEN}"
+          }
         }
       }
     }
