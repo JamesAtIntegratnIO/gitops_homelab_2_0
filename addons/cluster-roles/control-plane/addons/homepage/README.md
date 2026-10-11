@@ -17,6 +17,7 @@ It is plain manifests from the official image,
 |---|---|
 | `configmap.yaml` | the whole configuration: `settings`, `services`, `widgets`, `bookmarks`, `kubernetes`, plus the empty skeleton files |
 | `deployment.yaml` | Homepage: one replica, read-only root filesystem, the Service `homepage.homepage.svc.cluster.local:3000` |
+| `externalsecret.yaml` | `homepage-env`, the widget keys as `HOMEPAGE_VAR_*`, from 1Password |
 | `rbac.yaml` | ServiceAccount and a read-only ClusterRole: namespaces, pods, nodes and `metrics.k8s.io` |
 | `httproute.yaml`, `snippetsfilter.yaml` | `home.cluster.integratn.tech` behind authentik forward-auth, and its http redirect |
 
@@ -48,22 +49,33 @@ minute or so and Homepage re-reads it; no restart is needed.
   `percent` format divides by 100, so a 0-1 ratio needs `scale: 100`;
   `duration` takes seconds.
 
-## Adding an API widget
+## API widgets
 
-Most service widgets (ArgoCD, Sonarr, Radarr, SABnzbd, Plex, Proxmox, UniFi,
-Home Assistant) need an API key. Never put one in `configmap.yaml`. Instead:
+ArgoCD, Sonarr, Radarr, SABnzbd, Plex, Home Assistant, Unraid, Proxmox and
+UniFi show live numbers from their own APIs. Their keys never touch
+`configmap.yaml`: `externalsecret.yaml` builds the Secret `homepage-env` from
+1Password (item `homepage-secret`, whose fields are already named
+`HOMEPAGE_VAR_*`, plus `unifi-mcp-login` and `argocd-mcp-api-token`),
+`deployment.yaml` loads it with `envFrom`, and `services.yaml` refers to each
+as `"{{HOMEPAGE_VAR_<NAME>}}"`.
 
-1. Put the key in 1Password (vault `homelab`).
-2. Add an `ExternalSecret` in this directory against the `onepassword-store`
-   ClusterSecretStore, producing a Secret `homepage-env` with keys named
-   `HOMEPAGE_VAR_<NAME>`, and add the ExternalSecret `ignoreDifferences` block
-   from the umami entry in `addons.yaml`.
-3. Load it in `deployment.yaml` with `envFrom: [{secretRef: {name: homepage-env}}]`.
-4. Reference it in `services.yaml` as `key: "{{HOMEPAGE_VAR_<NAME>}}"`.
-5. Allow the egress: an in-cluster service needs a NetworkPolicy pair (this
-   namespace's egress and the target's ingress); a LAN host needs a line in
-   `allow-lan-monitors`. The vcluster-media apps are reached through the
-   vcluster's gateway at 10.0.4.201 on 443.
+To add one:
+
+1. Add the field to the 1Password item `homepage-secret` named
+   `HOMEPAGE_VAR_<NAME>` (it is picked up whole), or a `data` entry in
+   `externalsecret.yaml` for a field in another item.
+2. Reference it in `services.yaml`.
+3. Allow the egress. An in-cluster service needs both halves: this
+   namespace's `allow-widget-apis` and the target namespace's ingress (see
+   `argocd.yaml` and `vcluster-media.yaml` in network-policies). A LAN host
+   needs a line in `allow-lan-monitors`.
+4. Restart the pod (`envFrom` is read at start); a ConfigMap-only change
+   needs no restart.
+
+The media apps are called on the Services vcluster syncs into the host
+namespace, `<app>-x-media-x-vcluster-media.vcluster-media.svc`, not through
+`*.vcluster-media.integratn.tech`: the vcluster gateway's LoadBalancer only
+admits traffic from outside the cluster.
 
 ## Gotchas
 

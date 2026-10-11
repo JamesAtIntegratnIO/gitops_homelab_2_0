@@ -97,7 +97,8 @@ spec:
           port: 9090
 ---
 # The LAN hosts the page shows up/down for (siteMonitor in configmap.yaml):
-# Tower's Unraid UI and Plex, and Home Assistant. One host and port each; add a
+# Tower's Unraid UI/API and Plex, Home Assistant, the UniFi console and
+# Proxmox. One host and port each; add a
 # line here when a new siteMonitor or widget points outside the cluster, or its
 # tile reads "Error" with nothing in the logs but a timeout.
 apiVersion: networking.k8s.io/v1
@@ -126,3 +127,63 @@ spec:
       ports:
         - protocol: TCP
           port: 8123
+    # UniFi console (the gateway) for the unifi widget.
+    - to:
+        - ipBlock:
+            cidr: 192.168.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    # Proxmox VE API for the proxmox widget.
+    - to:
+        - ipBlock:
+            cidr: 192.168.0.10/32
+      ports:
+        - protocol: TCP
+          port: 8006
+---
+# The API widgets on in-cluster services: ArgoCD's API, and Sonarr, Radarr and
+# SABnzbd in the media vcluster, reached on the Services vcluster syncs into
+# the host namespace (`<app>-x-media-x-vcluster-media`) rather than through
+# the vcluster's gateway, whose LoadBalancer ingress admits only the world
+# entity. Ports are the pods' own, since a ClusterIP is DNAT'd before policy.
+# The ingress halves: allow-argocd-server in argocd.yaml, and
+# allow-homepage-ingress in vcluster-media.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-widget-apis
+  namespace: homepage
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: server
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vcluster-media
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [sonarr, radarr, sabnzbd]
+      ports:
+        - protocol: TCP
+          port: 8989
+        - protocol: TCP
+          port: 7878
+        - protocol: TCP
+          port: 8080

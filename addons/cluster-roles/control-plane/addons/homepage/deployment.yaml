@@ -57,6 +57,12 @@ spec:
             # The entrypoint probes an IPv6 bind first; the cluster is IPv4.
             - name: HOSTNAME
               value: "0.0.0.0"
+          # Widget API keys as HOMEPAGE_VAR_* (externalsecret.yaml). Optional so
+          # the page still starts, without the widgets, if 1Password is down.
+          envFrom:
+            - secretRef:
+                name: homepage-env
+                optional: true
           ports:
             - name: http
               containerPort: 3000

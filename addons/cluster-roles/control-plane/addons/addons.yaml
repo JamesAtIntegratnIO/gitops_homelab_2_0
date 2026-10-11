@@ -1140,9 +1140,20 @@ homepage:
   path: addons/cluster-roles/control-plane/addons/homepage
   selectorMatchLabels:
     cluster_role: control-plane
-  # Defaulted fields the manifests do not set -- umami's block, less the
-  # ExternalSecret it has no use for yet.
+  # Defaulted fields the manifests do not set -- umami's block, for the same
+  # three kinds.
   ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.target.template.mergePolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+        - .spec.dataFrom[]?.extract.conversionStrategy
+        - .spec.dataFrom[]?.extract.decodingStrategy
+        - .spec.dataFrom[]?.extract.metadataPolicy
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       jqPathExpressions:

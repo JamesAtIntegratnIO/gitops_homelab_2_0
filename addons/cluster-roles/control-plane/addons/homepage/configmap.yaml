@@ -9,9 +9,9 @@
 #   the rest     one card per UI, with a status dot from its pods (in-cluster)
 #                or an HTTP check (LAN hosts)
 #
-# Tiles query Prometheus in-cluster (no auth). Services with an API widget
-# (ArgoCD, Sonarr, Plex...) need a token each; none are wired yet -- see
-# README.md for how to add one without putting it in this file.
+# Tiles query Prometheus in-cluster (no auth). API widgets take their keys
+# from the environment as {{HOMEPAGE_VAR_*}}, filled from 1Password by
+# externalsecret.yaml; never write a key into this file.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -193,6 +193,10 @@ data:
             description: GitOps for the-cluster
             namespace: argocd
             app: argocd-server
+            widget:
+              type: argocd
+              url: http://argo-cd-argocd-server.argocd.svc.cluster.local
+              key: "{{HOMEPAGE_VAR_ARGOCD_KEY}}"
         - Kargo:
             icon: https://kargo.cluster.integratn.tech/favicon.ico
             href: https://kargo.cluster.integratn.tech
@@ -282,18 +286,30 @@ data:
             description: TV
             namespace: vcluster-media
             app: sonarr
+            widget:
+              type: sonarr
+              url: http://sonarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8989
+              key: "{{HOMEPAGE_VAR_SONARR_KEY}}"
         - Radarr:
             icon: radarr.png
             href: https://radarr.vcluster-media.integratn.tech
             description: Movies
             namespace: vcluster-media
             app: radarr
+            widget:
+              type: radarr
+              url: http://radarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:7878
+              key: "{{HOMEPAGE_VAR_RADARR_KEY}}"
         - SABnzbd:
             icon: sabnzbd.png
             href: https://sabnzbd.vcluster-media.integratn.tech
             description: Downloads
             namespace: vcluster-media
             app: sabnzbd
+            widget:
+              type: sabnzbd
+              url: http://sabnzbd-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8080
+              key: "{{HOMEPAGE_VAR_SABNZBD_KEY}}"
         - Wiki:
             icon: mdi-book-open-variant
             href: https://wiki.vcluster-media.integratn.tech
@@ -305,6 +321,10 @@ data:
             href: http://10.0.0.12:32400/web
             description: On Tower
             siteMonitor: http://10.0.0.12:32400/identity
+            widget:
+              type: plex
+              url: http://10.0.0.12:32400
+              key: "{{HOMEPAGE_VAR_PLEX_TOKEN}}"
 
     - Home and infrastructure:
         - Home Assistant:
@@ -312,19 +332,39 @@ data:
             href: http://10.0.1.174:8123
             description: The house
             siteMonitor: http://10.0.1.174:8123
+            widget:
+              type: homeassistant
+              url: http://10.0.1.174:8123
+              key: "{{HOMEPAGE_VAR_HA_KEY}}"
         - Tower (Unraid):
             icon: unraid.png
             href: http://10.0.0.12
             description: NFS, Plex, Matchbox PXE
             siteMonitor: http://10.0.0.12
+            widget:
+              type: unraid
+              url: http://10.0.0.12
+              key: "{{HOMEPAGE_VAR_UNRAID_KEY}}"
         - Proxmox:
             icon: proxmox.png
             href: https://192.168.0.10:8006
             description: pitdroid VM
+            siteMonitor: https://192.168.0.10:8006
+            widget:
+              type: proxmox
+              url: https://192.168.0.10:8006
+              username: "{{HOMEPAGE_VAR_PVE_USER}}"
+              password: "{{HOMEPAGE_VAR_PVE_PASS}}"
         - UniFi:
             icon: unifi.png
-            href: https://unifi.ui.com
+            href: https://192.168.0.1
             description: Network
+            siteMonitor: https://192.168.0.1
+            widget:
+              type: unifi
+              url: https://192.168.0.1
+              username: "{{HOMEPAGE_VAR_UNIFI_USER}}"
+              password: "{{HOMEPAGE_VAR_UNIFI_PASS}}"
 
     - AI:
         - Open WebUI:
