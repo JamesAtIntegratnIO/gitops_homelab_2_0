@@ -4,7 +4,7 @@ title: Addon inventory
 description: Every addon defined under addons/ — enabled state, namespace, chart/version, defining layer, and purpose — as of 2026-08-20, plus the kargo/kargo-projects pair added 2026-08-21, on 2026-08-30 the removal of vcluster-coredns-config and the addition of the coredns-host-config / coredns-workload pair, and on 2026-10-06 the specmarshal addon, and on 2026-10-11 the umami and cloudflared pair and the homepage landing page.
 tags: [addons, inventory]
 status: stable
-generated: { by: claude-code, at: 2026-10-11T23:30:00Z }
+generated: { by: claude-code, at: 2026-10-11T23:55:00Z }
 stale_after: 2026-11-20
 sources:
   - id: env-prod
@@ -69,7 +69,7 @@ kro, kro-resource-groups.[^env-prod]
 | coredns-host-config | kube-system | manifest (`addons/.../coredns/`) | Owns the host Corefile so the `auth.cluster.integratn.tech` rewrite survives; `selfHeal: true`, `prune: false` |
 | coredns-workload | kube-system | manifest (`addons/.../coredns-workload/`) | SA, RBAC, Deployment, `kube-dns` Service — Talos's own render, adopted 2026-08-30; `prune: false` |
 | specmarshal | specmarshal | `registry.integratn.io/integratn/charts/specmarshal` 0.2.0-rc.9 (licensed, private) + manifests (`addons/.../specmarshal/`) | Specmarshal's orchestrator from its published chart; each agent iteration is a Job beside it that it `kubectl exec`s into. Preconditions and first-run steps in the addon's README.md. Added 2026-10-06 |
-| homepage | homepage | manifest (`addons/.../homepage/`): `ghcr.io/gethomepage/homepage` v1.13.2, digest-pinned, Kargo-tracked | The cluster landing page at `home.cluster.integratn.tech`, behind authentik: Prometheus health tiles, cluster/node usage, pod status and links for every service, the media vcluster and the LAN hosts. Config is the `homepage-config` ConfigMap. Added 2026-10-11 |
+| homepage | homepage | manifest (`addons/.../homepage/`): Glance `docker.io/glanceapp/glance` v0.8.6, digest-pinned, Kargo-tracked (target `homepage`, `autoMerge: patch`). Replaced Homepage (gethomepage.dev) v2.5.0 on 2026-10-11 | The cluster landing page at `home.cluster.integratn.tech`, behind authentik, in the IntegratnIO brand (specmarshal DESIGN.md): status verdict and chips, node cards and sparklines, alerts, ArgoCD/Kargo problems, media, Umami, Plex/Proxmox/Tower, releases, launcher. All cluster data from Prometheus; config is the `glance-config` ConfigMap, keys from 1Password `homepage-secret`. Added 2026-10-11 |
 | umami | umami | manifest (`addons/.../umami/`): `ghcr.io/umami-software/umami` 3.4.0 + `redis:7.4.11-alpine`, digest-pinned, Kargo-tracked | Cookieless web analytics for integratn.io and bosun.integratn.io; Postgres on 10.0.3.1. Dashboard `stats.cluster.integratn.tech` behind authentik, MCP at `mcp.cluster.integratn.tech/umami/mcp`, tracker public only through the tunnel. Added 2026-10-11 |
 | cloudflared | cloudflared | manifest (`addons/.../cloudflared/`): `cloudflare/cloudflared` 2026.10.0, digest-pinned, Kargo-tracked | Two connectors of a remotely-managed Cloudflare Tunnel — the cluster's only public ingress. Hostname and path rules are OpenTofu in IntegratnIO/infrastructure. Added 2026-10-11 |
 

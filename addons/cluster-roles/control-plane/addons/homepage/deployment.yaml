@@ -1,11 +1,15 @@
-# Homepage (gethomepage.dev): one replica, read-only root filesystem, config
-# from the homepage-config ConfigMap (configmap.yaml).
+# Glance (github.com/glanceapp/glance), the landing page at
+# home.cluster.integratn.tech: one replica, read-only root filesystem, config
+# from the glance-config ConfigMap (configmap.yaml).
 #
-# The ConfigMap is mounted as the whole /app/config directory rather than file
-# by file with subPath, so an edit reaches the running pod without a restart
-# (subPath mounts never update). That makes /app/config read-only, which works
-# because every file Homepage would otherwise copy from its skeleton is present
-# in the ConfigMap, and LOG_TARGETS=stdout keeps it from writing logs/ there.
+# The namespace, Deployment and Service keep the name `homepage` (and the pod
+# label app.kubernetes.io/name: homepage) from the Homepage this replaced, so
+# the authentik provider and the NetworkPolicy halves in other namespaces did
+# not have to move.
+#
+# Glance reads its config and environment once, at start, so a change to
+# configmap.yaml or to 1Password reaches the page only after
+# `kubectl -n homepage rollout restart deploy/homepage`.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,91 +28,67 @@ spec:
       labels:
         app.kubernetes.io/name: homepage
     spec:
-      serviceAccountName: homepage
-      automountServiceAccountToken: true
+      # Glance never calls the Kubernetes API; everything comes from Prometheus.
+      automountServiceAccountToken: false
       # Deferrable: a convenience page, not a platform dependency.
       priorityClassName: platform-batch
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
+        runAsUser: 65532
+        runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: homepage
-          image: ghcr.io/gethomepage/homepage:v2.5.0@sha256:57c4a0531937889c0b968b120fe9c2560bbe036b5c9e18c49a9e2479de9975d1
+        - name: glance
+          image: docker.io/glanceapp/glance:v0.8.6@sha256:9dfb09470b207dcb67ac715994bdb1929374ba3f9c0d7df7462c24adf10fd073
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-          env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            # Homepage answers only these Host headers. The pod IP is for the
-            # kubelet's probes, which address the pod directly.
-            - name: HOMEPAGE_ALLOWED_HOSTS
-              value: "home.cluster.integratn.tech,$(POD_IP):3000"
-            - name: LOG_TARGETS
-              value: stdout
-            # The entrypoint probes an IPv6 bind first; the cluster is IPv4.
-            - name: HOSTNAME
-              value: "0.0.0.0"
-          # Widget API keys as HOMEPAGE_VAR_* (externalsecret.yaml), one Secret
-          # per 1Password item. Optional so the page still starts, without the
-          # affected widgets, if an item is missing or 1Password is down.
+          # glance-env first: it sets every ${NAME} the config uses, keys
+          # empty. The 1Password Secret after it overrides the keys it has.
+          # Optional so a missing item or a 1Password outage costs widgets,
+          # not the page.
           envFrom:
+            - configMapRef:
+                name: glance-env
             - secretRef:
                 name: homepage-env
                 optional: true
-            - secretRef:
-                name: homepage-argocd
-                optional: true
-            - secretRef:
-                name: homepage-unifi
-                optional: true
           ports:
             - name: http
-              containerPort: 3000
+              containerPort: 8080
               protocol: TCP
           resources:
             requests:
-              cpu: 25m
-              memory: 128Mi
+              cpu: 10m
+              memory: 48Mi
             limits:
               cpu: 500m
-              memory: 384Mi
+              memory: 256Mi
           readinessProbe:
             httpGet:
-              path: /api/healthcheck
+              path: /api/healthz
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 3
             periodSeconds: 15
           livenessProbe:
             httpGet:
-              path: /api/healthcheck
+              path: /api/healthz
               port: http
-            initialDelaySeconds: 20
+            initialDelaySeconds: 10
             periodSeconds: 30
           volumeMounts:
             - name: config
               mountPath: /app/config
               readOnly: true
-            # Next.js's image and fetch cache.
-            - name: next-cache
-              mountPath: /app/.next/cache
             - name: tmp
               mountPath: /tmp
       volumes:
         - name: config
           configMap:
-            name: homepage-config
-        - name: next-cache
-          emptyDir:
-            sizeLimit: 256Mi
+            name: glance-config
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
@@ -126,6 +106,6 @@ spec:
     app.kubernetes.io/name: homepage
   ports:
     - name: http
-      port: 3000
+      port: 8080
       targetPort: http
       protocol: TCP

@@ -1127,10 +1127,11 @@ specmarshal:
 # IntegratnIO/infrastructure, not here. docs/okf/platform/networking.md has the
 # picture; each directory's README.md has what must exist before merging.
 homepage:
-  # Plain manifests: Homepage (gethomepage.dev), the landing page at
+  # Plain manifests: Glance (github.com/glanceapp/glance), the landing page at
   # home.cluster.integratn.tech, digest-pinned and Kargo-tracked (target
-  # `homepage`). Its config is the homepage-config ConfigMap; the namespace
-  # and its NetworkPolicies are in network-policies/homepage.yaml. Behind
+  # `homepage`). The addon, namespace and target keep the name of the Homepage
+  # it replaced. Its config is the glance-config ConfigMap; the namespace and
+  # its NetworkPolicies are in network-policies/homepage.yaml. Behind
   # authentik (provider `homepage-proxy-provider`).
   enabled: true
   type: manifest
