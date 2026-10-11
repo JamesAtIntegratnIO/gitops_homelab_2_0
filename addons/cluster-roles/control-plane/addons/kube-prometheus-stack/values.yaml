@@ -314,7 +314,11 @@ grafana:
       searchNamespace: ALL
       folderAnnotation: grafana_folder
       provider:
-        foldersFromFilesStructure: false
+        # true so the grafana_folder annotation actually files dashboards into
+        # folders. With false (until 2026-10-11) the sidecar wrote
+        # /tmp/dashboards/<folder>/x.json but Grafana flattened every one of
+        # them into General, and the Platform folder sat empty.
+        foldersFromFilesStructure: true
     securityContext:
       readOnlyRootFilesystem: true
       allowPrivilegeEscalation: false
@@ -337,6 +341,11 @@ grafana:
   grafana.ini:
     server:
       root_url: https://grafana.cluster.integratn.tech
+    # Land on the Homelab Overview (platform-landing-zone addon). The dashboard
+    # sidecar writes each ConfigMap to /tmp/dashboards/<grafana_folder>/<key>.
+    # If the file is ever missing Grafana falls back to its stock home page.
+    dashboards:
+      default_home_dashboard_path: /tmp/dashboards/Platform/homelab-overview.json
     auth:
       oauth_auto_login: false
       disable_login_form: false
