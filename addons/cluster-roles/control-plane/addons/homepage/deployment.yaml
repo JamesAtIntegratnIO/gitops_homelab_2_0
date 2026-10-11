@@ -29,6 +29,12 @@ spec:
         app.kubernetes.io/name: homepage
     spec:
       # Glance never calls the Kubernetes API; everything comes from Prometheus.
+      # Both fields are written out: the live object still carried
+      # `homepage` from the Homepage this replaced, and dropping the field
+      # from the manifest does not clear it (the deprecated serviceAccount
+      # twin keeps it set), so new pods asked for an account that was pruned.
+      serviceAccountName: default
+      serviceAccount: default
       automountServiceAccountToken: false
       # Deferrable: a convenience page, not a platform dependency.
       priorityClassName: platform-batch
