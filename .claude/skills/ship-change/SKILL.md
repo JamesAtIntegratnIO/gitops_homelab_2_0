@@ -57,7 +57,7 @@ $HELM template addons/charts/application-sets -f <values...>
 # addons/charts/kargo-projects is its DEPRECATED predecessor and rendering it
 # verifies nothing. Version comes from the addon's `defaultVersion`.
 $HELM template kargo-projects \
-  oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines --version <defaultVersion> \
+  oci://ghcr.io/integratnio/charts/kargo-pipelines --version <defaultVersion> \
   -f addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
 
 # Keep the `-o /dev/null` -- a bare `go build ./...` writes a 54MB binary named

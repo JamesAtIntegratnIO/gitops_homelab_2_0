@@ -909,7 +909,7 @@ argo-rollouts:
 # The target list lives in kargo-projects/values.yaml next to this file.
 bosun:
   # Bosun lives in its own repository now --
-  # https://github.com/JamesAtIntegratnIO/bosun -- and ships as a versioned OCI
+  # https://github.com/IntegratnIO/bosun -- and ships as a versioned OCI
   # chart rather than a path into this one. So this is an ordinary third-party
   # chart addon, and `defaultVersion` is a real pin that Kargo tracks (target
   # `bosun` in kargo-projects/values.yaml) instead of the branch name it used
@@ -926,7 +926,7 @@ bosun:
   namespace: bosun
   chartName: bosun
   project: platform-services
-  chartRepository: oci://ghcr.io/jamesatintegratnio/charts/bosun
+  chartRepository: oci://ghcr.io/integratnio/charts/bosun
   # 0.25.1 -- a security review of the agent and the chart, and five chart
   # versions of accumulated drift closed in one move. What it needs from the
   # values file beside this one, because none of it is optional:
@@ -984,7 +984,7 @@ bosun:
   # blueprint ConfigMap. Published at bosun.cluster.integratn.tech, behind
   # authentik forward-auth. `web.httpRoute` stays OFF: the chart's route
   # cannot carry the filter that puts authentik in front.
-  defaultVersion: 0.39.0
+  defaultVersion: 0.39.1
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun
@@ -1118,6 +1118,96 @@ specmarshal:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
 
+# ── Public edge: web analytics ─────────────────────────────────────────
+# Umami (cookieless web analytics for integratn.io and bosun.integratn.io) and
+# the cloudflared tunnel that makes two of its paths public. Until these, nothing
+# in this cluster was reachable from the internet: every *.cluster.integratn.tech
+# name resolves to the LAN gateway VIP. The tunnel adds exactly one public path
+# -- edge.integratn.io, /c.js and /api/c only -- and its rules live in
+# IntegratnIO/infrastructure, not here. docs/okf/platform/networking.md has the
+# picture; each directory's README.md has what must exist before merging.
+umami:
+  # Plain manifests: the official image, digest-pinned and Kargo-tracked
+  # (targets `umami` and `umami-redis`), with its Redis, its Secrets from
+  # 1Password, the dashboard route behind authentik and the MCP route. The
+  # namespace and its NetworkPolicies are in network-policies/umami.yaml.
+  #
+  # One replica that migrates the database on start, so merging this is the
+  # deploy, and the Postgres role has to exist first (umami/README.md).
+  enabled: true
+  type: manifest
+  namespace: umami
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/umami
+  selectorMatchLabels:
+    cluster_role: control-plane
+  # Defaulted fields the manifests do not set, so the app is not OutOfSync
+  # forever while syncing successfully every time -- specmarshal's block, for
+  # the same three kinds.
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.target.template.mergePolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .status
+        - .spec.parentRefs[]?.group
+        - .spec.parentRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
+      jqPathExpressions:
+        - .status
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+
+cloudflared:
+  # The tunnel's connectors: two replicas of `cloudflared tunnel run` with the
+  # token from 1Password. The tunnel itself, its public hostnames and path
+  # rules, and its DNS record are OpenTofu in IntegratnIO/infrastructure
+  # (remotely managed), so nothing in git here decides what is public -- only
+  # what the connectors can reach (network-policies/cloudflared.yaml).
+  # Kargo-tracked (target `cloudflared`).
+  enabled: true
+  type: manifest
+  namespace: cloudflared
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/cloudflared
+  selectorMatchLabels:
+    cluster_role: control-plane
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+
 kargo-observability:
   # Its own repository now --
   # https://github.com/JamesAtIntegratnIO/kargo-observability -- because it
@@ -1156,7 +1246,7 @@ kargo-observability:
 kargo-projects:
   # Renders the Warehouses and Stages from the target list in
   # kargo-projects/values.yaml beside this file. The chart is `kargo-pipelines`
-  # and now ships from https://github.com/JamesAtIntegratnIO/bosun as a
+  # and now ships from https://github.com/IntegratnIO/bosun as a
   # versioned OCI package, so `defaultVersion` is a real pin that Kargo tracks
   # rather than the branch name it used to be.
   #
@@ -1182,7 +1272,7 @@ kargo-projects:
   valuesFolderName: kargo-projects
   releaseName: kargo-projects
   project: platform-services
-  chartRepository: oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines
+  chartRepository: oci://ghcr.io/integratnio/charts/kargo-pipelines
   # 0.1.1 carries the fix that makes the triage hook actually reach Bosun.
   # Every call before it died at Kargo's own config validation -- the body
   # rendered as an object where the http step requires a string -- and

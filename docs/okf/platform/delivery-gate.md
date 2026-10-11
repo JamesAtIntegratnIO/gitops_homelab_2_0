@@ -17,7 +17,7 @@ sources:
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
     title: "the triage hook (`triage:` with `when: gated`) and every target's merge policy"
   - id: upstream
-    resource: https://github.com/JamesAtIntegratnIO/bosun
+    resource: https://github.com/IntegratnIO/bosun
     title: the Bosun repository — gate source, agent source, charts, evals, and docs/the-loop.md
 ---
 

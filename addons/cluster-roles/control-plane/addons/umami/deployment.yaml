@@ -1,0 +1,211 @@
+# Umami, the web analytics for integratn.io and bosun.integratn.io: the
+# official image, one replica, plain manifests. There is no first-party chart,
+# and the third-party ones trail the image by months; this is one Deployment
+# and one Service, which is less to read than any chart's values.
+#
+# The image is Kargo-tracked (target `umami` in kargo-projects/values.yaml),
+# and the target rewrites BOTH image lines below -- the init container's and
+# the server's. They must stay the same image: the init container copies the
+# server's own public/ directory. Keep this Deployment the FIRST document of
+# the file, keep both lines scalars with no trailing comment.
+#
+# v3 dropped MySQL, so there is no `postgresql-` tag prefix any more: `3.4.0`
+# is the Postgres build. 3.4.0 is also the first version with the MCP endpoint
+# (MCP_ENABLED below), so this pin must not go backwards.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: umami
+  namespace: umami
+  labels:
+    app.kubernetes.io/name: umami
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: umami
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: umami
+    spec:
+      # Umami never talks to the API server.
+      automountServiceAccountToken: false
+      # A Service named `umami` and one named `umami-redis` in this namespace
+      # would otherwise inject UMAMI_SERVICE_HOST, UMAMI_REDIS_PORT and friends
+      # into an app that reads its configuration from the environment.
+      enableServiceLinks: false
+      securityContext:
+        # The image's own `nextjs` user and `nodejs` group.
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # THE ROOT FILESYSTEM IS READ-ONLY, AND UMAMI WRITES ONE FILE AT START.
+        # scripts/start-docker.sh runs scripts/update-tracker.js before the
+        # server, and with COLLECT_API_ENDPOINT set that script rewrites
+        # public/script.js in place, replacing the `/api/send` it was built
+        # with by `/api/c`. That rewrite is what makes the tracker post to the
+        # renamed endpoint, so it cannot be skipped. This copies the image's
+        # public/ into an emptyDir that the server mounts over /app/public,
+        # which gives the script a writable copy and leaves the rest of the
+        # filesystem read-only.
+        - name: public
+          image: ghcr.io/umami-software/umami:3.4.0@sha256:85909afc45bdcda1917394594a087421fdbb05610fded0fa9f6fb861abb2f367
+          command: ["sh", "-c", "cp -a /app/public/. /writable-public/"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: public
+              mountPath: /writable-public
+      containers:
+        - name: umami
+          image: ghcr.io/umami-software/umami:3.4.0@sha256:85909afc45bdcda1917394594a087421fdbb05610fded0fa9f6fb861abb2f367
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          # DATABASE_URL, APP_SECRET and REDIS_URL, from 1Password
+          # (externalsecret.yaml beside this file).
+          envFrom:
+            - secretRef:
+                name: umami-env
+          # Every name below was read in Umami's source at v3.4.0, not taken
+          # from the docs: src/app/api/config/route.ts (DISABLE_*),
+          # docker/proxy.ts (TRACKER_SCRIPT_NAME, COLLECT_API_ENDPOINT, both
+          # applied per request, so they work in the prebuilt image),
+          # scripts/update-tracker.js (COLLECT_API_ENDPOINT again, see the init
+          # container), src/lib/ip.ts (CLIENT_IP_HEADER), src/lib/detect.ts
+          # (SKIP_LOCATION_HEADERS) and src/app/mcp/route.ts (MCP_ENABLED).
+          env:
+            - name: DISABLE_TELEMETRY
+              value: "1"
+            - name: DISABLE_UPDATES
+              value: "1"
+            # BLAND NAMES ON PURPOSE. Ad blockers match on the script's name
+            # (`script.js` from a host serving Umami), the collect endpoint
+            # (`/api/send`) and the hostname (`stats.`, `analytics.`), so the
+            # public face is <site>/c.js posting to /api/c. The
+            # proxy rewrites /c.js to /script.js and /api/c to /api/send
+            # inside the pod; the old paths keep answering, which the
+            # dashboard host is free to use and the tunnel never exposes.
+            - name: TRACKER_SCRIPT_NAME
+              value: c.js
+            - name: COLLECT_API_ENDPOINT
+              value: /api/c
+            # The sites are Cloudflare Pages, and a Pages Function on each
+            # proxies /c.js and /api/c to edge.integratn.io. Umami would see the
+            # Function's address, so the Function sends the visitor's in this
+            # header, and Umami reads it before its built-in list
+            # (cf-connecting-ip and the rest). A direct caller can set it too;
+            # at worst that forges where one pageview came from.
+            - name: CLIENT_IP_HEADER
+              value: x-umami-client-ip
+            # Locate visitors from that address with the GeoLite database in
+            # the image, NOT from Cloudflare's cf-ipcountry/cf-ipcity headers.
+            # Umami prefers those headers when present, and on a request the
+            # Pages Function made they describe the Function, not the
+            # visitor -- every pageview would land in Cloudflare's colo.
+            - name: SKIP_LOCATION_HEADERS
+              value: "1"
+            # The read-only MCP endpoint at /mcp (Umami >= 3.4.0). It 404s
+            # unless this is exactly "1", and it accepts only an API key
+            # (`Bearer umami_...`), never a browser session. Routed at
+            # mcp.cluster.integratn.tech/umami/mcp (httproute.yaml) and handed
+            # to mcpo; the tunnel's path rule keeps it off the internet.
+            - name: MCP_ENABLED
+              value: "1"
+            # `prisma migrate deploy` runs at every start (check-db.js). Keep
+            # Prisma's update check off the network and its cache off the
+            # read-only home directory.
+            - name: CHECKPOINT_DISABLE
+              value: "1"
+            - name: HOME
+              value: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          # /api/heartbeat returns {ok: true} and touches nothing -- not the
+          # database, not Redis. Startup is the migration and can take a while
+          # on a first boot against an empty database, hence the startup probe.
+          startupProbe:
+            httpGet:
+              path: /api/heartbeat
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/heartbeat
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          # Liveness asks only whether the Node process answers. Never point it
+          # at anything that reaches Postgres or Redis: an outage there would
+          # restart a healthy pod in a loop (CLAUDE.md, "Pin images").
+          livenessProbe:
+            httpGet:
+              path: /api/heartbeat
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: public
+              mountPath: /app/public
+            # Next.js's own cache (optimised images, fetch cache).
+            - name: next-cache
+              mountPath: /app/.next/cache
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: public
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: next-cache
+          emptyDir:
+            sizeLimit: 512Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+---
+# umami.umami.svc.cluster.local:3000 -- the address the cloudflared tunnel's
+# ingress rule names (IntegratnIO/infrastructure), the gateway's routes reach,
+# and mcpo calls. Renaming it breaks the tunnel, which git here cannot see.
+apiVersion: v1
+kind: Service
+metadata:
+  name: umami
+  namespace: umami
+  labels:
+    app.kubernetes.io/name: umami
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: umami
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP

@@ -8,7 +8,7 @@ generated: { by: claude-code/claude-opus-5, at: 2026-08-30T16:20:00Z }
 stale_after: 2026-09-30
 sources:
   - id: chart
-    resource: https://github.com/JamesAtIntegratnIO/bosun/tree/main/charts/kargo-pipelines
+    resource: https://github.com/IntegratnIO/bosun/tree/main/charts/kargo-pipelines
     title: kargo-pipelines factory chart (its own repository since 2026-08-23; superseded addons/charts/kargo-projects in PR #86)
   - id: targets
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
@@ -26,7 +26,7 @@ sources:
     resource: ../../kargo.md
     title: docs/kargo.md — the operator guide
   - id: agent
-    resource: https://github.com/JamesAtIntegratnIO/bosun
+    resource: https://github.com/IntegratnIO/bosun
     title: Bosun — the triage service the pipeline calls (its own repository since 2026-08-23)
   - id: reference
     resource: https://github.com/Tensure/gitops-apps-config (private)
@@ -89,9 +89,9 @@ trigger.
 the promotion until a human merges or closes; later Freight queues behind it).
 
 After `git-open-pr`, a **triage** `http` step POSTs the freight context to the
-[Bosun](https://github.com/JamesAtIntegratnIO/bosun) — live since
+[Bosun](https://github.com/IntegratnIO/bosun) — live since
 2026-08-22 (PR #92), and in its own repository since 2026-08-23, consumed as
-the pinned OCI chart `oci://ghcr.io/jamesatintegratnio/charts/bosun` (Kargo
+the pinned OCI chart `oci://ghcr.io/integratnio/charts/bosun` (Kargo
 target `bosun` tracks the chart version; the image follows the chart's
 appVersion). `when: gated` means it fires only for pull requests the
 merge policy will *not* auto-merge, i.e. the ones already parked on

@@ -32,7 +32,7 @@ data:
         {"title": "ArgoCD Overview", "url": "/d/argocd-overview/argocd-overview", "type": "link", "icon": "external link", "tooltip": "ArgoCD sync & health details", "targetBlank": false},
         {"title": "Kratix Platform", "url": "/d/kratix-platform/kratix-platform", "type": "link", "icon": "external link", "tooltip": "Kratix promise status", "targetBlank": false},
         {"title": "vCluster Fleet", "url": "/d/vcluster-fleet-health/vcluster-fleet-health", "type": "link", "icon": "external link", "tooltip": "vCluster fleet health", "targetBlank": false},
-        {"title": "Kubernetes Logs", "url": "/d/loki-k8s-logs/loki-kubernetes-logs", "type": "link", "icon": "external link", "tooltip": "Loki log explorer", "targetBlank": false},
+        {"title": "Kubernetes Logs", "url": "/d/loki-kubernetes-logs/loki-kubernetes-logs", "type": "link", "icon": "external link", "tooltip": "Loki log explorer", "targetBlank": false},
         {"title": "Trivy Security", "url": "/d/trivy-operator/trivy-operator-dashboard", "type": "link", "icon": "external link", "tooltip": "Vulnerability scanning", "targetBlank": false}
       ],
       "panels": [
