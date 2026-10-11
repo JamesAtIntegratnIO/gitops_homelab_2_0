@@ -1118,6 +1118,64 @@ specmarshal:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
 
+# ── Public edge: web analytics ─────────────────────────────────────────
+# Umami (cookieless web analytics for integratn.io and bosun.integratn.io) and
+# the cloudflared tunnel that makes two of its paths public. Until these, nothing
+# in this cluster was reachable from the internet: every *.cluster.integratn.tech
+# name resolves to the LAN gateway VIP. The tunnel adds exactly one public path
+# -- edge.integratn.io, /c.js and /api/c only -- and its rules live in
+# IntegratnIO/infrastructure, not here. docs/okf/platform/networking.md has the
+# picture; each directory's README.md has what must exist before merging.
+umami:
+  # Plain manifests: the official image, digest-pinned and Kargo-tracked
+  # (targets `umami` and `umami-redis`), with its Redis, its Secrets from
+  # 1Password, the dashboard route behind authentik and the MCP route. The
+  # namespace and its NetworkPolicies are in network-policies/umami.yaml.
+  #
+  # One replica that migrates the database on start, so merging this is the
+  # deploy, and the Postgres role has to exist first (umami/README.md).
+  enabled: true
+  type: manifest
+  namespace: umami
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/umami
+  selectorMatchLabels:
+    cluster_role: control-plane
+  # Defaulted fields the manifests do not set, so the app is not OutOfSync
+  # forever while syncing successfully every time -- specmarshal's block, for
+  # the same three kinds.
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.target.template.mergePolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .status
+        - .spec.parentRefs[]?.group
+        - .spec.parentRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
+      jqPathExpressions:
+        - .status
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+
 kargo-observability:
   # Its own repository now --
   # https://github.com/JamesAtIntegratnIO/kargo-observability -- because it

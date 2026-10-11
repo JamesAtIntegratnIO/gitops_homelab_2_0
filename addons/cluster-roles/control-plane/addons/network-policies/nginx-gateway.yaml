@@ -250,6 +250,22 @@ spec:
       ports:
         - protocol: TCP
           port: 4200
+    # Umami: the dashboard (stats.cluster.integratn.tech, behind authentik)
+    # and its MCP endpoint (mcp.cluster.integratn.tech/umami/mcp). The other
+    # half is allow-gateway-ingress in umami.yaml, which admits this pod to
+    # 3000; without THIS entry that one is moot and both hang with zero bytes.
+    # The public tracker paths do not come through here at all -- they arrive
+    # by the cloudflared tunnel (cloudflared.yaml).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: umami
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: umami
+      ports:
+        - protocol: TCP
+          port: 3000
     # LLMKube inference backends (bare-metal/metal agent on LAN).
     # Cilium DNATs service ClusterIP → Mac endpoint before policy evaluation,
     # so the post-DNAT destination is 10.0.x.x:ephemeral — ipBlock is required.

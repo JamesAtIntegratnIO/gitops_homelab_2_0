@@ -395,6 +395,46 @@ projects:
         updates:
           - file: addons/clusters/the-cluster/addons/authentik/authentik-redis.yaml
             keys: [spec.template.spec.containers.0.image]
+      # ── umami + cloudflared: raw manifests, digest-pinned ───────────
+      umami:
+        scope: umami
+        # v3 tags are unprefixed and Postgres-only; the `postgresql-v2.*`
+        # and `mysql-v2.*` lines of the old major do not match.
+        #
+        # `patch`: every start runs `prisma migrate deploy`, and a minor's
+        # migrations are one-way. A human reads those.
+        #
+        # TWO KEYS, ONE IMAGE: the init container copies the server's own
+        # public/ directory, so both lines must always move together.
+        image:
+          repoURL: ghcr.io/umami-software/umami
+          allowTags: ['^\d+\.\d+\.\d+$']
+        autoMerge: patch
+        verify:
+          apps:
+            - umami-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/umami/deployment.yaml
+            keys:
+              - spec.template.spec.initContainers.0.image
+              - spec.template.spec.containers.0.image
+      umami-redis:
+        scope: umami
+        # Docker Hub, polled anonymously -- held at the old cadence while the
+        # rest of the images go to 15m. See defaults.interval above.
+        interval: 6h0m0s
+        image:
+          repoURL: redis
+          # The same line as authentik-redis, and the same caveat: `-alpine`
+          # is a semver prerelease, which works only because there is no
+          # constraint.
+          allowTags: ['^7\.\d+\.\d+-alpine$']
+        verify:
+          apps:
+            - umami-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/umami/redis.yaml
+            keys: [spec.template.spec.containers.0.image]
       nfs-subdir-external-provisioner-image:
         scope: nfs-provisioner
         image:
