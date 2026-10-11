@@ -346,6 +346,15 @@ grafana:
     # If the file is ever missing Grafana falls back to its stock home page.
     dashboards:
       default_home_dashboard_path: /tmp/dashboards/Platform/homelab-overview.json
+    # Grafana 13's background plugin installer "updates" the bundled datasource
+    # plugins (prometheus, loki, tempo, ...) on every start. With
+    # readOnlyRootFilesystem it unregisters them, fails to unlink
+    # /usr/share/grafana/data/plugins-bundled/<id> ("read-only file system"),
+    # and leaves every Prometheus and Loki panel on "Plugin not registered".
+    # Hit on the 2026-10-11 restart. Plugins come from the image; pin the image.
+    plugins:
+      preinstall_disabled: true
+      preinstall_auto_update: false
     auth:
       oauth_auto_login: false
       disable_login_form: false

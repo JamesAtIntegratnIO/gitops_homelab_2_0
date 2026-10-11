@@ -110,6 +110,11 @@ themselves (2026-10-11):[^live-probe-1011]
 - **`grafana_folder` annotations had no effect** until 2026-10-11: the sidecar
   provider ran with `foldersFromFilesStructure: false`, so every sidecar
   dashboard sat in General and the Platform folder was empty. Now `true`.
+- **Grafana's plugin preinstaller must stay off** (`[plugins]
+  preinstall_disabled`). With it on, a restart unregisters the bundled
+  Prometheus/Loki plugins and cannot replace them on the read-only root
+  filesystem, so every panel errors with "Plugin not registered"
+  (2026-10-11).
 - Grafana logs `A dashboard with the same uid already exists` every 30s for
   four chart dashboards (nodes, nodes-darwin, node-cluster-rsrc-use,
   prometheus); duplicates with random uids exist in General. Not yet fixed.
