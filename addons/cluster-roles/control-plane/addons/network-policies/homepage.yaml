@@ -1,0 +1,128 @@
+# Homepage, the landing page at home.cluster.integratn.tech. The namespace
+# starts from the default-deny Kyverno generates
+# (kyverno-generate-default-deny.yaml); everything the pod may do is below.
+#
+# In: the gateway's data plane on 3000. The other half is the homepage entry in
+# allow-nginx-dataplane (nginx-gateway.yaml); without it the page hangs with
+# zero bytes.
+#
+# Out: DNS, the Kubernetes API (node/pod status and metrics.k8s.io for the
+# cluster widget and per-service pod status), and Prometheus on 9090 for the
+# health tiles. Prometheus's half is the homepage entry in allow-prometheus
+# (monitoring.yaml). The LAN hosts the page checks are allowed one by one at
+# the end. No internet egress: icons are served from the image's bundle or by
+# the browser fetching them itself.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: homepage
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: homepage
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# The API server is not a pod, so a NetworkPolicy cannot name it; Cilium's
+# kube-apiserver entity can.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-api
+  namespace: homepage
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities:
+        - kube-apiserver
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-ingress
+  namespace: homepage
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-egress
+  namespace: homepage
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9090
+---
+# The LAN hosts the page shows up/down for (siteMonitor in configmap.yaml):
+# Tower's Unraid UI and Plex, and Home Assistant. One host and port each; add a
+# line here when a new siteMonitor or widget points outside the cluster, or its
+# tile reads "Error" with nothing in the logs but a timeout.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lan-monitors
+  namespace: homepage
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.12/32
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 32400
+    - to:
+        - ipBlock:
+            cidr: 10.0.1.174/32
+      ports:
+        - protocol: TCP
+          port: 8123

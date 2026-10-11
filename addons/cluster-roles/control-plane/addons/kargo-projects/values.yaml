@@ -435,6 +435,20 @@ projects:
         updates:
           - file: addons/cluster-roles/control-plane/addons/umami/redis.yaml
             keys: [spec.template.spec.containers.0.image]
+      homepage:
+        scope: homepage
+        # Plain vX.Y.Z releases only. Homepage's config schema has been
+        # stable across minors, but a major is read by a human first.
+        image:
+          repoURL: ghcr.io/gethomepage/homepage
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        autoMerge: minor
+        verify:
+          apps:
+            - homepage-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/homepage/deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
       cloudflared:
         scope: cloudflared
         # Docker Hub, polled anonymously -- held at the old cadence while the

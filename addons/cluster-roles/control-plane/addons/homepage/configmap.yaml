@@ -1,0 +1,367 @@
+# Homepage's whole configuration. Mounted as the /app/config directory
+# (deployment.yaml), so every file Homepage would otherwise copy in from its
+# skeleton has to be here, even the empty ones -- the mount is read-only and a
+# missing file is a startup error, not a default.
+#
+# Layout of the page:
+#   top bar      cluster CPU/memory and each node (metrics-server), clock, search
+#   Health       four cards of PromQL tiles: is anything wrong right now?
+#   the rest     one card per UI, with a status dot from its pods (in-cluster)
+#                or an HTTP check (LAN hosts)
+#
+# Tiles query Prometheus in-cluster (no auth). Services with an API widget
+# (ArgoCD, Sonarr, Plex...) need a token each; none are wired yet -- see
+# README.md for how to add one without putting it in this file.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-config
+  namespace: homepage
+data:
+  settings.yaml: |
+    title: Homelab
+    description: the-cluster, vcluster-media and the house
+    theme: dark
+    color: slate
+    headerStyle: boxed
+    statusStyle: dot
+    target: _blank
+    hideVersion: true
+    useEqualHeights: true
+    quicklaunch:
+      searchDescriptions: true
+      hideInternetSearch: true
+    layout:
+      Health:
+        style: row
+        columns: 4
+      Platform:
+        style: row
+        columns: 4
+      Observability:
+        style: row
+        columns: 4
+      Media (vcluster-media):
+        style: row
+        columns: 4
+      Home and infrastructure:
+        style: row
+        columns: 4
+      AI:
+        style: row
+        columns: 4
+
+  widgets.yaml: |
+    - kubernetes:
+        cluster:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+          label: the-cluster
+        nodes:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+    - datetime:
+        text_size: md
+        format:
+          dateStyle: medium
+          timeStyle: short
+          hourCycle: h23
+    - search:
+        provider: duckduckgo
+        target: _blank
+
+  kubernetes.yaml: |
+    # In-cluster ServiceAccount (rbac.yaml). Services are listed by hand in
+    # services.yaml, so route discovery stays off.
+    mode: cluster
+    ingress: false
+    gateway: false
+    traefik: false
+
+  # Every tile is `<query> or vector(0)` where an empty result means "none",
+  # so a quiet cluster reads 0 rather than a blank. Percent tiles scale a
+  # 0-1 ratio by 100 (Homepage's percent format divides by 100). Durations
+  # are seconds.
+  services.yaml: |
+    - Health:
+        - Alerts:
+            icon: alertmanager.png
+            href: https://alertmanager.cluster.integratn.tech
+            description: Firing now; critical pages Matrix
+            widget:
+              type: prometheusmetric
+              url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+              refreshInterval: 30000
+              metrics:
+                - label: Critical
+                  query: count(ALERTS{alertstate="firing", severity="critical"}) or vector(0)
+                - label: Warning kinds
+                  query: count(count by (alertname) (ALERTS{alertstate="firing", severity="warning"})) or vector(0)
+                - label: Targets down
+                  query: count(up == 0) or vector(0)
+                - label: Pods in trouble
+                  query: (sum(kube_pod_status_phase{phase=~"Pending|Failed|Unknown"}) or vector(0)) + (count(kube_pod_container_status_waiting_reason{reason=~"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError"}) or vector(0))
+        - Delivery:
+            icon: argo-cd.png
+            href: https://grafana.cluster.integratn.tech/d/homelab-overview/homelab-overview
+            description: GitOps and promotions
+            widget:
+              type: prometheusmetric
+              url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+              refreshInterval: 60000
+              metrics:
+                - label: Apps not Healthy
+                  query: count(argocd_app_info{health_status!="Healthy"}) or vector(0)
+                - label: OutOfSync
+                  query: count(argocd_app_info{sync_status!="Synced"}) or vector(0)
+                - label: Kargo errored
+                  query: count(kargo_stage_last_promotion_phase{phase=~"Errored|Failed|Aborted"} == 1) or vector(0)
+                - label: Bosun blocking
+                  query: sum(bosun_pipeline_findings{severity="blocking"}) or vector(0)
+        - Capacity:
+            icon: kubernetes.png
+            href: https://grafana.cluster.integratn.tech/d/homelab-overview/homelab-overview
+            description: N+1 line is 67% requested
+            widget:
+              type: prometheusmetric
+              url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+              refreshInterval: 60000
+              metrics:
+                - label: CPU requested
+                  query: sum(kube_pod_container_resource_requests{resource="cpu"} * on (namespace, pod) group_left () (max by (namespace, pod) (kube_pod_status_phase{phase=~"Running|Pending"}) == 1)) / sum(kube_node_status_allocatable{resource="cpu"})
+                  format:
+                    type: percent
+                    scale: 100
+                    options:
+                      maximumFractionDigits: 0
+                - label: Mem requested
+                  query: sum(kube_pod_container_resource_requests{resource="memory"} * on (namespace, pod) group_left () (max by (namespace, pod) (kube_pod_status_phase{phase=~"Running|Pending"}) == 1)) / sum(kube_node_status_allocatable{resource="memory"})
+                  format:
+                    type: percent
+                    scale: 100
+                    options:
+                      maximumFractionDigits: 0
+                - label: etcd fsync p99
+                  query: max(histogram_quantile(0.99, sum by (instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m]))))
+                  format:
+                    type: number
+                    scale: 1000
+                    suffix: " ms"
+                    options:
+                      maximumFractionDigits: 0
+                - label: Prometheus disk
+                  query: (sum(prometheus_tsdb_storage_blocks_bytes{job=~".*prometheus"}) + sum(prometheus_tsdb_wal_storage_size_bytes{job=~".*prometheus"})) / (30 * 1024 * 1024 * 1024)
+                  format:
+                    type: percent
+                    scale: 100
+                    options:
+                      maximumFractionDigits: 0
+        - Safety nets:
+            icon: mdi-shield-check
+            href: https://grafana.cluster.integratn.tech/d/homelab-overview/homelab-overview
+            description: Backups, certs and Tower NFS
+            widget:
+              type: prometheusmetric
+              url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+              refreshInterval: 60000
+              metrics:
+                - label: Last etcd backup
+                  query: time() - max(kube_cronjob_status_last_successful_time{cronjob=~".*-etcd-snapshot"})
+                  format:
+                    type: duration
+                - label: Next cert expiry
+                  query: min(certmanager_certificate_expiration_timestamp_seconds - time())
+                  format:
+                    type: duration
+                - label: NFS retransmits 1h
+                  query: sum(increase(node_nfs_rpc_retransmissions_total[1h])) or vector(0)
+                  format:
+                    type: number
+                    options:
+                      maximumFractionDigits: 0
+                - label: vClusters ready
+                  query: sum(platform_vcluster_ready) or vector(0)
+
+    - Platform:
+        - ArgoCD:
+            icon: argo-cd.png
+            href: https://argocd.cluster.integratn.tech
+            description: GitOps for the-cluster
+            namespace: argocd
+            app: argocd-server
+        - Kargo:
+            icon: https://kargo.cluster.integratn.tech/favicon.ico
+            href: https://kargo.cluster.integratn.tech
+            description: Version promotions
+            namespace: kargo
+            app: kargo
+            podSelector: app.kubernetes.io/name=kargo,app.kubernetes.io/component=api
+        - Bosun:
+            icon: mdi-ferry
+            href: https://bosun.cluster.integratn.tech
+            description: Delivery gate and pipeline triage
+            namespace: bosun
+            app: bosun
+        - Authentik:
+            icon: authentik.png
+            href: https://auth.cluster.integratn.tech
+            description: SSO
+            namespace: authentik
+            app: authentik
+            podSelector: app.kubernetes.io/name=authentik,app.kubernetes.io/component=server
+        - Specmarshal:
+            icon: mdi-clipboard-text-outline
+            href: https://specmarshal.cluster.integratn.tech
+            description: Spec-driven coding sessions
+            namespace: specmarshal
+            app: specmarshal
+        - Trivy:
+            icon: trivy.png
+            href: https://trivy.cluster.integratn.tech
+            description: Image vulnerabilities
+            namespace: trivy-system
+            app: trivy-operator-explorer
+        - Goldilocks:
+            icon: mdi-scale-balance
+            href: https://goldilocks.cluster.integratn.tech
+            description: Resource request advice
+            namespace: goldilocks
+            app: goldilocks
+            podSelector: app.kubernetes.io/name=goldilocks,app.kubernetes.io/component=dashboard
+        - Umami:
+            icon: umami.png
+            href: https://stats.cluster.integratn.tech
+            description: integratn.io analytics
+            namespace: umami
+            app: umami
+
+    - Observability:
+        - Grafana:
+            icon: grafana.png
+            href: https://grafana.cluster.integratn.tech
+            description: Homelab Overview is the home page
+            namespace: monitoring
+            app: grafana
+        - Prometheus:
+            icon: prometheus.png
+            href: https://prometheus.cluster.integratn.tech
+            description: Metrics, 15 days
+            namespace: monitoring
+            app: prometheus
+            widget:
+              type: prometheus
+              url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        - Alertmanager:
+            icon: alertmanager.png
+            href: https://alertmanager.cluster.integratn.tech
+            description: Routes alerts to Matrix
+            namespace: monitoring
+            app: alertmanager
+        - Loki:
+            icon: loki.png
+            href: https://grafana.cluster.integratn.tech/explore
+            description: Logs (query through Grafana)
+            namespace: loki
+            app: loki
+            podSelector: app.kubernetes.io/name=loki,app.kubernetes.io/component=single-binary
+        - Hubble:
+            icon: cilium.png
+            href: https://hubble.cluster.integratn.tech
+            description: Network flows
+            namespace: kube-system
+            app: hubble-ui
+
+    - Media (vcluster-media):
+        - Sonarr:
+            icon: sonarr.png
+            href: https://sonarr.vcluster-media.integratn.tech
+            description: TV
+            namespace: vcluster-media
+            app: sonarr
+        - Radarr:
+            icon: radarr.png
+            href: https://radarr.vcluster-media.integratn.tech
+            description: Movies
+            namespace: vcluster-media
+            app: radarr
+        - SABnzbd:
+            icon: sabnzbd.png
+            href: https://sabnzbd.vcluster-media.integratn.tech
+            description: Downloads
+            namespace: vcluster-media
+            app: sabnzbd
+        - Wiki:
+            icon: mdi-book-open-variant
+            href: https://wiki.vcluster-media.integratn.tech
+            description: Otterwiki
+            namespace: vcluster-media
+            app: otterwiki
+        - Plex:
+            icon: plex.png
+            href: http://10.0.0.12:32400/web
+            description: On Tower
+            siteMonitor: http://10.0.0.12:32400/identity
+
+    - Home and infrastructure:
+        - Home Assistant:
+            icon: home-assistant.png
+            href: http://10.0.1.174:8123
+            description: The house
+            siteMonitor: http://10.0.1.174:8123
+        - Tower (Unraid):
+            icon: unraid.png
+            href: http://10.0.0.12
+            description: NFS, Plex, Matchbox PXE
+            siteMonitor: http://10.0.0.12
+        - Proxmox:
+            icon: proxmox.png
+            href: https://192.168.0.10:8006
+            description: pitdroid VM
+        - UniFi:
+            icon: unifi.png
+            href: https://unifi.ui.com
+            description: Network
+
+    - AI:
+        - Open WebUI:
+            icon: open-webui.png
+            href: https://chat.cluster.integratn.tech
+            description: Chat, with MCP tools
+            namespace: ai
+            app: open-webui
+        - Qdrant:
+            icon: qdrant.png
+            href: https://qdrant.cluster.integratn.tech/dashboard
+            description: Vector store
+            namespace: ai
+            app: qdrant
+
+  bookmarks.yaml: |
+    - Repositories:
+        - gitops_homelab_2_0:
+            - icon: github.png
+              href: https://github.com/JamesAtIntegratnIO/gitops_homelab_2_0
+        - nix_dots_2:
+            - icon: github.png
+              href: https://github.com/JamesAtIntegratnIO/nix_dots_2
+        - Smart display:
+            - icon: github.png
+              href: https://github.com/JamesAtIntegratnIO/lenovo-smart-display-home-assistant
+    - Dashboards:
+        - Homelab Overview:
+            - icon: grafana.png
+              href: https://grafana.cluster.integratn.tech/d/homelab-overview/homelab-overview
+        - Kargo Delivery:
+            - icon: grafana.png
+              href: https://grafana.cluster.integratn.tech/d/kargo-delivery/kargo-delivery
+
+  # Unused, but present: the mount is read-only and Homepage would otherwise
+  # try to copy its skeleton versions in.
+  docker.yaml: ""
+  proxmox.yaml: ""
+  custom.css: ""
+  custom.js: ""
