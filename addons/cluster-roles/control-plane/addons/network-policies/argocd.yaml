@@ -77,6 +77,18 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # Homepage's ArgoCD widget (app counts by sync/health). Port 8080 for the
+    # same DNAT reason as below; the egress half is in homepage.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: homepage
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: homepage
+      ports:
+        - protocol: TCP
+          port: 8080
     # Bosun's gate reads the cluster inventory from the ArgoCD API.
     #
     # This is the half of the path the bosun chart CANNOT write. It emits its
