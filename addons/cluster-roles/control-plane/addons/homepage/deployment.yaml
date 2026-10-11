@@ -1,0 +1,118 @@
+# Homepage (gethomepage.dev): one replica, read-only root filesystem, config
+# from the homepage-config ConfigMap (configmap.yaml).
+#
+# The ConfigMap is mounted as the whole /app/config directory rather than file
+# by file with subPath, so an edit reaches the running pod without a restart
+# (subPath mounts never update). That makes /app/config read-only, which works
+# because every file Homepage would otherwise copy from its skeleton is present
+# in the ConfigMap, and LOG_TARGETS=stdout keeps it from writing logs/ there.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: homepage
+    spec:
+      serviceAccountName: homepage
+      automountServiceAccountToken: true
+      # Deferrable: a convenience page, not a platform dependency.
+      priorityClassName: platform-batch
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: homepage
+          image: ghcr.io/gethomepage/homepage:v1.13.2@sha256:a0b71c8e757298d02560186bab9fbe3fc2d375c523a62cc1019177b37e48aa28
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            # Homepage answers only these Host headers. The pod IP is for the
+            # kubelet's probes, which address the pod directly.
+            - name: HOMEPAGE_ALLOWED_HOSTS
+              value: "home.cluster.integratn.tech,$(POD_IP):3000"
+            - name: LOG_TARGETS
+              value: stdout
+            # The entrypoint probes an IPv6 bind first; the cluster is IPv4.
+            - name: HOSTNAME
+              value: "0.0.0.0"
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          readinessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /api/healthcheck
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            # Next.js's image and fetch cache.
+            - name: next-cache
+              mountPath: /app/.next/cache
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: homepage-config
+        - name: next-cache
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: homepage
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP

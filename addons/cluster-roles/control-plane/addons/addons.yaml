@@ -1126,6 +1126,42 @@ specmarshal:
 # -- edge.integratn.io, /c.js and /api/c only -- and its rules live in
 # IntegratnIO/infrastructure, not here. docs/okf/platform/networking.md has the
 # picture; each directory's README.md has what must exist before merging.
+homepage:
+  # Plain manifests: Homepage (gethomepage.dev), the landing page at
+  # home.cluster.integratn.tech, digest-pinned and Kargo-tracked (target
+  # `homepage`). Its config is the homepage-config ConfigMap; the namespace
+  # and its NetworkPolicies are in network-policies/homepage.yaml. Behind
+  # authentik (provider `homepage-proxy-provider`).
+  enabled: true
+  type: manifest
+  namespace: homepage
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/homepage
+  selectorMatchLabels:
+    cluster_role: control-plane
+  # Defaulted fields the manifests do not set -- umami's block, less the
+  # ExternalSecret it has no use for yet.
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      jqPathExpressions:
+        - .status
+        - .spec.parentRefs[]?.group
+        - .spec.parentRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.group
+        - .spec.rules[]?.backendRefs[]?.kind
+        - .spec.rules[]?.backendRefs[]?.weight
+    - group: gateway.nginx.org
+      kind: SnippetsFilter
+      jqPathExpressions:
+        - .status
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
 umami:
   # Plain manifests: the official image, digest-pinned and Kargo-tracked
   # (targets `umami` and `umami-redis`), with its Redis, its Secrets from
