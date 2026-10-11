@@ -4,7 +4,7 @@ title: Networking — Cilium, MetalLB, Gateway API, DNS, TLS
 description: The full traffic path from Cloudflare DNS through the MetalLB VIP and nginx-gateway-fabric into services, plus the Cilium CNI specifics.
 tags: [networking, cilium, metallb, gateway-api, dns, tls, cloudflare]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
+generated: { by: claude-code/claude-opus-5.5, at: 2026-10-11T18:00:00Z }
 stale_after: 2027-02-20
 sources:
   - id: live-net
@@ -16,6 +16,12 @@ sources:
   - id: addons-net
     resource: ../../../addons/environments/production/addons/addons.yaml
     title: cilium / metallb / nginx-gateway-fabric addon definitions
+  - id: tunnel
+    resource: ../../../addons/cluster-roles/control-plane/addons/cloudflared/README.md
+    title: cloudflared addon -- the tunnel and what it exposes
+  - id: tunnel-netpol
+    resource: ../../../addons/cluster-roles/control-plane/addons/network-policies/cloudflared.yaml
+    title: cloudflared NetworkPolicies
 ---
 
 # Address plan
@@ -31,7 +37,7 @@ sources:
 | vcluster-media gateway LB | `10.0.4.201` |
 | NFS server / Matchbox host (Unraid) | `10.0.0.12` |
 | 1Password Connect | `10.0.1.139` (connect.integratn.tech) |
-| External Postgres (used by media apps, authentik) | `10.0.3.1:5432` |
+| External Postgres (used by media apps, authentik, specmarshal, umami) | `10.0.3.1:5432` |
 
 # CNI: Cilium 1.17.3
 
@@ -44,6 +50,9 @@ complement vanilla NetworkPolicies where entity-based selection is needed
 README nor AGENTS.md mentions Cilium — cluster reality is ahead of the docs.
 
 # North-south traffic path
+
+**LAN.** Every `*.cluster.integratn.tech` name is a Cloudflare DNS record to the
+gateway VIP, a private address, so all of this is reachable only from the LAN:
 
 ```
 client → Cloudflare DNS (A record → 10.0.4.205)
@@ -72,6 +81,32 @@ client → Cloudflare DNS (A record → 10.0.4.205)
   manages per-service records; each vcluster runs its own external-dns with
   its own owner id.
 
+**Public: one path, through a tunnel (since 2026-10-11).** The gateway is still
+not on the internet. The only public way in is a remotely-managed Cloudflare
+Tunnel whose connectors run in-cluster (`cloudflared` addon, 2 replicas) and
+dial *out* to Cloudflare's edge on 7844 (QUIC, or HTTP/2 over TCP); no port is
+forwarded and nothing listens on the LAN for it.[^tunnel]
+
+```
+browser -> site on Cloudflare Pages -> Pages Function proxies /c.js, /api/c
+        -> edge.integratn.io (tunnel ingress: ^/(c\.js|api/c)$, else 404)
+        -> cloudflared pod -> umami.umami.svc.cluster.local:3000
+```
+
+- **What is public is decided outside this repo**: the tunnel, its ingress
+  rules and the `edge.integratn.io` record are OpenTofu in
+  IntegratnIO/infrastructure. **What the connectors can reach is decided
+  here**: `network-policies/cloudflared.yaml` allows DNS, the edge
+  (0.0.0.0/0 minus RFC1918 on 7844 UDP+TCP and 443) and `umami:3000`, and
+  nothing else.[^tunnel-netpol] A new public hostname needs both.
+- Two paths, both Umami's tracker (`/c.js`) and collect endpoint (`/api/c`),
+  bland names on purpose because ad blockers match `script.js`, `/api/send`,
+  `stats.` and `analytics.`. The dashboard (`stats.cluster.integratn.tech`,
+  behind authentik) and Umami's `/mcp` stay LAN-only.
+- Umami takes the visitor address from `x-umami-client-ip`, set by the
+  sites' Functions; a direct caller can forge it, which at worst forges one
+  pageview's location.
+
 # vcluster networking
 
 Each vcluster gets: a LoadBalancer VIP for its API (external-dns hostname,
@@ -88,3 +123,5 @@ East-west traffic is governed by per-namespace default-deny — see
 [^live-net]: Live networking state
 [^cp-patch]: Talos control-plane patch (CNI none, proxy disabled)
 [^addons-net]: cilium / metallb / nginx-gateway-fabric addon definitions
+[^tunnel]: cloudflared addon -- the tunnel and what it exposes
+[^tunnel-netpol]: cloudflared NetworkPolicies
