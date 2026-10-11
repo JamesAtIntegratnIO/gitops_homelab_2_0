@@ -654,7 +654,8 @@ data:
     # above. Numbered 08c so it sorts before 09-embedded-outpost, whose
     # provider list `!Find`s it.
     #
-    # Homepage has no login of its own and shows live cluster state, so this
+    # The landing page (Glance; the provider keeps the name of the Homepage it
+    # replaced) has no login of its own and shows live cluster state, so this
     # provider is its only door. The nginx half is the SnippetsFilter in
     # addons/cluster-roles/control-plane/addons/homepage/.
     version: 1

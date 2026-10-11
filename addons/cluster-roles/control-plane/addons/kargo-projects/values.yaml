@@ -437,12 +437,15 @@ projects:
             keys: [spec.template.spec.containers.0.image]
       homepage:
         scope: homepage
-        # Plain vX.Y.Z releases only. Homepage's config schema has been
-        # stable across minors, but a major is read by a human first.
+        # Glance, the landing page (the target keeps the name of the Homepage
+        # it replaced). Docker Hub, polled anonymously, so the old cadence.
+        interval: 6h0m0s
+        # Plain vX.Y.Z only. Glance is 0.x and has broken its config between
+        # minors (0.7 -> 0.8), so only patches merge themselves.
         image:
-          repoURL: ghcr.io/gethomepage/homepage
+          repoURL: docker.io/glanceapp/glance
           allowTags: ['^v\d+\.\d+\.\d+$']
-        autoMerge: minor
+        autoMerge: patch
         verify:
           apps:
             - homepage-the-cluster

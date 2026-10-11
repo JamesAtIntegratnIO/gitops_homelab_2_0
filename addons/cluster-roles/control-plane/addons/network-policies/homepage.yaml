@@ -1,17 +1,17 @@
-# Homepage, the landing page at home.cluster.integratn.tech. The namespace
-# starts from the default-deny Kyverno generates
-# (kyverno-generate-default-deny.yaml); everything the pod may do is below.
+# The landing page at home.cluster.integratn.tech (Glance; the namespace keeps
+# the name of the Homepage it replaced). The namespace starts from the
+# default-deny Kyverno generates (kyverno-generate-default-deny.yaml);
+# everything the pod may do is below.
 #
-# In: the gateway's data plane on 3000. The other half is the homepage entry in
+# In: the gateway's data plane on 8080. The other half is the homepage entry in
 # allow-nginx-dataplane (nginx-gateway.yaml); without it the page hangs with
 # zero bytes.
 #
-# Out: DNS, the Kubernetes API (node/pod status and metrics.k8s.io for the
-# cluster widget and per-service pod status), and Prometheus on 9090 for the
-# health tiles. Prometheus's half is the homepage entry in allow-prometheus
-# (monitoring.yaml). The LAN hosts the page checks are allowed one by one at
-# the end. No internet egress: icons are served from the image's bundle or by
-# the browser fetching them itself.
+# Out: DNS; Prometheus on 9090 for everything about the cluster (its half is
+# the homepage entry in allow-prometheus, monitoring.yaml); the gateway, for
+# the up/down checks on *.cluster.integratn.tech; the media and Umami APIs;
+# the LAN hosts one by one; and the internet on 443 for the releases, news
+# and RSS widgets. Icons are fetched by the browser, not the pod.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -40,19 +40,6 @@ spec:
         - protocol: TCP
           port: 53
 ---
-# The API server is not a pod, so a NetworkPolicy cannot name it; Cilium's
-# kube-apiserver entity can.
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: allow-kube-api
-  namespace: homepage
-spec:
-  endpointSelector: {}
-  egress:
-    - toEntities:
-        - kube-apiserver
----
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -71,7 +58,7 @@ spec:
               kubernetes.io/metadata.name: nginx-gateway
       ports:
         - protocol: TCP
-          port: 3000
+          port: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -96,11 +83,10 @@ spec:
         - protocol: TCP
           port: 9090
 ---
-# The LAN hosts the page shows up/down for (siteMonitor in configmap.yaml):
-# Tower's Unraid UI/API and Plex, Home Assistant, the UniFi console and
-# Proxmox. One host and port each; add a
-# line here when a new siteMonitor or widget points outside the cluster, or its
-# tile reads "Error" with nothing in the logs but a timeout.
+# The LAN hosts the page checks or reads (the monitor and custom-api widgets in
+# configmap.yaml): Tower's Unraid UI/API and Plex, Home Assistant, the UniFi
+# console and Proxmox. One host and port each; add a line here when a new
+# widget points outside the cluster, or it times out with nothing in the logs.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -127,14 +113,14 @@ spec:
       ports:
         - protocol: TCP
           port: 8123
-    # UniFi console (the gateway) for the unifi widget.
+    # The UniFi console, for its up/down check.
     - to:
         - ipBlock:
             cidr: 192.168.0.1/32
       ports:
         - protocol: TCP
           port: 443
-    # Proxmox VE API for the proxmox widget.
+    # Proxmox VE: its API for the Proxmox widget.
     - to:
         - ipBlock:
             cidr: 192.168.0.10/32
@@ -142,13 +128,13 @@ spec:
         - protocol: TCP
           port: 8006
 ---
-# The API widgets on in-cluster services: ArgoCD's API, Umami's, and Sonarr, Radarr and
+# The API widgets on in-cluster services: Umami's, and Sonarr, Radarr and
 # SABnzbd in the media vcluster, reached on the Services vcluster syncs into
 # the host namespace (`<app>-x-media-x-vcluster-media`) rather than through
 # the vcluster's gateway, whose LoadBalancer ingress admits only the world
 # entity. Ports are the pods' own, since a ClusterIP is DNAT'd before policy.
-# The ingress halves: allow-argocd-server in argocd.yaml, and
-# allow-homepage-ingress in vcluster-media.yaml and umami.yaml.
+# The ingress halves: allow-homepage-ingress in vcluster-media.yaml and
+# umami.yaml.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -161,16 +147,6 @@ spec:
   policyTypes:
     - Egress
   egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: argocd
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/component: server
-      ports:
-        - protocol: TCP
-          port: 8080
     - to:
         - namespaceSelector:
             matchLabels:
@@ -197,3 +173,58 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
+---
+# The up/down checks on *.cluster.integratn.tech. Those names resolve to the
+# gateway's LoadBalancer IP, which Cilium translates to the data-plane pods
+# before policy, so the rule names the pods. Their ingress already admits any
+# source on 80/443 (allow-nginx-dataplane).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-egress
+  namespace: homepage
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nginx-gateway-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+---
+# The releases widget (api.github.com), Hacker News, Lobsters and the RSS
+# feeds. Public 443 only: every RFC1918 range is excepted, so this grants
+# nothing on the LAN or in the cluster (those are the rules above).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internet-https
+  namespace: homepage
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

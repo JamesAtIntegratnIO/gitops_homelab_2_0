@@ -266,7 +266,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
-    # Homepage, the landing page (home.cluster.integratn.tech, behind
+    # The landing page, Glance (home.cluster.integratn.tech, behind
     # authentik). The other half is allow-gateway-ingress in homepage.yaml.
     - to:
         - namespaceSelector:
@@ -277,7 +277,7 @@ spec:
               app.kubernetes.io/name: homepage
       ports:
         - protocol: TCP
-          port: 3000
+          port: 8080
     # LLMKube inference backends (bare-metal/metal agent on LAN).
     # Cilium DNATs service ClusterIP → Mac endpoint before policy evaluation,
     # so the post-DNAT destination is 10.0.x.x:ephemeral — ipBlock is required.

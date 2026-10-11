@@ -31,7 +31,7 @@ spec:
             name: authentik-forward-auth
       backendRefs:
         - name: homepage
-          port: 3000
+          port: 8080
 ---
 # The http half: a redirect to https, naming no backend. `matches` is written
 # out because the API server defaults it, and omitting it leaves the route
