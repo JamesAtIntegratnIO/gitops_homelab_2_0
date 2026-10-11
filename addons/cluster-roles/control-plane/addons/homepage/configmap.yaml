@@ -35,6 +35,9 @@ data:
       Health:
         style: row
         columns: 4
+      Sites:
+        style: row
+        columns: 2
       Platform:
         style: row
         columns: 4
@@ -185,6 +188,66 @@ data:
                       maximumFractionDigits: 0
                 - label: vClusters ready
                   query: sum(platform_vcluster_ready) or vector(0)
+
+    - Sites:
+        - integratn.io:
+            icon: umami.png
+            href: https://stats.cluster.integratn.tech/websites/712f4369-49e3-4285-a47a-ed1534441db3
+            description: Umami, all time
+            widgets:
+              - type: customapi
+                url: http://umami.umami.svc.cluster.local:3000/api/websites/712f4369-49e3-4285-a47a-ed1534441db3/active
+                refreshInterval: 60000
+                headers:
+                  Authorization: "Bearer {{HOMEPAGE_VAR_UMAMI_KEY}}"
+                mappings:
+                  - field: visitors
+                    label: Online now
+                    format: number
+              - type: customapi
+                url: http://umami.umami.svc.cluster.local:3000/api/websites/712f4369-49e3-4285-a47a-ed1534441db3/stats?startAt=0&endAt=4102444800000
+                refreshInterval: 300000
+                headers:
+                  Authorization: "Bearer {{HOMEPAGE_VAR_UMAMI_KEY}}"
+                mappings:
+                  - field: visitors
+                    label: Visitors
+                    format: number
+                  - field: visits
+                    label: Visits
+                    format: number
+                  - field: pageviews
+                    label: Pageviews
+                    format: number
+        - bosun.integratn.io:
+            icon: umami.png
+            href: https://stats.cluster.integratn.tech/websites/a4dc99d0-79d0-46df-97d1-67a6b64a9935
+            description: Umami, all time
+            widgets:
+              - type: customapi
+                url: http://umami.umami.svc.cluster.local:3000/api/websites/a4dc99d0-79d0-46df-97d1-67a6b64a9935/active
+                refreshInterval: 60000
+                headers:
+                  Authorization: "Bearer {{HOMEPAGE_VAR_UMAMI_KEY}}"
+                mappings:
+                  - field: visitors
+                    label: Online now
+                    format: number
+              - type: customapi
+                url: http://umami.umami.svc.cluster.local:3000/api/websites/a4dc99d0-79d0-46df-97d1-67a6b64a9935/stats?startAt=0&endAt=4102444800000
+                refreshInterval: 300000
+                headers:
+                  Authorization: "Bearer {{HOMEPAGE_VAR_UMAMI_KEY}}"
+                mappings:
+                  - field: visitors
+                    label: Visitors
+                    format: number
+                  - field: visits
+                    label: Visits
+                    format: number
+                  - field: pageviews
+                    label: Pageviews
+                    format: number
 
     - Platform:
         - ArgoCD:

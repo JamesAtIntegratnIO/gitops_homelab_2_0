@@ -3,15 +3,17 @@
 # allowed is below.
 #
 # Two pods, told apart by label: Umami is `app.kubernetes.io/name: umami`,
-# Redis is `app.kubernetes.io/name: redis`. Umami is reached three ways, all on
+# Redis is `app.kubernetes.io/name: redis`. Umami is reached four ways, all on
 # 3000 and all named here -- the gateway (the dashboard and the MCP route),
-# the cloudflared tunnel (the two public paths), and mcpo. Each of those three
+# the cloudflared tunnel (the two public paths), mcpo, and Homepage's stats
+# tiles. Each of those
 # also needs the EGRESS half on its own side, or the request hangs with zero
 # bytes instead of failing:
 #
 #   gateway      allow-nginx-dataplane in nginx-gateway.yaml
 #   cloudflared  allow-umami-egress in cloudflared.yaml
 #   mcpo         allow-mcpo-umami-egress in mcp-system.yaml
+#   homepage     allow-widget-apis in homepage.yaml
 #
 # Umami itself reaches Postgres, Redis and DNS and nothing else. It has no
 # internet egress, on purpose: telemetry and the update check are off in its
@@ -184,6 +186,31 @@ spec:
           podSelector:
             matchLabels:
               app: mcpo
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+# Homepage's two site tiles, which read /api/websites/<id>/stats and /active
+# with a Umami API key. The other half is allow-widget-apis in homepage.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-homepage-ingress
+  namespace: umami
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: umami
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: homepage
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: homepage
       ports:
         - protocol: TCP
           port: 3000

@@ -142,13 +142,13 @@ spec:
         - protocol: TCP
           port: 8006
 ---
-# The API widgets on in-cluster services: ArgoCD's API, and Sonarr, Radarr and
+# The API widgets on in-cluster services: ArgoCD's API, Umami's, and Sonarr, Radarr and
 # SABnzbd in the media vcluster, reached on the Services vcluster syncs into
 # the host namespace (`<app>-x-media-x-vcluster-media`) rather than through
 # the vcluster's gateway, whose LoadBalancer ingress admits only the world
 # entity. Ports are the pods' own, since a ClusterIP is DNAT'd before policy.
 # The ingress halves: allow-argocd-server in argocd.yaml, and
-# allow-homepage-ingress in vcluster-media.yaml.
+# allow-homepage-ingress in vcluster-media.yaml and umami.yaml.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -187,3 +187,13 @@ spec:
           port: 7878
         - protocol: TCP
           port: 8080
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: umami
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: umami
+      ports:
+        - protocol: TCP
+          port: 3000
