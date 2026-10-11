@@ -98,7 +98,7 @@ spec:
             # BLAND NAMES ON PURPOSE. Ad blockers match on the script's name
             # (`script.js` from a host serving Umami), the collect endpoint
             # (`/api/send`) and the hostname (`stats.`, `analytics.`), so the
-            # public face is <site>/c.js posting to /api/c. The
+            # public face is <site>/c posting to /api/c. The
             # proxy rewrites /c.js to /script.js and /api/c to /api/send
             # inside the pod; the old paths keep answering, which the
             # dashboard host is free to use and the tunnel never exposes.
@@ -107,7 +107,7 @@ spec:
             - name: COLLECT_API_ENDPOINT
               value: /api/c
             # The sites are Cloudflare Pages, and a Pages Function on each
-            # proxies /c.js and /api/c to edge.integratn.io. Umami would see the
+            # proxies /c and /api/c to edge.integratn.io/c.js and /api/c. Umami would see the
             # Function's address, so the Function sends the visitor's in this
             # header, and Umami reads it before its built-in list
             # (cf-connecting-ip and the rest). A direct caller can set it too;

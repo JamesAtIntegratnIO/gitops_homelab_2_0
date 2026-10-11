@@ -88,7 +88,7 @@ dial *out* to Cloudflare's edge on 7844 (QUIC, or HTTP/2 over TCP); no port is
 forwarded and nothing listens on the LAN for it.[^tunnel]
 
 ```
-browser -> site on Cloudflare Pages -> Pages Function proxies /c.js, /api/c
+browser -> site on Cloudflare Pages -> Pages Functions proxy /c, /api/c
         -> edge.integratn.io (tunnel ingress: ^/(c\.js|api/c)$, else 404)
         -> cloudflared pod -> umami.umami.svc.cluster.local:3000
 ```
