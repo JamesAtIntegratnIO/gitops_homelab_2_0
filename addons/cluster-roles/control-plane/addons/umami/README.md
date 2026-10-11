@@ -53,7 +53,7 @@ headers on a Function's request describe the Function, not the visitor.
 
 **Why the names are bland:** ad blockers match on the script's name, the
 collect endpoint and the hostname (`script.js`, `/api/send`, `stats.`,
-`analytics.`), so the public face is `edge.integratn.io/c.js` posting to
+`analytics.`), so a visitor's browser sees `<site>/c.js` posting to
 `/api/c`. `TRACKER_SCRIPT_NAME=c.js` and `COLLECT_API_ENDPOINT=/api/c` make
 Umami answer on those paths, and at start it rewrites its tracker to post to
 `/api/c` -- the one file it writes, which is why `public/` is an emptyDir.
@@ -137,7 +137,7 @@ Platform Services.
    `site/analytics.mjs`, each with its own ID:
 
    ```js
-   { tool: 'umami', src: 'https://edge.integratn.io/c.js', websiteId: '<id>' }
+   { tool: 'umami', src: '/c.js', websiteId: '<id>' }
    ```
 
    Then check a pageview lands in Realtime.
