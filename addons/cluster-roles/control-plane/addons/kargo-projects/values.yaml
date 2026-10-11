@@ -435,6 +435,22 @@ projects:
         updates:
           - file: addons/cluster-roles/control-plane/addons/umami/redis.yaml
             keys: [spec.template.spec.containers.0.image]
+      cloudflared:
+        scope: cloudflared
+        # Docker Hub, polled anonymously -- held at the old cadence while the
+        # rest of the images go to 15m. See defaults.interval above.
+        interval: 6h0m0s
+        # Calver, YYYY.M.P. Not the per-arch `-amd64`/`-arm64` tags or the
+        # build-number tags (`1966-18cdfe0`).
+        image:
+          repoURL: docker.io/cloudflare/cloudflared
+          allowTags: ['^\d{4}\.\d+\.\d+$']
+        verify:
+          apps:
+            - cloudflared-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/cloudflared/deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
       nfs-subdir-external-provisioner-image:
         scope: nfs-provisioner
         image:

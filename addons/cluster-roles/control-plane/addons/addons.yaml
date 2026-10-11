@@ -1176,6 +1176,38 @@ umami:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
 
+cloudflared:
+  # The tunnel's connectors: two replicas of `cloudflared tunnel run` with the
+  # token from 1Password. The tunnel itself, its public hostnames and path
+  # rules, and its DNS record are OpenTofu in IntegratnIO/infrastructure
+  # (remotely managed), so nothing in git here decides what is public -- only
+  # what the connectors can reach (network-policies/cloudflared.yaml).
+  # Kargo-tracked (target `cloudflared`).
+  enabled: true
+  type: manifest
+  namespace: cloudflared
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/cloudflared
+  selectorMatchLabels:
+    cluster_role: control-plane
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+
 kargo-observability:
   # Its own repository now --
   # https://github.com/JamesAtIntegratnIO/kargo-observability -- because it
