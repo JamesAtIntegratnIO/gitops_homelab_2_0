@@ -909,7 +909,7 @@ argo-rollouts:
 # The target list lives in kargo-projects/values.yaml next to this file.
 bosun:
   # Bosun lives in its own repository now --
-  # https://github.com/JamesAtIntegratnIO/bosun -- and ships as a versioned OCI
+  # https://github.com/IntegratnIO/bosun -- and ships as a versioned OCI
   # chart rather than a path into this one. So this is an ordinary third-party
   # chart addon, and `defaultVersion` is a real pin that Kargo tracks (target
   # `bosun` in kargo-projects/values.yaml) instead of the branch name it used
@@ -926,7 +926,7 @@ bosun:
   namespace: bosun
   chartName: bosun
   project: platform-services
-  chartRepository: oci://ghcr.io/jamesatintegratnio/charts/bosun
+  chartRepository: oci://ghcr.io/integratnio/charts/bosun
   # 0.25.1 -- a security review of the agent and the chart, and five chart
   # versions of accumulated drift closed in one move. What it needs from the
   # values file beside this one, because none of it is optional:
@@ -1246,7 +1246,7 @@ kargo-observability:
 kargo-projects:
   # Renders the Warehouses and Stages from the target list in
   # kargo-projects/values.yaml beside this file. The chart is `kargo-pipelines`
-  # and now ships from https://github.com/JamesAtIntegratnIO/bosun as a
+  # and now ships from https://github.com/IntegratnIO/bosun as a
   # versioned OCI package, so `defaultVersion` is a real pin that Kargo tracks
   # rather than the branch name it used to be.
   #
@@ -1272,7 +1272,7 @@ kargo-projects:
   valuesFolderName: kargo-projects
   releaseName: kargo-projects
   project: platform-services
-  chartRepository: oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines
+  chartRepository: oci://ghcr.io/integratnio/charts/kargo-pipelines
   # 0.1.1 carries the fix that makes the triage hook actually reach Bosun.
   # Every call before it died at Kargo's own config validation -- the body
   # rendered as an object where the http step requires a string -- and
