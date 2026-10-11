@@ -4,8 +4,8 @@ title: Observability — metrics, logs, dashboards, alerting
 description: Hub-and-spoke Prometheus with vcluster agents, Loki + Promtail logging, Grafana dashboards, and Matrix alert delivery with Loki deep links.
 tags: [observability, prometheus, grafana, loki, alertmanager, matrix]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-22T13:40:53Z }
-stale_after: 2027-02-20
+generated: { by: claude-code, at: 2026-10-11T22:40:00Z }
+stale_after: 2027-04-09
 sources:
   - id: obs-doc
     resource: ../../observability.md
@@ -16,6 +16,12 @@ sources:
   - id: live-obs
     resource: kubectl get prometheusrules,servicemonitors,cm -l grafana_dashboard on the-cluster, 2026-08-20
     title: Live monitoring resources
+  - id: live-probe-1011
+    resource: Prometheus/Loki/Grafana API read-only probe of the-cluster, 2026-10-11 (every Homelab Overview query run live)
+    title: Live probe 2026-10-11
+  - id: overview-gen
+    resource: ../../../hack/dashboards/homelab_overview.py
+    title: Homelab Overview generator
 ---
 
 # Hub and spoke
@@ -64,6 +70,50 @@ The custom **platform-status-reconciler** exports `platform_vcluster_*`
 metrics (phase/ready/pods) with alerts like `VClusterNotReady` — see
 [Kratix](/promises/kratix.md).
 
+# Homelab Overview (home dashboard)
+
+`uid: homelab-overview`, Grafana's home page via
+`grafana.ini [dashboards] default_home_dashboard_path`. One screen for "is
+anything wrong, and where": health tiles (nodes, critical/warning alerts,
+scrape targets down, pods in trouble, restarts), delivery tiles (ArgoCD,
+Bosun-blocked promotions, vclusters, etcd backup age, cert expiry), capacity
+against the N+1 line (requests over 2/3 of allocatable), per-node CPU/memory/
+iowait/disk/`/var`/network/temperature by Talos node name, etcd fsync/commit/
+leader changes, workloads, ArgoCD and Kargo stages, Tower NFS, CronJobs,
+certificates, Hubble drops, Trivy, Loki error lines and the monitoring stack
+itself.[^overview-gen]
+
+It is **generated**: edit `hack/dashboards/homelab_overview.py` and run it;
+it writes `platform-landing-zone/homelab-overview.yaml` (same addon as the
+Platform Landing Zone). Do not hand-edit the YAML.
+
+Things the probe that validated every query found about the metrics
+themselves (2026-10-11):[^live-probe-1011]
+
+- **No series carries a `cluster` label.** The vcluster agent's remote-write
+  shows zero received samples; vcluster-media is scraped directly as
+  `job="vcluster-media"` (6 targets). Loki streams do carry
+  `cluster=the-cluster`.
+- **`kubelet_volume_stats_*` does not exist**, so there is no per-PVC usage for
+  the NFS volumes. Prometheus disk is measured from
+  `prometheus_tsdb_storage_blocks_bytes` + WAL instead (~17 GiB of 30 GiB).
+- **No cilium-agent scrape**: `cilium_drop_count_total` is absent; drops come
+  from Hubble (`hubble_drop_total`). `VLAN_FILTERED` (~33/s) is LAN noise.
+- No scrape job for loki, nginx-gateway, external-secrets or the NFS
+  provisioner.
+- Kargo has no `kargo_promotion_info`; kube-state-metrics exposes
+  `kargo_stage_last_promotion_phase`, `kargo_promotion_phase` and friends.
+- cert-manager metrics put the certificate's namespace in
+  `exported_namespace`.
+- node-exporter labels nodes by `IP:9100`; join `node_uname_info` for
+  `nodename`.
+- **`grafana_folder` annotations had no effect** until 2026-10-11: the sidecar
+  provider ran with `foldersFromFilesStructure: false`, so every sidecar
+  dashboard sat in General and the Platform folder was empty. Now `true`.
+- Grafana logs `A dashboard with the same uid already exists` every 30s for
+  four chart dashboards (nodes, nodes-darwin, node-cluster-rsrc-use,
+  prometheus); duplicates with random uids exist in General. Not yet fixed.
+
 # Alerting path
 
 ```
@@ -85,3 +135,5 @@ Grafana is auth'd (1Password + OIDC); Prometheus/Alertmanager/Loki are not.
 [^obs-doc]: docs/observability.md
 [^ops-doc]: docs/operations.md (Matrix alerting, Loki correlation)
 [^live-obs]: Live monitoring resources
+[^live-probe-1011]: Live probe 2026-10-11
+[^overview-gen]: Homelab Overview generator
