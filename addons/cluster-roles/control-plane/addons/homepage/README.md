@@ -17,7 +17,7 @@ It is plain manifests from the official image,
 |---|---|
 | `configmap.yaml` | the whole configuration: `settings`, `services`, `widgets`, `bookmarks`, `kubernetes`, plus the empty skeleton files |
 | `deployment.yaml` | Homepage: one replica, read-only root filesystem, the Service `homepage.homepage.svc.cluster.local:3000` |
-| `externalsecret.yaml` | `homepage-env`, the widget keys as `HOMEPAGE_VAR_*`, from 1Password |
+| `externalsecret.yaml` | the widget keys as `HOMEPAGE_VAR_*`, one Secret per 1Password item |
 | `rbac.yaml` | ServiceAccount and a read-only ClusterRole: namespaces, pods, nodes and `metrics.k8s.io` |
 | `httproute.yaml`, `snippetsfilter.yaml` | `home.cluster.integratn.tech` behind authentik forward-auth, and its http redirect |
 
@@ -53,8 +53,8 @@ minute or so and Homepage re-reads it; no restart is needed.
 
 ArgoCD, Sonarr, Radarr, SABnzbd, Plex, Home Assistant, Unraid, Proxmox and
 UniFi show live numbers from their own APIs. Their keys never touch
-`configmap.yaml`: `externalsecret.yaml` builds the Secret `homepage-env` from
-1Password (item `homepage-secret`, whose fields are already named
+`configmap.yaml`: `externalsecret.yaml` builds one Secret per 1Password item
+(`homepage-env`, `homepage-argocd`, `homepage-unifi`) from 1Password (item `homepage-secret`, whose fields are already named
 `HOMEPAGE_VAR_*`, plus `unifi-mcp-login` and `argocd-mcp-api-token`),
 `deployment.yaml` loads it with `envFrom`, and `services.yaml` refers to each
 as `"{{HOMEPAGE_VAR_<NAME>}}"`.
@@ -62,8 +62,11 @@ as `"{{HOMEPAGE_VAR_<NAME>}}"`.
 To add one:
 
 1. Add the field to the 1Password item `homepage-secret` named
-   `HOMEPAGE_VAR_<NAME>` (it is picked up whole), or a `data` entry in
-   `externalsecret.yaml` for a field in another item.
+   `HOMEPAGE_VAR_<NAME>` (it is picked up whole). For a field in another
+   item, add a new ExternalSecret and `envFrom` entry for that item rather
+   than a line in an existing one: a Secret is written only when every field
+   it reads resolves, so one ambiguous or missing field blanks every key in
+   it.
 2. Reference it in `services.yaml`.
 3. Allow the egress. An in-cluster service needs both halves: this
    namespace's `allow-widget-apis` and the target namespace's ingress (see
@@ -76,6 +79,17 @@ The media apps are called on the Services vcluster syncs into the host
 namespace, `<app>-x-media-x-vcluster-media.vcluster-media.svc`, not through
 `*.vcluster-media.integratn.tech`: the vcluster gateway's LoadBalancer only
 admits traffic from outside the cluster.
+
+## Umami tiles
+
+The Sites row shows each site's visitors online now and its all-time
+visitors, visits and pageviews, from Umami's API in-cluster
+(`umami.umami.svc:3000`, not through authentik). Homepage has no Umami widget,
+so each card is two `customapi` widgets. The URLs cannot carry a moving date,
+so the totals are all-time (`startAt=0`). The website IDs are not secret (they
+ship in each site's page source). The key is `HOMEPAGE_VAR_UMAMI_KEY` in
+`homepage-secret`: a Umami API key (Settings -> API keys, the whole
+`umami_...` string). Until it exists the tiles read "API Error".
 
 ## Gotchas
 
