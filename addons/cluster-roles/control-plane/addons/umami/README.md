@@ -37,7 +37,7 @@ Elsewhere:
 
 ```
 visitor's browser
-  -> the site, on Cloudflare Pages: a Pages Function proxies /c.js and /api/c
+  -> the site, on Cloudflare Pages: Pages Functions answer /c and /api/c
   -> https://edge.integratn.io/c.js, /api/c
   -> Cloudflare tunnel, path rule ^/(c\.js|api/c)$, everything else 404
   -> cloudflared pod -> umami.umami.svc.cluster.local:3000
@@ -53,8 +53,9 @@ headers on a Function's request describe the Function, not the visitor.
 
 **Why the names are bland:** ad blockers match on the script's name, the
 collect endpoint and the hostname (`script.js`, `/api/send`, `stats.`,
-`analytics.`), so a visitor's browser sees `<site>/c.js` posting to
-`/api/c`. `TRACKER_SCRIPT_NAME=c.js` and `COLLECT_API_ENDPOINT=/api/c` make
+`analytics.`), so a visitor's browser sees `<site>/c` posting to
+`/api/c`. The site path is `/c`, not `/c.js`: Pages serves `functions/c.js` at
+`/c`, and `/c.js` on a site returns its HTML. `TRACKER_SCRIPT_NAME=c.js` and `COLLECT_API_ENDPOINT=/api/c` make
 Umami answer on those paths, and at start it rewrites its tracker to post to
 `/api/c` -- the one file it writes, which is why `public/` is an emptyDir.
 
@@ -137,7 +138,7 @@ Platform Services.
    `site/analytics.mjs`, each with its own ID:
 
    ```js
-   { tool: 'umami', src: '/c.js', websiteId: '<id>' }
+   { tool: 'umami', src: '/c', websiteId: '<id>' }
    ```
 
    Then check a pageview lands in Realtime.
