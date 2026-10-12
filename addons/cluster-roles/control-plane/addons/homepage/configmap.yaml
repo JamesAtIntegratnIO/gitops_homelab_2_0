@@ -138,6 +138,18 @@ data:
           .hl-poster { width:3.4rem; height:5rem; object-fit:cover; border-radius:6px; flex-shrink:0; background:var(--raise); border:1px solid var(--line); }
           .hl-row { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
           .hl-title { color:var(--text); font-weight:600; }
+          /* Phone: Glance's bottom bar switches columns with unlabelled dots.
+             Name them, in the label voice; the chosen one gets an underline. */
+          .mobile-navigation-label { max-width:none; }
+          .mobile-navigation-pill, .mobile-navigation-input:checked + .mobile-navigation-pill {
+            width:auto; height:auto; background:none; border-radius:0; padding:.2rem 0;
+            font:600 1.2rem/1.2 var(--sans); letter-spacing:.07em; text-transform:uppercase; color:var(--dim);
+            border-bottom:2px solid transparent; }
+          .mobile-navigation-input:checked + .mobile-navigation-pill { color:var(--text); border-bottom-color:var(--text); }
+          .mobile-navigation-label:hover > .mobile-navigation-pill { background:none; color:var(--text); }
+          .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Launch"; }
+          .mobile-navigation-input[value="1"] + .mobile-navigation-pill::after { content:"Cluster"; }
+          .mobile-navigation-input[value="2"] + .mobile-navigation-pill::after { content:"Hosts"; }
           @media (max-width: 700px) { .hl-grid2 { grid-template-columns:1fr; } .hl-chips { margin-left:0; } }
         </style>
 
@@ -199,7 +211,7 @@ data:
                 cache: 1m
                 sites:
                   - { title: ArgoCD,         url: "https://argocd.cluster.integratn.tech",  icon: "di:argo-cd" }
-                  - { title: Kargo,          url: "https://kargo.cluster.integratn.tech",   icon: "di:kargo",  alt-status-codes: [302] }
+                  - { title: Kargo,          url: "https://kargo.cluster.integratn.tech",   icon: "mdi:truck-cargo-container",  alt-status-codes: [302] }
                   - { title: Grafana,        url: "https://grafana.cluster.integratn.tech", icon: "di:grafana", alt-status-codes: [302] }
                   - { title: Authentik,      url: "https://auth.cluster.integratn.tech",    icon: "di:authentik", alt-status-codes: [302] }
                   - { title: Open WebUI,     url: "https://chat.cluster.integratn.tech",    icon: "di:open-webui", alt-status-codes: [302] }
@@ -214,11 +226,11 @@ data:
                   - title: Platform
                     links:
                       - { title: ArgoCD,      url: "https://argocd.cluster.integratn.tech",      icon: "di:argo-cd" }
-                      - { title: Kargo,       url: "https://kargo.cluster.integratn.tech",       icon: "di:kargo" }
+                      - { title: Kargo,       url: "https://kargo.cluster.integratn.tech",       icon: "mdi:truck-cargo-container" }
                       - { title: Bosun,       url: "https://bosun.cluster.integratn.tech",       icon: "mdi:ferry" }
                       - { title: Specmarshal, url: "https://specmarshal.cluster.integratn.tech", icon: "mdi:clipboard-text-outline" }
                       - { title: Authentik,   url: "https://auth.cluster.integratn.tech",        icon: "di:authentik" }
-                      - { title: Trivy,       url: "https://trivy.cluster.integratn.tech",       icon: "di:trivy" }
+                      - { title: Trivy,       url: "https://trivy.cluster.integratn.tech",       icon: "di:trivy.png" }
                       - { title: Goldilocks,  url: "https://goldilocks.cluster.integratn.tech",  icon: "mdi:scale-balance" }
                   - title: Observe
                     links:
