@@ -175,9 +175,13 @@ spec:
           port: 3000
 ---
 # The up/down checks on *.cluster.integratn.tech. Those names resolve to the
-# gateway's LoadBalancer IP, which Cilium translates to the data-plane pods
-# before policy, so the rule names the pods. Their ingress already admits any
-# source on 80/443 (allow-nginx-dataplane).
+# gateway's LoadBalancer VIP, 10.0.4.205. With kube-proxy replacement the VIP
+# is translated before policy on some paths and after it on others, so the
+# rule names both the VIP and the data-plane pods (the same pair as
+# allow-api-oidc-egress in kargo.yaml). With only the pods, ArgoCD, Kargo,
+# Grafana and Open WebUI timed out and read as down; auth.* worked only
+# because CoreDNS rewrites it to the gateway's ClusterIP. The pods' ingress
+# already admits any source on 80/443 (allow-nginx-dataplane).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -190,6 +194,14 @@ spec:
   policyTypes:
     - Egress
   egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.4.205/32
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
     - to:
         - namespaceSelector:
             matchLabels:
