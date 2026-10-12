@@ -14,7 +14,7 @@ Umami's paths are public, through the cloudflared tunnel
 | File | What it is |
 |---|---|
 | `deployment.yaml` | Umami: one replica, read-only root filesystem, the environment below, and the Service `umami.umami.svc.cluster.local:3000` |
-| `redis.yaml` | a Redis for Umami's cache and dashboard sessions, no persistence |
+| `redis.yaml` | a Redis for Umami's cache and dashboard sessions, no persistence. Idle for now: see "Redis is switched off" below |
 | `externalsecret.yaml` | `umami-env` (`DATABASE_URL`, `APP_SECRET`, `REDIS_URL`) and `umami-redis` (the Redis password) |
 | `httproute.yaml`, `snippetsfilter.yaml` | `stats.cluster.integratn.tech`, the dashboard, behind authentik; and `mcp.cluster.integratn.tech/umami/mcp`, Umami's MCP endpoint |
 
@@ -161,6 +161,16 @@ Platform Services.
   proves the path rule, not Umami.
 - Redis down costs nothing but speed and every dashboard login; Umami falls
   back to the database. Its readiness never looks at Redis or Postgres.
+- **Redis is switched off in Umami for now.** `deployment.yaml` sets
+  `REDIS_URL` to empty, which overrides the value from `umami-env`. Umami 3.4.0
+  stores a password login in Redis with a one-hour TTL that is never renewed
+  ([umami-software/umami#4552](https://github.com/umami-software/umami/issues/4552)),
+  so an hour after signing in every API call returned 401 and Realtime, which
+  polls every ten seconds, showed "Something went wrong." Without Redis a login
+  is a signed token that does not expire; changing the password or `APP_SECRET`
+  still ends it. The fix is upstream PR #4553, merged to `dev` and in no
+  release yet. When Kargo offers a release that has it, remove the `REDIS_URL`
+  entry from `env` in the same PR. The Redis pod stays up, unused, until then.
 - A new version is a Kargo PR (target `umami`), held for a human above a patch:
   every start runs the new version's migrations, and they are one-way. Read
   the release notes before merging.

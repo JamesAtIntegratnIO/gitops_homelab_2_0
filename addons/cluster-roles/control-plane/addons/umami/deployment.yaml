@@ -79,7 +79,8 @@ spec:
               containerPort: 3000
               protocol: TCP
           # DATABASE_URL, APP_SECRET and REDIS_URL, from 1Password
-          # (externalsecret.yaml beside this file).
+          # (externalsecret.yaml beside this file). REDIS_URL is overridden to
+          # empty in `env` below for now.
           envFrom:
             - secretRef:
                 name: umami-env
@@ -91,6 +92,19 @@ spec:
           # container), src/lib/ip.ts (CLIENT_IP_HEADER), src/lib/detect.ts
           # (SKIP_LOCATION_HEADERS) and src/app/mcp/route.ts (MCP_ENABLED).
           env:
+            # REDIS IS OFF IN UMAMI UNTIL A RELEASE AFTER 3.4.0. With REDIS_URL
+            # set, 3.4.0 keeps a password login in Redis under a fixed one-hour
+            # TTL that nothing renews (umami-software/umami#4552), so an hour
+            # after signing in every API call answers 401 and a page that polls,
+            # Realtime first, shows "Something went wrong." An `env` entry wins
+            # over `envFrom`, and Umami tests the variable for truthiness
+            # (src/lib/redis.ts), so the empty value turns Redis off and logins
+            # become signed tokens that do not expire. The fix is merged
+            # upstream (#4553, on `dev`); delete this entry when the image is
+            # bumped to a release that has it. redis.yaml stays deployed and
+            # idle meanwhile, so that is the whole revert.
+            - name: REDIS_URL
+              value: ""
             - name: DISABLE_TELEMETRY
               value: "1"
             - name: DISABLE_UPDATES
@@ -114,6 +128,14 @@ spec:
             # at worst that forges where one pageview came from.
             - name: CLIENT_IP_HEADER
               value: x-umami-client-ip
+            # Tracked links and pixels go out under integratn.io, whose Pages
+            # Functions proxy /go/<slug> and /i/<slug> to /q and /p here, so a
+            # shared link does not name the stats host. These only change the
+            # address the dashboard shows and copies; /q and /p keep answering.
+            - name: LINKS_URL
+              value: https://integratn.io/go
+            - name: PIXELS_URL
+              value: https://integratn.io/i
             # Locate visitors from that address with the GeoLite database in
             # the image, NOT from Cloudflare's cf-ipcountry/cf-ipcity headers.
             # Umami prefers those headers when present, and on a request the

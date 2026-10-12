@@ -3,6 +3,10 @@
 # database for lookups when Redis is away, so nothing here is a dependency of
 # Umami's readiness, and Umami's probes never reach it.
 #
+# IDLE FOR NOW: deployment.yaml sets REDIS_URL empty, because Umami 3.4.0 signs
+# every Redis-backed login out after an hour (umami-software/umami#4552). This
+# stays deployed so that removing that one env entry is the whole revert.
+#
 # The shape is authentik-redis.yaml's (clusters/the-cluster/addons/authentik/)
 # with two differences, both because this one is a cache only:
 #
