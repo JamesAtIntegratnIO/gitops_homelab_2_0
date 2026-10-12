@@ -128,6 +128,14 @@ spec:
             # at worst that forges where one pageview came from.
             - name: CLIENT_IP_HEADER
               value: x-umami-client-ip
+            # Tracked links and pixels go out under integratn.io, whose Pages
+            # Functions proxy /go/<slug> and /i/<slug> to /q and /p here, so a
+            # shared link does not name the stats host. These only change the
+            # address the dashboard shows and copies; /q and /p keep answering.
+            - name: LINKS_URL
+              value: https://integratn.io/go
+            - name: PIXELS_URL
+              value: https://integratn.io/i
             # Locate visitors from that address with the GeoLite database in
             # the image, NOT from Cloudflare's cf-ipcountry/cf-ipcity headers.
             # Umami prefers those headers when present, and on a request the
