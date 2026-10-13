@@ -109,3 +109,13 @@ The Umami tiles show visitors online now, and today's visitors and pageviews
 against the same span yesterday. The website IDs are not secret (they ship in
 each site's page source). The key is `HOMEPAGE_VAR_UMAMI_KEY`: a Umami API key
 (Settings -> API keys, the whole `umami_...` string).
+
+## Gotchas
+
+- **Removing a field from the Deployment does not clear it live.** The pod
+  spec names `serviceAccountName: default` explicitly because the Homepage
+  version's `homepage` account survived in the live object after its
+  ServiceAccount was pruned, and every new pod was refused.
+- **`*.cluster.integratn.tech` from inside the pod is the gateway VIP,
+  10.0.4.205.** `allow-gateway-egress` names both the VIP and the data-plane
+  pods; with only the pods, the monitors time out and read as down.
