@@ -50,9 +50,16 @@ Elsewhere:
 
 ## Editing the page
 
-Edit `glance.yml` inside `configmap.yaml`, merge, then restart:
-`kubectl -n homepage rollout restart deploy/homepage`. Glance reads its config
-and environment once, at start.
+Edit `glance.yml` inside `configmap.yaml`, bump the
+`homepage.integratn.io/config-revision` annotation in `deployment.yaml` in the
+same commit, and merge; the pod rolls with the new config.
+
+- **On a phone** Glance shows one column at a time and switches with a bottom
+  bar. Its stock dots are relabelled LAUNCH, CLUSTER and HOSTS in
+  `document.head`, by column index; keep them in step if columns move.
+- **Icons** load in the browser from jsDelivr. `di:` names must exist in
+  homarr-labs/dashboard-icons (some only as png: `di:trivy.png`); Kargo has
+  none, so it uses an `mdi:` icon.
 
 - **Test before merging.** Run the same version locally with
   `glance --config glance.yml config:validate`, then serve it against a mock

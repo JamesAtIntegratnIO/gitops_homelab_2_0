@@ -7,9 +7,9 @@
 # the authentik provider and the NetworkPolicy halves in other namespaces did
 # not have to move.
 #
-# Glance reads its config and environment once, at start, so a change to
-# configmap.yaml or to 1Password reaches the page only after
-# `kubectl -n homepage rollout restart deploy/homepage`.
+# Glance reads its environment once, at start, so a 1Password change reaches
+# the page only after `kubectl -n homepage rollout restart deploy/homepage`.
+# A configmap.yaml change rolls the pod through the config-revision annotation.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,6 +25,10 @@ spec:
       app.kubernetes.io/name: homepage
   template:
     metadata:
+      # Bump with a configmap.yaml change to roll the pod. Glance also watches
+      # its config file, but a rollout is the change you can see land.
+      annotations:
+        homepage.integratn.io/config-revision: "2"
       labels:
         app.kubernetes.io/name: homepage
     spec:
