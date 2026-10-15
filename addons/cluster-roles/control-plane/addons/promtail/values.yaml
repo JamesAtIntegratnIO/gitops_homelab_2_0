@@ -2,6 +2,25 @@ serviceMonitor:
   enabled: true
 
 config:
+  # Counts "stale file handle" lines so Prometheus can alert on a pod that keeps
+  # running on a dead NFS mount (platform-alerts: PodLoggingStaleFileHandle).
+  # Setting pipelineStages replaces the chart default, so `cri: {}` is restated.
+  # Exposed as promtail_custom_stale_file_handle_lines_total on :3101/metrics,
+  # labelled with the log stream's labels; dropped 30m after the last match.
+  snippets:
+    pipelineStages:
+      - cri: {}
+      - match:
+          selector: '{namespace=~".+"} |~ "(?i)stale (nfs )?file handle"'
+          stages:
+            - metrics:
+                stale_file_handle_lines_total:
+                  type: Counter
+                  description: Log lines reporting a stale NFS file handle (ESTALE)
+                  max_idle_duration: 30m
+                  config:
+                    match_all: true
+                    action: inc
   clients:
     - url: http://loki-gateway.loki.svc.cluster.local/loki/api/v1/push
       external_labels:
