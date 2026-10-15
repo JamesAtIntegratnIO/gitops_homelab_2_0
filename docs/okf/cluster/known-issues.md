@@ -270,6 +270,25 @@ none is a version bump you can just take, and each needed a decision rather
 than a config tweak. Loki's is resolved; three remain. Kargo will keep them parked (`git-wait-for-pr`), which also
 holds back later versions of the same artifact until they are dealt with.
 
+## The vcluster syncer does not add a new key to an already-synced Secret (found 2026-10-15)
+
+When vcluster-media's agent moved to kube-prometheus-stack 92.x, the operator
+added a second key, `1_monitoring_kube-root-ca.crt_ca.crt`, to the virtual
+Secret `monitoring/prometheus-kube-prometheus-stack-prometheus-tls-assets-0`.
+The host copy the pod actually mounts
+(`vcluster-media/prometheus-kube-prometheus-stack-prometheus-tls-asse-f7b06baaf4`)
+kept only the old key, and its resourceVersion never moved, even across a
+restart of the `vcluster-media` StatefulSet. The agent failed every config
+reload (`unable to read CA cert /etc/prometheus/certs/1_monitoring_kube-root-ca.crt_ca.crt`,
+`prometheus_config_last_reload_successful 0`), and the last good scrape config
+stayed loaded, so it looked healthy. Value changes to other synced Secrets do
+propagate; the miss is specific to a key being added.
+
+**Fix**: delete the host copy. The syncer recreated it from the virtual Secret
+within 8 seconds with both keys, and the config-reloader succeeded about a
+minute later once the kubelet refreshed the mount. Expect the same on any
+future tls-assets change inside a vcluster.
+
 ## A CustomResourceState config change does not reach kube-state-metrics (found 2026-08-22)
 
 `kargo-observability` ships the CustomResourceState ConfigMap that
@@ -283,7 +302,9 @@ after a manual `kubectl -n monitoring rollout restart deploy/kube-prometheus-sta
 The usual answer is a Reloader annotation, which is not available here — see
 below. Until one exists, **any change to the CRS config needs a deliberate
 kube-state-metrics rollout**, and the symptom of forgetting is metrics that
-silently stay stale rather than an error.
+silently stay stale rather than an error. (On 2026-10-15 the 0.1.2 change was
+picked up without a restart, so recent kube-state-metrics may reload it; verify
+with a fresh scrape rather than assuming either way.)
 
 ## `enable_stakater_reloader` is a dangling flag (found 2026-08-22)
 
