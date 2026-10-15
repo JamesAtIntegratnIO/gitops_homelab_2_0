@@ -250,7 +250,11 @@ kube-prometheus-stack-agent:
           environment: '{{ .metadata.labels.environment }}'
           vcluster: '{{ .metadata.labels.cluster_name }}'
         remoteWrite:
-          - url: 'https://prom-remote.{{ index .metadata.annotations "platform.integratn.tech/base-domain" }}/api/v1/write'
+          # The receiver is the HOST's route (observability-httproutes.yaml), so
+          # it lives under the host's domain. Built from the vcluster's own
+          # base-domain it read prom-remote.integratn.tech, which does not
+          # resolve: nothing from vcluster-media ever arrived.
+          - url: 'https://prom-remote.cluster.integratn.tech/api/v1/write'
             queueConfig:
               maxShards: 8
               capacity: 10000
