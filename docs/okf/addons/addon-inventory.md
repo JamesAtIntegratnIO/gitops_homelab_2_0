@@ -37,7 +37,7 @@ Layer key: **env** = environments/production, **cp** = cluster-roles/control-pla
 | cert-manager | cert-manager | @ v1.16.2 | TLS (wave -1) |
 | kratix | kratix-platform-system | @ 0.0.1 (also in cp layer: syncPolicy override, Destination, state-reconciler app, delete-RBAC) | [Kratix](/promises/kratix.md) |
 | metallb + metallb-config | metallb-system | @ 0.16.1 + manifests | L2 LB pool 10.0.4.200-253 |
-| gateway-api-crds | kube-system | manifest from kubernetes-sigs/gateway-api @ v1.5.1 | Gateway API CRDs |
+| gateway-api-crds | kube-system | manifest from kubernetes-sigs/gateway-api @ v1.6.3 | Gateway API CRDs |
 | nginx-gateway-fabric | nginx-gateway | OCI @ 2.6.7 (+tc: wildcard cert, CF secret, ReferenceGrant) | [Gateway](/platform/networking.md) |
 | kyverno | kyverno | @ 3.2.8 | [Policy engine](/platform/security-posture.md) |
 | cilium | kube-system | @ 1.17.3 | CNI + Hubble |

@@ -25,7 +25,7 @@ differs meaningfully, it's noted — the running image is the truth.
 | external-secrets | v0.10.3 | the 2.9.0 bump is open and held: v1beta1 stops being served by default and 39 manifests still use it |
 | external-dns | v0.19.0 | |
 | MetalLB | v0.16.1 | L2-only: `speaker.frr.enabled` and `frrk8s.enabled` both pinned off, so the speaker is a single container. Metrics moved 7472 -> 9120 |
-| nginx-gateway-fabric | 2.6.7 | Gateway API v1.5.1 CRDs -- the two move together, by hand |
+| nginx-gateway-fabric | 2.6.7 (host), 2.8.0 (vcluster-media) | Gateway API v1.6.3 CRDs -- the two move together, by hand |
 | CoreDNS | v1.12.4 | |
 | metrics-server | v0.8.0 | |
 | Prometheus / operator | v3.14.0-distroless / v0.93.1 | kube-prometheus-stack chart 88.5.3; 85.x made images distroless by default |
