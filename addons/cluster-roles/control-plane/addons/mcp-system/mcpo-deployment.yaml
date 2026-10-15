@@ -35,13 +35,27 @@ spec:
             - -c
             - |
               # Substitute env vars in config template
-              sed "s|\${GITHUB_TOKEN}|${GITHUB_TOKEN}|g" /config-template/config.json > /config-rendered/config.json
+              sed -e "s|\${GITHUB_TOKEN}|${GITHUB_TOKEN}|g" \
+                  -e "s|\${UMAMI_MCP_TOKEN}|${UMAMI_MCP_TOKEN}|g" \
+                  /config-template/config.json > /config-rendered/config.json
           env:
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: mcp-github-token
                   key: GITHUB_TOKEN
+            # Umami's API key (externalsecret-umami-mcp.yaml). OPTIONAL on
+            # purpose: the key can only be created once Umami is running, so
+            # the item does not exist on the day this merges, and a required
+            # reference would hold every other mcpo server hostage to it. Until
+            # it exists the umami entry renders an empty bearer and Umami
+            # answers 401.
+            - name: UMAMI_MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: umami-mcp
+                  key: token
+                  optional: true
           volumeMounts:
             - name: config-template
               mountPath: /config-template

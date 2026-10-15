@@ -29,6 +29,33 @@ credentials:
 license:
   secret: specmarshal-license
 
+# The GitHub App, from externalsecret.yaml. An init container stores it with
+# `specmarshal github-app` and the key on standard input on every start, as
+# the license is entered, so nobody execs into the pod and a replaced home
+# holds the App again on its own.
+githubApp:
+  secret: specmarshal-github-app
+
+# Sign-in with GitHub, through that App's OAuth client (externalsecret.yaml).
+# With it ready, a person with no session is sent to GitHub and returned to
+# the page they asked for; what they may do on a project is their permission
+# on its repository, and the service itself, its settings and the projects it
+# holds, belongs to the operators. The capability in the pod's printed address
+# then counts only from inside the pod.
+signIn:
+  # The address people open. The App's callback URL is this plus
+  # /sign-in/callback.
+  webUrl: https://specmarshal.cluster.integratn.tech
+  # The GitHub logins of the people who run the service.
+  operators: [JamesAtIntegratnIO]
+  clientSecret:
+    name: specmarshal-sign-in
+
+# The chart's Ingress stays off: httproute.yaml beside this file is the route,
+# behind authentik. webCapability stays at the core's default too: nothing in
+# the pod forwards to the surface, so a caller from the pod's loopback is the
+# operator.
+
 home:
   size: 20Gi
   # The cluster's default class, named so that a change of default never moves

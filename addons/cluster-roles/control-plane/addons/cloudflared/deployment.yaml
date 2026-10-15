@@ -1,0 +1,119 @@
+# cloudflared: the cluster's one public way in. Each pod dials OUT to
+# Cloudflare's edge and holds the tunnel open; nothing listens on the LAN, no
+# port is forwarded, and the gateway VIP stays LAN-only. Cloudflare sends
+# requests for the tunnel's public hostnames down those connections and the pod
+# forwards them to the Service the matching ingress rule names.
+#
+# REMOTELY MANAGED: the tunnel, its ingress rules and its DNS record are
+# OpenTofu in IntegratnIO/infrastructure, not here. This pod only runs
+# `tunnel run` with the token that stack outputs (externalsecret.yaml). Today
+# the rules are: edge.integratn.io, path `^/(c\.js|api/c)$` ->
+# http://umami.umami.svc.cluster.local:3000, everything else http_status:404.
+# Adding a hostname is a change in that repo AND a NetworkPolicy egress rule
+# here (network-policies/cloudflared.yaml) -- the pod can reach nothing else.
+#
+# Two replicas, two connectors of one tunnel: Cloudflare balances across them,
+# and a node drain or a bump never takes the sites' analytics down. Each
+# connector opens four connections to two edge locations by itself.
+#
+# Kargo-tracked (target `cloudflared` in kargo-projects/values.yaml). Keep this
+# Deployment the FIRST document, and the image line a scalar with no trailing
+# comment.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+  labels:
+    app.kubernetes.io/name: cloudflared
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cloudflared
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # One per node where the nodes allow it, so one node's loss leaves a
+      # connector up. Preferred, not required: three nodes and a drain must
+      # still be able to schedule both.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: cloudflared
+      securityContext:
+        # The image is distroless and runs as `nonroot`, 65532.
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudflared
+          image: docker.io/cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
+          # ENTRYPOINT is `cloudflared --no-autoupdate` and CMD is `version`;
+          # `args` replaces CMD only, so the image never updates itself and the
+          # version stays the pinned one.
+          args:
+            - tunnel
+            # Metrics and /ready on every interface, so the kubelet's probe and
+            # Prometheus can reach them. Nothing else on that port.
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+          env:
+            # Read by `tunnel run` instead of a --token flag, so the token is
+            # not on the command line.
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-tunnel
+                  key: token
+            # QUIC on UDP 7844 first, falling back to HTTP/2 on TCP 7844 when
+            # UDP is blocked. Both are allowed out (network-policies/
+            # cloudflared.yaml); `auto` is the default, written so nobody has
+            # to look it up.
+            - name: TUNNEL_TRANSPORT_PROTOCOL
+              value: auto
+          ports:
+            - name: metrics
+              containerPort: 2000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          # /ready answers 200 once this connector has at least one live
+          # connection to the edge. That is the right thing to be NOT READY on
+          # -- but not to be killed on: the edge being unreachable is an
+          # external dependency, so liveness asks only whether the process
+          # answers on its port.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: metrics
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]

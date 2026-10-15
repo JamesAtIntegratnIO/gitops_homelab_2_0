@@ -15,9 +15,9 @@ What the chart leaves to the cluster is in this directory:
 | File | What it is |
 |---|---|
 | `values.yaml` | the chart's values: the two Secrets below by name, the home's size and class, and the stop grace period |
-| `externalsecret.yaml` | `specmarshal-env`, the orchestrator's environment (the Postgres store and the model's settings), and `specmarshal-registry`, the image pull secret |
+| `externalsecret.yaml` | `specmarshal-env`, the orchestrator's environment (the Postgres store and the model's settings); `specmarshal-registry`, the image pull secret; `specmarshal-license`, the key the chart enters; `specmarshal-github-app`, the App the chart stores; and `specmarshal-sign-in`, the App's OAuth client people sign in with |
 | `limits.yaml` | LimitRange and ResourceQuota on the namespace. The quota caps how many iterations run at once |
-| `httproute.yaml`, `snippetsfilter.yaml` | `specmarshal.cluster.integratn.tech`, behind authentik |
+| `httproute.yaml`, `snippetsfilter.yaml` | `specmarshal.cluster.integratn.tech`, behind authentik and then the surface's own GitHub sign-in |
 
 Elsewhere:
 
@@ -43,6 +43,8 @@ Renaming a field breaks the ExternalSecret that reads it.
 |---|---|---|
 | `specmarshal-license` | `key` | the license key. It is the registry password, with the username `license`, for ArgoCD's chart pull and for the kubelet's image pulls |
 | `specmarshal-db-connection` | `host`, `port`, `text` (the role name), `password` | the connection string is assembled in `externalsecret.yaml`, and the password reaches the pod as `PGPASSWORD`, never in the URL |
+| `specmarshal-github-app` | `app-id`, `private-key` | the App the orchestrator acts as: 4924067, the same App the Mac's service uses. `private-key` is the whole `.pem` the App's settings page generated, BEGIN and END lines included, as a multi-line text field |
+| `specmarshal-sign-in` | `client-id`, `client-secret` | that App's OAuth client, which people sign in to the surface with. On the App's settings page, set the callback URL to exactly `https://specmarshal.cluster.integratn.tech/sign-in/callback`, copy the client ID, and generate a client secret, which GitHub shows once |
 
 ### 2. The database
 
@@ -86,19 +88,34 @@ kept in the home, so it is done once and survives a restart.
    the home, so deleting the claim `specmarshal-home` makes the next pod a new
    orchestrator that takes a new slot.
 
-2. **Give it the GitHub App**, for a project tracked in GitHub Issues.
-   `specmarshal github-app` with no flags prints the walk-through. The App
+2. **The GitHub App enters itself.** `githubApp.secret` in `values.yaml`
+   names the Secret `specmarshal-github-app`, and a `github-app` init
+   container runs `specmarshal github-app` with the key on standard input on
+   every start. A key that is not a PEM private key stops the pod there:
+   `kubectl -n specmarshal logs deploy/specmarshal -c github-app`. The App
    needs Administration, Contents, Issues and Pull requests (write), plus
-   Metadata (read).
+   Metadata (read), and has to be installed on every repository the service
+   holds a project for: sign-in asks GitHub what a person may do on a
+   repository as that installation, and refuses everyone but the operators a
+   repository the App does not reach.
+
+   **Sign-in is ready** when the license is paid, `signIn.webUrl` is `https`,
+   and the client ID and secret are in `specmarshal-sign-in`. Ask the pod:
+   `kubectl -n specmarshal exec deploy/specmarshal -- specmarshal sign-in status`
+   prints `Sign-in is ready.` or the first thing missing.
 
 3. **Register the projects** on the surface. `serve` stands with none.
 
 ## Running it
 
-- The surface is `https://specmarshal.cluster.integratn.tech`. Reading it needs
-  only authentik. Acting on it (marking a spec ready, releasing a ticket) needs
-  the capability address the pod prints at start-up:
-  `kubectl -n specmarshal logs deploy/specmarshal | grep '^Web'`.
+- The surface is `https://specmarshal.cluster.integratn.tech`, behind
+  authentik and then GitHub sign-in. Reading a project needs read on its
+  repository; acting on it (marking a spec ready, releasing a ticket) needs
+  write; acting on the service (registering a project, the settings) needs a
+  login in `signIn.operators`. The capability address the pod prints at
+  start-up (`kubectl -n specmarshal logs deploy/specmarshal | grep '^Web'`)
+  now counts only from inside the pod: open it through
+  `kubectl -n specmarshal port-forward service/specmarshal 4200`.
 - The surface's health section asks the API server whether the launcher's
   permissions hold. "launcher unwell" names the missing verb.
 - Iterations: `kubectl -n specmarshal get jobs,pods -l app.kubernetes.io/name=specmarshal-iteration`.

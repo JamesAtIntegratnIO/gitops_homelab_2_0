@@ -121,6 +121,18 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+    # Homepage (home.cluster.integratn.tech): the health tiles are PromQL.
+    # The egress half is allow-prometheus-egress in homepage.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: homepage
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: homepage
+      ports:
+        - protocol: TCP
+          port: 9090
     # Argo Rollouts controller: executes Kargo's post-merge verification
     # (AnalysisTemplate prometheus provider -- are the bumped ArgoCD
     # Applications Synced+Healthy?)

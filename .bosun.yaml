@@ -8,7 +8,7 @@
 # default, and `clustersExport.knownAbsentLabels` guarded against a gate bug
 # that collected DoesNotExist selector keys into the presence-demand list --
 # fixed, so the line would now only mask a real stale-inventory refusal.
-# See https://github.com/JamesAtIntegratnIO/bosun/tree/main/gate/docs.
+# See https://github.com/IntegratnIO/bosun/tree/main/gate/docs.
 
 # The two bootstrap ApplicationSets are applied by Terraform, so they carry no
 # ArgoCD tracking annotation and derivation cannot attribute them. Naming them

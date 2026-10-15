@@ -3,7 +3,7 @@
 # a PR that rewrites the listed keys and merges it when `autoMerge` allows.
 #
 # Rendered by the kargo-pipelines chart, which ships from
-# https://github.com/JamesAtIntegratnIO/bosun as a versioned OCI package.
+# https://github.com/IntegratnIO/bosun as a versioned OCI package.
 # Schema and defaults live with that chart; its docs/ cover the target schema
 # and promotion chains.
 # Rationale, policies and how to add an entry: docs/kargo.md.
@@ -246,14 +246,14 @@ projects:
       kargo-pipelines:
         scope: images
         # The chart that renders every Warehouse and Stage in this file --
-        # including its own. Ships from JamesAtIntegratnIO/bosun.
+        # including its own. Ships from IntegratnIO/bosun.
         #
         # `never`, and the reason is circular in a way worth stating: a bad
         # bump here rewrites the pipeline that would have promoted the fix.
         # There is no `verify` that helps, because the Applications stay
         # Healthy while the promotions they depend on quietly stop being
         # generated.
-        chart: { repoURL: oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines }
+        chart: { repoURL: oci://ghcr.io/integratnio/charts/kargo-pipelines }
         autoMerge: never
         verify:
           apps:
@@ -394,6 +394,79 @@ projects:
             - authentik-the-cluster
         updates:
           - file: addons/clusters/the-cluster/addons/authentik/authentik-redis.yaml
+            keys: [spec.template.spec.containers.0.image]
+      # ── umami + cloudflared: raw manifests, digest-pinned ───────────
+      umami:
+        scope: umami
+        # v3 tags are unprefixed and Postgres-only; the `postgresql-v2.*`
+        # and `mysql-v2.*` lines of the old major do not match.
+        #
+        # `patch`: every start runs `prisma migrate deploy`, and a minor's
+        # migrations are one-way. A human reads those.
+        #
+        # TWO KEYS, ONE IMAGE: the init container copies the server's own
+        # public/ directory, so both lines must always move together.
+        image:
+          repoURL: ghcr.io/umami-software/umami
+          allowTags: ['^\d+\.\d+\.\d+$']
+        autoMerge: patch
+        verify:
+          apps:
+            - umami-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/umami/deployment.yaml
+            keys:
+              - spec.template.spec.initContainers.0.image
+              - spec.template.spec.containers.0.image
+      umami-redis:
+        scope: umami
+        # Docker Hub, polled anonymously -- held at the old cadence while the
+        # rest of the images go to 15m. See defaults.interval above.
+        interval: 6h0m0s
+        image:
+          repoURL: redis
+          # The same line as authentik-redis, and the same caveat: `-alpine`
+          # is a semver prerelease, which works only because there is no
+          # constraint.
+          allowTags: ['^7\.\d+\.\d+-alpine$']
+        verify:
+          apps:
+            - umami-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/umami/redis.yaml
+            keys: [spec.template.spec.containers.0.image]
+      homepage:
+        scope: homepage
+        # Glance, the landing page (the target keeps the name of the Homepage
+        # it replaced). Docker Hub, polled anonymously, so the old cadence.
+        interval: 6h0m0s
+        # Plain vX.Y.Z only. Glance is 0.x and has broken its config between
+        # minors (0.7 -> 0.8), so only patches merge themselves.
+        image:
+          repoURL: docker.io/glanceapp/glance
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        autoMerge: patch
+        verify:
+          apps:
+            - homepage-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/homepage/deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+      cloudflared:
+        scope: cloudflared
+        # Docker Hub, polled anonymously -- held at the old cadence while the
+        # rest of the images go to 15m. See defaults.interval above.
+        interval: 6h0m0s
+        # Calver, YYYY.M.P. Not the per-arch `-amd64`/`-arm64` tags or the
+        # build-number tags (`1966-18cdfe0`).
+        image:
+          repoURL: docker.io/cloudflare/cloudflared
+          allowTags: ['^\d{4}\.\d+\.\d+$']
+        verify:
+          apps:
+            - cloudflared-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/cloudflared/deployment.yaml
             keys: [spec.template.spec.containers.0.image]
       nfs-subdir-external-provisioner-image:
         scope: nfs-provisioner
@@ -714,7 +787,7 @@ projects:
             keys: [argo-rollouts.defaultVersion]
       bosun:
         # Bosun's own chart, published from
-        # https://github.com/JamesAtIntegratnIO/bosun on a v* tag.
+        # https://github.com/IntegratnIO/bosun on a v* tag.
         #
         # Until 2026-08-23 this was not tracked at all: the addon pointed at
         # `delivery/charts/bosun` in this repository (it has since left) and
@@ -743,7 +816,7 @@ projects:
         # version named in the gate report. Worth knowing rather than worth
         # blocking: a path-level deny cannot express "this one key of a file
         # the agent legitimately edits every day".
-        chart: { repoURL: oci://ghcr.io/jamesatintegratnio/charts/bosun }
+        chart: { repoURL: oci://ghcr.io/integratnio/charts/bosun }
         autoMerge: never
         verify:
           apps:
