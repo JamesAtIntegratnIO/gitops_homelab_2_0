@@ -58,11 +58,13 @@ on 2026-10-08 with its data directory already stale (`chdir to cwd
 ("/alertmanager") ... stale NFS file handle` on exec); it will stick on its
 next restart.
 
-**Fix, on branch `feat/nfs-stale-mount-resilience`, not merged at time of
-writing:** a Kyverno cleanup policy that deletes owned pods stuck in either
-state; critical `PodStuckCreatingContainer` and `WorkloadHasNoReadyReplicas`
-alerts; and `Watchdog` pushed to an external dead-man's switch. The server-side
-cause (Unraid shfs invalidating handles) is untouched.
+**Fix, merged 2026-10-15 (#399):** a Kyverno cleanup policy that deletes owned pods stuck in either
+state; critical `PodStuckCreatingContainer` and `DeploymentHasNoReadyReplicas`/`StatefulSetHasNoReadyReplicas`
+alerts; and `Watchdog` pushed to an external dead-man's switch. A pod that
+keeps *running* on a stale volume (Alertmanager, above) is caught separately:
+Promtail counts "stale file handle" log lines and `PodLoggingStaleFileHandle`
+pages on them; nothing deletes that pod automatically. The server-side cause
+(Unraid shfs invalidating handles) is untouched.
 
 # Trivy scan coverage silently fell to zero, and one report 4% too big did it (2026-09-01)
 

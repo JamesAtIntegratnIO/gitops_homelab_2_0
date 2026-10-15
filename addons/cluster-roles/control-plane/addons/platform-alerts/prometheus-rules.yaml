@@ -433,7 +433,9 @@ spec:
               failing a fresh mount is the server, not the kubelet); otherwise it is a missing
               Secret or ConfigMap.
 
-        - alert: WorkloadHasNoReadyReplicas
+        # One name per workload kind: promtool lint rejects two rules sharing a
+        # name in a group, even when they select disjoint series.
+        - alert: DeploymentHasNoReadyReplicas
           expr: |
             (kube_deployment_status_replicas_available == 0)
               and on (namespace, deployment)
@@ -449,7 +451,7 @@ spec:
               for 30+ minutes. Unlike KubeDeploymentReplicasMismatch this is never a rollout in
               progress -- the workload is down. Check `kubectl -n {{ $labels.namespace }} get pods`.
 
-        - alert: WorkloadHasNoReadyReplicas
+        - alert: StatefulSetHasNoReadyReplicas
           expr: |
             (kube_statefulset_status_replicas_ready == 0)
               and on (namespace, statefulset)
@@ -463,6 +465,38 @@ spec:
             description: >-
               Every replica of {{ $labels.namespace }}/{{ $labels.statefulset }} has been unready for
               30+ minutes. Check `kubectl -n {{ $labels.namespace }} get pods`.
+
+        # A pod that keeps RUNNING on a stale volume trips none of the above:
+        # it never re-creates a container and stays Ready. Alertmanager ran that
+        # way for 2.5 days in 2026-10, unable to save silences. The only signal
+        # is the application logging ESTALE, so Promtail counts those lines
+        # (promtail/values.yaml, pipeline stage `stale_file_handle_lines_total`)
+        # and Prometheus alerts on the counter. No Loki ruler is involved.
+        #
+        # The series only exists while matching lines keep arriving: Promtail
+        # drops it after max_idle_duration (30m) without a new one. So "> 0"
+        # means "logged ESTALE within the last 30 minutes", and the alert
+        # resolves on its own once the pod is replaced on a fresh mount.
+        # The stream's own namespace/pod/container land as exported_* labels,
+        # because the ServiceMonitor's target labels (promtail's own pod) win.
+        - alert: PodLoggingStaleFileHandle
+          expr: |
+            sum by (exported_namespace, exported_pod, exported_container) (
+              promtail_custom_stale_file_handle_lines_total
+            ) > 0
+          for: 5m
+          labels:
+            severity: critical
+            component: storage
+          annotations:
+            summary: "{{ $labels.exported_namespace }}/{{ $labels.exported_pod }} is logging stale NFS file handles"
+            description: >-
+              Container {{ $labels.exported_container }} in {{ $labels.exported_namespace }}/{{ $labels.exported_pod }}
+              is logging "stale file handle" (ESTALE): it is running on an NFS volume the Unraid
+              server no longer recognises, and every read or write to it fails. Nothing replaces
+              a running pod automatically. Delete it so it remounts:
+              `kubectl -n {{ $labels.exported_namespace }} delete pod {{ $labels.exported_pod }}`.
+              If the replacement logs the same error, the export itself is unhealthy.
 
     # ── etcd (host control plane) ────────────────────────────────────────────
     # Fragmentation IS alerted here now. Upstream's
