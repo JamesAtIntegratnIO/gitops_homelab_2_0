@@ -1,0 +1,109 @@
+# cloudflared: the tunnel connectors, the cluster's one public way in. The
+# namespace starts from the default-deny Kyverno generates
+# (kyverno-generate-default-deny.yaml).
+#
+# Its own namespace rather than umami's, because it is a different kind of
+# thing: an edge that faces the internet and may later front more than one
+# service, where umami is one app. Kept apart, the pod that talks to the
+# internet shares no namespace -- and no Secrets, and no "any pod in this
+# namespace" rule -- with the pod that holds the database password, and a
+# second public service is a new egress rule here, not a change to umami.
+#
+# NO INGRESS AT ALL. The connectors dial out; Cloudflare's requests come back
+# down those connections, so nothing ever opens a connection to these pods but
+# the kubelet's probes. The metrics port is for the readiness probe; add an
+# ingress rule from `monitoring` if it is ever scraped.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudflared
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: cloudflared
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Cloudflare's edge. 7844 carries the tunnel: QUIC on UDP, or HTTP/2 on TCP when
+# UDP is blocked. 443 is cloudflared's calls to Cloudflare's API (the
+# connector's registration and its diagnostics).
+#
+# Everything public rather than Cloudflare's published ranges: those ranges
+# move, and a stale list fails as a tunnel that silently stops reconnecting.
+# Every private range is excepted, which is what keeps this rule from being a
+# way into the LAN -- the connectors reach the cluster only through
+# allow-umami-egress below.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cloudflare-edge-egress
+  namespace: cloudflared
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: UDP
+          port: 7844
+        - protocol: TCP
+          port: 7844
+        - protocol: TCP
+          port: 443
+---
+# The one origin the tunnel's ingress rules name today:
+# http://umami.umami.svc.cluster.local:3000. Selected by namespace and pod on
+# the TARGET port -- a ClusterIP is DNAT'd to the pod before Cilium evaluates
+# policy, so an ipBlock on the Service address would never match. The other
+# half is allow-cloudflared-ingress in umami.yaml.
+#
+# A new hostname in the tunnel (IntegratnIO/infrastructure) needs a rule like
+# this one for its origin, and that origin's namespace needs the ingress half.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-umami-egress
+  namespace: cloudflared
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: umami
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: umami
+      ports:
+        - protocol: TCP
+          port: 3000

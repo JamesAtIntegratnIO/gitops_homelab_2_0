@@ -41,6 +41,16 @@ an `URLRewrite` filter so each backend sees its native `/mcp` path.
 | `/grafana` | `grafana-mcp` | `docker.io/grafana/mcp-grafana:1.1.0` | 8000 | Token minted by a PostSync Job |
 | `/sequential-thinking` | `sequential-thinking` | `ghcr.io/supercorp-ai/supergateway` | 8000 | Wraps the stdio server; npm pre-install initContainer |
 | — | `mcpo` | `ghcr.io/open-webui/mcpo:main` | 8000 | MCP→OpenAPI bridge, cluster-internal only |
+| `/umami` | `umami` (namespace `umami`) | `ghcr.io/umami-software/umami` | 3000 | Read-only web analytics; Umami's own `/mcp` (>= 3.4.0, `MCP_ENABLED=1`). Needs an Umami API key. Not part of this addon: see below |
+
+**Umami is the one server outside `mcp-system`.** It is the analytics app
+itself ([umami/](../addons/cluster-roles/control-plane/addons/umami/)), which
+serves MCP on its own `/mcp`. Its route, `mcp-umami`, lives in the `umami`
+namespace beside its Service (an HTTPRoute in the backend's namespace needs no
+ReferenceGrant), and unlike the others it rewrites to `/mcp` and nothing else:
+stripping `/umami` to `/` would publish Umami's dashboard and API on this host
+without authentik in front. Umami authenticates every call with an API key
+(`Authorization: Bearer umami_...`) and refuses a browser session.
 
 Every image is **digest-pinned**. It was not always: an unpinned `:latest`
 silently carried grafana-mcp from 0.14.0 to 1.1.0 on an unrelated rollout. Pin
@@ -55,15 +65,18 @@ Transport is **streamable HTTP** (`/mcp`), not SSE. Older docs and the disabled
 Open WebUI speaks OpenAPI "External Tools", not MCP. `mcpo` translates. Its
 server list lives in
 [mcpo-configmap.yaml](../addons/cluster-roles/control-plane/addons/mcp-system/mcpo-configmap.yaml)
-and covers the in-cluster servers above plus two stdio subprocesses it runs
+and covers the in-cluster servers above (Umami included) plus two stdio
+subprocesses it runs
 itself via `uvx`:
 
 - `prometheus` — `prometheus-mcp-server` against
   `kube-prometheus-stack-prometheus.monitoring:9090`
 - `fetch` — `mcp-server-fetch`, pages as markdown
 
-An initContainer renders `${GITHUB_TOKEN}` into the config from the
-ExternalSecret before mcpo starts.
+An initContainer renders `${GITHUB_TOKEN}` and `${UMAMI_MCP_TOKEN}` into the
+config from their ExternalSecrets before mcpo starts. The Umami key is read
+`optional`, because it can only be created once Umami runs; until it exists
+that one server gets an empty bearer and a 401, and the rest are unaffected.
 
 The matching Open WebUI system prompt — the tool-first mandate that stops the
 model asking questions it could look up — is checked in at
@@ -72,7 +85,7 @@ It is applied by hand in the Open WebUI admin panel; it is not reconciled.
 
 ### Secrets
 
-Nothing here holds a literal secret. All three come from 1Password via
+Nothing here holds a literal secret. All of them come from 1Password via
 ExternalSecrets against the `onepassword-store` ClusterSecretStore:
 
 | Kubernetes secret | 1Password item | Used by |
@@ -80,6 +93,7 @@ ExternalSecrets against the `onepassword-store` ClusterSecretStore:
 | `mcp-github-token` | `mcp-github-token` / `GITHUB_TOKEN` | github-mcp, mcpo |
 | `argocd-mcp-secrets` | see [externalsecret-argocd-mcp.yaml](../addons/cluster-roles/control-plane/addons/mcp-system/externalsecret-argocd-mcp.yaml) | argocd-mcp |
 | `grafana-mcp-secrets` | minted in-cluster by `create-grafana-mcp-sa-token` (PostSync Job) | grafana-mcp |
+| `umami-mcp` | `umami-mcp` / `token` — an Umami API key (Settings → API keys), via [externalsecret-umami-mcp.yaml](../addons/cluster-roles/control-plane/addons/mcp-system/externalsecret-umami-mcp.yaml) | mcpo |
 
 The Grafana token is the odd one: rather than a hand-maintained 1Password item,
 a PostSync Job creates a Grafana service account and writes its token into the
@@ -99,6 +113,10 @@ Everything is deny-by-default plus narrow allows:
   `sequential-thinking` (npm)
 - ingress from `nginx-gateway` on 8080/8082/8000/3000
 - intra-namespace both ways, so mcpo can reach the backends
+- `app: mcpo` to the `umami` namespace on 3000 (`allow-mcpo-umami-egress`); the
+  other half, `allow-mcpo-ingress`, is in
+  [network-policies/umami.yaml](../addons/cluster-roles/control-plane/addons/network-policies/umami.yaml),
+  as is the gateway's admission for `/umami`
 
 Adding a server that talks to something new means adding an egress rule. It will
 fail silently — as a hang, not an error — if you forget.
@@ -140,6 +158,7 @@ https://mcp.cluster.integratn.tech/argocd/mcp
 https://mcp.cluster.integratn.tech/github/mcp
 https://mcp.cluster.integratn.tech/grafana/mcp
 https://mcp.cluster.integratn.tech/sequential-thinking/mcp
+https://mcp.cluster.integratn.tech/umami/mcp        # header: Authorization: Bearer umami_...
 ```
 
 For Claude Code, from an interactive terminal:
@@ -150,7 +169,10 @@ claude mcp add --transport http homelab-k8s https://mcp.cluster.integratn.tech/k
 
 The endpoints are gateway-exposed with TLS but have **no authentication in front
 of them**. They are reachable by anything that can resolve the hostname. The
-kubernetes server is read-only by RBAC; github and argocd are not.
+kubernetes server is read-only by RBAC; github and argocd are not. Umami is the
+exception that checks a credential itself: no API key, no tools. None of these
+are public -- the cloudflared tunnel admits only Umami's tracker paths, never
+`/mcp`.
 
 ### Troubleshooting
 

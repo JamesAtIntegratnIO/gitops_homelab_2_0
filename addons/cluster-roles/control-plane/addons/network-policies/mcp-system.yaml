@@ -123,6 +123,33 @@ spec:
         - protocol: TCP
           port: 443
 ---
+# mcpo to Umami's MCP endpoint (http://umami.umami.svc.cluster.local:3000/mcp),
+# the one mcpo server that lives outside this namespace. Selected by namespace
+# and pod on the target port: a ClusterIP is DNAT'd to the pod before Cilium
+# evaluates policy. The other half is allow-mcpo-ingress in umami.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mcpo-umami-egress
+  namespace: mcp-system
+spec:
+  podSelector:
+    matchLabels:
+      app: mcpo
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: umami
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: umami
+      ports:
+        - protocol: TCP
+          port: 3000
+---
 # Allow NGINX Gateway Fabric to reach all MCP server pods (ingress)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

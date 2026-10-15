@@ -604,6 +604,91 @@ data:
             Drives autonomous coding sessions over a spec's tickets.
           policy_engine_mode: all
 
+  08b-umami-proxy-provider.yaml: |
+    # Authentik Blueprint: Umami Dashboard Proxy Provider
+    # Forward-auth for the Umami dashboard, the same shape as specmarshal's
+    # above. Numbered 08b so it sorts before 09-embedded-outpost, whose
+    # provider list `!Find`s it.
+    #
+    # Umami has a login of its own, and ships with admin/umami until someone
+    # changes it; this provider is the door in front of that one. It covers the
+    # dashboard host only. The public tracker paths arrive by the cloudflared
+    # tunnel, which does not pass through the gateway, and the MCP route on
+    # mcp.cluster.integratn.tech is authenticated by Umami's API keys. The
+    # nginx half is the SnippetsFilter in
+    # addons/cluster-roles/control-plane/addons/umami/.
+    version: 1
+    metadata:
+      name: umami-proxy-provider
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: umami-proxy-provider
+        id: umami-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          # Must match the HTTPRoute's hostname exactly, scheme included.
+          external_host: https://stats.cluster.integratn.tech
+          access_token_validity: minutes=60
+
+      - model: authentik_core.application
+        identifiers:
+          slug: umami
+        attrs:
+          name: Umami
+          provider: !Find [authentik_providers_proxy.proxyprovider, [name, umami-proxy-provider]]
+          open_in_new_tab: true
+          launch_url: https://stats.cluster.integratn.tech
+          group: Platform Services
+          meta_description: >-
+            Cookieless web analytics for integratn.io and bosun.integratn.io.
+          policy_engine_mode: all
+
+  08c-homepage-proxy-provider.yaml: |
+    # Authentik Blueprint: Homepage Proxy Provider
+    # Forward-auth for the cluster landing page, the same shape as umami's
+    # above. Numbered 08c so it sorts before 09-embedded-outpost, whose
+    # provider list `!Find`s it.
+    #
+    # The landing page (Glance; the provider keeps the name of the Homepage it
+    # replaced) has no login of its own and shows live cluster state, so this
+    # provider is its only door. The nginx half is the SnippetsFilter in
+    # addons/cluster-roles/control-plane/addons/homepage/.
+    version: 1
+    metadata:
+      name: homepage-proxy-provider
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: homepage-proxy-provider
+        id: homepage-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          # Must match the HTTPRoute's hostname exactly, scheme included.
+          external_host: https://home.cluster.integratn.tech
+          access_token_validity: minutes=60
+
+      - model: authentik_core.application
+        identifiers:
+          slug: homepage
+        attrs:
+          name: Homepage
+          provider: !Find [authentik_providers_proxy.proxyprovider, [name, homepage-proxy-provider]]
+          open_in_new_tab: true
+          launch_url: https://home.cluster.integratn.tech
+          group: Platform Services
+          meta_description: >-
+            Landing page for the cluster: health, every service, pod status.
+          policy_engine_mode: all
+
   09-embedded-outpost.yaml: |
     # Authentik Blueprint: the embedded outpost's provider list
     #
@@ -637,3 +722,5 @@ data:
             - !Find [authentik_providers_proxy.proxyprovider, [name, qdrant-proxy-provider]]
             - !Find [authentik_providers_proxy.proxyprovider, [name, bosun-proxy-provider]]
             - !Find [authentik_providers_proxy.proxyprovider, [name, specmarshal-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, umami-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, homepage-proxy-provider]]

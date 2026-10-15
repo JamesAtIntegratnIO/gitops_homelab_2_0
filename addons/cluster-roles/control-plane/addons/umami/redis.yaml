@@ -1,0 +1,135 @@
+# Redis for Umami: a cache, and where dashboard logins keep their server-side
+# sessions. Umami reads REDIS_URL (externalsecret.yaml) and falls back to the
+# database for lookups when Redis is away, so nothing here is a dependency of
+# Umami's readiness, and Umami's probes never reach it.
+#
+# IDLE FOR NOW: deployment.yaml sets REDIS_URL empty, because Umami 3.4.0 signs
+# every Redis-backed login out after an hour (umami-software/umami#4552). This
+# stays deployed so that removing that one env entry is the whole revert.
+#
+# The shape is authentik-redis.yaml's (clusters/the-cluster/addons/authentik/)
+# with two differences, both because this one is a cache only:
+#
+#   - no PVC and no snapshots (`--save ""`, no AOF). authentik keeps its Redis
+#     on NFS because it is also authentik's task broker; nothing of Umami's
+#     lives only here. A restart costs everyone one dashboard login.
+#   - a password. authentik's Redis has none and relies on its NetworkPolicy
+#     alone; this one has `--requirepass` as well, from 1Password item
+#     `umami-redis`. The password is on redis-server's command line, which is
+#     visible inside this pod only.
+#
+# Kargo-tracked (target `umami-redis` in kargo-projects/values.yaml). Keep this
+# Deployment the FIRST document, and the image line a scalar with no trailing
+# comment.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: umami-redis
+  namespace: umami
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: umami
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: umami
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/instance: umami
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        # The alpine image's `redis` user.
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+          command:
+            - sh
+            - -c
+            - >-
+              exec redis-server
+              --requirepass "$REDIS_PASSWORD"
+              --save ""
+              --appendonly no
+              --maxmemory 128mb
+              --maxmemory-policy allkeys-lru
+              --loglevel warning
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: umami-redis
+                  key: password
+            # redis-cli reads this, so the probes authenticate without the
+            # password on their command line.
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: umami-redis
+                  key: password
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 192Mi
+          # Both probes ask this process and nothing else.
+          readinessProbe:
+            exec:
+              command: [redis-cli, ping]
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: [redis-cli, ping]
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 3
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            # redis-server's working directory. Nothing is saved to it.
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: umami-redis
+  namespace: umami
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: umami
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/instance: umami
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP

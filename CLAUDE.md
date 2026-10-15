@@ -207,7 +207,7 @@ helm template addons/charts/application-sets -f <values...>
 # `kargo-pipelines` from the Bosun repo -- the in-tree addons/charts/kargo-projects
 # is its DEPRECATED predecessor, and rendering it verifies nothing.
 helm template kargo-projects \
-  oci://ghcr.io/jamesatintegratnio/charts/kargo-pipelines --version <defaultVersion> \
+  oci://ghcr.io/integratnio/charts/kargo-pipelines --version <defaultVersion> \
   -f addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
 
 # promise pipelines (Go) -- no tests here, so it is a build gate.

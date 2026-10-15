@@ -2,7 +2,7 @@
 # plus chart name, both of which are now `bosun`.
 fullnameOverride: bosun
 
-# Consumes the bosun chart from https://github.com/JamesAtIntegratnIO/bosun.
+# Consumes the bosun chart from https://github.com/IntegratnIO/bosun.
 # See that chart's README, and the repository's docs/ for the safety model and
 # the prompt contract the eval numbers come from. The chart version is pinned
 # by `bosun.defaultVersion` in the addons.yaml beside this file.
@@ -34,7 +34,7 @@ credentials:
   mountAsFiles: true
 
 image:
-  repository: ghcr.io/jamesatintegratnio/bosun
+  repository: ghcr.io/integratnio/bosun
   # Deliberately unset: the chart falls back to its own appVersion, so bumping
   # the chart moves the image with it and the two cannot drift. This used to be
   # the branch name `main` -- an unpinned tag, which is exactly the way an image

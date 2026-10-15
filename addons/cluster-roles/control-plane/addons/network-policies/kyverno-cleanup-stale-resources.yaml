@@ -105,3 +105,51 @@ spec:
         operator: GreaterThan
         value: 24h
   schedule: "41 * * * *"
+---
+apiVersion: kyverno.io/v2
+kind: ClusterCleanupPolicy
+metadata:
+  name: cleanup-pods-stuck-creating-container
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    policies.kyverno.io/title: Delete Pods stuck in CreateContainerError
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Every PV here is an NFS subdirectory mount on Unraid, and those handles go
+      stale server-side (mover, array or NFS restart). The kubelet keeps a pod's
+      stale mount and never remounts it, so the next container start fails with
+      CreateContainerError ("failed to stat ...kubernetes.io~nfs/pvc-...") or
+      CreateContainerConfigError ("failed to prepare subPath") and stays there
+      until someone deletes the pod -- a fresh pod gets a fresh mount. On
+      2026-10-08 that was Prometheus for 21h and the Kratix controller for 18
+      days. Nothing else acts on this state: the descheduler protects pods with
+      PVCs and a container that never starts accumulates no restarts, and
+      cleanup-failed-pods only matches phase Failed.
+      Only pods with an owner are touched, so something recreates each one
+      (vcluster-synced pods are owned by the vcluster Service and are recreated
+      through the syncer). If the cause is not a stale mount -- a missing
+      Secret, or the NFS server still down -- the replacement fails the same way
+      and PodStuckCreatingContainer in platform-alerts pages; that alert counts
+      by namespace and container precisely so this policy's churn cannot reset
+      it.
+spec:
+  match:
+    any:
+      - resources:
+          kinds:
+            - Pod
+  conditions:
+    all:
+      - key: "{{ length(target.metadata.ownerReferences || `[]`) }}"
+        operator: GreaterThan
+        value: 0
+      - key: "{{ [target.status.initContainerStatuses[].state.waiting.reason, target.status.containerStatuses[].state.waiting.reason][] | [?@ == 'CreateContainerError' || @ == 'CreateContainerConfigError'] | length(@) }}"
+        operator: GreaterThan
+        value: 0
+      # A floor, not a measure of how long it has been stuck (the waiting state
+      # carries no timestamp): it keeps the policy off a pod that is seconds old
+      # and merely waiting for its Secret to sync.
+      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
+        operator: GreaterThan
+        value: 15m
+  schedule: "*/15 * * * *"

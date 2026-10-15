@@ -1,0 +1,121 @@
+# Glance (github.com/glanceapp/glance), the landing page at
+# home.cluster.integratn.tech: one replica, read-only root filesystem, config
+# from the glance-config ConfigMap (configmap.yaml).
+#
+# The namespace, Deployment and Service keep the name `homepage` (and the pod
+# label app.kubernetes.io/name: homepage) from the Homepage this replaced, so
+# the authentik provider and the NetworkPolicy halves in other namespaces did
+# not have to move.
+#
+# Glance reads its environment once, at start, so a 1Password change reaches
+# the page only after `kubectl -n homepage rollout restart deploy/homepage`.
+# A configmap.yaml change rolls the pod through the config-revision annotation.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: homepage
+  template:
+    metadata:
+      # Bump with a configmap.yaml change to roll the pod. Glance also watches
+      # its config file, but a rollout is the change you can see land.
+      annotations:
+        homepage.integratn.io/config-revision: "2"
+      labels:
+        app.kubernetes.io/name: homepage
+    spec:
+      # Glance never calls the Kubernetes API; everything comes from Prometheus.
+      # Both fields are written out: the live object still carried
+      # `homepage` from the Homepage this replaced, and dropping the field
+      # from the manifest does not clear it (the deprecated serviceAccount
+      # twin keeps it set), so new pods asked for an account that was pruned.
+      serviceAccountName: default
+      serviceAccount: default
+      automountServiceAccountToken: false
+      # Deferrable: a convenience page, not a platform dependency.
+      priorityClassName: platform-batch
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: glance
+          image: docker.io/glanceapp/glance:v0.8.7@sha256:bc5a392672c1ec8823c50b61f3bd4b7e5acc34fcbb8477862577b3af1c633875
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          # glance-env first: it sets every ${NAME} the config uses, keys
+          # empty. The 1Password Secret after it overrides the keys it has.
+          # Optional so a missing item or a 1Password outage costs widgets,
+          # not the page.
+          envFrom:
+            - configMapRef:
+                name: glance-env
+            - secretRef:
+                name: homepage-env
+                optional: true
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: glance-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: homepage
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
