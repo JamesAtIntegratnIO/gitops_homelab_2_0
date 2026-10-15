@@ -1270,7 +1270,7 @@ kargo-observability:
   chartName: kargo-observability
   project: platform-services
   chartRepository: oci://ghcr.io/jamesatintegratnio/charts/kargo-observability
-  defaultVersion: "0.1.1"
+  defaultVersion: "0.1.2"
   # Ahead of kube-prometheus-stack. That chart now mounts the
   # CustomResourceState ConfigMap this addon creates, and a kube-state-metrics
   # pod that rolls before the ConfigMap exists sits in
