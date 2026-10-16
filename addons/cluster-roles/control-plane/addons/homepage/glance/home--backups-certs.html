@@ -1,0 +1,48 @@
+{{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{/* Nightly etcd snapshot CronJobs (talos-backup, vcluster-media). The
+     EtcdSnapshot* alerts in platform-alerts fire past 36h and land on
+     Needs you; this shows the age before it gets there. */}}
+{{ $snaps := (newRequest $q | withParameter "query" `time() - max by (namespace, cronjob) (kube_cronjob_status_last_successful_time{cronjob=~".*-etcd-snapshot"})` | getResponse).JSON.Array "data.result" }}
+{{ $never := (newRequest $q | withParameter "query" `kube_cronjob_info{cronjob=~".*-etcd-snapshot"} unless on (namespace, cronjob) kube_cronjob_status_last_successful_time{cronjob=~".*-etcd-snapshot"}` | getResponse).JSON.Array "data.result" }}
+{{ $certs := (newRequest $q | withParameter "query" `bottomk(3, (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400)` | getResponse).JSON.Array "data.result" }}
+{{ $notReady := (newRequest $q | withParameter "query" `certmanager_certificate_ready_status{condition="True"} == 0` | getResponse).JSON.Array "data.result" }}
+{{ $total := (newRequest $q | withParameter "query" `count(certmanager_certificate_expiration_timestamp_seconds) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+<div class="hl-label" style="margin-bottom:.6rem">etcd snapshots</div>
+{{ if and (eq (len $snaps) 0) (eq (len $never) 0) }}
+  <p class="hl-none">Not recorded: no snapshot CronJob in kube-state-metrics.</p>
+{{ end }}
+<ul class="list list-gap-8" style="margin-bottom:1.2rem">
+  {{ range $snaps }}
+    {{ $age := .Float "value.1" }}
+    <li class="hl-row">
+      <span class="text-truncate">{{ if eq (.String "metric.namespace") "talos-backup" }}the-cluster{{ else }}{{ .String "metric.namespace" }}{{ end }}</span>
+      <span class="shrink-0"><span class="hl-num color-subdue">{{ if ge $age 86400.0 }}{{ div $age 86400.0 | printf "%.1f" }}d{{ else }}{{ div $age 3600.0 | printf "%.0f" }}h{{ end }} ago</span>
+        {{ if gt $age 129600.0 }}<span class="hl-tag bad">Stale</span>{{ else if gt $age 93600.0 }}<span class="hl-tag warn">Late</span>{{ end }}</span>
+    </li>
+  {{ end }}
+  {{ range $never }}
+    <li class="hl-row"><span class="text-truncate">{{ .String "metric.namespace" }}</span><span class="hl-tag bad shrink-0">Never ran</span></li>
+  {{ end }}
+</ul>
+<div class="hl-label" style="margin-bottom:.6rem">Certificates · <span class="hl-num">{{ $total }}</span></div>
+{{ if eq $total 0 }}
+  <p class="hl-none">Not recorded: cert-manager metrics are missing.</p>
+{{ else }}
+<ul class="list list-gap-8">
+  {{ range $notReady }}
+    <li class="hl-row">
+      <a class="color-highlight text-truncate" href="https://argocd.cluster.integratn.tech/applications?search={{ .String "metric.name" }}" target="_blank">{{ .String "metric.namespace" }}/{{ .String "metric.name" }}</a>
+      <span class="hl-tag bad shrink-0">Not ready</span>
+    </li>
+  {{ end }}
+  {{ range $certs }}
+    {{ $d := .Float "value.1" }}
+    <li class="hl-row">
+      <span class="text-truncate">{{ .String "metric.namespace" }}/{{ .String "metric.name" }}</span>
+      <span class="shrink-0"><span class="hl-num color-subdue">{{ printf "%.0f" $d }}d</span>
+        {{ if lt $d 3.0 }}<span class="hl-tag bad">Expiring</span>{{ else if lt $d 14.0 }}<span class="hl-tag warn">Renew</span>{{ end }}</span>
+    </li>
+  {{ end }}
+</ul>
+<div class="size-h6 color-subdue" style="margin-top:.6rem">Soonest to expire. cert-manager renews at 30 days left, so anything under that is a renewal that did not happen.</div>
+{{ end }}

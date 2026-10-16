@@ -1,0 +1,48 @@
+{{ $tok := .Options.StringOr "key" "" }}
+{{ $ha := .Options.StringOr "url" "" }}
+{{ if eq $tok "" }}
+  <p class="hl-none">Not recorded: add a Home Assistant long-lived token to <code>homepage-secret</code> as <code>HOMEPAGE_VAR_HA_TOKEN</code>.</p>
+{{ else }}
+{{ $r := newRequest (concat $ha "/api/states") | withHeader "Authorization" (concat "Bearer " $tok) | getResponse }}
+{{ if ne $r.Response.StatusCode 200 }}
+  <p class="hl-none">Not recorded: Home Assistant answered {{ $r.Response.Status }}.</p>
+{{ else }}
+  {{ $alarm := $r.JSON.Get `#(entity_id=="alarm_control_panel.panel")` }}
+  {{ $a := $alarm.String "state" }}
+  {{ $display := ($r.JSON.Get `#(entity_id=="number.vaca_ha1588kk_wake_word_threshold")`).String "state" }}
+  {{ $unavail := $r.JSON.Array `#(state=="unavailable")#` }}
+  {{ $batt := $r.JSON.Array `#(attributes.device_class=="battery")#` }}
+  <ul class="list list-gap-8" style="margin-bottom:1rem">
+    <li class="hl-row">
+      <a class="color-highlight" href="{{ $ha }}/lovelace/security" target="_blank">Alarm</a>
+      {{ if eq $a "" }}<span class="hl-none shrink-0">Not found</span>
+      {{ else if eq $a "triggered" }}<span class="hl-tag bad shrink-0">Triggered</span>
+      {{ else if eq $a "disarmed" }}<span class="hl-tag shrink-0">Disarmed</span>
+      {{ else }}<span class="hl-tag ok shrink-0">{{ replaceAll "_" " " $a }}</span>{{ end }}
+    </li>
+    <li class="hl-row">
+      <a class="color-highlight" href="{{ $ha }}/smart-display" target="_blank">Kitchen display</a>
+      {{ if or (eq $display "unavailable") (eq $display "") }}<span class="hl-tag bad shrink-0">Offline</span>{{ else }}<span class="hl-tag ok shrink-0">Online</span>{{ end }}
+    </li>
+    <li class="hl-row">
+      <a class="color-highlight" href="{{ $ha }}/config/entities" target="_blank">Unavailable entities</a>
+      <span class="hl-num {{ if gt (len $unavail) 0 }}color-highlight{{ else }}color-subdue{{ end }} shrink-0">{{ len $unavail }}</span>
+    </li>
+  </ul>
+  {{ $low := 0 }}
+  {{ range $batt }}{{ $s := .String "state" }}{{ if and (ne $s "unavailable") (ne $s "unknown") (eq (.String "attributes.unit_of_measurement") "%") (lt (.Float "state") 20.0) }}{{ $low = add $low 1 }}{{ end }}{{ end }}
+  <div class="hl-label" style="margin-bottom:.6rem">Batteries under 20% · <span class="hl-num">{{ $low }}</span></div>
+  {{ if eq $low 0 }}
+    <p class="hl-none">None low.</p>
+  {{ else }}
+  <ul class="list list-gap-8">
+    {{ range $batt }}{{ $s := .String "state" }}{{ if and (ne $s "unavailable") (ne $s "unknown") (eq (.String "attributes.unit_of_measurement") "%") (lt (.Float "state") 20.0) }}
+      <li class="hl-row">
+        <a class="color-highlight text-truncate" href="{{ $ha }}/history?entity_id={{ .String "entity_id" }}" target="_blank">{{ or (.String "attributes.friendly_name") (.String "entity_id") }}</a>
+        <span class="shrink-0"><span class="hl-num color-subdue">{{ .Float "state" | printf "%.0f" }}%</span>{{ if lt (.Float "state") 10.0 }} <span class="hl-tag bad">Replace</span>{{ end }}</span>
+      </li>
+    {{ end }}{{ end }}
+  </ul>
+  {{ end }}
+{{ end }}
+{{ end }}

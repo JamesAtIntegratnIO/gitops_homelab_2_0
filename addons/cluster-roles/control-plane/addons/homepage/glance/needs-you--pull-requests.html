@@ -1,0 +1,44 @@
+{{/* Open pull requests in James's repos, one GitHub call per repo
+     (unauthenticated: 60 calls an hour, so the widget caches 10m; set
+     HOMEPAGE_VAR_GITHUB_TOKEN for private repos or a higher limit).
+     Kargo's version bumps come from branches named kargo/promotion/...;
+     patch bumps merge themselves, so the ones here waited on a review. */}}
+{{ define "pr" }}
+  {{ $kargo := ne (findMatch "^kargo/promotion/" (.String "head.ref")) "" }}
+  <div class="hl-item">
+    <div class="hl-row">
+      <a class="hl-title text-truncate" href="{{ .String "html_url" }}" target="_blank">{{ .String "title" }}</a>
+      <span class="shrink-0"><span class="size-h6 color-subdue hl-data" {{ .String "created_at" | parseTime "RFC3339" | toRelativeTime }}></span>
+        {{ if .Bool "draft" }}<span class="hl-tag">Draft</span>{{ else if $kargo }}<span class="hl-tag">Kargo</span>{{ else }}<span class="hl-tag warn">Review</span>{{ end }}</span>
+    </div>
+    <div class="hl-where">{{ .String "base.repo.name" }} #{{ .Int "number" }} · {{ .String "user.login" }}</div>
+  </div>
+{{ end }}
+{{ $gh := .Options.StringOr "url" "" }}
+{{ $tok := .Options.StringOr "key" "" }}
+{{ $r1 := newRequest (concat $gh "/repos/JamesAtIntegratnIO/gitops_homelab_2_0/pulls") | withParameter "state" "open" | withParameter "per_page" "30" | withHeader "Accept" "application/vnd.github+json" }}
+{{ $r2 := newRequest (concat $gh "/repos/JamesAtIntegratnIO/nix_dots_2/pulls") | withParameter "state" "open" | withParameter "per_page" "30" | withHeader "Accept" "application/vnd.github+json" }}
+{{ $r3 := newRequest (concat $gh "/repos/JamesAtIntegratnIO/kargo-observability/pulls") | withParameter "state" "open" | withParameter "per_page" "30" | withHeader "Accept" "application/vnd.github+json" }}
+{{ if ne $tok "" }}
+  {{ $r1 = $r1 | withHeader "Authorization" (concat "Bearer " $tok) }}
+  {{ $r2 = $r2 | withHeader "Authorization" (concat "Bearer " $tok) }}
+  {{ $r3 = $r3 | withHeader "Authorization" (concat "Bearer " $tok) }}
+{{ end }}
+{{ $a := $r1 | getResponse }}{{ $b := $r2 | getResponse }}{{ $c := $r3 | getResponse }}
+{{ $n := 0 }}{{ $failed := "" }}
+{{ if eq $a.Response.StatusCode 200 }}{{ $n = add $n (len ($a.JSON.Array "")) }}{{ else }}{{ $failed = concat $failed " gitops_homelab_2_0 (" $a.Response.Status ")" }}{{ end }}
+{{ if eq $b.Response.StatusCode 200 }}{{ $n = add $n (len ($b.JSON.Array "")) }}{{ else }}{{ $failed = concat $failed " nix_dots_2 (" $b.Response.Status ")" }}{{ end }}
+{{ if eq $c.Response.StatusCode 200 }}{{ $n = add $n (len ($c.JSON.Array "")) }}{{ else }}{{ $failed = concat $failed " kargo-observability (" $c.Response.Status ")" }}{{ end }}
+<div class="hl-section" id="needs-prs">
+  <div class="hl-label" style="margin-bottom:.8rem">Pull requests · <span class="hl-num">{{ $n }}</span> <span class="color-subdue" style="text-transform:none;letter-spacing:0;font-weight:400">open in your repos</span></div>
+  {{ if ne $failed "" }}<p class="hl-none">Not recorded for{{ $failed }}.</p>{{ end }}
+  {{ if eq $n 0 }}
+    <p class="hl-none">Nothing open.</p>
+  {{ else }}
+  <div>
+    {{ if eq $a.Response.StatusCode 200 }}{{ range $a.JSON.Array "" }}{{ template "pr" . }}{{ end }}{{ end }}
+    {{ if eq $b.Response.StatusCode 200 }}{{ range $b.JSON.Array "" }}{{ template "pr" . }}{{ end }}{{ end }}
+    {{ if eq $c.Response.StatusCode 200 }}{{ range $c.JSON.Array "" }}{{ template "pr" . }}{{ end }}{{ end }}
+  </div>
+  {{ end }}
+</div>

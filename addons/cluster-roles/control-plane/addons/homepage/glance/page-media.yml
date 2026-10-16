@@ -6,27 +6,31 @@
   columns:
     - size: full
       widgets:
-        # ── Sonarr: one row per show, last two days to a week ahead ──
-        - type: custom-api
-          title: TV
-          title-url: https://sonarr.vcluster-media.integratn.tech/calendar
-          cache: 30m
-          options:
-            url: ${SONARR_URL}
-            key: ${HOMEPAGE_VAR_SONARR_KEY}
-          template: |
-            $include: media--tv.html
+        # TV and Movies side by side; one full-width list was too wide.
+        - type: split-column
+          max-columns: 2
+          widgets:
+            # ── Sonarr: one row per show, last two days to a week ahead ──
+            - type: custom-api
+              title: TV
+              title-url: https://sonarr.vcluster-media.integratn.tech/calendar
+              cache: 30m
+              options:
+                url: ${SONARR_URL}
+                key: ${HOMEPAGE_VAR_SONARR_KEY}
+              template: |
+                $include: media--tv.html
 
-        # ── Radarr: what is still to come, and anything released but missing ──
-        - type: custom-api
-          title: Movies
-          title-url: https://radarr.vcluster-media.integratn.tech/calendar
-          cache: 1h
-          options:
-            url: ${RADARR_URL}
-            key: ${HOMEPAGE_VAR_RADARR_KEY}
-          template: |
-            $include: media--movies.html
+            # ── Radarr: what is still to come, and anything released but missing ──
+            - type: custom-api
+              title: Movies
+              title-url: https://radarr.vcluster-media.integratn.tech/calendar
+              cache: 1h
+              options:
+                url: ${RADARR_URL}
+                key: ${HOMEPAGE_VAR_RADARR_KEY}
+              template: |
+                $include: media--movies.html
 
     - size: small
       widgets:
@@ -39,6 +43,17 @@
             key: ${HOMEPAGE_VAR_PLEX_TOKEN}
           template: |
             $include: media--plex.html
+
+        # ── Jellyfin on Tower: who is watching, and how ──
+        - type: custom-api
+          title: Jellyfin
+          title-url: http://10.0.0.12:8096/web/#/dashboard
+          cache: 1m
+          options:
+            url: ${JELLYFIN_URL}
+            key: ${HOMEPAGE_VAR_JELLYFIN_KEY}
+          template: |
+            $include: media--jellyfin.html
 
         # ── SABnzbd: only says something when there is something to say ──
         - type: custom-api

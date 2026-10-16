@@ -54,6 +54,25 @@ class H(BaseHTTPRequestHandler):
             mode=parse_qs(u.query).get("mode",[""])[0]
             if mode=="history": return self.send({"history":{"slots":[{"name":"some.show.s01e01.1080p","fail_message":"Unpacking failed, archive requires a password","completed":int(now-3600)},{"name":"old.fail","fail_message":"x","completed":int(now-900000)}]}})
             return self.send({"queue":{"paused":True,"status":"Paused","kbpersec":"0","timeleft":"0:00:00","slots":[{"filename":"law.and.order.svu.s28e02.1080p.web.h264-cakes","percentage":"0"}]}})
+        quiet0 = MODE=="quiet"
+        if u.path=="/ha/api/states":
+            st=[{"entity_id":"alarm_control_panel.panel","state":"armed_home","attributes":{"friendly_name":"Panel"}},
+                {"entity_id":"number.vaca_ha1588kk_wake_word_threshold","state":"6.0","attributes":{}},
+                {"entity_id":"sensor.front_door_lock_battery","state":"8" if not quiet0 else "80","attributes":{"device_class":"battery","unit_of_measurement":"%","friendly_name":"Front door lock battery"}},
+                {"entity_id":"sensor.garage_sensor_battery","state":"17","attributes":{"device_class":"battery","unit_of_measurement":"%","friendly_name":"Garage sensor battery"}},
+                {"entity_id":"sensor.phone_battery","state":"unknown","attributes":{"device_class":"battery","unit_of_measurement":"%"}},
+                {"entity_id":"light.kitchen","state":"on","attributes":{}}]+([] if quiet0 else [{"entity_id":"sensor.x%d"%i,"state":"unavailable","attributes":{}} for i in range(4)])
+            return self.send(st)
+        if u.path=="/jellyfin/Sessions":
+            return self.send([] if quiet0 else [{"UserName":"james","Client":"Wholphin","PlayState":{"PlayMethod":"Transcode","IsPaused":False},"NowPlayingItem":{"Name":"Pilot","SeriesName":"Slow Horses"}},{"UserName":"kid","Client":"Android TV"}])
+        if u.path=="/plex/status/sessions":
+            return self.send({"MediaContainer":{"size":0}} if quiet0 else {"MediaContainer":{"size":2,"Metadata":[{"title":"Frankenstein","User":{"title":"james"},"Player":{"title":"Living Room TV","state":"playing"}},{"grandparentTitle":"Scrubs","title":"My Best Friend's Birthday","User":{"title":"kid"},"Player":{"title":"iPad","state":"paused"},"TranscodeSession":{"videoDecision":"transcode"}}]}})
+        if u.path.startswith("/gh/repos/"):
+            repo=u.path.split("/")[4]
+            if repo=="nix_dots_2": return self.send({"message":"Not Found"},404)
+            if quiet0 or repo=="kargo-observability": return self.send([])
+            def pr(n,t,ref,draft,age): return {"number":n,"title":t,"html_url":f"https://github.com/JamesAtIntegratnIO/{repo}/pull/{n}","draft":draft,"created_at":iso(age).replace(".123",""),"user":{"login":"JamesAtIntegratnIO"},"head":{"ref":ref},"base":{"repo":{"name":repo}}}
+            return self.send([pr(482,"feat(homepage): backups, certs, PRs, house, security, now playing","feat/glance-more",True,600),pr(481,"chore(deps): update glance to v0.8.8","kargo/promotion/homepage.01m5.abc",False,7200),pr(470,"fix(mcp-system): pin grafana-mcp","fix/mcp",False,90000)])
         if u.path=="/api/v2/alerts":
             if MODE=="amdown": return self.send({"err":"x"},503)
             return self.send([] if MODE=="quiet" else ALERTS)
@@ -75,6 +94,15 @@ class H(BaseHTTPRequestHandler):
             return self.send(vec([] if quiet else [({"namespace":"mcp-system","pod":"grafana-mcp-7d9f8-abcde","kind":"restarts"},37),({"namespace":"mcp-system","pod":"grafana-mcp-7d9f8-abcde","kind":"age"},7300),({"namespace":"authentik","pod":"authentik-worker-5c6-xyz12","kind":"age"},1300),({"namespace":"authentik","pod":"authentik-worker-5c6-xyz12","kind":"restarts"},0),({"namespace":"media","pod":"plex-sync-0","kind":"age"},200000)]))
         if q.startswith("(max by (namespace, pod, reason)"):
             return self.send(vec([] if quiet else [({"namespace":"mcp-system","pod":"grafana-mcp-7d9f8-abcde","reason":"CrashLoopBackOff"},1),({"namespace":"authentik","pod":"authentik-worker-5c6-xyz12","reason":"ContainerCreating"},1),({"namespace":"media","pod":"plex-sync-0","reason":"Unschedulable","uid":"u"},1)]))
+        if "etcd-snapshot" in q:
+            if q.startswith("kube_cronjob_info"): return self.send(vec([]))
+            return self.send(vec([({"namespace":"talos-backup","cronjob":"talos-etcd-snapshot"},50000),({"namespace":"vcluster-media","cronjob":"vcluster-media-etcd-snapshot"},48000 if quiet else 140000)]))
+        if "certmanager_certificate_ready_status" in q: return self.send(vec([] if quiet else [({"namespace":"umami","name":"stats-tls","condition":"True"},0)]))
+        if q.startswith("count(certmanager"): return self.send(vec([({},14)]))
+        if q.startswith("bottomk(3, (certmanager"): return self.send(vec([({"namespace":"nginx-gateway","name":"wildcard-cluster-integratn-tech"},12.4 if not quiet else 52),({"namespace":"vcluster-media","name":"wildcard-vcluster-media"},58.1),({"namespace":"authentik","name":"auth-tls"},61.0)]))
+        if q.startswith("sum by (severity) (trivy"): return self.send(vec([({"severity":"Critical"},312),({"severity":"High"},1840)]))
+        if q.startswith("topk(4, sum by (namespace) (trivy"): return self.send(vec([({"namespace":"authentik"},88),({"namespace":"monitoring"},61),({"namespace":"ai"},40),({"namespace":"kratix-platform-system"},12)]))
+        if "kyverno_policy_results_total" in q: return self.send(vec([] if quiet else [({"policy_name":"require-requests-limits"},14),({"policy_name":"disallow-latest-tag"},2)]))
         fresh = MODE=="fresh"
         H3=["holocron","pitdroid"]
         if 'max by (host) (up{job="host-node"})' in q:

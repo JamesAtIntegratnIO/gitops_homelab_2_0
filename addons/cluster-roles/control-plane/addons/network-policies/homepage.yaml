@@ -119,6 +119,9 @@ spec:
           port: 80
         - protocol: TCP
           port: 32400
+        # Jellyfin, for the Media tab's now playing.
+        - protocol: TCP
+          port: 8096
     - to:
         - ipBlock:
             cidr: 10.0.1.174/32

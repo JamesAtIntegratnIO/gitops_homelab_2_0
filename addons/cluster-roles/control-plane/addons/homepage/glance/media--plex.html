@@ -8,9 +8,15 @@
 {{ else }}
   <ul class="list list-gap-10">
     {{ range $r.JSON.Array "MediaContainer.Metadata" }}
+      {{/* A TranscodeSession means Tower is re-encoding for this client. */}}
+      {{ $tc := .Exists "TranscodeSession" }}
+      {{ $video := .String "TranscodeSession.videoDecision" }}
       <li>
-        <div class="color-highlight text-truncate">{{ with .String "grandparentTitle" }}{{ . }} · {{ end }}{{ .String "title" }}</div>
-        <div class="size-h6 color-subdue">{{ .String "User.title" }} · {{ .String "Player.state" }}</div>
+        <div class="hl-row">
+          <span class="color-highlight text-truncate">{{ with .String "grandparentTitle" }}{{ . }} · {{ end }}{{ .String "title" }}</span>
+          <span class="hl-tag {{ if and $tc (eq $video "transcode") }}warn{{ end }} shrink-0">{{ if not $tc }}Direct{{ else if eq $video "transcode" }}Transcode{{ else }}Direct stream{{ end }}</span>
+        </div>
+        <div class="size-h6 color-subdue">{{ .String "User.title" }} · {{ .String "Player.title" }} · {{ .String "Player.state" }}</div>
       </li>
     {{ end }}
   </ul>
