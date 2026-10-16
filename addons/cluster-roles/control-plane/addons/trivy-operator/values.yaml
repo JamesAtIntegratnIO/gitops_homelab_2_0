@@ -61,6 +61,21 @@ trivyOperator:
   # revisiting if Syntasso publishes to a registry we can read, or if a pull
   # secret becomes available.
   excludeImages: "syntasso-community.docker.reo.dev/*"
+  # Scan Jobs never run on 10.0.4.102 (talos-4kg-ymz). Its etcd member is the
+  # one that stalls under disk load: on 2026-10-16 its WAL fsync p99 reached
+  # 3.1 s and backend commit 5.1 s while scan Jobs ran there, against a 14-day
+  # p99.9 of 94 ms / 187 ms, and on 10-09/10-10, when little else wrote to it,
+  # it was the fastest of the three (fsync median 8-9 ms). .101 and .103 take
+  # the scans one at a time (scanJobsConcurrentLimit above). Talos hostnames
+  # are generated, so update this if .102 is ever reinstalled.
+  scanJobAffinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: NotIn
+                values: ["talos-4kg-ymz"]
 
 trivy:
   priorityClassName: platform-batch
