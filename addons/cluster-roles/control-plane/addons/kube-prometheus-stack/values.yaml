@@ -472,9 +472,18 @@ defaultRules:
   # dipped 800KB below the floor. It covered 86 of the 310 hours the cluster was
   # actually fragmented. Replaced by EtcdReclaimableSpaceHigh in the
   # platform-alerts addon, which alerts on absolute reclaimable bytes and is
-  # therefore scale-free. The other 14 etcd mixin rules stay on.
+  # therefore scale-free.
+  #
+  # etcdHighCommitDurations (p99 > 250 ms) and etcdHighFsyncDurations
+  # (> 500 ms warning, > 1 s critical) are etcd's datacenter thresholds. On one
+  # shared SATA SSD per node the commit rule fired on .102 on ordinary days
+  # (10-11 and 10-15, max 335/411 ms). Replaced by EtcdBackendCommitSlow,
+  # EtcdWalFsyncSlow and EtcdWalFsyncStalled in platform-alerts, set from this
+  # cluster's own 14-day baseline. The other 12 etcd mixin rules stay on.
   disabled:
     etcdDatabaseHighFragmentationRatio: true
+    etcdHighCommitDurations: true
+    etcdHighFsyncDurations: true
 
 # NOTE 2026-08-30: a `defaultRules.additionalPrometheusRules` block lived here
 # from 2026-01 until today, carrying an etcdInsufficientMembers rewrite that
