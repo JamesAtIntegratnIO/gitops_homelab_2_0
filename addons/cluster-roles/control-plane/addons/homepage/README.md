@@ -8,7 +8,7 @@ NetworkPolicy halves in other namespaces did not move.
 
 Five tabs. **Home** answers "is anything wrong": a status line with a verdict
 and chips (critical alerts, warnings, unhealthy apps, failed promotions, stuck
-pods), CPU and memory sparklines, per-node cards and the N+1 request line,
+pods), CPU and memory sparklines and the N+1 request bars in one row, one line per node (CPU, memory, /var, disk busy, pods, temperature, uptime), then Kubernetes version, pods, restarts and etcd health (WAL fsync p99, leader changes, DB size),
 firing alerts by name, ArgoCD and Kargo problems, Umami for integratn.io and
 bosun.integratn.io, one line per host outside the cluster, backups and certs
 (etcd snapshot age per cluster, soonest cert expiries, any cert not Ready),
@@ -191,6 +191,8 @@ each site's page source). The key is `HOMEPAGE_VAR_UMAMI_KEY`: a Umami API key
 (Settings -> API keys, the whole `umami_...` string).
 
 ## Gotchas
+
+- **Two clusters and three hosts share Prometheus.** vcluster-media's agent remote-writes its own kube-state-metrics (`cluster="vcluster-media"`), which reports the same three nodes and the vcluster's pods again; holocron, pitdroid and Tower push node_exporter as `job="host-node"` (holocron and pitdroid both as `127.0.0.1:9100`). Every `kube_*` selector on the page carries `cluster=""` and every cluster `node_*` selector `job="node-exporter"`, or counts double and instance joins fail.
 
 - **Removing a field from the Deployment does not clear it live.** The pod
   spec names `serviceAccountName: default` explicitly because the Homepage
