@@ -138,6 +138,18 @@ data:
           .hl-poster { width:3.4rem; height:5rem; object-fit:cover; border-radius:6px; flex-shrink:0; background:var(--raise); border:1px solid var(--line); }
           .hl-row { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
           .hl-title { color:var(--text); font-weight:600; }
+          /* Needs you: one item per thing to act on, the why, then where to act. */
+          .hl-section { margin:1.6rem 0 .8rem; padding-top:1.2rem; border-top:1px solid var(--line); }
+          .hl-section:first-child { margin-top:0; padding-top:0; border-top:none; }
+          .hl-item { padding:1rem 1.2rem; border-radius:6px; background:var(--well); border:1px solid var(--line); }
+          .hl-item + .hl-item { margin-top:.8rem; }
+          .hl-where { font-family:var(--mono); font-size:1.2rem; color:var(--dim); margin-top:.2rem; overflow-wrap:anywhere; }
+          .hl-why { margin-top:.6rem; color:var(--said); font-size:1.3rem; }
+          .hl-links { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:.8rem; align-items:center; }
+          .hl-links a { font-size:1.2rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--text);
+                        padding:.2rem 1rem; border-radius:999px; border:1px solid var(--line); background:var(--raise); }
+          .hl-links a:hover { border-color:var(--dim); }
+          .hl-links code { overflow-wrap:anywhere; }
           /* Phone: Glance's bottom bar switches columns with unlabelled dots.
              Name them, in the label voice; the chosen one gets an underline. */
           .mobile-navigation-label { max-width:none; }
@@ -147,11 +159,30 @@ data:
             border-bottom:2px solid transparent; }
           .mobile-navigation-input:checked + .mobile-navigation-pill { color:var(--text); border-bottom-color:var(--text); }
           .mobile-navigation-label:hover > .mobile-navigation-pill { background:none; color:var(--text); }
-          .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Launch"; }
-          .mobile-navigation-input[value="1"] + .mobile-navigation-pill::after { content:"Cluster"; }
-          .mobile-navigation-input[value="2"] + .mobile-navigation-pill::after { content:"Hosts"; }
+          /* Per page: the script below copies Glance's page slug onto <html>. */
+          html[data-page="home"] .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Launch"; }
+          html[data-page="home"] .mobile-navigation-input[value="1"] + .mobile-navigation-pill::after { content:"Cluster"; }
+          html[data-page="home"] .mobile-navigation-input[value="2"] + .mobile-navigation-pill::after { content:"Hosts"; }
+          html[data-page="media"] .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Coming"; }
+          html[data-page="media"] .mobile-navigation-input[value="1"] + .mobile-navigation-pill::after { content:"Now"; }
+          html[data-page="needs-you"] .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Needs you"; }
+          html[data-page="news"] .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Links"; }
+          html[data-page="news"] .mobile-navigation-input[value="1"] + .mobile-navigation-pill::after { content:"Feeds"; }
           @media (max-width: 700px) { .hl-grid2 { grid-template-columns:1fr; } .hl-chips { margin-left:0; } }
         </style>
+        <script>
+          try { document.documentElement.dataset.page = pageData.slug; } catch (e) {}
+          /* Needs you loads after the page, so a #section or #alert-X link would
+             land before its target exists. Scroll once it appears. */
+          if (location.hash.length > 1) {
+            const id = location.hash.slice(1), t0 = Date.now();
+            const t = setInterval(() => {
+              const el = document.getElementById(id);
+              if (el) { el.scrollIntoView({ block: "start" }); clearInterval(t); }
+              else if (Date.now() - t0 > 10000) clearInterval(t);
+            }, 150);
+          }
+        </script>
 
     pages:
       - name: Home
@@ -164,13 +195,24 @@ data:
             cache: 1m
             options:
               prom: ${PROM_URL}
+              am: ${AM_URL}
             template: |
               {{ $p := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
-              {{ $crit := (newRequest $p | withParameter "query" `count(count by (alertname) (ALERTS{alertstate="firing",severity="critical"})) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
-              {{ $warn := (newRequest $p | withParameter "query" `count(count by (alertname) (ALERTS{alertstate="firing",severity="warning"})) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+              {{/* Alerts come from Alertmanager, not Prometheus, so a silenced or
+                   inhibited alert stops counting, and the figures match the
+                   Needs you tab one for one. */}}
+              {{ $am := newRequest (concat (.Options.StringOr "am" "") "/api/v2/alerts") | withParameter "active" "true" | withParameter "silenced" "false" | withParameter "inhibited" "false" | getResponse }}
+              {{ $crit := 0 }}{{ $warn := 0 }}
+              {{ if eq $am.Response.StatusCode 200 }}
+                {{ range $am.JSON.Array "" }}{{ $s := .String "labels.severity" }}{{ if eq $s "critical" }}{{ $crit = add $crit 1 }}{{ else if eq $s "warning" }}{{ $warn = add $warn 1 }}{{ end }}{{ end }}
+              {{ else }}
+                {{ $crit = (newRequest $p | withParameter "query" `count(ALERTS{alertstate="firing",severity="critical"}) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+                {{ $warn = (newRequest $p | withParameter "query" `count(ALERTS{alertstate="firing",severity="warning"}) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+              {{ end }}
               {{ $apps := (newRequest $p | withParameter "query" `count(argocd_app_info{health_status!="Healthy"}) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
               {{ $kargo := (newRequest $p | withParameter "query" `count(kargo_stage_last_promotion_phase{phase=~"Errored|Failed|Aborted"} == 1) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
-              {{ $pods := (newRequest $p | withParameter "query" `(sum(kube_pod_status_phase{phase=~"Pending|Failed|Unknown"}) or vector(0)) + (count(kube_pod_container_status_waiting_reason{reason=~"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError"}) or vector(0))` | getResponse).JSON.Int "data.result.0.value.1" }}
+              {{/* The same stuck-pod set as Needs you; keep the two queries in step. */}}
+              {{ $pods := (newRequest $p | withParameter "query" (concat "count(" `(max by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason=~"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError"} == 1) or on (namespace, pod) label_replace(kube_pod_status_unschedulable == 1, "reason", "Unschedulable", "", "") or on (namespace, pod) max by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason="ContainerCreating"} == 1) or on (namespace, pod) max by (namespace, pod, reason) (label_replace(kube_pod_status_phase{phase=~"Pending|Failed|Unknown"} == 1, "reason", "$1", "phase", "(.*)"))) and on (namespace, pod) (time() - kube_pod_created > 300)` ") or vector(0)") | getResponse).JSON.Int "data.result.0.value.1" }}
               {{ $ready := (newRequest $p | withParameter "query" `sum(kube_node_status_condition{condition="Ready",status="true"}) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
               {{ $nodes := (newRequest $p | withParameter "query" `count(kube_node_info) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
               {{ $down := sub (toFloat $nodes) (toFloat $ready) | toInt }}
@@ -185,15 +227,15 @@ data:
                     <div class="hl-sub"><span class="hl-num">{{ $ready }}/{{ $nodes }}</span> nodes ready, no critical alerts, every app healthy.</div>
                   {{ else }}
                     <div class="hl-verdict"><span class="hl-tag bad">Attention</span><span class="w"><span class="hl-num">{{ $issues }}</span> {{ if eq $issues 1 }}thing needs{{ else }}things need{{ end }} you</span></div>
-                    <div class="hl-sub"><span class="hl-num">{{ $ready }}/{{ $nodes }}</span> nodes ready. Details below.</div>
+                    <div class="hl-sub"><span class="hl-num">{{ $ready }}/{{ $nodes }}</span> nodes ready. The Needs you tab has each one, with what to do and where.</div>
                   {{ end }}
                 </div>
                 <div class="hl-chips">
-                  <a class="hl-chip {{ if gt $crit 0 }}bad{{ end }}" href="https://alertmanager.cluster.integratn.tech" target="_blank"><span class="n">{{ $crit }}</span><span class="l">Critical</span></a>
-                  <a class="hl-chip {{ if gt $warn 0 }}warn{{ end }}" href="https://alertmanager.cluster.integratn.tech" target="_blank"><span class="n">{{ $warn }}</span><span class="l">Warnings</span></a>
-                  <a class="hl-chip {{ if gt $apps 0 }}bad{{ end }}" href="https://argocd.cluster.integratn.tech/applications?health=Degraded&health=Progressing&health=Missing&health=Unknown" target="_blank"><span class="n">{{ $apps }}</span><span class="l">Apps unhealthy</span></a>
-                  <a class="hl-chip {{ if gt $kargo 0 }}bad{{ end }}" href="https://kargo.cluster.integratn.tech" target="_blank"><span class="n">{{ $kargo }}</span><span class="l">Promotions failed</span></a>
-                  <a class="hl-chip {{ if gt $pods 0 }}warn{{ end }}" href="https://grafana.cluster.integratn.tech/d/homelab-overview/homelab-overview" target="_blank"><span class="n">{{ $pods }}</span><span class="l">Pods stuck</span></a>
+                  <a class="hl-chip {{ if gt $crit 0 }}bad{{ end }}" href="/needs-you#needs-alerts"><span class="n">{{ $crit }}</span><span class="l">Critical</span></a>
+                  <a class="hl-chip {{ if gt $warn 0 }}warn{{ end }}" href="/needs-you#needs-alerts"><span class="n">{{ $warn }}</span><span class="l">Warnings</span></a>
+                  <a class="hl-chip {{ if gt $apps 0 }}bad{{ end }}" href="/needs-you#needs-apps"><span class="n">{{ $apps }}</span><span class="l">Apps unhealthy</span></a>
+                  <a class="hl-chip {{ if gt $kargo 0 }}bad{{ end }}" href="/needs-you#needs-kargo"><span class="n">{{ $kargo }}</span><span class="l">Promotions failed</span></a>
+                  <a class="hl-chip {{ if gt $pods 0 }}warn{{ end }}" href="/needs-you#needs-pods"><span class="n">{{ $pods }}</span><span class="l">Pods stuck</span></a>
                 </div>
               </div>
 
@@ -334,24 +376,33 @@ data:
                   # ── What is firing, one row per alert name ──
                   - type: custom-api
                     title: Firing alerts
-                    title-url: https://alertmanager.cluster.integratn.tech
+                    # One row per alert name; each opens that alert on the Needs
+                    # you tab (summary, object, links). Same Alertmanager set as
+                    # that tab, so a silenced alert leaves both.
+                    title-url: /needs-you#needs-alerts
                     cache: 1m
                     options:
-                      prom: ${PROM_URL}
+                      am: ${AM_URL}
                     template: |
-                      {{ $r := newRequest (concat (.Options.StringOr "prom" "") "/api/v1/query") | withParameter "query" `count by (alertname, severity) (ALERTS{alertstate="firing", alertname!~"Watchdog|InfoInhibitor"})` | getResponse }}
-                      {{ $all := $r.JSON.Array "data.result" }}
-                      {{ if eq (len $all) 0 }}
+                      {{ $r := newRequest (concat (.Options.StringOr "am" "") "/api/v2/alerts") | withParameter "active" "true" | withParameter "silenced" "false" | withParameter "inhibited" "false" | getResponse }}
+                      {{ $all := $r.JSON.Array "" }}
+                      {{ $n := 0 }}{{ range $all }}{{ $s := .String "labels.severity" }}{{ if or (eq $s "critical") (eq $s "warning") (eq $s "info") }}{{ $n = add $n 1 }}{{ end }}{{ end }}
+                      {{ if ne $r.Response.StatusCode 200 }}
+                        <p class="hl-none">Not recorded: Alertmanager answered {{ $r.Response.Status }}.</p>
+                      {{ else if eq $n 0 }}
                         <div class="hl-callout ok"><span class="hl-tag ok">Quiet</span> Nothing is firing.</div>
                       {{ else }}
                         <ul class="list list-gap-10 collapsible-container" data-collapse-after="6">
-                          {{ range sortByString "metric.severity" "asc" $all }}
-                            {{ $sev := .String "metric.severity" }}{{ if eq $sev "" }}{{ $sev = "none" }}{{ end }}
-                            <li class="hl-row">
-                              <span class="color-highlight text-truncate">{{ .String "metric.alertname" }}</span>
-                              <span class="shrink-0"><span class="hl-num color-subdue">×{{ .Int "value.1" }}</span>
-                                <span class="hl-tag {{ if eq $sev "critical" }}bad{{ else if eq $sev "warning" }}warn{{ end }}">{{ $sev }}</span></span>
-                            </li>
+                          {{ range unique "labels.alertname" (sortByString "labels.severity" "asc" $all) }}
+                            {{ $sev := .String "labels.severity" }}{{ $name := .String "labels.alertname" }}
+                            {{ if or (eq $sev "critical") (eq $sev "warning") (eq $sev "info") }}
+                              {{ $c := 0 }}{{ range $all }}{{ if eq (.String "labels.alertname") $name }}{{ $c = add $c 1 }}{{ end }}{{ end }}
+                              <li class="hl-row">
+                                <a class="color-highlight text-truncate" href="/needs-you#alert-{{ $name }}" title="{{ or (.String "annotations.summary") $name }}">{{ $name }}</a>
+                                <span class="shrink-0"><span class="hl-num color-subdue">×{{ $c }}</span>
+                                  <span class="hl-tag {{ if eq $sev "critical" }}bad{{ else if eq $sev "warning" }}warn{{ end }}">{{ $sev }}</span></span>
+                              </li>
+                            {{ end }}
                           {{ end }}
                         </ul>
                       {{ end }}
@@ -379,198 +430,65 @@ data:
                         {{ range $bad }}
                           {{ $h := .String "metric.health_status" }}
                           <li class="hl-row">
-                            <a class="color-highlight text-truncate" href="https://argocd.cluster.integratn.tech/applications/argocd/{{ .String "metric.name" }}" target="_blank">{{ .String "metric.name" }}</a>
+                            <a class="color-highlight text-truncate" href="https://argocd.cluster.integratn.tech/applications/argocd/{{ .String "metric.name" }}?view=tree&resource={{ if ne $h "Healthy" }}{{ concat "health:" $h }}{{ else }}sync:OutOfSync{{ end }}" target="_blank">{{ .String "metric.name" }}</a>
                             <span class="hl-tag {{ if or (eq $h "Degraded") (eq $h "Missing") }}bad{{ else }}warn{{ end }}">{{ if ne $h "Healthy" }}{{ $h }}{{ else }}{{ .String "metric.sync_status" }}{{ end }}</span>
                           </li>
                         {{ end }}
                         {{ range $kargo }}
                           <li class="hl-row">
-                            <a class="color-highlight text-truncate" href="https://kargo.cluster.integratn.tech/project/{{ .String "metric.namespace" }}" target="_blank">{{ .String "metric.namespace" }} / {{ .String "metric.stage" }}</a>
+                            <a class="color-highlight text-truncate" href="https://kargo.cluster.integratn.tech/project/{{ .String "metric.namespace" }}/{{ with .String "metric.promotion" }}promotion/{{ . }}{{ else }}stage/{{ .String "metric.stage" }}{{ end }}" target="_blank">{{ .String "metric.namespace" }} / {{ .String "metric.stage" }}</a>
                             <span class="hl-tag bad">{{ .String "metric.phase" }}</span>
                           </li>
                         {{ end }}
                       </ul>
 
-              - type: split-column
-                max-columns: 2
+              # ── Umami, today so far vs the same span yesterday ──
+              - type: group
                 widgets:
-                  # ── Sonarr: the week ahead ──
-                  - type: custom-api
-                    title: TV this week
-                    title-url: https://sonarr.vcluster-media.integratn.tech/calendar
-                    cache: 30m
+                  - &umami
+                    type: custom-api
+                    title: integratn.io
+                    title-url: https://stats.cluster.integratn.tech/websites/712f4369-49e3-4285-a47a-ed1534441db3
+                    cache: 5m
                     options:
-                      url: ${SONARR_URL}
-                      key: ${HOMEPAGE_VAR_SONARR_KEY}
+                      url: ${UMAMI_URL}
+                      key: ${HOMEPAGE_VAR_UMAMI_KEY}
+                      site: 712f4369-49e3-4285-a47a-ed1534441db3
                     template: |
-                      {{ $r := newRequest (concat (.Options.StringOr "url" "") "/api/v3/calendar")
-                           | withParameter "start" (offsetNow "-24h" | formatTime "DateOnly")
-                           | withParameter "end" (offsetNow "168h" | formatTime "DateOnly")
-                           | withParameter "includeSeries" "true"
-                           | withHeader "X-Api-Key" (.Options.StringOr "key" "")
-                           | getResponse }}
-                      {{ if ne $r.Response.StatusCode 200 }}
-                        <p class="hl-none">Not recorded: Sonarr answered {{ $r.Response.Status }}.</p>
-                      {{ else if eq (len ($r.JSON.Array "")) 0 }}
-                        <p class="hl-none">Nothing airing this week.</p>
+                      {{ if eq (.Options.StringOr "key" "") "" }}
+                        <p class="hl-none">Not recorded: add a Umami API key to 1Password item <code>homepage-secret</code> as <code>HOMEPAGE_VAR_UMAMI_KEY</code>.</p>
                       {{ else }}
-                        <ul class="list list-gap-10 collapsible-container" data-collapse-after="5">
-                          {{ range sortByTime "airDateUtc" "RFC3339" "asc" ($r.JSON.Array "") }}
-                            {{ $poster := "" }}{{ range .Array "series.images" }}{{ if and (eq $poster "") (eq (.String "coverType") "poster") }}{{ $poster = .String "remoteUrl" }}{{ end }}{{ end }}
-                            <li class="flex gap-10 items-center">
-                              {{ if ne $poster "" }}<img class="hl-poster" src="{{ $poster }}" alt="" loading="lazy">{{ end }}
-                              <div class="min-width-0 grow">
-                                <div class="color-highlight text-truncate">{{ .String "series.title" }}</div>
-                                <div class="size-h6 color-subdue text-truncate"><span class="hl-data">S{{ printf "%02d" (.Int "seasonNumber") }}E{{ printf "%02d" (.Int "episodeNumber") }}</span> · {{ .String "title" }}</div>
-                              </div>
-                              <div class="shrink-0" style="text-align:right">
-                                {{ if .Bool "hasFile" }}<span class="hl-tag ok">Got it</span>{{ else }}<span class="size-h6 color-subdue hl-data" {{ .String "airDateUtc" | parseTime "RFC3339" | toRelativeTime }}></span>{{ end }}
-                              </div>
-                            </li>
-                          {{ end }}
-                        </ul>
+                        {{ $base := concat (.Options.StringOr "url" "") "/api/websites/" (.Options.StringOr "site" "") }}
+                        {{ $auth := concat "Bearer " (.Options.StringOr "key" "") }}
+                        {{ $from := concat (startOfDay now | formatTime "unix") "000" }}
+                        {{ $to := concat (now | formatTime "unix") "000" }}
+                        {{ $s := newRequest (concat $base "/stats") | withParameter "startAt" $from | withParameter "endAt" $to | withHeader "Authorization" $auth | getResponse }}
+                        {{ if ne $s.Response.StatusCode 200 }}
+                          <p class="hl-none">Not recorded: Umami answered {{ $s.Response.Status }}.</p>
+                        {{ else }}
+                          {{ $a := newRequest (concat $base "/active") | withHeader "Authorization" $auth | getResponse }}
+                          {{ $v := $s.JSON.Float "visitors" }}{{ $pv := $s.JSON.Float "comparison.visitors" }}
+                          {{ $pg := $s.JSON.Float "pageviews" }}{{ $ppg := $s.JSON.Float "comparison.pageviews" }}
+                          <div class="hl-row">
+                            <div><div class="hl-big">{{ $a.JSON.Int "visitors" }}</div><div class="hl-label">Online now</div></div>
+                            <div style="text-align:center"><div class="hl-big">{{ toInt $v | formatNumber }}</div><div class="hl-label">Visitors today</div>
+                              {{ if gt $pv 0.0 }}<div class="hl-delta color-subdue">{{ percentChange $v $pv | printf "%+.0f" }}% vs yesterday</div>{{ end }}</div>
+                            <div style="text-align:right"><div class="hl-big">{{ toInt $pg | formatNumber }}</div><div class="hl-label">Pageviews</div>
+                              {{ if gt $ppg 0.0 }}<div class="hl-delta color-subdue">{{ percentChange $pg $ppg | printf "%+.0f" }}% vs yesterday</div>{{ end }}</div>
+                          </div>
+                        {{ end }}
                       {{ end }}
-
-                  # ── Downloads ──
-                  - type: custom-api
-                    title: Downloading
-                    title-url: https://sabnzbd.vcluster-media.integratn.tech
-                    cache: 30s
+                  - <<: *umami
+                    title: bosun.integratn.io
+                    title-url: https://stats.cluster.integratn.tech/websites/a4dc99d0-79d0-46df-97d1-67a6b64a9935
                     options:
-                      url: ${SABNZBD_URL}
-                      key: ${HOMEPAGE_VAR_SABNZBD_KEY}
-                    template: |
-                      {{ $r := newRequest (concat (.Options.StringOr "url" "") "/api") | withParameter "mode" "queue" | withParameter "output" "json" | withParameter "apikey" (.Options.StringOr "key" "") | getResponse }}
-                      {{ if ne $r.Response.StatusCode 200 }}
-                        <p class="hl-none">Not recorded: SABnzbd answered {{ $r.Response.Status }}.</p>
-                      {{ else }}
-                        {{ $slots := $r.JSON.Array "queue.slots" }}
-                        {{ $kb := $r.JSON.Float "queue.kbpersec" }}
-                        <div class="hl-row" style="margin-bottom:1.2rem">
-                          <div><div class="hl-big">{{ if ge $kb 1024.0 }}{{ div $kb 1024 | printf "%.1f" }} MB/s{{ else }}{{ printf "%.0f" $kb }} KB/s{{ end }}</div>
-                            <div class="hl-label">{{ $r.JSON.String "queue.status" }}</div></div>
-                          <div style="text-align:right"><div class="hl-big">{{ len $slots }}</div><div class="hl-label">In queue{{ if gt (len $slots) 0 }} · <span class="hl-data">{{ $r.JSON.String "queue.timeleft" }}</span>{{ end }}</div></div>
-                        </div>
-                        {{ if eq (len $slots) 0 }}<p class="hl-none">The queue is empty.</p>{{ end }}
-                        <ul class="list list-gap-10 collapsible-container" data-collapse-after="4">
-                          {{ range $slots }}
-                            {{ $pct := .Float "percentage" }}
-                            <li>
-                              <div class="hl-row size-h6"><span class="text-truncate">{{ .String "filename" }}</span><span class="shrink-0 hl-num">{{ printf "%.0f" $pct }}%</span></div>
-                              <div class="hl-bar" style="margin-top:.4rem"><div style="width:{{ printf "%.0f" $pct }}%"></div></div>
-                            </li>
-                          {{ end }}
-                        </ul>
-                      {{ end }}
-
-              - type: split-column
-                max-columns: 2
-                widgets:
-                  # ── Umami, today so far vs the same span yesterday ──
-                  - type: group
-                    widgets:
-                      - &umami
-                        type: custom-api
-                        title: integratn.io
-                        title-url: https://stats.cluster.integratn.tech/websites/712f4369-49e3-4285-a47a-ed1534441db3
-                        cache: 5m
-                        options:
-                          url: ${UMAMI_URL}
-                          key: ${HOMEPAGE_VAR_UMAMI_KEY}
-                          site: 712f4369-49e3-4285-a47a-ed1534441db3
-                        template: |
-                          {{ if eq (.Options.StringOr "key" "") "" }}
-                            <p class="hl-none">Not recorded: add a Umami API key to 1Password item <code>homepage-secret</code> as <code>HOMEPAGE_VAR_UMAMI_KEY</code>.</p>
-                          {{ else }}
-                            {{ $base := concat (.Options.StringOr "url" "") "/api/websites/" (.Options.StringOr "site" "") }}
-                            {{ $auth := concat "Bearer " (.Options.StringOr "key" "") }}
-                            {{ $from := concat (startOfDay now | formatTime "unix") "000" }}
-                            {{ $to := concat (now | formatTime "unix") "000" }}
-                            {{ $s := newRequest (concat $base "/stats") | withParameter "startAt" $from | withParameter "endAt" $to | withHeader "Authorization" $auth | getResponse }}
-                            {{ if ne $s.Response.StatusCode 200 }}
-                              <p class="hl-none">Not recorded: Umami answered {{ $s.Response.Status }}.</p>
-                            {{ else }}
-                              {{ $a := newRequest (concat $base "/active") | withHeader "Authorization" $auth | getResponse }}
-                              {{ $v := $s.JSON.Float "visitors" }}{{ $pv := $s.JSON.Float "comparison.visitors" }}
-                              {{ $pg := $s.JSON.Float "pageviews" }}{{ $ppg := $s.JSON.Float "comparison.pageviews" }}
-                              <div class="hl-row">
-                                <div><div class="hl-big">{{ $a.JSON.Int "visitors" }}</div><div class="hl-label">Online now</div></div>
-                                <div style="text-align:center"><div class="hl-big">{{ toInt $v | formatNumber }}</div><div class="hl-label">Visitors today</div>
-                                  {{ if gt $pv 0.0 }}<div class="hl-delta color-subdue">{{ percentChange $v $pv | printf "%+.0f" }}% vs yesterday</div>{{ end }}</div>
-                                <div style="text-align:right"><div class="hl-big">{{ toInt $pg | formatNumber }}</div><div class="hl-label">Pageviews</div>
-                                  {{ if gt $ppg 0.0 }}<div class="hl-delta color-subdue">{{ percentChange $pg $ppg | printf "%+.0f" }}% vs yesterday</div>{{ end }}</div>
-                              </div>
-                            {{ end }}
-                          {{ end }}
-                      - <<: *umami
-                        title: bosun.integratn.io
-                        title-url: https://stats.cluster.integratn.tech/websites/a4dc99d0-79d0-46df-97d1-67a6b64a9935
-                        options:
-                          url: ${UMAMI_URL}
-                          key: ${HOMEPAGE_VAR_UMAMI_KEY}
-                          site: a4dc99d0-79d0-46df-97d1-67a6b64a9935
-
-                  # ── Movies coming ──
-                  - type: custom-api
-                    title: Movies coming
-                    title-url: https://radarr.vcluster-media.integratn.tech/calendar
-                    cache: 1h
-                    options:
-                      url: ${RADARR_URL}
-                      key: ${HOMEPAGE_VAR_RADARR_KEY}
-                    template: |
-                      {{ $r := newRequest (concat (.Options.StringOr "url" "") "/api/v3/calendar")
-                           | withParameter "start" (offsetNow "-336h" | formatTime "DateOnly")
-                           | withParameter "end" (offsetNow "1440h" | formatTime "DateOnly")
-                           | withHeader "X-Api-Key" (.Options.StringOr "key" "")
-                           | getResponse }}
-                      {{ if ne $r.Response.StatusCode 200 }}
-                        <p class="hl-none">Not recorded: Radarr answered {{ $r.Response.Status }}.</p>
-                      {{ else if eq (len ($r.JSON.Array "")) 0 }}
-                        <p class="hl-none">Nothing due in the next two months.</p>
-                      {{ else }}
-                        <ul class="list list-gap-10 collapsible-container" data-collapse-after="4">
-                          {{ range $r.JSON.Array "" }}
-                            {{ $d := .String "digitalRelease" }}{{ if eq $d "" }}{{ $d = .String "physicalRelease" }}{{ end }}{{ if eq $d "" }}{{ $d = .String "inCinemas" }}{{ end }}
-                            {{ $poster := "" }}{{ range .Array "images" }}{{ if and (eq $poster "") (eq (.String "coverType") "poster") }}{{ $poster = .String "remoteUrl" }}{{ end }}{{ end }}
-                            <li class="flex gap-10 items-center">
-                              {{ if ne $poster "" }}<img class="hl-poster" src="{{ $poster }}" alt="" loading="lazy">{{ end }}
-                              <div class="min-width-0 grow"><div class="color-highlight text-truncate">{{ .String "title" }}</div><div class="size-h6 color-subdue hl-data">{{ .Int "year" }}</div></div>
-                              <div class="shrink-0">{{ if .Bool "hasFile" }}<span class="hl-tag ok">Got it</span>{{ else if ne $d "" }}<span class="size-h6 color-subdue hl-data" {{ $d | parseTime "RFC3339" | toRelativeTime }}></span>{{ end }}</div>
-                            </li>
-                          {{ end }}
-                        </ul>
-                      {{ end }}
+                      url: ${UMAMI_URL}
+                      key: ${HOMEPAGE_VAR_UMAMI_KEY}
+                      site: a4dc99d0-79d0-46df-97d1-67a6b64a9935
 
           # ── Right: the house and the outside world ──────────────────────
           - size: small
             widgets:
-              - type: custom-api
-                title: Plex
-                title-url: http://10.0.0.12:32400/web
-                cache: 1m
-                options:
-                  url: ${PLEX_URL}
-                  key: ${HOMEPAGE_VAR_PLEX_TOKEN}
-                template: |
-                  {{ $r := newRequest (concat (.Options.StringOr "url" "") "/status/sessions") | withHeader "X-Plex-Token" (.Options.StringOr "key" "") | withHeader "Accept" "application/json" | getResponse }}
-                  {{ if eq $r.Response.StatusCode 401 }}
-                    <p class="hl-none">Not recorded: the Plex token in <code>homepage-secret</code> has expired.</p>
-                  {{ else if ne $r.Response.StatusCode 200 }}
-                    <p class="hl-none">Not recorded: Plex answered {{ $r.Response.Status }}.</p>
-                  {{ else if eq ($r.JSON.Int "MediaContainer.size") 0 }}
-                    <p class="hl-none">Nothing playing.</p>
-                  {{ else }}
-                    <ul class="list list-gap-10">
-                      {{ range $r.JSON.Array "MediaContainer.Metadata" }}
-                        <li>
-                          <div class="color-highlight text-truncate">{{ with .String "grandparentTitle" }}{{ . }} · {{ end }}{{ .String "title" }}</div>
-                          <div class="size-h6 color-subdue">{{ .String "User.title" }} · {{ .String "Player.state" }}</div>
-                        </li>
-                      {{ end }}
-                    </ul>
-                  {{ end }}
-
               - type: custom-api
                 title: Proxmox
                 title-url: https://192.168.0.10:8006
@@ -640,6 +558,359 @@ data:
                   - kubernetes/kubernetes
                   - glanceapp/glance
 
+      - name: Needs you
+        slug: needs-you
+        columns:
+          - size: full
+            widgets:
+              # ── Needs you: every open item, why it is open, and where to act ──
+              # Its own tab so Home stays a glance; the status chips on Home
+              # link to its sections. Each item names the exact thing (the
+              # alert instance, the app, the stage's promotion, the pod), says
+              # what is wrong in a sentence, and links straight to it: never to
+              # a whole dashboard or an unfiltered list.
+              - type: custom-api
+                title: Needs you
+                hide-header: true
+                cache: 1m
+                options:
+                  prom: ${PROM_URL}
+                  am: ${AM_URL}
+                template: |
+                  {{/* One alert instance. Used for critical and warning, then info last. */}}
+                  {{ define "alert" }}
+                          {{ $sev := .String "labels.severity" }}
+                          {{ $name := .String "labels.alertname" }}
+                          {{ $ns := or (.String "labels.namespace") (.String "labels.exported_namespace") }}
+                          {{ $pod := or (.String "labels.pod") (.String "labels.exported_pod") }}
+                          {{ $obj := or $pod (.String "labels.deployment") (.String "labels.statefulset") (.String "labels.daemonset") (.String "labels.job_name") (.String "labels.persistentvolumeclaim") (.String "labels.stage") (.String "labels.name") (.String "labels.service") (.String "labels.instance") (.String "labels.node") }}
+                          {{ $m := printf "alertname=%q" $name }}
+                          {{ if ne $ns "" }}{{ $m = printf "%s,%s=%q" $m (or (and (.Exists "labels.namespace") "namespace") "exported_namespace") $ns }}{{ end }}
+                          {{ if ne $pod "" }}{{ $m = printf "%s,%s=%q" $m (or (and (.Exists "labels.pod") "pod") "exported_pod") $pod }}{{ end }}
+                          <div class="hl-item" id="alert-{{ $name }}">
+                            <div class="hl-row">
+                              <span class="hl-title">{{ or (.String "annotations.summary") $name }}</span>
+                              <span class="shrink-0"><span class="size-h6 color-subdue hl-data" {{ .String "startsAt" | parseTime "RFC3339" | toRelativeTime }}></span>
+                                <span class="hl-tag {{ if eq $sev "critical" }}bad{{ else if eq $sev "warning" }}warn{{ end }}">{{ $sev }}</span></span>
+                            </div>
+                            <div class="hl-where">{{ $name }}{{ if ne $ns "" }} · {{ $ns }}{{ end }}{{ if and (ne $obj "") (ne $obj $ns) }}/{{ $obj }}{{ end }}</div>
+                            {{ with or (.String "annotations.description") (.String "annotations.message") }}<div class="hl-why">{{ . }}</div>{{ end }}
+                            <div class="hl-links">
+                              {{ if and (.Exists "labels.promotion") (ne $ns "") }}<a href="https://kargo.cluster.integratn.tech/project/{{ $ns }}/promotion/{{ .String "labels.promotion" }}" target="_blank">Promotion</a>{{ end }}
+                              {{ with .String "annotations.kargo_url" }}<a href="{{ . }}" target="_blank">Stage</a>{{ end }}
+                              {{ if and (ne (findMatch "^ArgoCD" $name) "") (.Exists "labels.name") }}<a href="https://argocd.cluster.integratn.tech/applications/argocd/{{ .String "labels.name" }}?view=tree{{ with .String "labels.health_status" }}&resource={{ concat "health:" . }}{{ end }}" target="_blank">App</a>{{ end }}
+                              {{ if and (ne $ns "") (ne $pod "") }}
+                                {{ $panes := printf `{"a":{"datasource":"loki","queries":[{"refId":"A","expr":%q,"datasource":{"type":"loki","uid":"loki"}}],"range":{"from":"now-1h","to":"now"}}}` (printf "{namespace=%q,pod=%q}" $ns $pod) }}
+                                <a href="https://grafana.cluster.integratn.tech/explore?schemaVersion=1&orgId=1&panes={{ $panes }}" target="_blank">Pod logs</a>
+                              {{ else }}{{ with .String "annotations.logs_url" }}{{ if eq (findMatch "/explore" .) "/explore" }}<a href="{{ . }}" target="_blank">Logs</a>{{ end }}{{ end }}{{ end }}
+                              {{ with .String "annotations.runbook_url" }}<a href="{{ . }}" target="_blank">Runbook</a>{{ end }}
+                              {{ with .String "generatorURL" }}<a href="{{ . }}" target="_blank">Query</a>{{ end }}
+                              <a href="https://alertmanager.cluster.integratn.tech/#/silences/new?filter={{ printf "{%s}" $m }}" target="_blank">Silence</a>
+                            </div>
+                          </div>
+                  {{ end }}
+                  {{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+                  {{ $grafana := "https://grafana.cluster.integratn.tech" }}
+                  {{ $amui := "https://alertmanager.cluster.integratn.tech" }}
+                  {{ $argo := "https://argocd.cluster.integratn.tech" }}
+                  {{ $kargoui := "https://kargo.cluster.integratn.tech" }}
+                  {{ $am := newRequest (concat (.Options.StringOr "am" "") "/api/v2/alerts") | withParameter "active" "true" | withParameter "silenced" "false" | withParameter "inhibited" "false" | getResponse }}
+                  {{ $alerts := $am.JSON.Array "" }}
+                  {{ $nAlerts := 0 }}{{ range $alerts }}{{ $s := .String "labels.severity" }}{{ if or (eq $s "critical") (eq $s "warning") (eq $s "info") }}{{ $nAlerts = add $nAlerts 1 }}{{ end }}{{ end }}
+                  {{ $apps := (newRequest $q | withParameter "query" `argocd_app_info{health_status!="Healthy"} or argocd_app_info{sync_status!="Synced"}` | getResponse).JSON.Array "data.result" }}
+                  {{ $kargo := (newRequest $q | withParameter "query" `kargo_stage_last_promotion_phase{phase=~"Errored|Failed|Aborted"} == 1` | getResponse).JSON.Array "data.result" }}
+                  {{/* The same stuck-pod set as the Status chip; keep the two queries in step. */}}
+                  {{ $stuckQ := `(max by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason=~"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError"} == 1) or on (namespace, pod) label_replace(kube_pod_status_unschedulable == 1, "reason", "Unschedulable", "", "") or on (namespace, pod) max by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason="ContainerCreating"} == 1) or on (namespace, pod) max by (namespace, pod, reason) (label_replace(kube_pod_status_phase{phase=~"Pending|Failed|Unknown"} == 1, "reason", "$1", "phase", "(.*)"))) and on (namespace, pod) (time() - kube_pod_created > 300)` }}
+                  {{ $pods := (newRequest $q | withParameter "query" $stuckQ | getResponse).JSON.Array "data.result" }}
+                  {{ $podInfo := (newRequest $q | withParameter "query" (concat "(label_replace(sum by (namespace, pod) (kube_pod_container_status_restarts_total), \"kind\", \"restarts\", \"\", \"\") or label_replace(time() - max by (namespace, pod) (kube_pod_created), \"kind\", \"age\", \"\", \"\")) and on (namespace, pod) (" $stuckQ ")") | getResponse).JSON.Array "data.result" }}
+
+                  {{ if ne $am.Response.StatusCode 200 }}
+                    <div class="hl-callout warn"><span class="hl-tag warn">Not recorded</span> Alertmanager answered {{ $am.Response.Status }}, so alerts are missing from this list. <a class="color-highlight" href="{{ $amui }}/#/alerts?silenced=false&inhibited=false&active=true" target="_blank">Open Alertmanager</a></div>
+                  {{ else if and (eq $nAlerts 0) (eq (len $apps) 0) (eq (len $kargo) 0) (eq (len $pods) 0) }}
+                    <div class="hl-callout ok"><span class="hl-tag ok">Nothing</span> No alerts firing, every app synced and healthy, no failed promotions, no stuck pods.</div>
+                  {{ end }}
+
+                  {{ if gt $nAlerts 0 }}
+                    <div class="hl-section" id="needs-alerts">
+                      <div class="hl-label" style="margin-bottom:.8rem">Alerts · <span class="hl-num">{{ $nAlerts }}</span> <span class="color-subdue" style="text-transform:none;letter-spacing:0;font-weight:400">silence one to take it off this list</span></div>
+                      <div>
+                      {{ range sortByString "labels.severity" "asc" $alerts }}{{ $sev := .String "labels.severity" }}{{ if or (eq $sev "critical") (eq $sev "warning") }}{{ template "alert" . }}{{ end }}{{ end }}
+                      {{ range $alerts }}{{ if eq (.String "labels.severity") "info" }}{{ template "alert" . }}{{ end }}{{ end }}
+                      </div>
+                    </div>
+                  {{ end }}
+
+                  {{ if gt (len $apps) 0 }}
+                    <div class="hl-section" id="needs-apps">
+                      <div class="hl-label" style="margin-bottom:.8rem">Argo apps · <span class="hl-num">{{ len $apps }}</span></div>
+                      <div>
+                      {{ range $apps }}
+                        {{ $h := .String "metric.health_status" }}{{ $sy := .String "metric.sync_status" }}
+                        {{ $n := .String "metric.name" }}{{ $appns := or (.String "metric.namespace") "argocd" }}
+                        <div class="hl-item">
+                          <div class="hl-row">
+                            <a class="hl-title" href="{{ $argo }}/applications/{{ $appns }}/{{ $n }}?view=tree&resource={{ if ne $h "Healthy" }}{{ concat "health:" $h }}{{ else }}sync:OutOfSync{{ end }}" target="_blank">{{ $n }}</a>
+                            <span class="shrink-0">{{ if ne $h "Healthy" }}<span class="hl-tag {{ if or (eq $h "Degraded") (eq $h "Missing") }}bad{{ else }}warn{{ end }}">{{ $h }}</span>{{ end }}
+                              {{ if ne $sy "Synced" }}<span class="hl-tag warn">{{ $sy }}</span>{{ end }}</span>
+                          </div>
+                          <div class="hl-where">project {{ .String "metric.project" }}{{ with .String "metric.dest_namespace" }} · into {{ . }}{{ end }}</div>
+                          <div class="hl-why">
+                            {{ if eq $h "Degraded" }}A workload in it is crashing or never became ready. The link opens the app filtered to the Degraded resources; open one for its events and logs.
+                            {{ else if eq $h "Missing" }}Resources it should own do not exist. Usually a sync that failed before creating them; the app's conditions say why.
+                            {{ else if eq $h "Progressing" }}Still rolling out. If this has lasted more than a few minutes, the filtered view shows which resource is stuck.
+                            {{ else if ne $h "Healthy" }}Argo cannot assess its health. The filtered view shows which resources are {{ $h }}.
+                            {{ else }}What is live differs from main. The link opens the OutOfSync resources; each one's Diff tab shows the change.{{ end }}
+                          </div>
+                          <div class="hl-links"><code>argocd app get {{ $n }} --show-operation</code></div>
+                        </div>
+                      {{ end }}
+                      </div>
+                    </div>
+                  {{ end }}
+
+                  {{ if gt (len $kargo) 0 }}
+                    <div class="hl-section" id="needs-kargo">
+                      <div class="hl-label" style="margin-bottom:.8rem">Kargo promotions · <span class="hl-num">{{ len $kargo }}</span></div>
+                      <div>
+                      {{ range $kargo }}
+                        {{ $ph := .String "metric.phase" }}{{ $proj := .String "metric.namespace" }}{{ $st := .String "metric.stage" }}{{ $pr := .String "metric.promotion" }}
+                        <div class="hl-item">
+                          <div class="hl-row">
+                            <a class="hl-title" href="{{ $kargoui }}/project/{{ $proj }}/stage/{{ $st }}" target="_blank">{{ $st }}</a>
+                            <span class="hl-tag bad shrink-0">{{ $ph }}</span>
+                          </div>
+                          <div class="hl-where">project {{ $proj }}{{ if ne $pr "" }} · {{ $pr }}{{ end }}</div>
+                          <div class="hl-why">
+                            {{ if eq $ph "Errored" }}The last promotion into this stage could not run: a credential, a path that no longer resolves, or an infrastructure fault. The promotion shows the step and its error; fix that, then promote the freight again from the stage.
+                            {{ else if eq $ph "Failed" }}The last promotion ran and was refused, usually a red check on its PR or a PR closed unmerged. The promotion shows the step; fix or close the PR, then promote again.
+                            {{ else }}The last promotion was aborted. Promote the freight again from the stage, or leave it if a newer one is coming.{{ end }}
+                          </div>
+                          <div class="hl-links">
+                            {{ if ne $pr "" }}<a href="{{ $kargoui }}/project/{{ $proj }}/promotion/{{ $pr }}" target="_blank">Promotion</a>{{ end }}
+                            <a href="{{ $kargoui }}/project/{{ $proj }}/stage/{{ $st }}" target="_blank">Stage</a>
+                          </div>
+                        </div>
+                      {{ end }}
+                      </div>
+                    </div>
+                  {{ end }}
+
+                  {{ if gt (len $pods) 0 }}
+                    <div class="hl-section" id="needs-pods">
+                      <div class="hl-label" style="margin-bottom:.8rem">Stuck pods · <span class="hl-num">{{ len $pods }}</span> <span class="color-subdue" style="text-transform:none;letter-spacing:0;font-weight:400">older than 5 minutes</span></div>
+                      <div>
+                      {{ range sortByString "metric.namespace" "asc" $pods }}
+                        {{ $ns := .String "metric.namespace" }}{{ $pod := .String "metric.pod" }}{{ $why := .String "metric.reason" }}
+                        {{ $restarts := -1 }}{{ $age := -1.0 }}
+                        {{ range $podInfo }}{{ if and (eq (.String "metric.namespace") $ns) (eq (.String "metric.pod") $pod) }}{{ if eq (.String "metric.kind") "restarts" }}{{ $restarts = .Int "value.1" }}{{ else }}{{ $age = .Float "value.1" }}{{ end }}{{ end }}{{ end }}
+                        {{ $panes := printf `{"a":{"datasource":"loki","queries":[{"refId":"A","expr":%q,"datasource":{"type":"loki","uid":"loki"}}],"range":{"from":"now-6h","to":"now"}}}` (printf "{namespace=%q,pod=%q}" $ns $pod) }}
+                        <div class="hl-item">
+                          <div class="hl-row">
+                            <span class="hl-title text-truncate">{{ $pod }}</span>
+                            <span class="hl-tag {{ if or (eq $why "Pending") (eq $why "ContainerCreating") }}warn{{ else }}bad{{ end }} shrink-0">{{ $why }}</span>
+                          </div>
+                          <div class="hl-where">{{ $ns }}{{ if ge $age 0.0 }} · up {{ if ge $age 86400.0 }}{{ div $age 86400.0 | printf "%.0f" }}d{{ else if ge $age 3600.0 }}{{ div $age 3600.0 | printf "%.0f" }}h{{ else }}{{ div $age 60.0 | printf "%.0f" }}m{{ end }}{{ end }}{{ if gt $restarts 0 }} · {{ $restarts }} restarts{{ end }}</div>
+                          <div class="hl-why">
+                            {{ if eq $why "CrashLoopBackOff" }}It starts and exits, over and over. The last lines of its logs say why.
+                            {{ else if or (eq $why "ImagePullBackOff") (eq $why "ErrImagePull") }}Its image cannot be pulled: a wrong tag or digest, or the registry refused. Describe shows the exact image and error.
+                            {{ else if eq $why "CreateContainerConfigError" }}A Secret or ConfigMap key it reads does not exist. Check that key's ExternalSecret is Ready.
+                            {{ else if eq $why "CreateContainerError" }}The runtime refused to create the container. Describe shows the error.
+                            {{ else if eq $why "Unschedulable" }}No node will take it: not enough requested CPU or memory left, or a selector nothing matches. Describe shows the scheduler's reason.
+                            {{ else if eq $why "ContainerCreating" }}Stuck creating, usually a volume that will not mount. After a Tower restart that is a stale NFS mount; deleting the pod fixes it.
+                            {{ else if eq $why "Failed" }}It exited and will not restart. Read its logs, then delete it.
+                            {{ else if eq $why "Unknown" }}Its node stopped reporting on it. Check the node first.
+                            {{ else }}Scheduled but not started. Describe shows what it is waiting for.{{ end }}
+                          </div>
+                          <div class="hl-links">
+                            <a href="{{ $grafana }}/explore?schemaVersion=1&orgId=1&panes={{ $panes }}" target="_blank">Logs</a>
+                            <code>kubectl -n {{ $ns }} describe pod {{ $pod }}</code>
+                          </div>
+                        </div>
+                      {{ end }}
+                      </div>
+                    </div>
+                  {{ end }}
+
+      # ── Media: what is coming, what is missing, what is downloading ─────
+      # Its own tab so Home stays about the platform. Each list leads with
+      # what needs a hand (aired or released but not downloaded, a paused
+      # queue, a failed download) and links to that title in Sonarr/Radarr.
+      - name: Media
+        columns:
+          - size: full
+            widgets:
+              # ── Sonarr: one row per show, last two days to a week ahead ──
+              - type: custom-api
+                title: TV
+                title-url: https://sonarr.vcluster-media.integratn.tech/calendar
+                cache: 30m
+                options:
+                  url: ${SONARR_URL}
+                  key: ${HOMEPAGE_VAR_SONARR_KEY}
+                template: |
+                  {{ $r := newRequest (concat (.Options.StringOr "url" "") "/api/v3/calendar")
+                       | withParameter "start" (offsetNow "-48h" | formatTime "DateOnly")
+                       | withParameter "end" (offsetNow "168h" | formatTime "DateOnly")
+                       | withParameter "includeSeries" "true"
+                       | withHeader "X-Api-Key" (.Options.StringOr "key" "")
+                       | getResponse }}
+                  {{ if ne $r.Response.StatusCode 200 }}
+                    <p class="hl-none">Not recorded: Sonarr answered {{ $r.Response.Status }}.</p>
+                  {{ else if eq (len ($r.JSON.Array "")) 0 }}
+                    <p class="hl-none">Nothing aired in the last two days or due this week.</p>
+                  {{ else }}
+                    {{ $eps := sortByTime "airDateUtc" "RFC3339" "asc" ($r.JSON.Array "") }}
+                    {{ $late := offsetNow "-6h" }}
+                    <ul class="list list-gap-10">
+                      {{ range unique "seriesId" $eps }}
+                        {{ $sid := .Int "seriesId" }}
+                        {{ $poster := "" }}{{ range .Array "series.images" }}{{ if and (eq $poster "") (eq (.String "coverType") "poster") }}{{ $poster = .String "remoteUrl" }}{{ end }}{{ end }}
+                        {{ $got := 0 }}{{ $missing := 0 }}{{ $next := "" }}{{ $nextEp := "" }}{{ $lastGot := "" }}
+                        {{ range $eps }}{{ if eq (.Int "seriesId") $sid }}
+                          {{ $code := printf "S%02dE%02d" (.Int "seasonNumber") (.Int "episodeNumber") }}
+                          {{ if .Bool "hasFile" }}{{ $got = add $got 1 }}{{ $lastGot = $code }}
+                          {{ else if (.String "airDateUtc" | parseTime "RFC3339").Before $late }}{{ if .Bool "monitored" }}{{ $missing = add $missing 1 }}{{ end }}
+                          {{ else if eq $next "" }}{{ $next = .String "airDateUtc" }}{{ $nextEp = concat $code " · " (.String "title") }}{{ end }}
+                        {{ end }}{{ end }}
+                        <li class="flex gap-10 items-center">
+                          {{ if ne $poster "" }}<img class="hl-poster" src="{{ $poster }}" alt="" loading="lazy">{{ end }}
+                          <div class="min-width-0 grow">
+                            <a class="color-highlight text-truncate" style="display:block" href="https://sonarr.vcluster-media.integratn.tech/series/{{ .String "series.titleSlug" }}" target="_blank">{{ .String "series.title" }}</a>
+                            <div class="size-h6 color-subdue text-truncate">
+                              {{ if gt $missing 0 }}<span class="hl-num">{{ $missing }}</span> aired and not downloaded. The series page shows each episode's search.
+                              {{ else if ne $next "" }}<span class="hl-data">{{ $nextEp }}</span>
+                              {{ else }}{{ if eq $got 1 }}<span class="hl-data">{{ $lastGot }}</span> is in Plex.{{ else }}<span class="hl-num">{{ $got }}</span> new episodes in Plex.{{ end }}{{ end }}
+                            </div>
+                          </div>
+                          <div class="shrink-0" style="text-align:right">
+                            {{ if gt $missing 0 }}<span class="hl-tag warn">Missing</span>
+                            {{ else if ne $next "" }}<span class="size-h6 color-subdue hl-data" {{ $next | parseTime "RFC3339" | toRelativeTime }}></span>
+                            {{ else }}<span class="hl-tag ok">Got it</span>{{ end }}
+                          </div>
+                        </li>
+                      {{ end }}
+                    </ul>
+                  {{ end }}
+
+              # ── Radarr: what is still to come, and anything released but missing ──
+              - type: custom-api
+                title: Movies
+                title-url: https://radarr.vcluster-media.integratn.tech/calendar
+                cache: 1h
+                options:
+                  url: ${RADARR_URL}
+                  key: ${HOMEPAGE_VAR_RADARR_KEY}
+                template: |
+                  {{ $r := newRequest (concat (.Options.StringOr "url" "") "/api/v3/calendar")
+                       | withParameter "start" (offsetNow "-336h" | formatTime "DateOnly")
+                       | withParameter "end" (offsetNow "1440h" | formatTime "DateOnly")
+                       | withHeader "X-Api-Key" (.Options.StringOr "key" "")
+                       | getResponse }}
+                  {{ if ne $r.Response.StatusCode 200 }}
+                    <p class="hl-none">Not recorded: Radarr answered {{ $r.Response.Status }}.</p>
+                  {{ else }}
+                    {{ $all := $r.JSON.Array "" }}
+                    {{ $got := 0 }}{{ $open := 0 }}{{ range $all }}{{ if .Bool "hasFile" }}{{ $got = add $got 1 }}{{ else }}{{ $open = add $open 1 }}{{ end }}{{ end }}
+                    {{ if eq $open 0 }}
+                      <p class="hl-none">Nothing waiting: every film released in the last two weeks is in Plex, and none are due in the next two months.</p>
+                    {{ else }}
+                      <ul class="list list-gap-10">
+                        {{ range $all }}{{ if not (.Bool "hasFile") }}
+                          {{ $d := .String "digitalRelease" }}{{ if eq $d "" }}{{ $d = .String "physicalRelease" }}{{ end }}
+                          {{ $released := and (ne $d "") (($d | parseTime "RFC3339").Before now) }}
+                          {{ $poster := "" }}{{ range .Array "images" }}{{ if and (eq $poster "") (eq (.String "coverType") "poster") }}{{ $poster = .String "remoteUrl" }}{{ end }}{{ end }}
+                          <li class="flex gap-10 items-center">
+                            {{ if ne $poster "" }}<img class="hl-poster" src="{{ $poster }}" alt="" loading="lazy">{{ end }}
+                            <div class="min-width-0 grow">
+                              <a class="color-highlight text-truncate" style="display:block" href="https://radarr.vcluster-media.integratn.tech/movie/{{ .String "titleSlug" }}" target="_blank">{{ .String "title" }}</a>
+                              <div class="size-h6 color-subdue">{{ if $released }}Out to buy or stream and not downloaded. The film's page has its search.{{ else if ne $d "" }}Home release{{ else }}In cinemas only so far{{ end }}</div>
+                            </div>
+                            <div class="shrink-0">{{ if $released }}<span class="hl-tag warn">Missing</span>{{ else if ne $d "" }}<span class="size-h6 color-subdue hl-data" {{ $d | parseTime "RFC3339" | toRelativeTime }}></span>{{ end }}</div>
+                          </li>
+                        {{ end }}{{ end }}
+                      </ul>
+                    {{ end }}
+                    {{ if gt $got 0 }}<p class="size-h6 color-subdue" style="margin-top:1rem"><span class="hl-num">{{ $got }}</span> {{ if eq $got 1 }}film{{ else }}films{{ end }} arrived in the last two weeks.</p>{{ end }}
+                  {{ end }}
+
+          - size: small
+            widgets:
+              - type: custom-api
+                title: Plex
+                title-url: http://10.0.0.12:32400/web
+                cache: 1m
+                options:
+                  url: ${PLEX_URL}
+                  key: ${HOMEPAGE_VAR_PLEX_TOKEN}
+                template: |
+                  {{ $r := newRequest (concat (.Options.StringOr "url" "") "/status/sessions") | withHeader "X-Plex-Token" (.Options.StringOr "key" "") | withHeader "Accept" "application/json" | getResponse }}
+                  {{ if eq $r.Response.StatusCode 401 }}
+                    <p class="hl-none">Not recorded: the Plex token in <code>homepage-secret</code> has expired.</p>
+                  {{ else if ne $r.Response.StatusCode 200 }}
+                    <p class="hl-none">Not recorded: Plex answered {{ $r.Response.Status }}.</p>
+                  {{ else if eq ($r.JSON.Int "MediaContainer.size") 0 }}
+                    <p class="hl-none">Nothing playing.</p>
+                  {{ else }}
+                    <ul class="list list-gap-10">
+                      {{ range $r.JSON.Array "MediaContainer.Metadata" }}
+                        <li>
+                          <div class="color-highlight text-truncate">{{ with .String "grandparentTitle" }}{{ . }} · {{ end }}{{ .String "title" }}</div>
+                          <div class="size-h6 color-subdue">{{ .String "User.title" }} · {{ .String "Player.state" }}</div>
+                        </li>
+                      {{ end }}
+                    </ul>
+                  {{ end }}
+
+              # ── SABnzbd: only says something when there is something to say ──
+              - type: custom-api
+                title: Downloading
+                title-url: https://sabnzbd.vcluster-media.integratn.tech
+                cache: 30s
+                options:
+                  url: ${SABNZBD_URL}
+                  key: ${HOMEPAGE_VAR_SABNZBD_KEY}
+                template: |
+                  {{ $base := concat (.Options.StringOr "url" "") "/api" }}
+                  {{ $key := .Options.StringOr "key" "" }}
+                  {{ $r := newRequest $base | withParameter "mode" "queue" | withParameter "output" "json" | withParameter "apikey" $key | getResponse }}
+                  {{ if ne $r.Response.StatusCode 200 }}
+                    <p class="hl-none">Not recorded: SABnzbd answered {{ $r.Response.Status }}.</p>
+                  {{ else }}
+                    {{ $slots := $r.JSON.Array "queue.slots" }}
+                    {{ $kb := $r.JSON.Float "queue.kbpersec" }}
+                    {{ $paused := $r.JSON.Bool "queue.paused" }}
+                    {{ if $paused }}
+                      <div class="hl-callout warn" style="margin-bottom:1.2rem"><span class="hl-tag warn">Paused</span> {{ if gt (len $slots) 0 }}<span class="hl-num">{{ len $slots }}</span> waiting. Resume from SABnzbd's header.{{ else }}Nothing queued, but new grabs will wait. Resume from SABnzbd's header.{{ end }}</div>
+                    {{ else if eq (len $slots) 0 }}
+                      <p class="hl-none">Nothing downloading.</p>
+                    {{ else }}
+                      <div class="hl-kv"><span>{{ len $slots }} in queue</span><span>{{ if ge $kb 1024.0 }}{{ div $kb 1024 | printf "%.1f" }} MB/s{{ else }}{{ printf "%.0f" $kb }} KB/s{{ end }} · {{ $r.JSON.String "queue.timeleft" }}</span></div>
+                    {{ end }}
+                    <ul class="list list-gap-10 collapsible-container" data-collapse-after="4" style="margin-top:.8rem">
+                      {{ range $slots }}
+                        {{ $pct := .Float "percentage" }}
+                        <li>
+                          <div class="hl-row size-h6"><span class="text-truncate">{{ .String "filename" }}</span><span class="shrink-0 hl-num">{{ printf "%.0f" $pct }}%</span></div>
+                          <div class="hl-bar" style="margin-top:.4rem"><div style="width:{{ printf "%.0f" $pct }}%"></div></div>
+                        </li>
+                      {{ end }}
+                    </ul>
+                    {{ $h := newRequest $base | withParameter "mode" "history" | withParameter "failed_only" "1" | withParameter "limit" "10" | withParameter "output" "json" | withParameter "apikey" $key | getResponse }}
+                    {{ $since := offsetNow "-168h" }}
+                    {{ $failed := 0 }}{{ range $h.JSON.Array "history.slots" }}{{ if (.String "completed" | parseTime "unix").After $since }}{{ $failed = add $failed 1 }}{{ end }}{{ end }}
+                    {{ if gt $failed 0 }}
+                      <div class="hl-label" style="margin-top:1.6rem">Failed this week · <span class="hl-num">{{ $failed }}</span></div>
+                      <ul class="list list-gap-10" style="margin-top:.8rem">
+                        {{ range $h.JSON.Array "history.slots" }}{{ if (.String "completed" | parseTime "unix").After $since }}
+                          <li>
+                            <div class="hl-row size-h6"><span class="color-highlight text-truncate">{{ .String "name" }}</span><span class="hl-tag bad shrink-0">Failed</span></div>
+                            <div class="size-h6 color-subdue">{{ .String "fail_message" }}</div>
+                          </li>
+                        {{ end }}{{ end }}
+                      </ul>
+                    {{ end }}
+                  {{ end }}
+
       - name: News
         columns:
           - size: full
@@ -675,6 +946,7 @@ metadata:
   namespace: homepage
 data:
   PROM_URL: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+  AM_URL: http://kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093
   SONARR_URL: http://sonarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8989
   RADARR_URL: http://radarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:7878
   SABNZBD_URL: http://sabnzbd-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8080
