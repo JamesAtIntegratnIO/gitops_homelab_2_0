@@ -1,6 +1,7 @@
 # Glance (github.com/glanceapp/glance), the landing page at
 # home.cluster.integratn.tech: one replica, read-only root filesystem, config
-# from the glance-config ConfigMap (configmap.yaml).
+# from the glance-config ConfigMap that templates/config.yaml builds from
+# glance/.
 #
 # The namespace, Deployment and Service keep the name `homepage` (and the pod
 # label app.kubernetes.io/name: homepage) from the Homepage this replaced, so
@@ -9,7 +10,8 @@
 #
 # Glance reads its environment once, at start, so a 1Password change reaches
 # the page only after `kubectl -n homepage rollout restart deploy/homepage`.
-# A configmap.yaml change rolls the pod through the config-revision annotation.
+# A change to glance/ rolls the pod by itself: the checksum/config annotation
+# below changes with it.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,12 +27,10 @@ spec:
       app.kubernetes.io/name: homepage
   template:
     metadata:
-      # Bump with a configmap.yaml change to roll the pod. Glance also watches
-      # its config file, but a rollout is the change you can see land.
-      annotations:
-        homepage.integratn.io/config-revision: "4"
       labels:
         app.kubernetes.io/name: homepage
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
     spec:
       # Glance never calls the Kubernetes API; everything comes from Prometheus.
       # Both fields are written out: the live object still carried
@@ -50,7 +50,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: glance
-          image: docker.io/glanceapp/glance:v0.8.7@sha256:bc5a392672c1ec8823c50b61f3bd4b7e5acc34fcbb8477862577b3af1c633875
+          image: {{ .Values.image }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

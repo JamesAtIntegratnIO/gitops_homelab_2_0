@@ -1,0 +1,39 @@
+{{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{ $node := (newRequest $q | withParameter "query" `pve_up{id=~"node/.+"}` | getResponse).JSON.Array "data.result" }}
+{{ $cpu := (newRequest $q | withParameter "query" `100 * pve_cpu_usage_ratio{id=~"node/.+"}` | getResponse).JSON.Array "data.result" }}
+{{ $mem := (newRequest $q | withParameter "query" `100 * pve_memory_usage_bytes{id=~"node/.+"} / pve_memory_size_bytes` | getResponse).JSON.Array "data.result" }}
+{{ $guests := (newRequest $q | withParameter "query" `pve_up{id=~"(qemu|lxc)/.+"} * on (id) group_left (name) max by (id, name) (pve_guest_info)` | getResponse).JSON.Array "data.result" }}
+{{ $onboot := (newRequest $q | withParameter "query" `pve_onboot_status == 1` | getResponse).JSON.Array "data.result" }}
+{{ $store := (newRequest $q | withParameter "query" `100 * pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes > 0` | getResponse).JSON.Array "data.result" }}
+<div id="host-proxmox">
+{{ if eq (len $node) 0 }}
+  <p class="hl-none">Not recorded: pve-exporter has no data. Needs you says why if it is failing.</p>
+{{ else }}
+  {{ range $node }}
+    {{ $id := .String "metric.id" }}{{ $c := 0.0 }}{{ $m := 0.0 }}
+    {{ range $cpu }}{{ if eq (.String "metric.id") $id }}{{ $c = .Float "value.1" }}{{ end }}{{ end }}
+    {{ range $mem }}{{ if eq (.String "metric.id") $id }}{{ $m = .Float "value.1" }}{{ end }}{{ end }}
+    <div class="hl-row"><span class="hl-title hl-data">{{ trimPrefix "node/" $id }}</span>
+      {{ if eq (.Float "value.1") 0.0 }}<span class="hl-tag bad">Down</span>{{ else if or (gt $c 85.0) (gt $m 90.0) }}<span class="hl-tag bad">Hot</span>{{ else if or (gt $c 65.0) (gt $m 80.0) }}<span class="hl-tag warn">Busy</span>{{ else }}<span class="hl-tag ok">Up</span>{{ end }}</div>
+    <div class="hl-kv"><span>CPU</span><span>{{ printf "%.0f" $c }}%</span></div>
+    <div class="hl-bar"><div class="{{ if gt $c 85.0 }}hot{{ else if gt $c 65.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $c }}%"></div></div>
+    <div class="hl-kv"><span>Memory</span><span>{{ printf "%.0f" $m }}%</span></div>
+    <div class="hl-bar"><div class="{{ if gt $m 90.0 }}hot{{ else if gt $m 80.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $m }}%"></div></div>
+  {{ end }}
+  {{ range sortByString "metric.id" "asc" $store }}
+    {{ $d := .Float "value.1" }}
+    <div class="hl-kv"><span>{{ trimPrefix "storage/" (.String "metric.id") }}</span><span>{{ printf "%.0f" $d }}%</span></div>
+    <div class="hl-bar"><div class="{{ if gt $d 90.0 }}hot{{ else if gt $d 80.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $d }}%"></div></div>
+  {{ end }}
+  <div class="hl-label" style="margin-top:1.2rem">Guests</div>
+  <ul class="list list-gap-10" style="margin-top:.4rem">
+    {{ range sortByString "metric.name" "asc" $guests }}
+      {{ $id := .String "metric.id" }}{{ $ob := false }}{{ range $onboot }}{{ if eq (.String "metric.id") $id }}{{ $ob = true }}{{ end }}{{ end }}
+      <li class="hl-row">
+        <span class="text-truncate"><span class="hl-title">{{ .String "metric.name" }}</span> <span class="hl-num color-subdue">{{ $id }}</span></span>
+        {{ if eq (.Float "value.1") 1.0 }}<span class="hl-tag ok">Running</span>{{ else if $ob }}<span class="hl-tag bad">Stopped</span>{{ else }}<span class="hl-tag">Off</span>{{ end }}
+      </li>
+    {{ end }}
+  </ul>
+{{ end }}
+</div>

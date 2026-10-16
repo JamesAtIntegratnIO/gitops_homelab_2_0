@@ -1,0 +1,31 @@
+{{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{ $ups := (newRequest $q | withParameter "query" `github_runner_up` | getResponse).JSON.Array "data.result" }}
+{{ $busy := (newRequest $q | withParameter "query" `github_runner_busy` | getResponse).JSON.Array "data.result" }}
+{{ if eq (len $ups) 0 }}
+  <p class="hl-none">Not recorded: no runner metrics yet. They arrive with nix_dots_2's host-metrics change on holocron and pitdroid.</p>
+{{ else }}
+  <div class="hl-grid2">
+    {{ range unique "metric.host" (sortByString "metric.host" "asc" $ups) }}
+      {{ $h := .String "metric.host" }}
+      {{ $n := 0 }}{{ $nb := 0 }}{{ range $ups }}{{ if eq (.String "metric.host") $h }}{{ $n = add $n 1 }}{{ end }}{{ end }}
+      {{ range $busy }}{{ if and (eq (.String "metric.host") $h) (gt (.Float "value.1") 0.0) }}{{ $nb = add $nb 1 }}{{ end }}{{ end }}
+      <div>
+        <div class="hl-kv"><span>{{ $h }}</span><span>{{ $nb }}/{{ $n }} busy</span></div>
+        <ul class="list list-gap-10">
+          {{ range sortByString "metric.runner" "asc" $ups }}{{ if eq (.String "metric.host") $h }}
+            {{ $r := .String "metric.runner" }}
+            {{ $b := 0.0 }}{{ range $busy }}{{ if and (eq (.String "metric.host") $h) (eq (.String "metric.runner") $r) }}{{ $b = .Float "value.1" }}{{ end }}{{ end }}
+            <li class="hl-row">
+              <span class="hl-data">{{ $r }}</span>
+              {{ if eq (.Float "value.1") 0.0 }}<span class="hl-tag bad">Down</span>{{ else if gt $b 0.0 }}<span class="hl-tag">Busy</span>{{ else }}<span class="hl-tag ok">Idle</span>{{ end }}
+            </li>
+          {{ end }}{{ end }}
+        </ul>
+      </div>
+    {{ end }}
+  </div>
+  <div class="hl-links">
+    <a href="https://github.com/organizations/IntegratnIO/settings/actions/runners" target="_blank">IntegratnIO runners</a>
+    <a href="https://github.com/JamesAtIntegratnIO/runwright/settings/actions/runners" target="_blank">runwright runners</a>
+  </div>
+{{ end }}

@@ -1,0 +1,128 @@
+/* Brand tokens. Glance's root font-size is 10px, so 1.2rem = 12px. */
+:root {
+  --ground:#0a0c10; --well:#14171d; --panel:#1d2126; --raise:#262a30; --line:#393e43;
+  --text:#f3f7fc; --said:#cfd5dc; --dim:#acb2b9; --faint:#8d939a;
+  --ok:#42c161; --ok-surface:#0c2b13; --ok-border:#024e1c;
+  --warn:#cf9a43; --warn-surface:#2f210c; --warn-border:#553a08;
+  --bad:#f47983; --bad-surface:#39191b; --bad-border:#67282e;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --border-radius:6px;
+  --widget-content-vertical-padding:12px; --widget-content-horizontal-padding:12px;
+  --color-background:var(--ground);
+  --color-widget-background:var(--panel);
+  --color-widget-content-border:var(--line);
+  --color-widget-background-highlight:var(--raise);
+  --color-separator:var(--line);
+  --color-popover-background:var(--well);
+  --color-popover-border:var(--line);
+  --color-progress-border:var(--line);
+  --color-progress-value:var(--dim);
+  --color-vertical-progress-value:var(--dim);
+  --color-graph-gridlines:var(--raise);
+  --color-primary:var(--text);
+  --color-positive:var(--ok);
+  --color-negative:var(--bad);
+  --color-text-highlight:var(--text);
+  --color-text-paragraph:var(--said);
+  --color-text-base:var(--said);
+  --color-text-base-muted:var(--dim);
+  --color-text-subdue:var(--faint);
+  --font-size-base:1.4rem; --font-size-h6:1.2rem; --font-size-h5:1.3rem;
+}
+body { font-family:var(--sans); font-size:1.4rem; line-height:1.5; font-variant-numeric:tabular-nums; }
+/* Flat: one neutral step plus a hairline, never a shadow. */
+.widget-content:not(.widget-content-frameless), .widget-content-frame { box-shadow:none !important; }
+.widget-header { font-size:1.2rem; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--dim); }
+.widget-header a, .widget-header .uppercase { color:var(--dim); }
+.nav-item { font-size:1.3rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
+.logo img { max-height:2.6rem; }
+code { font-family:var(--mono); font-size:1.2rem; color:var(--text); background:var(--raise); padding:0 .4rem; border-radius:6px; }
+.clock-time, .calendar-dates, .monitor-site-status-time { font-family:var(--mono); }
+
+/* Data Voice: every figure in mono, tabular. */
+.hl-num, .hl-big, .hl-chip .n, .hl-kv span:last-child, .hl-tag, .hl-data { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.hl-label { font-size:1.2rem; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--dim); }
+.hl-none { color:var(--dim); }
+
+.hl-banner { display:flex; align-items:center; gap:2.4rem; flex-wrap:wrap; }
+.hl-verdict { display:flex; align-items:center; gap:1.2rem; }
+.hl-verdict .w { font-size:2rem; font-weight:600; color:var(--text); line-height:1.2; }
+.hl-sub { margin-top:.4rem; color:var(--dim); }
+.hl-chips { display:flex; flex-wrap:wrap; gap:.8rem; margin-left:auto; }
+.hl-chip { display:flex; align-items:center; gap:.8rem; padding:.5rem 1.2rem; border-radius:999px;
+           border:1px solid var(--line); background:var(--raise); color:var(--said); }
+.hl-chip:hover { border-color:var(--dim); }
+.hl-chip .n { font-size:1.4rem; font-weight:600; color:var(--text); }
+.hl-chip .l { font-size:1.2rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); }
+.hl-chip.bad  { background:var(--bad-surface);  border-color:var(--bad-border); }  .hl-chip.bad .n  { color:var(--bad); }
+.hl-chip.warn { background:var(--warn-surface); border-color:var(--warn-border); } .hl-chip.warn .n { color:var(--warn); }
+
+/* Verdict badges: colour only next to a word. */
+.hl-tag { display:inline-block; padding:.1rem .8rem; border-radius:999px; font-size:1.2rem; font-weight:600;
+          text-transform:uppercase; letter-spacing:.05em; border:1px solid var(--line); background:var(--raise); color:var(--dim); white-space:nowrap; }
+.hl-tag.ok   { color:var(--ok);   background:var(--ok-surface);   border-color:var(--ok-border); }
+.hl-tag.warn { color:var(--warn); background:var(--warn-surface); border-color:var(--warn-border); }
+.hl-tag.bad  { color:var(--bad);  background:var(--bad-surface);  border-color:var(--bad-border); }
+.hl-ok { color:var(--ok); } .hl-warn { color:var(--warn); } .hl-bad { color:var(--bad); }
+
+/* Callout: a 3px left rule in the verdict colour. */
+.hl-callout { border-left:3px solid var(--line); padding:.4rem 0 .4rem 1rem; color:var(--dim); }
+.hl-callout.bad { border-left-color:var(--bad); } .hl-callout.warn { border-left-color:var(--warn); } .hl-callout.ok { border-left-color:var(--ok); }
+
+.hl-bar { height:.6rem; border-radius:6px; background:var(--well); overflow:hidden; }
+.hl-bar > div { height:100%; border-radius:6px; background:var(--dim); }
+.hl-bar > div.hot { background:var(--bad); }
+.hl-bar > div.warm { background:var(--warn); }
+.hl-bar.limit { position:relative; overflow:visible; }
+.hl-bar.limit::after { content:""; position:absolute; left:66.7%; top:-.3rem; bottom:-.3rem; width:1px; background:var(--text); opacity:.6; }
+
+.hl-nodes { display:grid; grid-template-columns:repeat(auto-fit, minmax(16rem, 1fr)); gap:1.2rem; }
+.hl-node { padding:1.2rem; border-radius:6px; background:var(--well); border:1px solid var(--line); }
+.hl-node .hl-bar { background:var(--raise); }
+.hl-kv { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; margin:.8rem 0 .3rem; }
+.hl-kv > span:first-child { font-size:1.2rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:var(--dim); }
+.hl-kv > span:last-child { color:var(--text); }
+.hl-spark { width:100%; height:5rem; display:block; }
+.hl-spark polyline { fill:none; stroke:var(--said); stroke-width:1.5; vector-effect:non-scaling-stroke; }
+.hl-spark polygon { fill:var(--said); opacity:.08; }
+.hl-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1.6rem; }
+.hl-big { font-size:2rem; font-weight:600; line-height:1.1; color:var(--text); }
+.hl-delta { font-family:var(--mono); font-size:1.2rem; }
+.hl-poster { width:3.4rem; height:5rem; object-fit:cover; border-radius:6px; flex-shrink:0; background:var(--raise); border:1px solid var(--line); }
+.hl-row { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+.hl-title { color:var(--text); font-weight:600; }
+/* Needs you: one item per thing to act on, the why, then where to act. */
+.hl-section { margin:1.6rem 0 .8rem; padding-top:1.2rem; border-top:1px solid var(--line); }
+.hl-section:first-child { margin-top:0; padding-top:0; border-top:none; }
+.hl-item { padding:1rem 1.2rem; border-radius:6px; background:var(--well); border:1px solid var(--line); }
+.hl-item + .hl-item { margin-top:.8rem; }
+.hl-where { font-family:var(--mono); font-size:1.2rem; color:var(--dim); margin-top:.2rem; overflow-wrap:anywhere; }
+.hl-why { margin-top:.6rem; color:var(--said); font-size:1.3rem; }
+.hl-links { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:.8rem; align-items:center; }
+.hl-links a { font-size:1.2rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--text);
+              padding:.2rem 1rem; border-radius:999px; border:1px solid var(--line); background:var(--raise); }
+.hl-links a:hover { border-color:var(--dim); }
+.hl-links code { overflow-wrap:anywhere; }
+/* Phone: Glance's bottom bar switches columns with unlabelled dots.
+   Name them, in the label voice; the chosen one gets an underline. */
+.mobile-navigation-label { max-width:none; }
+.mobile-navigation-pill, .mobile-navigation-input:checked + .mobile-navigation-pill {
+  width:auto; height:auto; background:none; border-radius:0; padding:.2rem 0;
+  font:600 1.2rem/1.2 var(--sans); letter-spacing:.07em; text-transform:uppercase; color:var(--dim);
+  border-bottom:2px solid transparent; }
+.mobile-navigation-input:checked + .mobile-navigation-pill { color:var(--text); border-bottom-color:var(--text); }
+.mobile-navigation-label:hover > .mobile-navigation-pill { background:none; color:var(--text); }
+/* Per page: the script below copies Glance's page slug onto <html>. */
+html[data-page="home"] .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Launch"; }
+html[data-page="home"] .mobile-navigation-input[value="1"] + .mobile-navigation-pill::after { content:"Cluster"; }
+html[data-page="home"] .mobile-navigation-input[value="2"] + .mobile-navigation-pill::after { content:"Hosts"; }
+html[data-page="media"] .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Coming"; }
+html[data-page="media"] .mobile-navigation-input[value="1"] + .mobile-navigation-pill::after { content:"Now"; }
+html[data-page="needs-you"] .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Needs you"; }
+html[data-page="hosts"] .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Machines"; }
+html[data-page="hosts"] .mobile-navigation-input[value="1"] + .mobile-navigation-pill::after { content:"Infra"; }
+html[data-page="news"] .mobile-navigation-input[value="0"] + .mobile-navigation-pill::after { content:"Links"; }
+html[data-page="news"] .mobile-navigation-input[value="1"] + .mobile-navigation-pill::after { content:"Feeds"; }
+@media (max-width: 700px) { .hl-grid2 { grid-template-columns:1fr; } .hl-chips { margin-left:0; } }

@@ -1,0 +1,9 @@
+# A local chart only so the landing page's config can live as real files:
+# templates/config.yaml builds the glance-config ConfigMap from glance/, and
+# the Deployment carries a checksum of it, so any change there rolls the pod.
+# ArgoCD renders this folder with Helm because this file exists.
+apiVersion: v2
+name: homepage
+description: Glance, the landing page at home.cluster.integratn.tech
+type: application
+version: 0.1.0

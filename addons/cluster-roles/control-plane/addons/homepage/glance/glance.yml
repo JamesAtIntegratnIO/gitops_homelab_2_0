@@ -1,0 +1,59 @@
+# Glance's config for the landing page (home.cluster.integratn.tech). This
+# file holds only the frame: server, brand, theme, and which tabs exist. Each
+# tab is page-<tab>.yml; each custom-api widget's template is
+# <tab>--<widget>.html; the page CSS and script are glance.css and glance.js.
+# All of them are pulled in with Glance's `$include:` (a line of its own,
+# replaced by the file before the YAML is parsed, indented to fit).
+#
+# templates/config.yaml packs every file in this folder into one ConfigMap,
+# mounted flat at /app/config, so file names cannot have subfolders.
+#
+# Every ${...} reference in these files, comments included, is substituted
+# from the environment when Glance starts, and a name that is not set stops
+# Glance from starting at all. templates/env.yaml sets every name the page
+# uses, the keys empty, and the Deployment loads it before the 1Password
+# Secret, so a key missing from 1Password costs only its widget, which then
+# reads "Not recorded".
+#
+# Styling is the IntegratnIO design system (specmarshal DESIGN.md, "The Night
+# Shift Ledger"), the same tokens integratn.io and Bosun ship: dark ground,
+# neutral controls, colour only on a verdict and always next to a word,
+# figures in mono. Signal orange is the logo and nothing else.
+server:
+  port: 8080
+  proxied: true
+
+branding:
+  app-name: Homelab
+  # The Integratn mark, as integratn.io serves it. Signal orange lives here
+  # and nowhere else on the page (Brand-Only Orange).
+  logo-url: https://integratn.io/favicon.svg
+  favicon-url: https://integratn.io/favicon.svg
+  hide-footer: true
+
+# The IntegratnIO design system ("The Night Shift Ledger", specmarshal
+# DESIGN.md), shared with integratn.io, Specmarshal and Bosun. Dark first;
+# colour is spent only on verdicts, primary is the neutral text colour.
+theme:
+  background-color: 220 23 5     # ground #0a0c10
+  primary-color: 213 60 97       # text #f3f7fc, never signal orange
+  positive-color: 135 51 51      # ok #42c161
+  negative-color: 355 85 72      # bad #f47983
+  contrast-multiplier: 1.1
+  disable-picker: true
+
+document:
+  head: |
+    <style>
+      $include: glance.css
+    </style>
+    <script>
+      $include: glance.js
+    </script>
+
+pages:
+  - $include: page-home.yml
+  - $include: page-needs-you.yml
+  - $include: page-hosts.yml
+  - $include: page-media.yml
+  - $include: page-news.yml

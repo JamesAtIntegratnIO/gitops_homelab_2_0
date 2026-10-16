@@ -1,0 +1,30 @@
+{{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{ $sub := (newRequest $q | withParameter "query" `group by (subsystem, status) ({__name__=~"unpoller_site_.+", subsystem!=""})` | getResponse).JSON.Array "data.result" }}
+{{ $dis := (newRequest $q | withParameter "query" `sum(max by (subsystem) (unpoller_site_disconnected)) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $cli := (newRequest $q | withParameter "query" `max by (subsystem) (unpoller_site_users{subsystem=~"lan|wlan"})` | getResponse).JSON.Array "data.result" }}
+{{ $dev := (newRequest $q | withParameter "query" `count(unpoller_device_info) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $upg := (newRequest $q | withParameter "query" `count(unpoller_device_upgradeable == 1) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $lat := (newRequest $q | withParameter "query" `max(unpoller_site_latency_seconds{subsystem="www"}) * 1000` | getResponse).JSON }}
+{{ $drops := (newRequest $q | withParameter "query" `max(increase(unpoller_site_intenet_drops_total{subsystem="www"}[1d])) or vector(0)` | getResponse).JSON.Float "data.result.0.value.1" }}
+<div id="host-unifi">
+{{ if eq (len $sub) 0 }}
+  <p class="hl-none">Not recorded: unpoller has no data. Needs you says why if it is failing.</p>
+{{ else }}
+  <ul class="list list-gap-10">
+    {{ range sortByString "metric.subsystem" "asc" (unique "metric.subsystem" $sub) }}
+      {{ $s := .String "metric.subsystem" }}{{ $ok := true }}{{ range $sub }}{{ if and (eq (.String "metric.subsystem") $s) (ne (.String "metric.status") "ok") }}{{ $ok = false }}{{ end }}{{ end }}
+      <li class="hl-row"><span class="hl-data">{{ if eq $s "www" }}internet{{ else }}{{ $s }}{{ end }}</span>
+        {{ if $ok }}<span class="hl-tag ok">ok</span>{{ else }}<span class="hl-tag warn">{{ range $sub }}{{ if and (eq (.String "metric.subsystem") $s) (ne (.String "metric.status") "ok") }}{{ .String "metric.status" }}{{ end }}{{ end }}</span>{{ end }}</li>
+    {{ end }}
+  </ul>
+  {{ if $lat.Exists "data.result.0" }}<div class="hl-kv"><span>Internet latency</span><span>{{ $lat.Float "data.result.0.value.1" | printf "%.0f" }} ms</span></div>{{ end }}
+  <div class="hl-kv"><span>Internet drops · 24h</span><span>{{ if gt $drops 0.0 }}<span class="hl-tag warn">{{ printf "%.0f" $drops }}</span>{{ else }}0{{ end }}</span></div>
+  {{ range $cli }}<div class="hl-kv"><span>Clients · {{ .String "metric.subsystem" }}</span><span>{{ .Int "value.1" }}</span></div>{{ end }}
+  <div class="hl-kv"><span>Devices</span><span>{{ if gt $dis 0 }}<span class="hl-tag warn">{{ $dis }} offline</span> {{ end }}{{ $dev }}</span></div>
+  {{ if gt $upg 0 }}<div class="hl-kv"><span>Firmware updates</span><span>{{ $upg }}</span></div>{{ end }}
+  <div class="hl-links">
+    <a href="https://192.168.0.1/network/default/devices" target="_blank">Devices</a>
+    <a href="https://192.168.0.1/network/default/clients" target="_blank">Clients</a>
+  </div>
+{{ end }}
+</div>

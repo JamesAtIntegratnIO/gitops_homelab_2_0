@@ -96,7 +96,7 @@ spec:
           port: 9093
 ---
 # The LAN hosts the page checks or reads (the monitor and custom-api widgets in
-# configmap.yaml): Tower's Unraid UI/API and Plex, Home Assistant, the UniFi
+# homepage/glance/): Tower's Unraid UI/API and Plex, Home Assistant, the UniFi
 # console and Proxmox. One host and port each; add a line here when a new
 # widget points outside the cluster, or it times out with nothing in the logs.
 apiVersion: networking.k8s.io/v1

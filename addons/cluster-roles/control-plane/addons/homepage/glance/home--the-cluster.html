@@ -1,0 +1,62 @@
+{{ $p := .Options.StringOr "prom" "" }}
+{{ $q := concat $p "/api/v1/query" }}
+{{ $qr := concat $p "/api/v1/query_range" }}
+{{ $start := offsetNow "-6h" | formatTime "unix" }}
+{{ $end := now | formatTime "unix" }}
+{{ $cpu := newRequest $q | withParameter "query" `100 * (1 - avg by (nodename) (rate(node_cpu_seconds_total{mode="idle"}[5m]) * on (instance) group_left (nodename) node_uname_info))` | getResponse }}
+{{ $mem := newRequest $q | withParameter "query" `100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * on (instance) group_left (nodename) node_uname_info` | getResponse }}
+{{ $temp := newRequest $q | withParameter "query" `max by (nodename) (node_hwmon_temp_celsius * on (instance) group_left (nodename) node_uname_info)` | getResponse }}
+{{ $pods := newRequest $q | withParameter "query" `count by (node) (kube_pod_info)` | getResponse }}
+{{ $cpuH := newRequest $qr | withParameter "query" `100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])))` | withParameter "start" $start | withParameter "end" $end | withParameter "step" "300" | getResponse }}
+{{ $memH := newRequest $qr | withParameter "query" `100 * (1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes))` | withParameter "start" $start | withParameter "end" $end | withParameter "step" "300" | getResponse }}
+{{ $reqC := (newRequest $q | withParameter "query" `100 * sum(kube_pod_container_resource_requests{resource="cpu"} * on (namespace, pod) group_left () (max by (namespace, pod) (kube_pod_status_phase{phase=~"Running|Pending"}) == 1)) / sum(kube_node_status_allocatable{resource="cpu"})` | getResponse).JSON.Float "data.result.0.value.1" }}
+{{ $reqM := (newRequest $q | withParameter "query" `100 * sum(kube_pod_container_resource_requests{resource="memory"} * on (namespace, pod) group_left () (max by (namespace, pod) (kube_pod_status_phase{phase=~"Running|Pending"}) == 1)) / sum(kube_node_status_allocatable{resource="memory"})` | getResponse).JSON.Float "data.result.0.value.1" }}
+<div class="hl-grid2" style="margin-bottom:1.6rem">
+  <div>
+    {{ $last := 0.0 }}{{ range $cpuH.JSON.Array "data.result.0.values" }}{{ $last = .Float "1" }}{{ end }}
+    <div class="hl-kv"><span>CPU · 6h</span><span>{{ printf "%.0f" $last }}%</span></div>
+    <svg class="hl-spark" viewBox="0 0 72 100" preserveAspectRatio="none">
+      <polygon points="0,100 {{ range $i, $v := $cpuH.JSON.Array "data.result.0.values" }}{{ $i }},{{ sub 100 ($v.Float "1") | printf "%.1f" }} {{ end }}71,100"></polygon>
+      <polyline points="{{ range $i, $v := $cpuH.JSON.Array "data.result.0.values" }}{{ $i }},{{ sub 100 ($v.Float "1") | printf "%.1f" }} {{ end }}"></polyline>
+    </svg>
+  </div>
+  <div>
+    {{ $lastM := 0.0 }}{{ range $memH.JSON.Array "data.result.0.values" }}{{ $lastM = .Float "1" }}{{ end }}
+    <div class="hl-kv"><span>Memory · 6h</span><span>{{ printf "%.0f" $lastM }}%</span></div>
+    <svg class="hl-spark" viewBox="0 0 72 100" preserveAspectRatio="none">
+      <polygon points="0,100 {{ range $i, $v := $memH.JSON.Array "data.result.0.values" }}{{ $i }},{{ sub 100 ($v.Float "1") | printf "%.1f" }} {{ end }}71,100"></polygon>
+      <polyline points="{{ range $i, $v := $memH.JSON.Array "data.result.0.values" }}{{ $i }},{{ sub 100 ($v.Float "1") | printf "%.1f" }} {{ end }}"></polyline>
+    </svg>
+  </div>
+</div>
+<div class="hl-nodes">
+  {{ range $cpu.JSON.Array "data.result" }}
+    {{ $n := .String "metric.nodename" }}
+    {{ $c := .Float "value.1" }}
+    {{ $m := 0.0 }}{{ range $mem.JSON.Array "data.result" }}{{ if eq (.String "metric.nodename") $n }}{{ $m = .Float "value.1" }}{{ end }}{{ end }}
+    {{ $t := 0.0 }}{{ range $temp.JSON.Array "data.result" }}{{ if eq (.String "metric.nodename") $n }}{{ $t = .Float "value.1" }}{{ end }}{{ end }}
+    {{ $pc := 0 }}{{ range $pods.JSON.Array "data.result" }}{{ if eq (.String "metric.node") $n }}{{ $pc = .Int "value.1" }}{{ end }}{{ end }}
+    <div class="hl-node">
+      <div class="hl-row">
+        <span class="hl-title hl-data">{{ $n }}</span>
+        {{ if or (gt $c 85.0) (gt $m 85.0) (gt $t 80.0) }}<span class="hl-tag bad">Hot</span>{{ else if or (gt $c 65.0) (gt $m 70.0) }}<span class="hl-tag warn">Busy</span>{{ end }}
+      </div>
+      <div class="hl-kv"><span>CPU</span><span>{{ printf "%.0f" $c }}%</span></div>
+      <div class="hl-bar"><div class="{{ if gt $c 85.0 }}hot{{ else if gt $c 65.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $c }}%"></div></div>
+      <div class="hl-kv"><span>Memory</span><span>{{ printf "%.0f" $m }}%</span></div>
+      <div class="hl-bar"><div class="{{ if gt $m 85.0 }}hot{{ else if gt $m 70.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $m }}%"></div></div>
+      <div class="hl-kv"><span>Pods{{ if gt $t 0.0 }} · Temp{{ end }}</span><span>{{ $pc }}{{ if gt $t 0.0 }} · {{ printf "%.0f" $t }}°C{{ end }}</span></div>
+    </div>
+  {{ end }}
+</div>
+<div class="hl-grid2" style="margin-top:1.6rem">
+  <div>
+    <div class="hl-kv"><span>CPU requested</span><span>{{ if gt $reqC 66.7 }}<span class="hl-tag bad">Over N+1</span> {{ end }}{{ printf "%.0f" $reqC }}%</span></div>
+    <div class="hl-bar limit"><div class="{{ if gt $reqC 66.7 }}hot{{ else if gt $reqC 55.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $reqC }}%"></div></div>
+  </div>
+  <div>
+    <div class="hl-kv"><span>Memory requested</span><span>{{ if gt $reqM 66.7 }}<span class="hl-tag bad">Over N+1</span> {{ end }}{{ printf "%.0f" $reqM }}%</span></div>
+    <div class="hl-bar limit"><div class="{{ if gt $reqM 66.7 }}hot{{ else if gt $reqM 55.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $reqM }}%"></div></div>
+  </div>
+</div>
+<p class="size-h6 color-subdue" style="margin-top:.8rem">The tick on each bar is 67%: above it, losing one node leaves pods unschedulable.</p>

@@ -1,0 +1,23 @@
+{{ if eq (.Options.StringOr "key" "") "" }}
+  <p class="hl-none">Not recorded: add a Umami API key to 1Password item <code>homepage-secret</code> as <code>HOMEPAGE_VAR_UMAMI_KEY</code>.</p>
+{{ else }}
+  {{ $base := concat (.Options.StringOr "url" "") "/api/websites/" (.Options.StringOr "site" "") }}
+  {{ $auth := concat "Bearer " (.Options.StringOr "key" "") }}
+  {{ $from := concat (startOfDay now | formatTime "unix") "000" }}
+  {{ $to := concat (now | formatTime "unix") "000" }}
+  {{ $s := newRequest (concat $base "/stats") | withParameter "startAt" $from | withParameter "endAt" $to | withHeader "Authorization" $auth | getResponse }}
+  {{ if ne $s.Response.StatusCode 200 }}
+    <p class="hl-none">Not recorded: Umami answered {{ $s.Response.Status }}.</p>
+  {{ else }}
+    {{ $a := newRequest (concat $base "/active") | withHeader "Authorization" $auth | getResponse }}
+    {{ $v := $s.JSON.Float "visitors" }}{{ $pv := $s.JSON.Float "comparison.visitors" }}
+    {{ $pg := $s.JSON.Float "pageviews" }}{{ $ppg := $s.JSON.Float "comparison.pageviews" }}
+    <div class="hl-row">
+      <div><div class="hl-big">{{ $a.JSON.Int "visitors" }}</div><div class="hl-label">Online now</div></div>
+      <div style="text-align:center"><div class="hl-big">{{ toInt $v | formatNumber }}</div><div class="hl-label">Visitors today</div>
+        {{ if gt $pv 0.0 }}<div class="hl-delta color-subdue">{{ percentChange $v $pv | printf "%+.0f" }}% vs yesterday</div>{{ end }}</div>
+      <div style="text-align:right"><div class="hl-big">{{ toInt $pg | formatNumber }}</div><div class="hl-label">Pageviews</div>
+        {{ if gt $ppg 0.0 }}<div class="hl-delta color-subdue">{{ percentChange $pg $ppg | printf "%+.0f" }}% vs yesterday</div>{{ end }}</div>
+    </div>
+  {{ end }}
+{{ end }}

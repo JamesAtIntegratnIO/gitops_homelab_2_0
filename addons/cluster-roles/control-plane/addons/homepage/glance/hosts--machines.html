@@ -1,0 +1,42 @@
+{{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{ $fs := `job="host-node",fstype!~"rootfs|tmpfs|ramfs|devfs|autofs|nullfs|squashfs|overlay|fuse.lxcfs",mountpoint!~"/boot.*|/System/Volumes/(VM|Preboot|Update|xarts|iSCPreboot|Hardware)|/mnt/disk[0-9]+|/run.*|/var/lib/docker/.*"` }}
+{{ $up := (newRequest $q | withParameter "query" `max by (host) (up{job="host-node"}) or label_replace(vector(-1), "host", "holocron", "", "") or label_replace(vector(-1), "host", "pitdroid", "", "") or label_replace(vector(-1), "host", "tower", "", "")` | getResponse).JSON.Array "data.result" }}
+{{ $cpu := (newRequest $q | withParameter "query" `100 * (1 - avg by (host) (rate(node_cpu_seconds_total{job="host-node",mode="idle"}[5m])))` | getResponse).JSON.Array "data.result" }}
+{{/* Linux: MemAvailable. macOS has no such figure; Activity Monitor's "Memory Used" is app memory (internal - purgeable) + wired + compressed. */}}
+{{ $mem := (newRequest $q | withParameter "query" `100 * (1 - max by (host) (node_memory_MemAvailable_bytes{job="host-node"} / node_memory_MemTotal_bytes{job="host-node"})) or 100 * max by (host) ((node_memory_internal_bytes{job="host-node"} - node_memory_purgeable_bytes{job="host-node"} + node_memory_wired_bytes{job="host-node"} + node_memory_compressed_bytes{job="host-node"}) / node_memory_total_bytes{job="host-node"})` | getResponse).JSON.Array "data.result" }}
+{{ $disk := (newRequest $q | withParameter "query" (printf `max by (host, mountpoint) (100 * (1 - node_filesystem_avail_bytes{%s} / node_filesystem_size_bytes{%s}) and on (host, mountpoint) node_filesystem_readonly{job="host-node"} == 0)` $fs $fs) | getResponse).JSON.Array "data.result" }}
+{{ $free := (newRequest $q | withParameter "query" (printf `max by (host, mountpoint) (node_filesystem_avail_bytes{%s})` $fs) | getResponse).JSON.Array "data.result" }}
+{{ $boot := (newRequest $q | withParameter "query" `max by (host) (time() - node_boot_time_seconds{job="host-node"})` | getResponse).JSON.Array "data.result" }}
+<div class="hl-nodes">
+  {{ range sortByString "metric.host" "asc" $up }}
+    {{ $h := .String "metric.host" }}{{ $u := .Float "value.1" }}
+    {{ $c := 0.0 }}{{ range $cpu }}{{ if eq (.String "metric.host") $h }}{{ $c = .Float "value.1" }}{{ end }}{{ end }}
+    {{ $m := 0.0 }}{{ range $mem }}{{ if eq (.String "metric.host") $h }}{{ $m = .Float "value.1" }}{{ end }}{{ end }}
+    {{ $b := 0.0 }}{{ range $boot }}{{ if eq (.String "metric.host") $h }}{{ $b = .Float "value.1" }}{{ end }}{{ end }}
+    {{ $dmax := 0.0 }}{{ range $disk }}{{ if eq (.String "metric.host") $h }}{{ if gt (.Float "value.1") $dmax }}{{ $dmax = .Float "value.1" }}{{ end }}{{ end }}{{ end }}
+    <div class="hl-node" id="host-{{ $h }}">
+      <div class="hl-row">
+        <span class="hl-title hl-data">{{ $h }}</span>
+        {{ if lt $u 0.0 }}<span class="hl-tag bad">No data</span>{{ else if eq $u 0.0 }}<span class="hl-tag bad">Down</span>{{ else if or (gt $c 85.0) (gt $m 90.0) (gt $dmax 90.0) }}<span class="hl-tag bad">Hot</span>{{ else if or (gt $c 65.0) (gt $m 80.0) (gt $dmax 80.0) }}<span class="hl-tag warn">Busy</span>{{ else }}<span class="hl-tag ok">Up</span>{{ end }}
+      </div>
+      <div class="size-h6 color-subdue">{{ if eq $h "holocron" }}Mac Studio · CI runners{{ else if eq $h "pitdroid" }}NixOS VM on Proxmox · CI runners{{ else if eq $h "tower" }}Unraid · NFS, Plex, Jellyfin{{ end }}{{ if gt $b 0.0 }} · up <span class="hl-num">{{ div $b 86400 | printf "%.0f" }}d</span>{{ end }}</div>
+      {{ if lt $u 0.0 }}
+        <div class="hl-why">{{ if eq $h "tower" }}Nothing scraped yet. Install the Prometheus Node Exporter plugin from Unraid's Apps tab; it listens on 9100.{{ else }}Nothing pushed yet. It starts once nix_dots_2's host-metrics change is deployed to {{ $h }}.{{ end }}</div>
+        <div class="hl-links">{{ if eq $h "tower" }}<a href="http://10.0.0.12/Apps" target="_blank">Unraid apps</a>{{ else }}<a href="https://github.com/JamesAtIntegratnIO/nix_dots_2/blob/main/docs/holocron/SERVICES.md#host-metrics-system-daemons" target="_blank">Runbook</a>{{ end }}</div>
+      {{ else if eq $u 0.0 }}
+        <div class="hl-why">{{ if eq $h "tower" }}Prometheus cannot reach node_exporter on 10.0.0.12:9100.{{ else }}The agent is pushing but node_exporter on {{ $h }} is not answering.{{ end }}</div>
+      {{ else }}
+        <div class="hl-kv"><span>CPU</span><span>{{ printf "%.0f" $c }}%</span></div>
+        <div class="hl-bar"><div class="{{ if gt $c 85.0 }}hot{{ else if gt $c 65.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $c }}%"></div></div>
+        <div class="hl-kv"><span>Memory</span><span>{{ printf "%.0f" $m }}%</span></div>
+        <div class="hl-bar"><div class="{{ if gt $m 90.0 }}hot{{ else if gt $m 80.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $m }}%"></div></div>
+        {{ range sortByString "metric.mountpoint" "asc" $disk }}{{ if eq (.String "metric.host") $h }}
+          {{ $mp := .String "metric.mountpoint" }}{{ $d := .Float "value.1" }}
+          {{ $fb := 0.0 }}{{ range $free }}{{ if and (eq (.String "metric.host") $h) (eq (.String "metric.mountpoint") $mp) }}{{ $fb = .Float "value.1" }}{{ end }}{{ end }}
+          <div class="hl-kv"><span class="text-truncate" style="text-transform:none;letter-spacing:0" title="{{ $mp }}">{{ $mp }} · {{ if gt $fb 1000000000000.0 }}{{ div $fb 1000000000000 | printf "%.1f" }} TB{{ else }}{{ div $fb 1000000000 | printf "%.0f" }} GB{{ end }} free</span><span>{{ printf "%.0f" $d }}%</span></div>
+          <div class="hl-bar"><div class="{{ if gt $d 90.0 }}hot{{ else if gt $d 80.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $d }}%"></div></div>
+        {{ end }}{{ end }}
+      {{ end }}
+    </div>
+  {{ end }}
+</div>

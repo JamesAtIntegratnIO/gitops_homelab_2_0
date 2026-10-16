@@ -1,0 +1,41 @@
+{{ $p := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{/* Alerts come from Alertmanager, not Prometheus, so a silenced or
+     inhibited alert stops counting, and the figures match the
+     Needs you tab one for one. */}}
+{{ $am := newRequest (concat (.Options.StringOr "am" "") "/api/v2/alerts") | withParameter "active" "true" | withParameter "silenced" "false" | withParameter "inhibited" "false" | getResponse }}
+{{ $crit := 0 }}{{ $warn := 0 }}
+{{ if eq $am.Response.StatusCode 200 }}
+  {{ range $am.JSON.Array "" }}{{ $s := .String "labels.severity" }}{{ if eq $s "critical" }}{{ $crit = add $crit 1 }}{{ else if eq $s "warning" }}{{ $warn = add $warn 1 }}{{ end }}{{ end }}
+{{ else }}
+  {{ $crit = (newRequest $p | withParameter "query" `count(ALERTS{alertstate="firing",severity="critical"}) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+  {{ $warn = (newRequest $p | withParameter "query" `count(ALERTS{alertstate="firing",severity="warning"}) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ end }}
+{{ $apps := (newRequest $p | withParameter "query" `count(argocd_app_info{health_status!="Healthy"}) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $kargo := (newRequest $p | withParameter "query" `count(kargo_stage_last_promotion_phase{phase=~"Errored|Failed|Aborted"} == 1) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{/* The same stuck-pod set as Needs you; keep the two queries in step. */}}
+{{ $pods := (newRequest $p | withParameter "query" (concat "count(" `(max by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason=~"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError"} == 1) or on (namespace, pod) label_replace(kube_pod_status_unschedulable == 1, "reason", "Unschedulable", "", "") or on (namespace, pod) max by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason="ContainerCreating"} == 1) or on (namespace, pod) max by (namespace, pod, reason) (label_replace(kube_pod_status_phase{phase=~"Pending|Failed|Unknown"} == 1, "reason", "$1", "phase", "(.*)"))) and on (namespace, pod) (time() - kube_pod_created > 300)` ") or vector(0)") | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $ready := (newRequest $p | withParameter "query" `sum(kube_node_status_condition{condition="Ready",status="true"}) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $nodes := (newRequest $p | withParameter "query" `count(kube_node_info) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $down := sub (toFloat $nodes) (toFloat $ready) | toInt }}
+{{ $issues := add (add (toFloat $crit) (toFloat $apps)) (add (toFloat $kargo) (toFloat $down)) | toInt }}
+<div class="hl-banner">
+  <div>
+    {{ if eq $nodes 0 }}
+      <div class="hl-verdict"><span class="hl-tag">Unknown</span><span class="w">Prometheus did not answer</span></div>
+      <div class="hl-sub">Nothing below is current until it does.</div>
+    {{ else if eq $issues 0 }}
+      <div class="hl-verdict"><span class="hl-tag ok">All clear</span><span class="w">the-cluster is healthy</span></div>
+      <div class="hl-sub"><span class="hl-num">{{ $ready }}/{{ $nodes }}</span> nodes ready, no critical alerts, every app healthy.</div>
+    {{ else }}
+      <div class="hl-verdict"><span class="hl-tag bad">Attention</span><span class="w"><span class="hl-num">{{ $issues }}</span> {{ if eq $issues 1 }}thing needs{{ else }}things need{{ end }} you</span></div>
+      <div class="hl-sub"><span class="hl-num">{{ $ready }}/{{ $nodes }}</span> nodes ready. The Needs you tab has each one, with what to do and where.</div>
+    {{ end }}
+  </div>
+  <div class="hl-chips">
+    <a class="hl-chip {{ if gt $crit 0 }}bad{{ end }}" href="/needs-you#needs-alerts"><span class="n">{{ $crit }}</span><span class="l">Critical</span></a>
+    <a class="hl-chip {{ if gt $warn 0 }}warn{{ end }}" href="/needs-you#needs-alerts"><span class="n">{{ $warn }}</span><span class="l">Warnings</span></a>
+    <a class="hl-chip {{ if gt $apps 0 }}bad{{ end }}" href="/needs-you#needs-apps"><span class="n">{{ $apps }}</span><span class="l">Apps unhealthy</span></a>
+    <a class="hl-chip {{ if gt $kargo 0 }}bad{{ end }}" href="/needs-you#needs-kargo"><span class="n">{{ $kargo }}</span><span class="l">Promotions failed</span></a>
+    <a class="hl-chip {{ if gt $pods 0 }}warn{{ end }}" href="/needs-you#needs-pods"><span class="n">{{ $pods }}</span><span class="l">Pods stuck</span></a>
+  </div>
+</div>

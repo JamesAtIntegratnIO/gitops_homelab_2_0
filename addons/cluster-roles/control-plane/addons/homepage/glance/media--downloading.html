@@ -1,0 +1,40 @@
+{{ $base := concat (.Options.StringOr "url" "") "/api" }}
+{{ $key := .Options.StringOr "key" "" }}
+{{ $r := newRequest $base | withParameter "mode" "queue" | withParameter "output" "json" | withParameter "apikey" $key | getResponse }}
+{{ if ne $r.Response.StatusCode 200 }}
+  <p class="hl-none">Not recorded: SABnzbd answered {{ $r.Response.Status }}.</p>
+{{ else }}
+  {{ $slots := $r.JSON.Array "queue.slots" }}
+  {{ $kb := $r.JSON.Float "queue.kbpersec" }}
+  {{ $paused := $r.JSON.Bool "queue.paused" }}
+  {{ if $paused }}
+    <div class="hl-callout warn" style="margin-bottom:1.2rem"><span class="hl-tag warn">Paused</span> {{ if gt (len $slots) 0 }}<span class="hl-num">{{ len $slots }}</span> waiting. Resume from SABnzbd's header.{{ else }}Nothing queued, but new grabs will wait. Resume from SABnzbd's header.{{ end }}</div>
+  {{ else if eq (len $slots) 0 }}
+    <p class="hl-none">Nothing downloading.</p>
+  {{ else }}
+    <div class="hl-kv"><span>{{ len $slots }} in queue</span><span>{{ if ge $kb 1024.0 }}{{ div $kb 1024 | printf "%.1f" }} MB/s{{ else }}{{ printf "%.0f" $kb }} KB/s{{ end }} · {{ $r.JSON.String "queue.timeleft" }}</span></div>
+  {{ end }}
+  <ul class="list list-gap-10 collapsible-container" data-collapse-after="4" style="margin-top:.8rem">
+    {{ range $slots }}
+      {{ $pct := .Float "percentage" }}
+      <li>
+        <div class="hl-row size-h6"><span class="text-truncate">{{ .String "filename" }}</span><span class="shrink-0 hl-num">{{ printf "%.0f" $pct }}%</span></div>
+        <div class="hl-bar" style="margin-top:.4rem"><div style="width:{{ printf "%.0f" $pct }}%"></div></div>
+      </li>
+    {{ end }}
+  </ul>
+  {{ $h := newRequest $base | withParameter "mode" "history" | withParameter "failed_only" "1" | withParameter "limit" "10" | withParameter "output" "json" | withParameter "apikey" $key | getResponse }}
+  {{ $since := offsetNow "-168h" }}
+  {{ $failed := 0 }}{{ range $h.JSON.Array "history.slots" }}{{ if (.String "completed" | parseTime "unix").After $since }}{{ $failed = add $failed 1 }}{{ end }}{{ end }}
+  {{ if gt $failed 0 }}
+    <div class="hl-label" style="margin-top:1.6rem">Failed this week · <span class="hl-num">{{ $failed }}</span></div>
+    <ul class="list list-gap-10" style="margin-top:.8rem">
+      {{ range $h.JSON.Array "history.slots" }}{{ if (.String "completed" | parseTime "unix").After $since }}
+        <li>
+          <div class="hl-row size-h6"><span class="color-highlight text-truncate">{{ .String "name" }}</span><span class="hl-tag bad shrink-0">Failed</span></div>
+          <div class="size-h6 color-subdue">{{ .String "fail_message" }}</div>
+        </li>
+      {{ end }}{{ end }}
+    </ul>
+  {{ end }}
+{{ end }}

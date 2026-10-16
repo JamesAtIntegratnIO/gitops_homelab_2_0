@@ -1,0 +1,43 @@
+{{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{/* -1 = expected but never reported; the same expected set as HostNotReporting. */}}
+{{ $up := (newRequest $q | withParameter "query" `max by (host) (up{job="host-node"}) or label_replace(vector(-1), "host", "holocron", "", "") or label_replace(vector(-1), "host", "pitdroid", "", "") or label_replace(vector(-1), "host", "tower", "", "")` | getResponse).JSON.Array "data.result" }}
+{{ $cpu := (newRequest $q | withParameter "query" `100 * (1 - avg by (host) (rate(node_cpu_seconds_total{job="host-node",mode="idle"}[5m])))` | getResponse).JSON.Array "data.result" }}
+{{ $run := (newRequest $q | withParameter "query" `sum by (host) (github_runner_up)` | getResponse).JSON.Array "data.result" }}
+{{ $runN := (newRequest $q | withParameter "query" `count by (host) (github_runner_up)` | getResponse).JSON.Array "data.result" }}
+{{ $pve := (newRequest $q | withParameter "query" `min(pve_up{id=~"node/.+"})` | getResponse).JSON }}
+{{ $gUp := (newRequest $q | withParameter "query" `count(pve_up{id=~"(qemu|lxc)/.+"} == 1) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $gAll := (newRequest $q | withParameter "query" `count(pve_up{id=~"(qemu|lxc)/.+"}) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $gBad := (newRequest $q | withParameter "query" `count((pve_up{id=~"(qemu|lxc)/.+"} == 0) and on (id) (pve_onboot_status == 1)) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $uni := (newRequest $q | withParameter "query" `max(up{job="unpoller"})` | getResponse).JSON }}
+{{ $uDis := (newRequest $q | withParameter "query" `sum(max by (subsystem) (unpoller_site_disconnected)) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $uCli := (newRequest $q | withParameter "query" `sum(max by (subsystem) (unpoller_site_users{subsystem=~"lan|wlan"})) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $uLat := (newRequest $q | withParameter "query" `max(unpoller_site_latency_seconds{subsystem="www"}) * 1000` | getResponse).JSON }}
+<ul class="list list-gap-10">
+  {{ range sortByString "metric.host" "asc" $up }}
+    {{ $h := .String "metric.host" }}{{ $u := .Float "value.1" }}
+    {{ $c := -1.0 }}{{ range $cpu }}{{ if eq (.String "metric.host") $h }}{{ $c = .Float "value.1" }}{{ end }}{{ end }}
+    {{ $r := -1 }}{{ range $run }}{{ if eq (.String "metric.host") $h }}{{ $r = .Int "value.1" }}{{ end }}{{ end }}
+    {{ $rn := 0 }}{{ range $runN }}{{ if eq (.String "metric.host") $h }}{{ $rn = .Int "value.1" }}{{ end }}{{ end }}
+    <li class="hl-row">
+      <a class="hl-title hl-data" href="/hosts#host-{{ $h }}">{{ $h }}</a>
+      <span class="shrink-0">
+        {{ if ge $u 1.0 }}<span class="hl-num color-subdue">{{ if gt $rn 0 }}{{ $r }}/{{ $rn }} runners{{ else }}{{ printf "%.0f" $c }}% cpu{{ end }}</span>{{ end }}
+        {{ if lt $u 0.0 }}<span class="hl-tag bad">No data</span>{{ else if eq $u 0.0 }}<span class="hl-tag bad">Down</span>{{ else if and (gt $rn 0) (lt $r $rn) }}<span class="hl-tag warn">{{ sub $rn $r }} down</span>{{ else }}<span class="hl-tag ok">Up</span>{{ end }}
+      </span>
+    </li>
+  {{ end }}
+  <li class="hl-row">
+    <a class="hl-title hl-data" href="/hosts#host-proxmox">proxmox</a>
+    <span class="shrink-0">
+      {{ if $pve.Exists "data.result.0" }}<span class="hl-num color-subdue">{{ $gUp }}/{{ $gAll }} guests</span>{{ end }}
+      {{ if not ($pve.Exists "data.result.0") }}<span class="hl-tag">No data</span>{{ else if eq ($pve.Float "data.result.0.value.1") 0.0 }}<span class="hl-tag bad">Down</span>{{ else if gt $gBad 0 }}<span class="hl-tag warn">{{ $gBad }} stopped</span>{{ else }}<span class="hl-tag ok">Up</span>{{ end }}
+    </span>
+  </li>
+  <li class="hl-row">
+    <a class="hl-title hl-data" href="/hosts#host-unifi">unifi</a>
+    <span class="shrink-0">
+      {{ if and ($uni.Exists "data.result.0") (eq ($uni.Float "data.result.0.value.1") 1.0) }}<span class="hl-num color-subdue">{{ $uCli }} clients{{ if $uLat.Exists "data.result.0" }} · {{ $uLat.Float "data.result.0.value.1" | printf "%.0f" }} ms{{ end }}</span>{{ end }}
+      {{ if not (and ($uni.Exists "data.result.0") (eq ($uni.Float "data.result.0.value.1") 1.0)) }}<span class="hl-tag">No data</span>{{ else if gt $uDis 0 }}<span class="hl-tag warn">{{ $uDis }} offline</span>{{ else }}<span class="hl-tag ok">Up</span>{{ end }}
+    </span>
+  </li>
+</ul>

@@ -1,0 +1,58 @@
+# ── Hosts: the machines outside the cluster ──────────────────────────
+# holocron and pitdroid push node + runner metrics (nix_dots_2
+# host-metrics); Tower, Proxmox and UniFi are scraped by the
+# host-exporters addon. Each card has an id (host-<name>) so Home's
+# Hosts lines and the host alerts' action links land on it.
+- name: Hosts
+  slug: hosts
+  columns:
+    - size: full
+      widgets:
+        - type: custom-api
+          title: Machines
+          cache: 1m
+          options:
+            prom: ${PROM_URL}
+          template: |
+            $include: hosts--machines.html
+
+        - type: custom-api
+          title: CI runners
+          cache: 1m
+          options:
+            prom: ${PROM_URL}
+          template: |
+            $include: hosts--ci-runners.html
+
+    - size: small
+      widgets:
+        - type: custom-api
+          title: Proxmox
+          title-url: https://192.168.0.10:8006
+          cache: 1m
+          options:
+            prom: ${PROM_URL}
+          template: |
+            $include: hosts--proxmox.html
+
+        # The array as Unraid sees it (state, capacity), from its own
+        # GraphQL API; Tower's CPU, memory and disks are on its Machines
+        # card above.
+        - type: custom-api
+          title: Tower array
+          title-url: http://10.0.0.12/Main
+          cache: 5m
+          options:
+            url: ${UNRAID_URL}
+            key: ${HOMEPAGE_VAR_UNRAID_KEY}
+          template: |
+            $include: hosts--tower-array.html
+
+        - type: custom-api
+          title: UniFi
+          title-url: https://192.168.0.1/network/default/dashboard
+          cache: 1m
+          options:
+            prom: ${PROM_URL}
+          template: |
+            $include: hosts--unifi.html

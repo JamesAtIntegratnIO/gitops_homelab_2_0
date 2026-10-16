@@ -1,0 +1,31 @@
+{{ $r := newRequest (concat (.Options.StringOr "url" "") "/api/v3/calendar")
+     | withParameter "start" (offsetNow "-336h" | formatTime "DateOnly")
+     | withParameter "end" (offsetNow "1440h" | formatTime "DateOnly")
+     | withHeader "X-Api-Key" (.Options.StringOr "key" "")
+     | getResponse }}
+{{ if ne $r.Response.StatusCode 200 }}
+  <p class="hl-none">Not recorded: Radarr answered {{ $r.Response.Status }}.</p>
+{{ else }}
+  {{ $all := $r.JSON.Array "" }}
+  {{ $got := 0 }}{{ $open := 0 }}{{ range $all }}{{ if .Bool "hasFile" }}{{ $got = add $got 1 }}{{ else }}{{ $open = add $open 1 }}{{ end }}{{ end }}
+  {{ if eq $open 0 }}
+    <p class="hl-none">Nothing waiting: every film released in the last two weeks is in Plex, and none are due in the next two months.</p>
+  {{ else }}
+    <ul class="list list-gap-10">
+      {{ range $all }}{{ if not (.Bool "hasFile") }}
+        {{ $d := .String "digitalRelease" }}{{ if eq $d "" }}{{ $d = .String "physicalRelease" }}{{ end }}
+        {{ $released := and (ne $d "") (($d | parseTime "RFC3339").Before now) }}
+        {{ $poster := "" }}{{ range .Array "images" }}{{ if and (eq $poster "") (eq (.String "coverType") "poster") }}{{ $poster = .String "remoteUrl" }}{{ end }}{{ end }}
+        <li class="flex gap-10 items-center">
+          {{ if ne $poster "" }}<img class="hl-poster" src="{{ $poster }}" alt="" loading="lazy">{{ end }}
+          <div class="min-width-0 grow">
+            <a class="color-highlight text-truncate" style="display:block" href="https://radarr.vcluster-media.integratn.tech/movie/{{ .String "titleSlug" }}" target="_blank">{{ .String "title" }}</a>
+            <div class="size-h6 color-subdue">{{ if $released }}Out to buy or stream and not downloaded. The film's page has its search.{{ else if ne $d "" }}Home release{{ else }}In cinemas only so far{{ end }}</div>
+          </div>
+          <div class="shrink-0">{{ if $released }}<span class="hl-tag warn">Missing</span>{{ else if ne $d "" }}<span class="size-h6 color-subdue hl-data" {{ $d | parseTime "RFC3339" | toRelativeTime }}></span>{{ end }}</div>
+        </li>
+      {{ end }}{{ end }}
+    </ul>
+  {{ end }}
+  {{ if gt $got 0 }}<p class="size-h6 color-subdue" style="margin-top:1rem"><span class="hl-num">{{ $got }}</span> {{ if eq $got 1 }}film{{ else }}films{{ end }} arrived in the last two weeks.</p>{{ end }}
+{{ end }}
