@@ -1174,6 +1174,37 @@ homepage:
       prune: true
     syncOptions:
       - CreateNamespace=true
+host-exporters:
+  # Plain manifests: the machines outside the cluster as metrics.
+  # prometheus-pve-exporter (Proxmox) and unpoller (UniFi), digest-pinned and
+  # Kargo-tracked (targets `pve-exporter` and `unpoller`), plus the
+  # ScrapeConfig for Tower's node_exporter (in `monitoring`). holocron and
+  # pitdroid push their own (nix_dots_2 host-metrics). The namespace and its
+  # NetworkPolicies are in network-policies/host-exporters.yaml; the alerts
+  # are platform-alerts/host-rules.yaml.
+  enabled: true
+  type: manifest
+  namespace: host-exporters
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/host-exporters
+  selectorMatchLabels:
+    cluster_role: control-plane
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.target.template.mergePolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
 umami:
   # Plain manifests: the official image, digest-pinned and Kargo-tracked
   # (targets `umami` and `umami-redis`), with its Redis, its Secrets from

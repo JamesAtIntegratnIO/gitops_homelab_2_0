@@ -6,12 +6,13 @@ namespace, Deployment and Kargo target keep the name `homepage` from the
 Homepage (gethomepage.dev) it replaced, so the authentik provider and the
 NetworkPolicy halves in other namespaces did not move.
 
-Four tabs. **Home** answers "is anything wrong": a status line with a verdict
+Five tabs. **Home** answers "is anything wrong": a status line with a verdict
 and chips (critical alerts, warnings, unhealthy apps, failed promotions, stuck
 pods), CPU and memory sparklines, per-node cards and the N+1 request line,
 firing alerts by name, ArgoCD and Kargo problems, Umami for integratn.io and
-bosun.integratn.io, Proxmox and Tower, upstream releases, and a launcher for
-every UI. **Needs you** has the detail behind every chip and row (below).
+bosun.integratn.io, one line per host outside the cluster, upstream releases,
+and a launcher for every UI. **Needs you** has the detail behind every chip
+and row (below). **Hosts** has the machines outside the cluster (below).
 **Media** has TV and films (only what is coming, plus anything aired or
 released and not downloaded, flagged Missing and linked to its Sonarr/Radarr
 page), Plex, and SABnzbd (flags a paused queue and this week's failed
@@ -42,6 +43,23 @@ Critical and Warnings chips and Home's Firing alerts read the same set. If Alert
 answer, the list says so and the chips fall back to Prometheus `ALERTS`. The
 stuck-pod PromQL appears twice, in the Status chip and in Needs you; keep the
 two in step.
+
+## Hosts
+
+Everything the cluster does not run on, all read from Prometheus:
+
+| Card | Source |
+|---|---|
+| Machines: holocron, pitdroid, tower | node_exporter, `job="host-node"`, one `host` label each. holocron and pitdroid push it themselves (nix_dots_2 `host-metrics.nix`, a Prometheus agent remote-writing to `prom-remote`); Tower is scraped by the `host-exporters` addon's ScrapeConfig. CPU, memory (on macOS Activity Monitor's "Memory Used"), every real filesystem, uptime. A host that never reported says what to install or deploy. |
+| CI runners | `github_runner_up` / `github_runner_busy` per instance, written each minute by nix_dots_2's runner-metrics job into the textfile collector. |
+| Proxmox | `pve_*` from pve-exporter (`host-exporters`): node CPU/memory, storage pools, every guest with Running / Stopped (set to start at boot, so wrong) / Off. |
+| Tower array | Unraid's own GraphQL API (`HOMEPAGE_VAR_UNRAID_KEY`): array state and capacity. |
+| UniFi | `unpoller_*` from unpoller (`host-exporters`): health per subsystem, internet latency and drops, clients, devices offline, firmware updates. |
+
+Each card has an id (`#host-holocron`, `#host-proxmox`, ...), which Home's
+Hosts lines and the host alerts' `action_url` open. Problems are alerts
+(`platform-alerts/host-rules.yaml`), so they reach Needs you like any other;
+an alert's `action_url` / `action_title` annotations become a button there.
 
 ## Brand
 

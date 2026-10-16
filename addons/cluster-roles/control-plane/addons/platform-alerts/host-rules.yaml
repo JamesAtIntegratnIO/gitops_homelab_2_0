@@ -1,0 +1,208 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Hosts outside the cluster: holocron (Mac Studio) and pitdroid (NixOS VM),
+# which push node and GitHub-runner metrics from nix_dots_2's host-metrics
+# modules; Tower (Unraid), Proxmox and UniFi, scraped by the host-exporters
+# addon. Same severity model as prometheus-rules.yaml (critical pages Matrix,
+# warning goes to the digest, info is never sent).
+#
+# A separate file only so it could land while prometheus-rules.yaml was being
+# changed elsewhere; it is part of the same single source of truth.
+#
+# Every alert carries action_url / action_title: the one page where the fix
+# happens. The landing page's Needs you tab turns them into a button.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: host-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: platform-alerts
+    app.kubernetes.io/part-of: platform
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # ── The hosts themselves ─────────────────────────────────────────────────
+    - name: hosts.node
+      interval: 60s
+      rules:
+        # The expected set minus the set reporting up. Covers all three ways a
+        # host goes quiet: the agent stopped pushing (series go stale), its
+        # node_exporter is down (up == 0), or Tower is unreachable (up == 0).
+        # Tower fires until its exporter plugin is installed; that is the ask.
+        - alert: HostNotReporting
+          expr: |
+            (
+                label_replace(vector(1), "host", "holocron", "", "")
+              or label_replace(vector(1), "host", "pitdroid", "", "")
+              or label_replace(vector(1), "host", "tower", "", "")
+            )
+            unless on (host) max by (host) (up{job="host-node"} == 1)
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }} is not reporting metrics"
+            description: >-
+              {{ if eq $labels.host "tower" }}Prometheus cannot scrape node_exporter on Tower (10.0.0.12:9100). Either Tower is down or the "Prometheus Node Exporter" plugin is not installed or not running (Unraid > Apps).{{ else if eq $labels.host "holocron" }}holocron has pushed nothing for 10 minutes. Check `sudo launchctl print system/io.integratn.prometheus-agent` and /var/log/prometheus-agent.log, or the Mac is asleep or off.{{ else }}{{ $labels.host }} has pushed nothing for 10 minutes. Check `systemctl status prometheus prometheus-node-exporter` on it, or the VM is down in Proxmox.{{ end }}
+            action_url: >-
+              {{ if eq $labels.host "tower" }}http://10.0.0.12/Apps{{ else if eq $labels.host "pitdroid" }}https://192.168.0.10:8006{{ else }}https://github.com/JamesAtIntegratnIO/nix_dots_2/blob/main/docs/holocron/SERVICES.md#host-metrics-system-daemons{{ end }}
+            action_title: >-
+              {{ if eq $labels.host "tower" }}Unraid apps{{ else if eq $labels.host "pitdroid" }}Proxmox{{ else }}Runbook{{ end }}
+
+        # Per filesystem, real disks only. Excluded: read-only volumes (macOS's
+        # sealed system snapshot), boot partitions, the APFS helper volumes
+        # that share the Data volume's free space, and Unraid's individual
+        # array disks -- Unraid fills those to the brim by design; the array as
+        # a whole is /mnt/user.
+        - alert: HostDiskFilling
+          expr: |
+            (1 - node_filesystem_avail_bytes{job="host-node",fstype!~"tmpfs|ramfs|devfs|autofs|nullfs|squashfs|overlay|fuse.lxcfs",mountpoint!~"/boot.*|/System/Volumes/(VM|Preboot|Update|xarts|iSCPreboot|Hardware)|/mnt/disk[0-9]+|/run.*|/var/lib/docker/.*"}
+                   / node_filesystem_size_bytes) > 0.90
+            and on (host, mountpoint) node_filesystem_readonly == 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.host }}: {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full"
+            description: "{{ $labels.mountpoint }} on {{ $labels.host }} has under 10% free and has stayed there for 30 minutes."
+            action_url: "https://home.cluster.integratn.tech/hosts#host-{{ $labels.host }}"
+            action_title: "Host"
+
+        - alert: HostDiskAlmostFull
+          expr: |
+            (1 - node_filesystem_avail_bytes{job="host-node",fstype!~"tmpfs|ramfs|devfs|autofs|nullfs|squashfs|overlay|fuse.lxcfs",mountpoint!~"/boot.*|/System/Volumes/(VM|Preboot|Update|xarts|iSCPreboot|Hardware)|/mnt/disk[0-9]+|/run.*|/var/lib/docker/.*"}
+                   / node_filesystem_size_bytes) > 0.97
+            and on (host, mountpoint) node_filesystem_readonly == 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.host }}: {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full"
+            description: "{{ $labels.mountpoint }} on {{ $labels.host }} is about to run out of space; writes to it will start failing."
+            action_url: "https://home.cluster.integratn.tech/hosts#host-{{ $labels.host }}"
+            action_title: "Host"
+
+    # ── GitHub self-hosted runners (holocron, pitdroid) ─────────────────────
+    - name: hosts.runners
+      interval: 60s
+      rules:
+        - alert: GitHubRunnerDown
+          expr: github_runner_up == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Runner {{ $labels.runner }} on {{ $labels.host }} is down"
+            description: >-
+              The {{ $labels.runner }} runner's service on {{ $labels.host }} has not been running for 10 minutes, so jobs for it queue.
+              {{ if eq $labels.host "holocron" }}`sudo launchctl kickstart -k system/io.integratn.ghrunner.{{ $labels.runner }}`{{ else }}`sudo systemctl restart github-runner-{{ $labels.runner }}`{{ end }}
+            action_url: >-
+              {{ if eq $labels.runner "runwright" }}https://github.com/JamesAtIntegratnIO/runwright/settings/actions/runners{{ else }}https://github.com/organizations/IntegratnIO/settings/actions/runners{{ end }}
+            action_title: "Runners on GitHub"
+
+        # The runner-metrics job writes the file every minute. A stale file
+        # means github_runner_up above is frozen and cannot be trusted.
+        - alert: GitHubRunnerMetricsStale
+          expr: time() - node_textfile_mtime_seconds{job="host-node",file=~".*github_runners.prom"} > 600
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Runner status on {{ $labels.host }} is stale"
+            description: "The runner-metrics job on {{ $labels.host }} has not rewritten github_runners.prom for over 10 minutes, so runner up/busy on the landing page is frozen."
+            action_url: "https://github.com/JamesAtIntegratnIO/nix_dots_2/blob/main/docs/holocron/SERVICES.md#host-metrics-system-daemons"
+            action_title: "Runbook"
+
+    # ── Proxmox VE (192.168.0.10) ────────────────────────────────────────────
+    - name: hosts.proxmox
+      interval: 60s
+      rules:
+        # Also what a revoked or wrong API token looks like: the exporter
+        # answers 500 and the scrape fails.
+        - alert: ProxmoxExporterDown
+          expr: up{job="pve-exporter"} == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Proxmox metrics are not being collected"
+            description: "Prometheus cannot scrape pve-exporter. Proxmox is unreachable on 8006 or the API token in 1Password (homepage-secret, HOMEPAGE_VAR_PVE_*) was rejected; the exporter pod's log says which."
+            action_url: "https://grafana.cluster.integratn.tech/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22:%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bnamespace%3D%5C%22host-exporters%5C%22,container%3D%5C%22exporter%5C%22%7D%22,%22datasource%22:%7B%22type%22:%22loki%22,%22uid%22:%22loki%22%7D%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D"
+            action_title: "Exporter logs"
+
+        - alert: ProxmoxNodeDown
+          expr: pve_up{id=~"node/.+"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Proxmox node {{ $labels.id }} is down"
+            description: "Proxmox reports {{ $labels.id }} offline. pitdroid and every other guest on it are down with it."
+            action_url: "https://192.168.0.10:8006"
+            action_title: "Proxmox"
+
+        # Only guests set to start at boot: a guest someone stopped on purpose
+        # and left off onboot is not news.
+        - alert: ProxmoxGuestDown
+          expr: |
+            (pve_up{id=~"(qemu|lxc)/.+"} == 0 and on (id) pve_onboot_status == 1)
+            * on (id) group_left (name) max by (id, name) (pve_guest_info)
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Proxmox guest {{ $labels.name }} ({{ $labels.id }}) is stopped"
+            description: "{{ $labels.name }} is set to start at boot but has been stopped for 10 minutes."
+            action_url: "https://192.168.0.10:8006/#v1:0:={{ reReplaceAll \"/\" \"%2F\" $labels.id }}"
+            action_title: "Open in Proxmox"
+
+        - alert: ProxmoxStorageFilling
+          expr: pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes > 0.90
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Proxmox storage {{ $labels.id }} is {{ $value | humanizePercentage }} full"
+            description: "{{ $labels.id }} has under 10% free. Guests with disks on it will pause or fail writes when it fills."
+            action_url: "https://192.168.0.10:8006/#v1:0:={{ reReplaceAll \"/\" \"%2F\" $labels.id }}"
+            action_title: "Open in Proxmox"
+
+    # ── UniFi (192.168.0.1) ──────────────────────────────────────────────────
+    - name: hosts.unifi
+      interval: 60s
+      rules:
+        - alert: UniFiPollerDown
+          expr: up{job="unpoller"} == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "UniFi metrics are not being collected"
+            description: "Prometheus cannot scrape unpoller. Its log says whether the console refused the login (1Password item unifi-mcp-login)."
+            action_url: "https://grafana.cluster.integratn.tech/explore?schemaVersion=1&orgId=1&panes=%7B%22a%22:%7B%22datasource%22:%22loki%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22expr%22:%22%7Bnamespace%3D%5C%22host-exporters%5C%22,container%3D%5C%22unpoller%5C%22%7D%22,%22datasource%22:%7B%22type%22:%22loki%22,%22uid%22:%22loki%22%7D%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D"
+            action_title: "Poller logs"
+
+        # Adopted devices the console has lost, per subsystem (lan = switches,
+        # wlan = access points). `status` is a label on these series and flips
+        # with the subsystem's health, hence the max by.
+        - alert: UniFiDeviceDisconnected
+          expr: max by (site_name, subsystem) (unpoller_site_disconnected) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $value }} UniFi {{ $labels.subsystem }} device(s) disconnected"
+            description: "The UniFi console has lost {{ $value }} adopted {{ $labels.subsystem }} device(s) on site {{ $labels.site_name }} for 10 minutes."
+            action_url: "https://192.168.0.1/network/default/devices"
+            action_title: "UniFi devices"
+
+        - alert: UniFiInternetDrops
+          expr: max by (site_name) (increase(unpoller_site_intenet_drops_total{subsystem="www"}[30m])) >= 1
+          labels:
+            severity: warning
+          annotations:
+            summary: "The internet connection dropped {{ $value | printf \"%.0f\" }} time(s) in 30 minutes"
+            description: "The UniFi gateway counted WAN disconnections on site {{ $labels.site_name }} in the last 30 minutes."
+            action_url: "https://192.168.0.1/network/default/dashboard"
+            action_title: "UniFi dashboard"

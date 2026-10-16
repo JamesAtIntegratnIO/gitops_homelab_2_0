@@ -1,0 +1,35 @@
+# Tower (Unraid, 10.0.0.12): node_exporter on the host, scraped from here.
+# Unraid is not Nix-managed, so the exporter is installed on Tower itself --
+# the "Prometheus Node Exporter" plugin from Community Applications, which
+# listens on :9100 and survives reboots. Until it is installed this target is
+# down and HostMetricsMissing{host="tower"} says so on Needs you.
+#
+# A ScrapeConfig, not a selectorless Service + Endpoints: ArgoCD excludes
+# Endpoints and EndpointSlices from sync by default, so a hand-written
+# Endpoints in git would never be applied. It lives in `monitoring` with the
+# `release` label because that is the one place the chart's default
+# scrapeConfig selectors look; nothing in kube-prometheus-stack's values had to
+# change. job and host are set to match what holocron and pitdroid push
+# (job="host-node", host=<name>), so one set of rules and one landing-page
+# query covers all three. Prometheus's egress to 10.0.0.12:9100 is in
+# network-policies/monitoring.yaml.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: tower-node-exporter
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+    app.kubernetes.io/name: tower-node-exporter
+spec:
+  scrapeInterval: 30s
+  staticConfigs:
+    - targets:
+        - 10.0.0.12:9100
+  relabelings:
+    - targetLabel: job
+      replacement: host-node
+    - targetLabel: host
+      replacement: tower
+    - targetLabel: instance
+      replacement: tower

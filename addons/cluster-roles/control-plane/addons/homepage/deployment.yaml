@@ -28,7 +28,7 @@ spec:
       # Bump with a configmap.yaml change to roll the pod. Glance also watches
       # its config file, but a rollout is the change you can see land.
       annotations:
-        homepage.integratn.io/config-revision: "3"
+        homepage.integratn.io/config-revision: "4"
       labels:
         app.kubernetes.io/name: homepage
     spec:

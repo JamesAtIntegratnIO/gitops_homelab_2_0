@@ -158,6 +158,13 @@ spec:
     - to:
         - ipBlock:
             cidr: 10.0.4.0/24
+    # Tower's node_exporter (host-exporters/tower.yaml), outside the cluster
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.12/32
+      ports:
+        - protocol: TCP
+          port: 9100
     # Alertmanager (same namespace)
     - to:
         - podSelector:

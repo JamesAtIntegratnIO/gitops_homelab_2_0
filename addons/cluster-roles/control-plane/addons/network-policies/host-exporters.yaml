@@ -1,0 +1,80 @@
+# The exporters that turn machines outside the cluster into metrics:
+# prometheus-pve-exporter (Proxmox) and unpoller (UniFi). The namespace starts
+# from the default-deny Kyverno generates (kyverno-generate-default-deny.yaml);
+# everything each pod may do is below.
+#
+# In: Prometheus only, on each exporter's port. Prometheus's own egress
+# (allow-prometheus in monitoring.yaml) already reaches every namespace.
+#
+# Out: each exporter to its one device and port, nothing else -- both are
+# addressed by IP, so not even DNS. Tower's node_exporter is scraped by
+# Prometheus directly (its 10.0.0.12:9100 rule is in monitoring.yaml); no pod
+# here talks to it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: host-exporters
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pve-exporter
+  namespace: host-exporters
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: pve-exporter
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9221
+  egress:
+    # The Proxmox VE API.
+    - to:
+        - ipBlock:
+            cidr: 192.168.0.10/32
+      ports:
+        - protocol: TCP
+          port: 8006
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-unpoller
+  namespace: host-exporters
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: unpoller
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9130
+  egress:
+    # The UniFi console (UniFi OS serves the Network API on 443).
+    - to:
+        - ipBlock:
+            cidr: 192.168.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
