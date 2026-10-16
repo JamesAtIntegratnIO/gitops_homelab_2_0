@@ -6,15 +6,15 @@ alertmanager:
   enabled: true
   alertmanagerSpec:
     externalUrl: https://alertmanager.cluster.integratn.tech
+    # Pod-local, not NFS. On config-nfs-client the Unraid export kept
+    # invalidating the handle within hours of a fresh mount (10-13 and again
+    # 10-15, ~3.5h after a recreate), after which Alertmanager could not
+    # persist nflog or silences and logged "stale file handle" every 15
+    # minutes. Its state is tiny; the cost is that silences and notification
+    # history reset when the pod restarts.
     storage:
-      volumeClaimTemplate:
-        spec:
-          storageClassName: config-nfs-client
-          accessModes:
-          - ReadWriteOnce
-          resources:
-            requests:
-              storage: 5Gi
+      emptyDir:
+        sizeLimit: 512Mi
     # The dead-man's-switch ping URL (see the deadman-heartbeat receiver below).
     # Mounted as an optional volume rather than through `secrets:` on purpose:
     # a `secrets:` entry that does not exist yet leaves the pod unable to start,
