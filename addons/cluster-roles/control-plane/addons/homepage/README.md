@@ -8,13 +8,34 @@ NetworkPolicy halves in other namespaces did not move.
 
 One screen that answers "is anything wrong, and what is happening": a status
 line with a verdict and chips (critical alerts, warnings, unhealthy apps,
-failed promotions, stuck pods), CPU and memory sparklines, per-node cards and
-the N+1 request line, firing alerts by name, ArgoCD and Kargo problems, the
+failed promotions, stuck pods), the Needs you list, CPU and memory sparklines,
+per-node cards and the N+1 request line, the
 week's TV and downloads, Umami for integratn.io and bosun.integratn.io,
 upcoming films, Plex, Proxmox and Tower, upstream releases, and a launcher for
 every UI. A second page, News, has Hacker News, Lobsters and RSS.
 
 Grafana's Homelab Overview is the deep view; this page links into it.
+
+## Needs you
+
+Every chip in the status line jumps to its section of **Needs you**, the first
+widget in the centre column. Each item there is one specific thing, says what
+is wrong in a sentence, and links straight to where it is fixed, never to a
+whole dashboard or an unfiltered list:
+
+| Section | One item per | Says | Links |
+|---|---|---|---|
+| Alerts | active alert instance that is not silenced or inhibited, critical then warning | the rule's `summary` and `description`, the alert name and its namespace/object, how long it has fired | Kargo promotion and stage (`promotion` label, `kargo_url`), the ArgoCD app filtered to its unhealthy resources (`ArgoCD*` alerts), Loki logs for the pod (`namespace`/`pod` or `exported_*`), `runbook_url`, the rule's query, and a prefilled Alertmanager silence |
+| Argo apps | app not Healthy or not Synced | what that health or sync state means here | the app's tree filtered to the Degraded/Missing/... or OutOfSync resources, plus `argocd app get` |
+| Kargo promotions | stage whose last promotion Errored, Failed or Aborted | what that phase means and what to do next | the promotion itself (its failing step and error) and the stage |
+| Stuck pods | pod older than 5 minutes that is crash-looping, cannot pull, cannot start, unschedulable, stuck creating, Pending, Failed or Unknown | the reason in plain words, age and restarts | Loki logs for the pod, plus `kubectl describe` |
+
+Alerts are read from Alertmanager (`AM_URL`, `/api/v2/alerts?silenced=false&inhibited=false`),
+not Prometheus, so silencing an alert is how to take it off the page; the
+Critical and Warnings chips count the same set. If Alertmanager does not
+answer, the list says so and the chips fall back to Prometheus `ALERTS`. The
+stuck-pod PromQL appears twice, in the Status chip and in Needs you; keep the
+two in step.
 
 ## Brand
 
@@ -42,7 +63,7 @@ Elsewhere:
 - The namespace and its NetworkPolicies are in
   [`network-policies/homepage.yaml`](../network-policies/homepage.yaml). The
   other halves are the homepage entries in `allow-nginx-dataplane`
-  (`nginx-gateway.yaml`), `allow-prometheus` (`monitoring.yaml`) and
+  (`nginx-gateway.yaml`), `allow-prometheus` and `allow-alertmanager` (`monitoring.yaml`) and
   `allow-homepage-ingress` (`vcluster-media.yaml`, `umami.yaml`).
 - The authentik provider is `08c-homepage-proxy-provider.yaml` in the blueprint
   ConfigMap (`clusters/the-cluster/addons/authentik/`), and it is on the

@@ -82,6 +82,18 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+    # Alertmanager, for the Needs you list: only alerts that are not silenced
+    # or inhibited. The ingress half is in allow-alertmanager (monitoring.yaml).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alertmanager
+      ports:
+        - protocol: TCP
+          port: 9093
 ---
 # The LAN hosts the page checks or reads (the monitor and custom-api widgets in
 # configmap.yaml): Tower's Unraid UI/API and Plex, Home Assistant, the UniFi

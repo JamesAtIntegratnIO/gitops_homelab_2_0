@@ -305,6 +305,19 @@ spec:
       ports:
         - protocol: TCP
           port: 9093
+    # Homepage (home.cluster.integratn.tech) reads active, unsilenced alerts
+    # for its Needs you list. The egress half is allow-prometheus-egress in
+    # homepage.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: homepage
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: homepage
+      ports:
+        - protocol: TCP
+          port: 9093
     # AI pipelines pod queries (Alertmanager API via RAG pipeline)
     - from:
         - namespaceSelector:
