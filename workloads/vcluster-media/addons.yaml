@@ -7,7 +7,7 @@ mediaAppDefaults: &mediaAppDefaults
   namespace: media
   chartRepository: https://stakater.github.io/stakater-charts
   chartName: application
-  defaultVersion: 9.3.1
+  defaultVersion: 9.3.2
   ignoreDifferences:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
