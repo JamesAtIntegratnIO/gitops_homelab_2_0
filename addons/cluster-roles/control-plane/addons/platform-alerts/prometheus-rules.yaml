@@ -534,6 +534,44 @@ spec:
             summary: "etcd on {{ $labels.instance }} would reclaim {{ $value | humanize1024 }}B from a defrag"
             description: "boltdb never shrinks: the file is the high-water mark of pages ever needed at once, and this cluster writes ~12/s against ~6,200 live keys (~80% of it Lease renewals), so the mark creeps up ~9.4MiB/day. This is scheduled maintenance, not an incident — there is no capacity risk until the 2GB quota. Run step 5 of matchbox/talos-machineconfigs/commands.md: non-leaders first, leader last."
 
+        # Thresholds from this cluster's own 14-day baseline (2026-10-02..15),
+        # not etcd's datacenter guidance: one shared SATA SSD per node puts
+        # WAL fsync p99 at 50-64 ms on a normal day (.103 alone ~15 ms), and
+        # leader changes ran 0-7 per day. On 2026-10-16 a Trivy full rescan
+        # writing to .101/.102 pushed fsync to 0.3-3 s and every storm hour
+        # had 11-58 leader changes. The stock etcdHighFsyncDurations (0.5 s /
+        # 1 s) stays on as the hard ceiling.
+        - alert: EtcdLeaderChurn
+          expr: |
+            max(increase(etcd_server_leader_changes_seen_total{job="kube-etcd"}[1h])) > 5
+          for: 5m
+          labels:
+            severity: warning
+            component: etcd
+          annotations:
+            summary: "etcd changed leader {{ $value | printf \"%.0f\" }} times in the last hour"
+            description: "Normal here is 0-7 a day. Each change is a leader that stalled on fsync past the election timeout; leader-elected controllers lose their leases with it. Look for heavy disk writers on 10.0.4.101/102 (Trivy scan Jobs, image pulls) and see step 6 of matchbox/talos-machineconfigs/commands.md."
+        - alert: EtcdLeaderChurn
+          expr: |
+            max(increase(etcd_server_leader_changes_seen_total{job="kube-etcd"}[1h])) > 20
+          for: 5m
+          labels:
+            severity: critical
+            component: etcd
+          annotations:
+            summary: "etcd changed leader {{ $value | printf \"%.0f\" }} times in the last hour"
+            description: "More than 20 leader changes in an hour; on 2026-10-16 this level came with vcluster-media and kyverno restart storms. Find and stop the disk writer on 10.0.4.101/102 first (Trivy scan Jobs, image pulls), then see step 6 of matchbox/talos-machineconfigs/commands.md."
+        - alert: EtcdWalFsyncSlow
+          expr: |
+            histogram_quantile(0.99, sum by (instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket{job="kube-etcd"}[5m]))) > 0.15
+          for: 15m
+          labels:
+            severity: warning
+            component: etcd
+          annotations:
+            summary: "etcd WAL fsync p99 on {{ $labels.instance }} is {{ $value | humanizeDuration }}"
+            description: "Normal on this hardware is 50-64 ms (about 15 ms on 10.0.4.103). Above 150 ms for 15 minutes means something else is hammering that node's only disk; leader changes follow if it is the leader."
+
         - alert: EtcdDBSizeApproachingQuota
           expr: |
             etcd_mvcc_db_total_size_in_bytes > 1.5 * 1024 * 1024 * 1024
