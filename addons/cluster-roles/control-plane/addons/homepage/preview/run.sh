@@ -44,7 +44,7 @@ m=http://127.0.0.1:$mock_port
 export PROM_URL=$m AM_URL=$m SONARR_URL=$m/sonarr RADARR_URL=$m/radarr SABNZBD_URL=$m/sab \
        UMAMI_URL=$m/umami PLEX_URL=$m/plex PVE_URL=$m/pve UNRAID_URL=$m/unraid \
        HA_URL=$m/ha JELLYFIN_URL=$m/jellyfin GITHUB_API_URL=$m/gh \
-       HOMEPAGE_VAR_HA_TOKEN=mock HOMEPAGE_VAR_JELLYFIN_KEY=mock
+       HOMEPAGE_VAR_HA_KEY=mock HOMEPAGE_VAR_JELLYFIN_KEY=mock
 
 if [ "$state" = "--print" ]; then
   "$bin" --config "$work/glance.yml" config:print

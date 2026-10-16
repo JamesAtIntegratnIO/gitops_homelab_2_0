@@ -178,7 +178,7 @@ The newer keys, all optional (a widget without its key says which field to add):
 
 | Field | What | Where to get it |
 |---|---|---|
-| `HOMEPAGE_VAR_HA_TOKEN` | Home tab's House card | HA profile -> Security -> Long-lived access tokens |
+| `HOMEPAGE_VAR_HA_KEY` | Home tab's House card | already in the item from the old Homepage; a long-lived token from HA profile -> Security |
 | `HOMEPAGE_VAR_JELLYFIN_KEY` | Media tab's Jellyfin | Jellyfin Dashboard -> API Keys |
 | `HOMEPAGE_VAR_GITHUB_TOKEN` | Needs you's Pull requests, for private repos and rate limit | a fine-grained read-only token (Pull requests: read) |
 
