@@ -11,7 +11,6 @@
 {{ $uni := (newRequest $q | withParameter "query" `max(up{job="unpoller"})` | getResponse).JSON }}
 {{ $uDis := (newRequest $q | withParameter "query" `sum(max by (subsystem) (unpoller_site_disconnected)) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
 {{ $uCli := (newRequest $q | withParameter "query" `sum(max by (subsystem) (unpoller_site_users{subsystem=~"lan|wlan"})) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
-{{ $uLat := (newRequest $q | withParameter "query" `max(unpoller_site_latency_seconds{subsystem="www"}) * 1000` | getResponse).JSON }}
 <ul class="list list-gap-10">
   {{ range sortByString "metric.host" "asc" $up }}
     {{ $h := .String "metric.host" }}{{ $u := .Float "value.1" }}
@@ -36,7 +35,7 @@
   <li class="hl-row">
     <a class="hl-title hl-data" href="/hosts#host-unifi">unifi</a>
     <span class="shrink-0">
-      {{ if and ($uni.Exists "data.result.0") (eq ($uni.Float "data.result.0.value.1") 1.0) }}<span class="hl-num color-subdue">{{ $uCli }} clients{{ if $uLat.Exists "data.result.0" }} · {{ $uLat.Float "data.result.0.value.1" | printf "%.0f" }} ms{{ end }}</span>{{ end }}
+      {{ if and ($uni.Exists "data.result.0") (eq ($uni.Float "data.result.0.value.1") 1.0) }}<span class="hl-num color-subdue">{{ $uCli }} clients</span>{{ end }}
       {{ if not (and ($uni.Exists "data.result.0") (eq ($uni.Float "data.result.0.value.1") 1.0)) }}<span class="hl-tag">No data</span>{{ else if gt $uDis 0 }}<span class="hl-tag warn">{{ $uDis }} offline</span>{{ else }}<span class="hl-tag ok">Up</span>{{ end }}
     </span>
   </li>

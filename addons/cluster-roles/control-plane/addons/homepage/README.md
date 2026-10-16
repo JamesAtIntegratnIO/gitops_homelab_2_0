@@ -15,7 +15,7 @@ bosun.integratn.io, one line per host outside the cluster, backups and certs
 security (Critical/High image vulnerabilities from Trivy, the worst namespaces,
 Kyverno policies failing in the last 24h), the house (Home Assistant: alarm
 state, kitchen display online, unavailable entities, batteries under 20%),
-upstream releases, and a launcher for every UI. **Needs you** has the detail behind every chip
+upstream releases, and a launcher for every UI. Home is two columns: the work in a wide centre (backups, security and the house three across; the launcher's groups side by side at the bottom) and one narrow rail (clock, calendar, reachability, hosts, releases). **Needs you** has the detail behind every chip
 and row (below). **Hosts** has the machines outside the cluster (below).
 **Media** has TV and films side by side (only what is coming, plus anything aired or
 released and not downloaded, flagged Missing and linked to its Sonarr/Radarr
