@@ -26,6 +26,14 @@ spec:
           - resources:
               kinds:
                 - Pod
+              # CREATE only. seccompProfile is immutable on a running pod, so
+              # adding it on UPDATE can never succeed: it made every update to a
+              # pod created without one fail, including the Job controller
+              # removing its job-tracking finalizer. Nine Trivy scan pods sat
+              # Terminating from 2026-08-29 for that reason. Every new pod is
+              # still mutated, so this weakens nothing.
+              operations:
+                - CREATE
       exclude:
         any:
           # kube-system: Cilium manages its own security context
