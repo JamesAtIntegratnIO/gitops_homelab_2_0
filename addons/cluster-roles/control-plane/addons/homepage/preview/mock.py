@@ -84,8 +84,8 @@ class H(BaseHTTPRequestHandler):
         if "ALERTS" in q: return self.send(vec([({},1)]))
         if q.startswith("count(argocd_app_info{health_status"): return self.send(vec([({},0 if quiet else 1)]))
         if q.startswith("count(kargo_stage"): return self.send(vec([({},0 if quiet else 1)]))
-        if "kube_node_status_condition" in q: return self.send(vec([({},3)]))
-        if q.startswith("count(kube_node_info)"): return self.send(vec([({},3)]))
+        if q.startswith("sum(kube_node_status_condition"): return self.send(vec([({},3)]))
+        if q.startswith("count(kube_node_info"): return self.send(vec([({},3)]))
         if q.startswith("argocd_app_info"):
             return self.send(vec([] if quiet else [({"name":"vcluster-media-sonarr","namespace":"argocd","project":"default","dest_namespace":"vcluster-media","health_status":"Degraded","sync_status":"Synced"},1),({"name":"kyverno","namespace":"argocd","project":"platform-services","dest_namespace":"kyverno","health_status":"Healthy","sync_status":"OutOfSync"},1)]))
         if q.startswith("kargo_stage_last"):
@@ -103,6 +103,24 @@ class H(BaseHTTPRequestHandler):
         if q.startswith("sum by (severity) (trivy"): return self.send(vec([({"severity":"Critical"},312),({"severity":"High"},1840)]))
         if q.startswith("topk(4, sum by (namespace) (trivy"): return self.send(vec([({"namespace":"authentik"},88),({"namespace":"monitoring"},61),({"namespace":"ai"},40),({"namespace":"kratix-platform-system"},12)]))
         if "kyverno_policy_results_total" in q: return self.send(vec([] if quiet else [({"policy_name":"require-requests-limits"},14),({"policy_name":"disallow-latest-tag"},2)]))
+        # the-cluster card: Talos nodes via job="node-exporter", host cluster kube_* via cluster=""
+        N=[f"talos-{x}" for x in ("xez-xys","4kg-ymz","1jv-u7d")]
+        if 'job="node-exporter"' in q:
+            if "node_filesystem" in q: return self.send(vec([({"nodename":n},v) for n,v in zip(N,(48,52,79))]))
+            if "node_disk_io_time" in q: return self.send(vec([({"nodename":n},v) for n,v in zip(N,(22,31,86))]))
+            if "node_boot_time" in q: return self.send(vec([({"nodename":n},v) for n,v in zip(N,(86400*21.2,86400*21.2,3600*5))]))
+            if "hwmon" in q: return self.send(vec([({"nodename":n},v) for n,v in zip(N,(52,58,71))]))
+            return self.send(vec([({"nodename":n},v) for n,v in zip(N,(38,44,72))]))
+        if q.startswith("count by (node) (kube_pod_info"): return self.send(vec([({"node":n},v) for n,v in zip(N,(54,65,73))]))
+        if "resource=\"pods\"" in q or 'resource="pods"' in q: return self.send(vec([({"node":n},110) for n in N]))
+        if q.startswith("max by (node) (kube_node_status_condition"): return self.send(vec([({"node":n},0 if (n==N[2] and not quiet and False) else 1) for n in N]))
+        if q.startswith("max by (kubelet_version)"): return self.send(vec([({"kubelet_version":"v1.34.1"},1)]))
+        if "kube_pod_container_status_restarts_total" in q and q.startswith("round"): return self.send(vec([({},14)]))
+        if q.startswith("count(kube_pod_status_phase"): return self.send(vec([({},192)]))
+        if "etcd_server_has_leader" in q: return self.send(vec([({},1)]))
+        if "etcd_disk_wal_fsync" in q: return self.send(vec([({},31.4 if not quiet else 6.2)]))
+        if "etcd_server_leader_changes" in q: return self.send(vec([({},4 if not quiet else 0)]))
+        if "etcd_mvcc_db_total_size" in q: return self.send(vec([({},84.0)]))
         fresh = MODE=="fresh"
         H3=["holocron","pitdroid"]
         if 'max by (host) (up{job="host-node"})' in q:
