@@ -1,7 +1,7 @@
 {{ $tok := .Options.StringOr "key" "" }}
 {{ $ha := .Options.StringOr "url" "" }}
 {{ if eq $tok "" }}
-  <p class="hl-none">Not recorded: add a Home Assistant long-lived token to <code>homepage-secret</code> as <code>HOMEPAGE_VAR_HA_TOKEN</code>.</p>
+  <p class="hl-none">Not recorded: add a Home Assistant long-lived token to <code>homepage-secret</code> as <code>HOMEPAGE_VAR_HA_KEY</code>.</p>
 {{ else }}
 {{ $r := newRequest (concat $ha "/api/states") | withHeader "Authorization" (concat "Bearer " $tok) | getResponse }}
 {{ if ne $r.Response.StatusCode 200 }}

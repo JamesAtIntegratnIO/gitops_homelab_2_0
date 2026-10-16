@@ -174,7 +174,7 @@
           cache: 2m
           options:
             url: ${HA_URL}
-            key: ${HOMEPAGE_VAR_HA_TOKEN}
+            key: ${HOMEPAGE_VAR_HA_KEY}
           template: |
             $include: home--house.html
 
