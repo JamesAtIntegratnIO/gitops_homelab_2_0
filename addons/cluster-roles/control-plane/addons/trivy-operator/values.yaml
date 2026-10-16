@@ -28,8 +28,14 @@ securityContext:
 operator:
   # Disable infra assessment scanning — node-collector can't run on Talos
   infraAssessmentScannerEnabled: false
-  # Conservative concurrency for homelab resource constraints
-  scanJobsConcurrentLimit: 3
+  # One scan at a time. In Standalone mode every scan Job downloads and
+  # unpacks the Trivy DB onto the node's only disk, the same disk as
+  # /var/lib/etcd. On 2026-10-16 a full rescan (25 -> 790 reports, up to 166
+  # scan pods/hour on .101/.102) pushed etcd WAL fsync p99 on .102 to 1-3 s and
+  # caused 196 leader changes in a day against a 14-day baseline of 0-7. One
+  # slot keeps the steady state (~13 scans/hour) and turns a full rescan into
+  # a slow trickle instead of a storm.
+  scanJobsConcurrentLimit: 1
   scanJobTimeout: 10m
   # Clean up completed scan jobs after 30s
   scanJobTTL: 30s

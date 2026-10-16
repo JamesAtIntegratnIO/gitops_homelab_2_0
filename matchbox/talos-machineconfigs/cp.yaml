@@ -36,3 +36,13 @@ cluster:
   etcd:
     extraArgs:
       listen-metrics-urls: "https://0.0.0.0:2381"
+      # etcd defaults are 100 ms / 1000 ms, sized for disks that fsync in
+      # single-digit ms. These nodes share one SATA SSD between the OS,
+      # containerd and etcd: fsync p99 sits at ~55 ms on .101/.102 and
+      # stalls 0.5-3 s under image or scan I/O, and a leader stalled on fsync
+      # stops sending heartbeats, so followers call an election. 250/2500
+      # rides out the stalls seen on the leader so far (max 478 ms on .101);
+      # the cost is that a node that really dies takes ~2.5 s, not ~1 s, to
+      # lose leadership. Keep election-timeout = 10x heartbeat-interval.
+      heartbeat-interval: "250"
+      election-timeout: "2500"

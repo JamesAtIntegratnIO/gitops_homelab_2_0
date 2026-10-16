@@ -101,6 +101,25 @@ talosctl -n <non-leader-1> etcd defrag
 talosctl -n <non-leader-2> etcd defrag
 talosctl -n <leader> etcd defrag
 talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status     # DB SIZE should be near IN USE
+
+# 6. etcd heartbeat/election timing (2026-10-16). Defaults 100 ms / 1000 ms
+#    assume a disk that fsyncs in single-digit ms; here fsync p99 is ~55 ms
+#    and stalls for 0.5-3 s under image/scan I/O, and each stall on the leader
+#    was a leader change (196 on 2026-10-16 against 0-7/day before). Restarts
+#    etcd on the patched node only, no reboot. One node at a time; followers
+#    first, the leader last; wait for all three members healthy in between.
+talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status        # note the leader
+talosctl -n <follower-1> patch mc --patch-file live-etcd-timing.yaml
+talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status        # 3 members, same raft index climbing
+talosctl -n <follower-2> patch mc --patch-file live-etcd-timing.yaml
+talosctl -n <leader> patch mc --patch-file live-etcd-timing.yaml
+#    Verify the flags took on each node:
+talosctl -n 10.0.4.101 ps | grep etcd       # or: talosctl -n <ip> get etcdspec -o yaml
+#    Optional, any time: prefer .103 as leader. Its disk fsyncs in ~15 ms
+#    against ~55 ms on .101/.102 (and .102's drive is 4x slower than .101's
+#    identical model, so possibly worn). etcd has no leader priority, so this
+#    does not stick across elections; re-run it when the leader is elsewhere.
+talosctl -n <current-leader> etcd forfeit-leadership   # repeat until 10.0.4.103 leads
 ```
 
 `cluster.apiServer.extraArgs` restarts the kube-apiserver static pod on that
@@ -121,6 +140,7 @@ kubectl -n kube-system get pods -l component=kube-apiserver -o wide
 | `work.yaml` | DHCP networking | No dedicated workers exist today; kept for when one is added. |
 | `dns.yaml` | `machine.network.nameservers` | Nothing set this, so nodes took a single DHCP resolver and CoreDNS forwarded everything to it. One upstream means "upstream unhealthy" and "no healthy upstream" are the same event, which is how a router stall becomes a cluster-internal DNS outage. |
 | `live-coredns-disabled.yaml` | `cluster.coreDNS.disabled` | Hands CoreDNS to ArgoCD. `cluster.coreDNS` accepts only `disabled` and `image` — `talosctl validate` rejects `corefile`/`Corefile`/`extraConfig` as unknown keys — so a Corefile that needs a custom line has to be owned from git. Paired with the `coredns-workload` addon; apply it **second**. Applied 2026-08-30. |
+| `live-etcd-timing.yaml` | `cluster.etcd.extraArgs` heartbeat-interval 250, election-timeout 2500 | Fewer leader elections on a shared SATA disk: a leader stalled on fsync for up to ~2.5 s keeps its term. Real failover takes ~2.5 s instead of ~1 s. Also in `cp.yaml` for rebuilt nodes. |
 | `watchdog.yaml` | `WatchdogTimerConfig` | Talos reboots itself on a kernel panic already. The watchdog covers the case where nothing panics — a hung kernel or a hardware fault — by resetting the machine after 2 minutes without a heartbeat. |
 
 ## Still open at the Talos layer

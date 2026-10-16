@@ -686,6 +686,18 @@ F0821 16:15:57 leaderelection lost
 
 Any leader-elected controller can lose its lease this way, and several have.
 
+## Leader changes come from disk stalls, not the steady latency (2026-10-16)
+
+Measured over 14 days: fsync p99 sits at 50-64 ms on .101/.102 (about 15 ms on
+.103) every day, and leader changes ran 0-7 a day. That steady latency does not
+cause elections. Stalls do: on 2026-10-16 a Trivy full rescan (Standalone mode
+unpacks the DB per scan Job onto the node disk) pushed .102 to 1-3 s and caused
+196 leader changes. Mitigations: `scanJobsConcurrentLimit: 1`, etcd
+heartbeat/election 250/2500 ms (Talos, step 6 of commands.md), and alerts sized
+to this baseline (`EtcdLeaderChurn`, `EtcdWalFsyncSlow`). The nodes (ThinkCentre
+M900 Tiny, one 256 GB Samsung SATA SSD each) have no second disk. .102's PM871b
+writes ~84 ms average against ~21 ms on .101's identical model: possibly worn.
+
 ## The database was 82% empty space (found 2026-08-21, **defragmented 2026-08-22**)
 
 **Resolved 2026-08-22T03:4xZ:** `talosctl etcd defrag` on 102, 101, then the

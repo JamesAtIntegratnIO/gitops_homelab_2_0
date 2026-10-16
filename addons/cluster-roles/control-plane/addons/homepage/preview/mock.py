@@ -118,8 +118,8 @@ class H(BaseHTTPRequestHandler):
         if "kube_pod_container_status_restarts_total" in q and q.startswith("round"): return self.send(vec([({},14)]))
         if q.startswith("count(kube_pod_status_phase"): return self.send(vec([({},192)]))
         if "etcd_server_has_leader" in q: return self.send(vec([({},1)]))
-        if "etcd_disk_wal_fsync" in q: return self.send(vec([({},31.4 if not quiet else 6.2)]))
-        if "etcd_server_leader_changes" in q: return self.send(vec([({},4 if not quiet else 0)]))
+        if "etcd_disk_wal_fsync" in q: return self.send(vec([({},420.0 if not quiet else 55.0)]))
+        if "etcd_server_leader_changes" in q: return self.send(vec([({},37 if not quiet else 2)]))
         if "etcd_mvcc_db_total_size" in q: return self.send(vec([({},84.0)]))
         fresh = MODE=="fresh"
         H3=["holocron","pitdroid"]
