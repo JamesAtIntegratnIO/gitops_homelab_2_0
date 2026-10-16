@@ -6,20 +6,26 @@ namespace, Deployment and Kargo target keep the name `homepage` from the
 Homepage (gethomepage.dev) it replaced, so the authentik provider and the
 NetworkPolicy halves in other namespaces did not move.
 
-One screen that answers "is anything wrong, and what is happening": a status
-line with a verdict and chips (critical alerts, warnings, unhealthy apps,
-failed promotions, stuck pods), the Needs you list, CPU and memory sparklines,
-per-node cards and the N+1 request line, the
-week's TV and downloads, Umami for integratn.io and bosun.integratn.io,
-upcoming films, Plex, Proxmox and Tower, upstream releases, and a launcher for
-every UI. A second page, News, has Hacker News, Lobsters and RSS.
+Four tabs. **Home** answers "is anything wrong": a status line with a verdict
+and chips (critical alerts, warnings, unhealthy apps, failed promotions, stuck
+pods), CPU and memory sparklines, per-node cards and the N+1 request line,
+firing alerts by name, ArgoCD and Kargo problems, Umami for integratn.io and
+bosun.integratn.io, Proxmox and Tower, upstream releases, and a launcher for
+every UI. **Needs you** has the detail behind every chip and row (below).
+**Media** has TV and films (only what is coming, plus anything aired or
+released and not downloaded, flagged Missing and linked to its Sonarr/Radarr
+page), Plex, and SABnzbd (flags a paused queue and this week's failed
+downloads). **News** has Hacker News, Lobsters and RSS.
 
 Grafana's Homelab Overview is the deep view; this page links into it.
 
 ## Needs you
 
-Every chip in the status line jumps to its section of **Needs you**, the first
-widget in the centre column. Each item there is one specific thing, says what
+Every chip in the status line, and every row of Home's Firing alerts, opens
+the **Needs you** tab at that section or alert (`/needs-you#needs-pods`,
+`/needs-you#alert-<name>`; a small script in `document.head` scrolls there
+once the widget has loaded). Delivery's rows open the ArgoCD app filtered to
+its bad resources and the Kargo promotion itself. Each item there is one specific thing, says what
 is wrong in a sentence, and links straight to where it is fixed, never to a
 whole dashboard or an unfiltered list:
 
@@ -32,7 +38,7 @@ whole dashboard or an unfiltered list:
 
 Alerts are read from Alertmanager (`AM_URL`, `/api/v2/alerts?silenced=false&inhibited=false`),
 not Prometheus, so silencing an alert is how to take it off the page; the
-Critical and Warnings chips count the same set. If Alertmanager does not
+Critical and Warnings chips and Home's Firing alerts read the same set. If Alertmanager does not
 answer, the list says so and the chips fall back to Prometheus `ALERTS`. The
 stuck-pod PromQL appears twice, in the Status chip and in Needs you; keep the
 two in step.
@@ -76,8 +82,9 @@ Edit `glance.yml` inside `configmap.yaml`, bump the
 same commit, and merge; the pod rolls with the new config.
 
 - **On a phone** Glance shows one column at a time and switches with a bottom
-  bar. Its stock dots are relabelled LAUNCH, CLUSTER and HOSTS in
-  `document.head`, by column index; keep them in step if columns move.
+  bar. Its stock dots are relabelled per tab in `document.head` (Home:
+  LAUNCH, CLUSTER, HOSTS; Media: COMING, NOW; News: LINKS, FEEDS), by page
+  slug and column index; keep them in step if columns move.
 - **Icons** load in the browser from jsDelivr. `di:` names must exist in
   homarr-labs/dashboard-icons (some only as png: `di:trivy.png`); Kargo has
   none, so it uses an `mdi:` icon.
