@@ -1,6 +1,15 @@
 alertmanager:
   enabled: false
 
+# The host Prometheus evaluates the default rules over everything this agent
+# remote-writes. Evaluating them here as well sent the same recording-rule
+# series twice, and the host rejected one copy as "out of order sample"
+# (PrometheusRemoteStorageFailures). Note `mode: agent` below is not a chart
+# value and Prometheus 3.x ignores `--enable-feature=agent`, so this still
+# runs as a full server; `prometheus.agentMode: true` is the real switch.
+defaultRules:
+  create: false
+
 grafana:
   enabled: false
 

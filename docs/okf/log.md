@@ -1,5 +1,8 @@
 # Update Log
 
+## 2026-10-16
+* **Fix**: **PrometheusRemoteStorageFailures on vcluster-media was a rule collision, not backlog.** ~2% of the agent's samples (~43/s) were rejected as out of order: the "agent" is a full Prometheus (`mode: agent` is not a chart key; Prometheus 3.x ignores `--enable-feature=agent`), so it evaluated the default recording rules and remote-wrote them while the host computed the same series. `defaultRules.create: false` on the agent.
+
 ## 2026-10-15
 * **Fix**: **Two false alerts from vcluster-media's newly arriving metrics.** With the agent's series on the host, the host's default rules fired KubeletDown (critical) and PrometheusNotConnectedToAlertmanagers for `cluster="vcluster-media"`: the agent has kubelet scraping and Alertmanager off by design. The agent's remote_write now drops `kube_node_info` and `prometheus_notifications_alertmanagers_discovered`.
 * **Fix**: **vcluster-media's Prometheus agent reloads its config again.** After #452 remote_write flows (`count({cluster="vcluster-media"})` ~53k series, ~58k peak, mostly the apiserver job). Config reloads had failed since the 92.x bump because the vcluster syncer never added the new CA key to the host copy of the tls-assets Secret; a syncer restart did not help, deleting the host copy did (recreated in 8s, reload succeeded at 19:50Z). Recorded in known-issues.
