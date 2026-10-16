@@ -25,6 +25,14 @@ kubeProxy:
 kubelet:
   enabled: false
 
+# The host Prometheus evaluates the recording rules over the series this
+# Prometheus remote-writes. Evaluating them here too produced identical series
+# (same labels, including the external ones) and the host rejected ~2% of the
+# writes as "out of order sample" (PrometheusRemoteStorageFailures). Despite
+# `mode: agent` below this runs as a full server, so it must not ship rules.
+defaultRules:
+  create: false
+
 prometheus:
   service:
     type: ClusterIP
