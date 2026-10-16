@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-10-16
+* **Fix**: **Nine Trivy scan pods stuck Terminating since 08-29.** Kyverno's cleanup deleted them, but their `batch.kubernetes.io/job-tracking` finalizer could never be removed: `mutate-seccomp-default` added `seccompProfile` on every pod UPDATE, a field that is immutable on a running pod, so each update (the Job controller's and a manual patch alike) was rejected. The policy now mutates on CREATE only. The stuck pods still need their finalizer removed once.
 * **Fix**: **PrometheusRemoteStorageFailures on vcluster-media was a rule collision, not backlog.** ~2% of the agent's samples (~43/s) were rejected as out of order: the "agent" is a full Prometheus (`mode: agent` is not a chart key; Prometheus 3.x ignores `--enable-feature=agent`), so it evaluated the default recording rules and remote-wrote them while the host computed the same series. `defaultRules.create: false` on the agent.
 
 ## 2026-10-15
