@@ -452,6 +452,32 @@ projects:
         updates:
           - file: addons/cluster-roles/control-plane/addons/homepage/deployment.yaml
             keys: [spec.template.spec.containers.0.image]
+      pve-exporter:
+        scope: host-exporters
+        # Docker Hub, polled anonymously, so the old cadence. Plain X.Y.Z.
+        interval: 6h0m0s
+        image:
+          repoURL: docker.io/prompve/prometheus-pve-exporter
+          allowTags: ['^\d+\.\d+\.\d+$']
+        autoMerge: patch
+        verify:
+          apps:
+            - host-exporters-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/host-exporters/pve-exporter.yaml
+            keys: [spec.template.spec.containers.0.image]
+      unpoller:
+        scope: host-exporters
+        image:
+          repoURL: ghcr.io/unpoller/unpoller
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        autoMerge: patch
+        verify:
+          apps:
+            - host-exporters-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/host-exporters/unpoller.yaml
+            keys: [spec.template.spec.containers.0.image]
       cloudflared:
         scope: cloudflared
         # Docker Hub, polled anonymously -- held at the old cadence while the

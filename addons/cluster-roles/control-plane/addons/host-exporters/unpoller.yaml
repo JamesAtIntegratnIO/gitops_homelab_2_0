@@ -1,0 +1,125 @@
+# UniFi Poller (github.com/unpoller/unpoller): the UniFi console at
+# 192.168.0.1 as unpoller_* metrics -- site health per subsystem (WAN, LAN,
+# WLAN, VPN), WAN drops and latency, and every adopted device and client.
+# InfluxDB output is off; Prometheus scrapes :9130.
+#
+# Logs in with the `unifi-mcp-login` 1Password item (externalsecret.yaml),
+# the same account the UniFi MCP uses. A dedicated read-only local account
+# (UniFi OS > Admins, "View Only") would be tighter; swap the item when one
+# exists.
+#
+# The Deployment stays the FIRST document in this file: Kargo rewrites its
+# image line in place (target `unpoller` in kargo-projects/values.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unpoller
+  namespace: host-exporters
+  labels:
+    app.kubernetes.io/name: unpoller
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: unpoller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: unpoller
+    spec:
+      automountServiceAccountToken: false
+      priorityClassName: platform-batch
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: unpoller
+          image: ghcr.io/unpoller/unpoller:v5.5.1@sha256:6d941ea1e46edebf12225b4ee9ca9abb88019a55f1add634e6f9300a201847b4
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: UP_UNIFI_DEFAULT_URL
+              value: https://192.168.0.1
+            # The console's own self-signed certificate.
+            - name: UP_UNIFI_DEFAULT_VERIFY_SSL
+              value: "false"
+            - name: UP_UNIFI_DEFAULT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: unpoller
+                  key: username
+            - name: UP_UNIFI_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: unpoller
+                  key: password
+            # The image's example config turns InfluxDB on.
+            - name: UP_INFLUXDB_DISABLE
+              value: "true"
+            - name: UP_PROMETHEUS_HTTP_LISTEN
+              value: 0.0.0.0:9130
+            # Per-app DPI series multiply by every client; not worth it here.
+            - name: UP_UNIFI_DEFAULT_SAVE_DPI
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 9130
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 60
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: unpoller
+  namespace: host-exporters
+  labels:
+    app.kubernetes.io/name: unpoller
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: unpoller
+  ports:
+    - name: http
+      port: 9130
+      targetPort: http
+      protocol: TCP
+---
+# job="unpoller" (the Service name).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: unpoller
+  namespace: host-exporters
+  labels:
+    app.kubernetes.io/name: unpoller
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: unpoller
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s
+      scrapeTimeout: 30s
