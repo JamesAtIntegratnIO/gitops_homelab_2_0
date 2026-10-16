@@ -1,0 +1,25 @@
+- name: News
+  columns:
+    - size: full
+      widgets:
+        - type: hacker-news
+          limit: 20
+          collapse-after: 10
+        - type: lobsters
+          tags: [devops, linux, networking, go]
+          limit: 15
+          collapse-after: 8
+    - size: small
+      widgets:
+        - type: rss
+          title: Homelab reading
+          style: vertical-list
+          limit: 15
+          collapse-after: 8
+          feeds:
+            - url: https://kubernetes.io/feed.xml
+              title: Kubernetes
+            - url: https://www.cncf.io/feed/
+              title: CNCF
+            - url: https://selfh.st/rss/
+              title: selfh.st

@@ -1,0 +1,20 @@
+- name: Needs you
+  slug: needs-you
+  columns:
+    - size: full
+      widgets:
+        # ── Needs you: every open item, why it is open, and where to act ──
+        # Its own tab so Home stays a glance; the status chips on Home
+        # link to its sections. Each item names the exact thing (the
+        # alert instance, the app, the stage's promotion, the pod), says
+        # what is wrong in a sentence, and links straight to it: never to
+        # a whole dashboard or an unfiltered list.
+        - type: custom-api
+          title: Needs you
+          hide-header: true
+          cache: 1m
+          options:
+            prom: ${PROM_URL}
+            am: ${AM_URL}
+          template: |
+            $include: needs-you--needs-you.html

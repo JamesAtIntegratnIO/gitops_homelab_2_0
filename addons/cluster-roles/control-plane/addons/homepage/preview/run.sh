@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Preview the landing page locally, against made-up data, before it ships.
+#
+#   preview/run.sh            # http://localhost:8088, state "busy"
+#   preview/run.sh quiet      # all clear; also: fresh, amdown (see mock.py)
+#   preview/run.sh --print    # the full config with every $include resolved
+#
+# Runs the same Glance version the Deployment pins (downloaded once into
+# ~/.cache/glance-preview), on a copy of glance/, with every API URL pointed
+# at mock.py. Glance reloads when a file in the copy changes, not the
+# original, so re-run after an edit. Needs python3 and curl, nothing else.
+# PORT and MOCK_PORT override 8088 and 9999.
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")" && pwd)
+addon=$(dirname "$here")
+port=${PORT:-8088}
+mock_port=${MOCK_PORT:-9999}
+state=${1:-busy}
+
+# Every file in glance/ must be in the kustomization's configMapGenerator, and
+# the other way round, or the live pod fails to start on a missing include.
+listed=$(sed -n 's|^ *- glance/||p' "$addon/kustomization.yaml" | sort)
+present=$(cd "$addon/glance" && ls | sort)
+if [ "$listed" != "$present" ]; then
+  echo "kustomization.yaml and glance/ disagree:" >&2
+  diff <(echo "$listed") <(echo "$present") | sed -n 's/^</  listed, no such file:/p; s/^>/  not listed:/p' >&2
+  exit 1
+fi
+
+ver=$(sed -n 's|.*glanceapp/glance:\(v[0-9.]*\)@.*|\1|p' "$addon/deployment.yaml")
+os=$(uname -s | tr '[:upper:]' '[:lower:]')
+case $(uname -m) in x86_64|amd64) arch=amd64 ;; arm64|aarch64) arch=arm64 ;; *) arch=$(uname -m) ;; esac
+cache=${XDG_CACHE_HOME:-$HOME/.cache}/glance-preview
+bin=$cache/glance-$ver-$os-$arch
+if [ ! -x "$bin" ]; then
+  mkdir -p "$cache"
+  echo "Downloading Glance $ver ($os-$arch)..." >&2
+  curl -fsSL "https://github.com/glanceapp/glance/releases/download/$ver/glance-$os-$arch.tar.gz" | tar -xz -C "$cache" glance
+  mv "$cache/glance" "$bin"
+fi
+
+work=$(mktemp -d)
+mock_pid=
+cleanup() { [ -n "$mock_pid" ] && kill "$mock_pid" 2>/dev/null; rm -rf "$work"; }
+trap cleanup EXIT
+cp "$addon"/glance/* "$work/"
+sed -i.bak "s/^  port: .*/  port: $port/; s/^  proxied: .*/  proxied: false/" "$work/glance.yml"
+
+# env.yaml's keys (every ${NAME} the config uses), then the URLs swapped for
+# the mock. API keys stay empty.
+while IFS= read -r kv; do export "$kv"; done < <(sed -n 's/^  \([A-Z_]*\): *"\{0,1\}\([^"]*\)"\{0,1\}$/\1=\2/p' "$addon/env.yaml")
+m=http://127.0.0.1:$mock_port
+export PROM_URL=$m AM_URL=$m SONARR_URL=$m/sonarr RADARR_URL=$m/radarr SABNZBD_URL=$m/sab \
+       UMAMI_URL=$m/umami PLEX_URL=$m/plex PVE_URL=$m/pve UNRAID_URL=$m/unraid
+
+if [ "$state" = "--print" ]; then
+  "$bin" --config "$work/glance.yml" config:print
+  exit
+fi
+
+python3 "$here/mock.py" "$state" "$mock_port" &
+mock_pid=$!
+echo "Landing page preview ($state): http://localhost:$port" >&2
+"$bin" --config "$work/glance.yml"

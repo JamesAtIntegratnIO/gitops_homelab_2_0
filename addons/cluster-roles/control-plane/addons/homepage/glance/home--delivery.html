@@ -1,0 +1,26 @@
+{{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{ $total := (newRequest $q | withParameter "query" `count(argocd_app_info) or vector(0)` | getResponse).JSON.Int "data.result.0.value.1" }}
+{{ $bad := (newRequest $q | withParameter "query" `argocd_app_info{health_status!="Healthy"} or argocd_app_info{sync_status!="Synced"}` | getResponse).JSON.Array "data.result" }}
+{{ $kargo := (newRequest $q | withParameter "query" `kargo_stage_last_promotion_phase{phase=~"Errored|Failed|Aborted"} == 1` | getResponse).JSON.Array "data.result" }}
+<div class="hl-row" style="margin-bottom:1.2rem">
+  <div><div class="hl-big">{{ sub (toFloat $total) (toFloat (len $bad)) | toInt }}<span class="color-subdue">/{{ $total }}</span></div><div class="hl-label">Argo apps clean</div></div>
+  <div style="text-align:right"><div class="hl-big">{{ len $kargo }}</div><div class="hl-label">Kargo stages failed</div></div>
+</div>
+{{ if and (eq (len $bad) 0) (eq (len $kargo) 0) }}
+  <div class="hl-callout ok"><span class="hl-tag ok">Synced</span> Everything matches main.</div>
+{{ end }}
+<ul class="list list-gap-8 collapsible-container" data-collapse-after="5">
+  {{ range $bad }}
+    {{ $h := .String "metric.health_status" }}
+    <li class="hl-row">
+      <a class="color-highlight text-truncate" href="https://argocd.cluster.integratn.tech/applications/argocd/{{ .String "metric.name" }}?view=tree&resource={{ if ne $h "Healthy" }}{{ concat "health:" $h }}{{ else }}sync:OutOfSync{{ end }}" target="_blank">{{ .String "metric.name" }}</a>
+      <span class="hl-tag {{ if or (eq $h "Degraded") (eq $h "Missing") }}bad{{ else }}warn{{ end }}">{{ if ne $h "Healthy" }}{{ $h }}{{ else }}{{ .String "metric.sync_status" }}{{ end }}</span>
+    </li>
+  {{ end }}
+  {{ range $kargo }}
+    <li class="hl-row">
+      <a class="color-highlight text-truncate" href="https://kargo.cluster.integratn.tech/project/{{ .String "metric.namespace" }}/{{ with .String "metric.promotion" }}promotion/{{ . }}{{ else }}stage/{{ .String "metric.stage" }}{{ end }}" target="_blank">{{ .String "metric.namespace" }} / {{ .String "metric.stage" }}</a>
+      <span class="hl-tag bad">{{ .String "metric.phase" }}</span>
+    </li>
+  {{ end }}
+</ul>

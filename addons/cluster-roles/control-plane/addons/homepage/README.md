@@ -24,7 +24,7 @@ Grafana's Homelab Overview is the deep view; this page links into it.
 
 Every chip in the status line, and every row of Home's Firing alerts, opens
 the **Needs you** tab at that section or alert (`/needs-you#needs-pods`,
-`/needs-you#alert-<name>`; a small script in `document.head` scrolls there
+`/needs-you#alert-<name>`; a small script in `glance/glance.js` scrolls there
 once the widget has loaded). Delivery's rows open the ArgoCD app filtered to
 its bad resources and the Kargo promotion itself. Each item there is one specific thing, says what
 is wrong in a sentence, and links straight to where it is fixed, never to a
@@ -73,11 +73,14 @@ they cross a threshold. Signal orange is the Integratn mark in the header
 (served from `https://integratn.io/favicon.svg`) and nothing else, so Glance's
 `primary-color` is the neutral text colour. A figure that cannot be read says
 "Not recorded" and why, in dim text, never an error box. The tokens are the
-`:root` block at the top of `document.head` in `configmap.yaml`.
+`:root` block at the top of `glance/glance.css`.
 
 | File | What it is |
 |---|---|
-| `configmap.yaml` | `glance-config` (the whole `glance.yml`) and `glance-env` (API URLs plus an empty default for every key) |
+| `glance/` | the page config as plain files: `glance.yml` (server, theme, the page list), `page-<tab>.yml` per tab, `<tab>--<widget>.html` per custom widget template, `glance.css` and `glance.js` |
+| `kustomization.yaml` | lists every file and generates the `glance-config` ConfigMap from `glance/`; its content hash is in the ConfigMap name, so any change rolls the pod |
+| `env.yaml` | `glance-env` (API URLs plus an empty default for every key) |
+| `preview/` | `run.sh` serves the page locally against `mock.py`, a fake of every API it reads |
 | `deployment.yaml` | Glance: one replica, non-root, read-only root filesystem, no service-account token; the Service `homepage.homepage.svc.cluster.local:8080` |
 | `externalsecret.yaml` | the API keys as `HOMEPAGE_VAR_*`, from 1Password item `homepage-secret` |
 | `httproute.yaml`, `snippetsfilter.yaml` | `home.cluster.integratn.tech` behind authentik forward-auth, and its http redirect |
@@ -95,32 +98,42 @@ Elsewhere:
 
 ## Editing the page
 
-Edit `glance.yml` inside `configmap.yaml`, bump the
-`homepage.integratn.io/config-revision` annotation in `deployment.yaml` in the
-same commit, and merge; the pod rolls with the new config.
+Edit the file under `glance/` and merge; the ConfigMap's hash changes and the
+pod rolls on its own. Glance stitches the files together with `$include:` (on
+a line of its own; the included text is indented to fit, so a template goes
+under `template: |` as an indented `$include: <tab>--<widget>.html`, and a
+page file starts with its own `- name:`).
+
+- **A new file must be listed in `kustomization.yaml`.** ConfigMap keys cannot
+  hold a `/`, so `glance/` is flat and mounted flat at `/app/config`; an
+  unlisted file is simply missing and its `$include` fails. `preview/run.sh`
+  checks the list against the folder.
+- **Preview it.** `preview/run.sh [busy|quiet|fresh|amdown]` downloads the
+  Glance version pinned in `deployment.yaml` into `~/.cache/glance-preview`,
+  starts the mock and serves the page on http://localhost:8088 (`PORT`,
+  `MOCK_PORT` override). `preview/run.sh --print` prints the resolved config.
 
 - **On a phone** Glance shows one column at a time and switches with a bottom
-  bar. Its stock dots are relabelled per tab in `document.head` (Home:
+  bar. Its stock dots are relabelled per tab in `glance/glance.css` (Home:
   LAUNCH, CLUSTER, HOSTS; Media: COMING, NOW; News: LINKS, FEEDS), by page
   slug and column index; keep them in step if columns move.
 - **Icons** load in the browser from jsDelivr. `di:` names must exist in
   homarr-labs/dashboard-icons (some only as png: `di:trivy.png`); Kargo has
   none, so it uses an `mdi:` icon.
 
-- **Test before merging.** Run the same version locally with
-  `glance --config glance.yml config:validate`, then serve it against a mock
-  of the APIs and look at it; a template error renders as an error box on that
-  widget only.
+- **Test before merging** with `preview/run.sh`; a template error renders as
+  an error box on that widget only.
 - **Everything about the cluster comes from Prometheus** through `custom-api`
   widgets, so a new tile is a PromQL query, not RBAC. Write counts
   `... or vector(0)`.
-- **`${NAME}` in `glance.yml` must be set**, or Glance refuses to start. Add a
-  default for every new name to `glance-env`.
+- **Every `${NAME}` under `glance/` must be set**, or Glance refuses to start.
+  Add a default for every new name to `glance-env` (`env.yaml`). Glance
+  substitutes inside comments too, so never write one literally in a comment.
 - **A host outside the cluster** needs its host and port in
   `allow-lan-monitors` (`network-policies/homepage.yaml`). A new
   `*.cluster.integratn.tech` monitor needs nothing: the gateway is already
   allowed. The internet is open on 443 only, for the releases and news widgets.
-- **Stay on brand.** Use the `hl-*` classes in `document.head`: `hl-tag ok|warn|bad`
+- **Stay on brand.** Use the `hl-*` classes in `glance/glance.css`: `hl-tag ok|warn|bad`
   for a verdict word, `hl-kv` for a label/figure row, `hl-bar` with
   `warm`/`hot`, `hl-none` for an unreadable figure. Do not introduce new
   colours or put orange on anything but the mark.
@@ -128,10 +141,10 @@ same commit, and merge; the pod rolls with the new config.
 ## API keys
 
 Sonarr, Radarr, SABnzbd, Umami, Plex, Proxmox and Unraid are read from their
-own APIs. Their keys never touch `configmap.yaml`: `externalsecret.yaml` reads
+own APIs. Their keys never touch `glance/` or `env.yaml`: `externalsecret.yaml` reads
 1Password item `homepage-secret` whole (its fields are already named
 `HOMEPAGE_VAR_*`), `deployment.yaml` loads it with an optional `envFrom` after
-`glance-env`, and `glance.yml` refers to each as `${HOMEPAGE_VAR_<NAME>}`.
+`glance-env`, and the page files refer to each as `${HOMEPAGE_VAR_<NAME>}`.
 
 To add one:
 
@@ -140,7 +153,7 @@ To add one:
    ExternalSecret and `envFrom` entry rather than a line in the existing one:
    a Secret is written only when every field it reads resolves, so one bad
    field blanks every key in it.
-2. Reference it in `glance.yml`.
+2. Reference it in the page file under `glance/`.
 3. Allow the egress. An in-cluster service needs both halves: this
    namespace's `allow-widget-apis` and the target namespace's ingress. A LAN
    host needs a line in `allow-lan-monitors`.

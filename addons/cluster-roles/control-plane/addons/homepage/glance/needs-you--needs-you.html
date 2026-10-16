@@ -1,0 +1,154 @@
+{{/* One alert instance. Used for critical and warning, then info last. */}}
+{{ define "alert" }}
+        {{ $sev := .String "labels.severity" }}
+        {{ $name := .String "labels.alertname" }}
+        {{ $ns := or (.String "labels.namespace") (.String "labels.exported_namespace") }}
+        {{ $pod := or (.String "labels.pod") (.String "labels.exported_pod") }}
+        {{ $obj := or $pod (.String "labels.deployment") (.String "labels.statefulset") (.String "labels.daemonset") (.String "labels.job_name") (.String "labels.persistentvolumeclaim") (.String "labels.stage") (.String "labels.name") (.String "labels.service") (.String "labels.host") (.String "labels.runner") (.String "labels.instance") (.String "labels.node") }}
+        {{ $m := printf "alertname=%q" $name }}
+        {{ if ne $ns "" }}{{ $m = printf "%s,%s=%q" $m (or (and (.Exists "labels.namespace") "namespace") "exported_namespace") $ns }}{{ end }}
+        {{ if ne $pod "" }}{{ $m = printf "%s,%s=%q" $m (or (and (.Exists "labels.pod") "pod") "exported_pod") $pod }}{{ end }}
+        <div class="hl-item" id="alert-{{ $name }}">
+          <div class="hl-row">
+            <span class="hl-title">{{ or (.String "annotations.summary") $name }}</span>
+            <span class="shrink-0"><span class="size-h6 color-subdue hl-data" {{ .String "startsAt" | parseTime "RFC3339" | toRelativeTime }}></span>
+              <span class="hl-tag {{ if eq $sev "critical" }}bad{{ else if eq $sev "warning" }}warn{{ end }}">{{ $sev }}</span></span>
+          </div>
+          <div class="hl-where">{{ $name }}{{ if ne $ns "" }} · {{ $ns }}{{ end }}{{ if and (ne $obj "") (ne $obj $ns) }}/{{ $obj }}{{ end }}</div>
+          {{ with or (.String "annotations.description") (.String "annotations.message") }}<div class="hl-why">{{ . }}</div>{{ end }}
+          <div class="hl-links">
+            {{ if and (.Exists "labels.promotion") (ne $ns "") }}<a href="https://kargo.cluster.integratn.tech/project/{{ $ns }}/promotion/{{ .String "labels.promotion" }}" target="_blank">Promotion</a>{{ end }}
+            {{ with .String "annotations.kargo_url" }}<a href="{{ . }}" target="_blank">Stage</a>{{ end }}
+            {{ if and (ne (findMatch "^ArgoCD" $name) "") (.Exists "labels.name") }}<a href="https://argocd.cluster.integratn.tech/applications/argocd/{{ .String "labels.name" }}?view=tree{{ with .String "labels.health_status" }}&resource={{ concat "health:" . }}{{ end }}" target="_blank">App</a>{{ end }}
+            {{ if and (ne $ns "") (ne $pod "") }}
+              {{ $panes := printf `{"a":{"datasource":"loki","queries":[{"refId":"A","expr":%q,"datasource":{"type":"loki","uid":"loki"}}],"range":{"from":"now-1h","to":"now"}}}` (printf "{namespace=%q,pod=%q}" $ns $pod) }}
+              <a href="https://grafana.cluster.integratn.tech/explore?schemaVersion=1&orgId=1&panes={{ $panes }}" target="_blank">Pod logs</a>
+            {{ else }}{{ with .String "annotations.logs_url" }}{{ if eq (findMatch "/explore" .) "/explore" }}<a href="{{ . }}" target="_blank">Logs</a>{{ end }}{{ end }}{{ end }}
+            {{ with .String "annotations.action_url" }}<a href="{{ . }}" target="_blank">{{ or ($.String "annotations.action_title") "Open" }}</a>{{ end }}
+            {{ with .String "annotations.runbook_url" }}<a href="{{ . }}" target="_blank">Runbook</a>{{ end }}
+            {{ with .String "generatorURL" }}<a href="{{ . }}" target="_blank">Query</a>{{ end }}
+            <a href="https://alertmanager.cluster.integratn.tech/#/silences/new?filter={{ printf "{%s}" $m }}" target="_blank">Silence</a>
+          </div>
+        </div>
+{{ end }}
+{{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{ $grafana := "https://grafana.cluster.integratn.tech" }}
+{{ $amui := "https://alertmanager.cluster.integratn.tech" }}
+{{ $argo := "https://argocd.cluster.integratn.tech" }}
+{{ $kargoui := "https://kargo.cluster.integratn.tech" }}
+{{ $am := newRequest (concat (.Options.StringOr "am" "") "/api/v2/alerts") | withParameter "active" "true" | withParameter "silenced" "false" | withParameter "inhibited" "false" | getResponse }}
+{{ $alerts := $am.JSON.Array "" }}
+{{ $nAlerts := 0 }}{{ range $alerts }}{{ $s := .String "labels.severity" }}{{ if or (eq $s "critical") (eq $s "warning") (eq $s "info") }}{{ $nAlerts = add $nAlerts 1 }}{{ end }}{{ end }}
+{{ $apps := (newRequest $q | withParameter "query" `argocd_app_info{health_status!="Healthy"} or argocd_app_info{sync_status!="Synced"}` | getResponse).JSON.Array "data.result" }}
+{{ $kargo := (newRequest $q | withParameter "query" `kargo_stage_last_promotion_phase{phase=~"Errored|Failed|Aborted"} == 1` | getResponse).JSON.Array "data.result" }}
+{{/* The same stuck-pod set as the Status chip; keep the two queries in step. */}}
+{{ $stuckQ := `(max by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason=~"CrashLoopBackOff|ImagePullBackOff|ErrImagePull|CreateContainerConfigError|CreateContainerError"} == 1) or on (namespace, pod) label_replace(kube_pod_status_unschedulable == 1, "reason", "Unschedulable", "", "") or on (namespace, pod) max by (namespace, pod, reason) (kube_pod_container_status_waiting_reason{reason="ContainerCreating"} == 1) or on (namespace, pod) max by (namespace, pod, reason) (label_replace(kube_pod_status_phase{phase=~"Pending|Failed|Unknown"} == 1, "reason", "$1", "phase", "(.*)"))) and on (namespace, pod) (time() - kube_pod_created > 300)` }}
+{{ $pods := (newRequest $q | withParameter "query" $stuckQ | getResponse).JSON.Array "data.result" }}
+{{ $podInfo := (newRequest $q | withParameter "query" (concat "(label_replace(sum by (namespace, pod) (kube_pod_container_status_restarts_total), \"kind\", \"restarts\", \"\", \"\") or label_replace(time() - max by (namespace, pod) (kube_pod_created), \"kind\", \"age\", \"\", \"\")) and on (namespace, pod) (" $stuckQ ")") | getResponse).JSON.Array "data.result" }}
+
+{{ if ne $am.Response.StatusCode 200 }}
+  <div class="hl-callout warn"><span class="hl-tag warn">Not recorded</span> Alertmanager answered {{ $am.Response.Status }}, so alerts are missing from this list. <a class="color-highlight" href="{{ $amui }}/#/alerts?silenced=false&inhibited=false&active=true" target="_blank">Open Alertmanager</a></div>
+{{ else if and (eq $nAlerts 0) (eq (len $apps) 0) (eq (len $kargo) 0) (eq (len $pods) 0) }}
+  <div class="hl-callout ok"><span class="hl-tag ok">Nothing</span> No alerts firing, every app synced and healthy, no failed promotions, no stuck pods.</div>
+{{ end }}
+
+{{ if gt $nAlerts 0 }}
+  <div class="hl-section" id="needs-alerts">
+    <div class="hl-label" style="margin-bottom:.8rem">Alerts · <span class="hl-num">{{ $nAlerts }}</span> <span class="color-subdue" style="text-transform:none;letter-spacing:0;font-weight:400">silence one to take it off this list</span></div>
+    <div>
+    {{ range sortByString "labels.severity" "asc" $alerts }}{{ $sev := .String "labels.severity" }}{{ if or (eq $sev "critical") (eq $sev "warning") }}{{ template "alert" . }}{{ end }}{{ end }}
+    {{ range $alerts }}{{ if eq (.String "labels.severity") "info" }}{{ template "alert" . }}{{ end }}{{ end }}
+    </div>
+  </div>
+{{ end }}
+
+{{ if gt (len $apps) 0 }}
+  <div class="hl-section" id="needs-apps">
+    <div class="hl-label" style="margin-bottom:.8rem">Argo apps · <span class="hl-num">{{ len $apps }}</span></div>
+    <div>
+    {{ range $apps }}
+      {{ $h := .String "metric.health_status" }}{{ $sy := .String "metric.sync_status" }}
+      {{ $n := .String "metric.name" }}{{ $appns := or (.String "metric.namespace") "argocd" }}
+      <div class="hl-item">
+        <div class="hl-row">
+          <a class="hl-title" href="{{ $argo }}/applications/{{ $appns }}/{{ $n }}?view=tree&resource={{ if ne $h "Healthy" }}{{ concat "health:" $h }}{{ else }}sync:OutOfSync{{ end }}" target="_blank">{{ $n }}</a>
+          <span class="shrink-0">{{ if ne $h "Healthy" }}<span class="hl-tag {{ if or (eq $h "Degraded") (eq $h "Missing") }}bad{{ else }}warn{{ end }}">{{ $h }}</span>{{ end }}
+            {{ if ne $sy "Synced" }}<span class="hl-tag warn">{{ $sy }}</span>{{ end }}</span>
+        </div>
+        <div class="hl-where">project {{ .String "metric.project" }}{{ with .String "metric.dest_namespace" }} · into {{ . }}{{ end }}</div>
+        <div class="hl-why">
+          {{ if eq $h "Degraded" }}A workload in it is crashing or never became ready. The link opens the app filtered to the Degraded resources; open one for its events and logs.
+          {{ else if eq $h "Missing" }}Resources it should own do not exist. Usually a sync that failed before creating them; the app's conditions say why.
+          {{ else if eq $h "Progressing" }}Still rolling out. If this has lasted more than a few minutes, the filtered view shows which resource is stuck.
+          {{ else if ne $h "Healthy" }}Argo cannot assess its health. The filtered view shows which resources are {{ $h }}.
+          {{ else }}What is live differs from main. The link opens the OutOfSync resources; each one's Diff tab shows the change.{{ end }}
+        </div>
+        <div class="hl-links"><code>argocd app get {{ $n }} --show-operation</code></div>
+      </div>
+    {{ end }}
+    </div>
+  </div>
+{{ end }}
+
+{{ if gt (len $kargo) 0 }}
+  <div class="hl-section" id="needs-kargo">
+    <div class="hl-label" style="margin-bottom:.8rem">Kargo promotions · <span class="hl-num">{{ len $kargo }}</span></div>
+    <div>
+    {{ range $kargo }}
+      {{ $ph := .String "metric.phase" }}{{ $proj := .String "metric.namespace" }}{{ $st := .String "metric.stage" }}{{ $pr := .String "metric.promotion" }}
+      <div class="hl-item">
+        <div class="hl-row">
+          <a class="hl-title" href="{{ $kargoui }}/project/{{ $proj }}/stage/{{ $st }}" target="_blank">{{ $st }}</a>
+          <span class="hl-tag bad shrink-0">{{ $ph }}</span>
+        </div>
+        <div class="hl-where">project {{ $proj }}{{ if ne $pr "" }} · {{ $pr }}{{ end }}</div>
+        <div class="hl-why">
+          {{ if eq $ph "Errored" }}The last promotion into this stage could not run: a credential, a path that no longer resolves, or an infrastructure fault. The promotion shows the step and its error; fix that, then promote the freight again from the stage.
+          {{ else if eq $ph "Failed" }}The last promotion ran and was refused, usually a red check on its PR or a PR closed unmerged. The promotion shows the step; fix or close the PR, then promote again.
+          {{ else }}The last promotion was aborted. Promote the freight again from the stage, or leave it if a newer one is coming.{{ end }}
+        </div>
+        <div class="hl-links">
+          {{ if ne $pr "" }}<a href="{{ $kargoui }}/project/{{ $proj }}/promotion/{{ $pr }}" target="_blank">Promotion</a>{{ end }}
+          <a href="{{ $kargoui }}/project/{{ $proj }}/stage/{{ $st }}" target="_blank">Stage</a>
+        </div>
+      </div>
+    {{ end }}
+    </div>
+  </div>
+{{ end }}
+
+{{ if gt (len $pods) 0 }}
+  <div class="hl-section" id="needs-pods">
+    <div class="hl-label" style="margin-bottom:.8rem">Stuck pods · <span class="hl-num">{{ len $pods }}</span> <span class="color-subdue" style="text-transform:none;letter-spacing:0;font-weight:400">older than 5 minutes</span></div>
+    <div>
+    {{ range sortByString "metric.namespace" "asc" $pods }}
+      {{ $ns := .String "metric.namespace" }}{{ $pod := .String "metric.pod" }}{{ $why := .String "metric.reason" }}
+      {{ $restarts := -1 }}{{ $age := -1.0 }}
+      {{ range $podInfo }}{{ if and (eq (.String "metric.namespace") $ns) (eq (.String "metric.pod") $pod) }}{{ if eq (.String "metric.kind") "restarts" }}{{ $restarts = .Int "value.1" }}{{ else }}{{ $age = .Float "value.1" }}{{ end }}{{ end }}{{ end }}
+      {{ $panes := printf `{"a":{"datasource":"loki","queries":[{"refId":"A","expr":%q,"datasource":{"type":"loki","uid":"loki"}}],"range":{"from":"now-6h","to":"now"}}}` (printf "{namespace=%q,pod=%q}" $ns $pod) }}
+      <div class="hl-item">
+        <div class="hl-row">
+          <span class="hl-title text-truncate">{{ $pod }}</span>
+          <span class="hl-tag {{ if or (eq $why "Pending") (eq $why "ContainerCreating") }}warn{{ else }}bad{{ end }} shrink-0">{{ $why }}</span>
+        </div>
+        <div class="hl-where">{{ $ns }}{{ if ge $age 0.0 }} · up {{ if ge $age 86400.0 }}{{ div $age 86400.0 | printf "%.0f" }}d{{ else if ge $age 3600.0 }}{{ div $age 3600.0 | printf "%.0f" }}h{{ else }}{{ div $age 60.0 | printf "%.0f" }}m{{ end }}{{ end }}{{ if gt $restarts 0 }} · {{ $restarts }} restarts{{ end }}</div>
+        <div class="hl-why">
+          {{ if eq $why "CrashLoopBackOff" }}It starts and exits, over and over. The last lines of its logs say why.
+          {{ else if or (eq $why "ImagePullBackOff") (eq $why "ErrImagePull") }}Its image cannot be pulled: a wrong tag or digest, or the registry refused. Describe shows the exact image and error.
+          {{ else if eq $why "CreateContainerConfigError" }}A Secret or ConfigMap key it reads does not exist. Check that key's ExternalSecret is Ready.
+          {{ else if eq $why "CreateContainerError" }}The runtime refused to create the container. Describe shows the error.
+          {{ else if eq $why "Unschedulable" }}No node will take it: not enough requested CPU or memory left, or a selector nothing matches. Describe shows the scheduler's reason.
+          {{ else if eq $why "ContainerCreating" }}Stuck creating, usually a volume that will not mount. After a Tower restart that is a stale NFS mount; deleting the pod fixes it.
+          {{ else if eq $why "Failed" }}It exited and will not restart. Read its logs, then delete it.
+          {{ else if eq $why "Unknown" }}Its node stopped reporting on it. Check the node first.
+          {{ else }}Scheduled but not started. Describe shows what it is waiting for.{{ end }}
+        </div>
+        <div class="hl-links">
+          <a href="{{ $grafana }}/explore?schemaVersion=1&orgId=1&panes={{ $panes }}" target="_blank">Logs</a>
+          <code>kubectl -n {{ $ns }} describe pod {{ $pod }}</code>
+        </div>
+      </div>
+    {{ end }}
+    </div>
+  </div>
+{{ end }}

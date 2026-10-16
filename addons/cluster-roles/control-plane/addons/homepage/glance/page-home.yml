@@ -1,0 +1,162 @@
+- name: Home
+  width: wide
+  head-widgets:
+    # ── One sentence: is anything wrong? ─────────────────────────────
+    - type: custom-api
+      title: Status
+      hide-header: true
+      cache: 1m
+      options:
+        prom: ${PROM_URL}
+        am: ${AM_URL}
+      template: |
+        $include: home--status.html
+
+  columns:
+    # ── Left: the reference rail ───────────────────────────────────
+    - size: small
+      widgets:
+        - type: clock
+          hour-format: 12h
+        - type: calendar
+          first-day-of-week: sunday
+        - type: monitor
+          title: Reachable
+          style: compact
+          cache: 1m
+          sites:
+            - { title: ArgoCD,         url: "https://argocd.cluster.integratn.tech",  icon: "di:argo-cd" }
+            - { title: Kargo,          url: "https://kargo.cluster.integratn.tech",   icon: "mdi:truck-cargo-container",  alt-status-codes: [302] }
+            - { title: Grafana,        url: "https://grafana.cluster.integratn.tech", icon: "di:grafana", alt-status-codes: [302] }
+            - { title: Authentik,      url: "https://auth.cluster.integratn.tech",    icon: "di:authentik", alt-status-codes: [302] }
+            - { title: Open WebUI,     url: "https://chat.cluster.integratn.tech",    icon: "di:open-webui", alt-status-codes: [302] }
+            - { title: Plex,           url: "http://10.0.0.12:32400/web", check-url: "http://10.0.0.12:32400/identity", icon: "di:plex" }
+            - { title: Home Assistant, url: "http://10.0.1.174:8123",                 icon: "di:home-assistant" }
+            - { title: Unraid,         url: "http://10.0.0.12",                       icon: "di:unraid", alt-status-codes: [302] }
+            - { title: Proxmox,        url: "https://192.168.0.10:8006",              icon: "di:proxmox", allow-insecure: true }
+            - { title: UniFi,          url: "https://192.168.0.1",                    icon: "di:unifi", allow-insecure: true }
+        - type: bookmarks
+          title: Launch
+          groups:
+            - title: Platform
+              links:
+                - { title: ArgoCD,      url: "https://argocd.cluster.integratn.tech",      icon: "di:argo-cd" }
+                - { title: Kargo,       url: "https://kargo.cluster.integratn.tech",       icon: "mdi:truck-cargo-container" }
+                - { title: Bosun,       url: "https://bosun.cluster.integratn.tech",       icon: "mdi:ferry" }
+                - { title: Specmarshal, url: "https://specmarshal.cluster.integratn.tech", icon: "mdi:clipboard-text-outline" }
+                - { title: Authentik,   url: "https://auth.cluster.integratn.tech",        icon: "di:authentik" }
+                - { title: Trivy,       url: "https://trivy.cluster.integratn.tech",       icon: "di:trivy.png" }
+                - { title: Goldilocks,  url: "https://goldilocks.cluster.integratn.tech",  icon: "mdi:scale-balance" }
+            - title: Observe
+              links:
+                - { title: Grafana,      url: "https://grafana.cluster.integratn.tech",      icon: "di:grafana" }
+                - { title: Prometheus,   url: "https://prometheus.cluster.integratn.tech",   icon: "di:prometheus" }
+                - { title: Alertmanager, url: "https://alertmanager.cluster.integratn.tech", icon: "di:alertmanager" }
+                - { title: Hubble,       url: "https://hubble.cluster.integratn.tech",       icon: "di:cilium" }
+                - { title: Umami,        url: "https://stats.cluster.integratn.tech",        icon: "di:umami" }
+            - title: Media and house
+              links:
+                - { title: Plex,           url: "http://10.0.0.12:32400/web",                    icon: "di:plex" }
+                - { title: Sonarr,         url: "https://sonarr.vcluster-media.integratn.tech",  icon: "di:sonarr" }
+                - { title: Radarr,         url: "https://radarr.vcluster-media.integratn.tech",  icon: "di:radarr" }
+                - { title: SABnzbd,        url: "https://sabnzbd.vcluster-media.integratn.tech", icon: "di:sabnzbd" }
+                - { title: Wiki,           url: "https://wiki.vcluster-media.integratn.tech",    icon: "di:otter-wiki" }
+                - { title: Home Assistant, url: "http://10.0.1.174:8123",                        icon: "di:home-assistant" }
+                - { title: Unraid,         url: "http://10.0.0.12",                              icon: "di:unraid" }
+                - { title: Proxmox,        url: "https://192.168.0.10:8006",                     icon: "di:proxmox" }
+                - { title: UniFi,          url: "https://192.168.0.1",                           icon: "di:unifi" }
+            - title: AI
+              links:
+                - { title: Open WebUI, url: "https://chat.cluster.integratn.tech",             icon: "di:open-webui" }
+                - { title: Qdrant,     url: "https://qdrant.cluster.integratn.tech/dashboard", icon: "di:qdrant" }
+
+    # ── Centre: the work column ────────────────────────────────────
+    - size: full
+      widgets:
+        - type: custom-api
+          title: the-cluster
+          title-url: https://grafana.cluster.integratn.tech/d/homelab-overview/homelab-overview
+          cache: 1m
+          options:
+            prom: ${PROM_URL}
+          template: |
+            $include: home--the-cluster.html
+
+        - type: split-column
+          max-columns: 2
+          widgets:
+            # ── What is firing, one row per alert name ──
+            - type: custom-api
+              title: Firing alerts
+              # One row per alert name; each opens that alert on the Needs
+              # you tab (summary, object, links). Same Alertmanager set as
+              # that tab, so a silenced alert leaves both.
+              title-url: /needs-you#needs-alerts
+              cache: 1m
+              options:
+                am: ${AM_URL}
+              template: |
+                $include: home--firing-alerts.html
+
+            # ── Delivery: ArgoCD + Kargo ──
+            - type: custom-api
+              title: Delivery
+              title-url: https://argocd.cluster.integratn.tech
+              cache: 1m
+              options:
+                prom: ${PROM_URL}
+              template: |
+                $include: home--delivery.html
+
+        # ── Umami, today so far vs the same span yesterday ──
+        - type: group
+          widgets:
+            - &umami
+              type: custom-api
+              title: integratn.io
+              title-url: https://stats.cluster.integratn.tech/websites/712f4369-49e3-4285-a47a-ed1534441db3
+              cache: 5m
+              options:
+                url: ${UMAMI_URL}
+                key: ${HOMEPAGE_VAR_UMAMI_KEY}
+                site: 712f4369-49e3-4285-a47a-ed1534441db3
+              template: |
+                $include: home--integratn-io.html
+            - <<: *umami
+              title: bosun.integratn.io
+              title-url: https://stats.cluster.integratn.tech/websites/a4dc99d0-79d0-46df-97d1-67a6b64a9935
+              options:
+                url: ${UMAMI_URL}
+                key: ${HOMEPAGE_VAR_UMAMI_KEY}
+                site: a4dc99d0-79d0-46df-97d1-67a6b64a9935
+
+    # ── Right: the house and the outside world ──────────────────────
+    - size: small
+      widgets:
+        # ── Hosts: one line per machine outside the cluster ─────────
+        # The detail (bars, runners, guests, devices) is the Hosts tab;
+        # each name opens its card there. Problems become alerts
+        # (platform-alerts/host-rules.yaml) and so land on Needs you.
+        - type: custom-api
+          title: Hosts
+          title-url: /hosts
+          cache: 1m
+          options:
+            prom: ${PROM_URL}
+          template: |
+            $include: home--hosts.html
+
+        - type: releases
+          title: Upstream releases
+          cache: 6h
+          show-source-icon: true
+          collapse-after: 6
+          repositories:
+            - argoproj/argo-cd
+            - akuity/kargo
+            - cilium/cilium
+            - siderolabs/talos
+            - goauthentik/authentik
+            - home-assistant/core
+            - kubernetes/kubernetes
+            - glanceapp/glance

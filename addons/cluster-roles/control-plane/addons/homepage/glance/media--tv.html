@@ -1,0 +1,43 @@
+{{ $r := newRequest (concat (.Options.StringOr "url" "") "/api/v3/calendar")
+     | withParameter "start" (offsetNow "-48h" | formatTime "DateOnly")
+     | withParameter "end" (offsetNow "168h" | formatTime "DateOnly")
+     | withParameter "includeSeries" "true"
+     | withHeader "X-Api-Key" (.Options.StringOr "key" "")
+     | getResponse }}
+{{ if ne $r.Response.StatusCode 200 }}
+  <p class="hl-none">Not recorded: Sonarr answered {{ $r.Response.Status }}.</p>
+{{ else if eq (len ($r.JSON.Array "")) 0 }}
+  <p class="hl-none">Nothing aired in the last two days or due this week.</p>
+{{ else }}
+  {{ $eps := sortByTime "airDateUtc" "RFC3339" "asc" ($r.JSON.Array "") }}
+  {{ $late := offsetNow "-6h" }}
+  <ul class="list list-gap-10">
+    {{ range unique "seriesId" $eps }}
+      {{ $sid := .Int "seriesId" }}
+      {{ $poster := "" }}{{ range .Array "series.images" }}{{ if and (eq $poster "") (eq (.String "coverType") "poster") }}{{ $poster = .String "remoteUrl" }}{{ end }}{{ end }}
+      {{ $got := 0 }}{{ $missing := 0 }}{{ $next := "" }}{{ $nextEp := "" }}{{ $lastGot := "" }}
+      {{ range $eps }}{{ if eq (.Int "seriesId") $sid }}
+        {{ $code := printf "S%02dE%02d" (.Int "seasonNumber") (.Int "episodeNumber") }}
+        {{ if .Bool "hasFile" }}{{ $got = add $got 1 }}{{ $lastGot = $code }}
+        {{ else if (.String "airDateUtc" | parseTime "RFC3339").Before $late }}{{ if .Bool "monitored" }}{{ $missing = add $missing 1 }}{{ end }}
+        {{ else if eq $next "" }}{{ $next = .String "airDateUtc" }}{{ $nextEp = concat $code " · " (.String "title") }}{{ end }}
+      {{ end }}{{ end }}
+      <li class="flex gap-10 items-center">
+        {{ if ne $poster "" }}<img class="hl-poster" src="{{ $poster }}" alt="" loading="lazy">{{ end }}
+        <div class="min-width-0 grow">
+          <a class="color-highlight text-truncate" style="display:block" href="https://sonarr.vcluster-media.integratn.tech/series/{{ .String "series.titleSlug" }}" target="_blank">{{ .String "series.title" }}</a>
+          <div class="size-h6 color-subdue text-truncate">
+            {{ if gt $missing 0 }}<span class="hl-num">{{ $missing }}</span> aired and not downloaded. The series page shows each episode's search.
+            {{ else if ne $next "" }}<span class="hl-data">{{ $nextEp }}</span>
+            {{ else }}{{ if eq $got 1 }}<span class="hl-data">{{ $lastGot }}</span> is in Plex.{{ else }}<span class="hl-num">{{ $got }}</span> new episodes in Plex.{{ end }}{{ end }}
+          </div>
+        </div>
+        <div class="shrink-0" style="text-align:right">
+          {{ if gt $missing 0 }}<span class="hl-tag warn">Missing</span>
+          {{ else if ne $next "" }}<span class="size-h6 color-subdue hl-data" {{ $next | parseTime "RFC3339" | toRelativeTime }}></span>
+          {{ else }}<span class="hl-tag ok">Got it</span>{{ end }}
+        </div>
+      </li>
+    {{ end }}
+  </ul>
+{{ end }}

@@ -1,0 +1,13 @@
+{{ $r := newRequest (concat (.Options.StringOr "url" "") "/graphql") | withHeader "x-api-key" (.Options.StringOr "key" "") | withHeader "Content-Type" "application/json"
+     | withStringBody `{"query":"{ array { state capacity { kilobytes { free used total } } } }"}` | getResponse }}
+{{ if ne $r.Response.StatusCode 200 }}
+  <p class="hl-none">Not recorded: Unraid answered {{ $r.Response.Status }}.</p>
+{{ else }}
+  {{ $used := $r.JSON.Float "data.array.capacity.kilobytes.used" }}{{ $tot := $r.JSON.Float "data.array.capacity.kilobytes.total" }}{{ $free := $r.JSON.Float "data.array.capacity.kilobytes.free" }}
+  {{ $pct := 0.0 }}{{ if gt $tot 0.0 }}{{ $pct = mul (div $used $tot) 100 }}{{ end }}
+  {{ $state := $r.JSON.String "data.array.state" }}
+  <div class="hl-row"><span class="hl-title">Unraid array</span>
+    <span class="hl-tag {{ if eq $state "STARTED" }}ok{{ else }}bad{{ end }}">{{ $state }}</span></div>
+  <div class="hl-kv"><span>Used · {{ div $free 1000000000 | printf "%.1f" }} TB free</span><span>{{ printf "%.0f" $pct }}%</span></div>
+  <div class="hl-bar"><div class="{{ if gt $pct 90.0 }}hot{{ else if gt $pct 80.0 }}warm{{ end }}" style="width:{{ printf "%.0f" $pct }}%"></div></div>
+{{ end }}

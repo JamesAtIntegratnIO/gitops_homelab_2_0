@@ -1,6 +1,7 @@
 # Glance (github.com/glanceapp/glance), the landing page at
 # home.cluster.integratn.tech: one replica, read-only root filesystem, config
-# from the glance-config ConfigMap (configmap.yaml).
+# from the glance-config ConfigMap that kustomization.yaml generates from
+# glance/.
 #
 # The namespace, Deployment and Service keep the name `homepage` (and the pod
 # label app.kubernetes.io/name: homepage) from the Homepage this replaced, so
@@ -9,7 +10,8 @@
 #
 # Glance reads its environment once, at start, so a 1Password change reaches
 # the page only after `kubectl -n homepage rollout restart deploy/homepage`.
-# A configmap.yaml change rolls the pod through the config-revision annotation.
+# A change to glance/ rolls the pod by itself: the generated ConfigMap's name
+# carries a hash of its content, and kustomize points this Deployment at it.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,10 +27,6 @@ spec:
       app.kubernetes.io/name: homepage
   template:
     metadata:
-      # Bump with a configmap.yaml change to roll the pod. Glance also watches
-      # its config file, but a rollout is the change you can see land.
-      annotations:
-        homepage.integratn.io/config-revision: "4"
       labels:
         app.kubernetes.io/name: homepage
     spec:

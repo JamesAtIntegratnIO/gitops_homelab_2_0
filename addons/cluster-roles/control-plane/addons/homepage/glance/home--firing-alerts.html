@@ -1,0 +1,22 @@
+{{ $r := newRequest (concat (.Options.StringOr "am" "") "/api/v2/alerts") | withParameter "active" "true" | withParameter "silenced" "false" | withParameter "inhibited" "false" | getResponse }}
+{{ $all := $r.JSON.Array "" }}
+{{ $n := 0 }}{{ range $all }}{{ $s := .String "labels.severity" }}{{ if or (eq $s "critical") (eq $s "warning") (eq $s "info") }}{{ $n = add $n 1 }}{{ end }}{{ end }}
+{{ if ne $r.Response.StatusCode 200 }}
+  <p class="hl-none">Not recorded: Alertmanager answered {{ $r.Response.Status }}.</p>
+{{ else if eq $n 0 }}
+  <div class="hl-callout ok"><span class="hl-tag ok">Quiet</span> Nothing is firing.</div>
+{{ else }}
+  <ul class="list list-gap-10 collapsible-container" data-collapse-after="6">
+    {{ range unique "labels.alertname" (sortByString "labels.severity" "asc" $all) }}
+      {{ $sev := .String "labels.severity" }}{{ $name := .String "labels.alertname" }}
+      {{ if or (eq $sev "critical") (eq $sev "warning") (eq $sev "info") }}
+        {{ $c := 0 }}{{ range $all }}{{ if eq (.String "labels.alertname") $name }}{{ $c = add $c 1 }}{{ end }}{{ end }}
+        <li class="hl-row">
+          <a class="color-highlight text-truncate" href="/needs-you#alert-{{ $name }}" title="{{ or (.String "annotations.summary") $name }}">{{ $name }}</a>
+          <span class="shrink-0"><span class="hl-num color-subdue">×{{ $c }}</span>
+            <span class="hl-tag {{ if eq $sev "critical" }}bad{{ else if eq $sev "warning" }}warn{{ end }}">{{ $sev }}</span></span>
+        </li>
+      {{ end }}
+    {{ end }}
+  </ul>
+{{ end }}

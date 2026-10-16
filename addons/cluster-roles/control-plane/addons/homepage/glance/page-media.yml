@@ -1,0 +1,52 @@
+# ── Media: what is coming, what is missing, what is downloading ─────
+# Its own tab so Home stays about the platform. Each list leads with
+# what needs a hand (aired or released but not downloaded, a paused
+# queue, a failed download) and links to that title in Sonarr/Radarr.
+- name: Media
+  columns:
+    - size: full
+      widgets:
+        # ── Sonarr: one row per show, last two days to a week ahead ──
+        - type: custom-api
+          title: TV
+          title-url: https://sonarr.vcluster-media.integratn.tech/calendar
+          cache: 30m
+          options:
+            url: ${SONARR_URL}
+            key: ${HOMEPAGE_VAR_SONARR_KEY}
+          template: |
+            $include: media--tv.html
+
+        # ── Radarr: what is still to come, and anything released but missing ──
+        - type: custom-api
+          title: Movies
+          title-url: https://radarr.vcluster-media.integratn.tech/calendar
+          cache: 1h
+          options:
+            url: ${RADARR_URL}
+            key: ${HOMEPAGE_VAR_RADARR_KEY}
+          template: |
+            $include: media--movies.html
+
+    - size: small
+      widgets:
+        - type: custom-api
+          title: Plex
+          title-url: http://10.0.0.12:32400/web
+          cache: 1m
+          options:
+            url: ${PLEX_URL}
+            key: ${HOMEPAGE_VAR_PLEX_TOKEN}
+          template: |
+            $include: media--plex.html
+
+        # ── SABnzbd: only says something when there is something to say ──
+        - type: custom-api
+          title: Downloading
+          title-url: https://sabnzbd.vcluster-media.integratn.tech
+          cache: 30s
+          options:
+            url: ${SABNZBD_URL}
+            key: ${HOMEPAGE_VAR_SABNZBD_KEY}
+          template: |
+            $include: media--downloading.html

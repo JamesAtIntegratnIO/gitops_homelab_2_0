@@ -1,0 +1,17 @@
+{{ $r := newRequest (concat (.Options.StringOr "url" "") "/status/sessions") | withHeader "X-Plex-Token" (.Options.StringOr "key" "") | withHeader "Accept" "application/json" | getResponse }}
+{{ if eq $r.Response.StatusCode 401 }}
+  <p class="hl-none">Not recorded: the Plex token in <code>homepage-secret</code> has expired.</p>
+{{ else if ne $r.Response.StatusCode 200 }}
+  <p class="hl-none">Not recorded: Plex answered {{ $r.Response.Status }}.</p>
+{{ else if eq ($r.JSON.Int "MediaContainer.size") 0 }}
+  <p class="hl-none">Nothing playing.</p>
+{{ else }}
+  <ul class="list list-gap-10">
+    {{ range $r.JSON.Array "MediaContainer.Metadata" }}
+      <li>
+        <div class="color-highlight text-truncate">{{ with .String "grandparentTitle" }}{{ . }} · {{ end }}{{ .String "title" }}</div>
+        <div class="size-h6 color-subdue">{{ .String "User.title" }} · {{ .String "Player.state" }}</div>
+      </li>
+    {{ end }}
+  </ul>
+{{ end }}
