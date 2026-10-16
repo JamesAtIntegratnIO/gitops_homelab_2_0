@@ -42,7 +42,9 @@ sed -i.bak "s/^  port: .*/  port: $port/; s/^  proxied: .*/  proxied: false/" "$
 while IFS= read -r kv; do export "$kv"; done < <(sed -n 's/^  \([A-Z_]*\): *"\{0,1\}\([^"]*\)"\{0,1\}$/\1=\2/p' "$addon/templates/env.yaml")
 m=http://127.0.0.1:$mock_port
 export PROM_URL=$m AM_URL=$m SONARR_URL=$m/sonarr RADARR_URL=$m/radarr SABNZBD_URL=$m/sab \
-       UMAMI_URL=$m/umami PLEX_URL=$m/plex PVE_URL=$m/pve UNRAID_URL=$m/unraid
+       UMAMI_URL=$m/umami PLEX_URL=$m/plex PVE_URL=$m/pve UNRAID_URL=$m/unraid \
+       HA_URL=$m/ha JELLYFIN_URL=$m/jellyfin GITHUB_API_URL=$m/gh \
+       HOMEPAGE_VAR_HA_TOKEN=mock HOMEPAGE_VAR_JELLYFIN_KEY=mock
 
 if [ "$state" = "--print" ]; then
   "$bin" --config "$work/glance.yml" config:print

@@ -18,3 +18,14 @@
             am: ${AM_URL}
           template: |
             $include: needs-you--needs-you.html
+
+        # ── Pull requests waiting on a merge or a review ──
+        - type: custom-api
+          title: Pull requests
+          hide-header: true
+          cache: 10m
+          options:
+            url: ${GITHUB_API_URL}
+            key: ${HOMEPAGE_VAR_GITHUB_TOKEN}
+          template: |
+            $include: needs-you--pull-requests.html

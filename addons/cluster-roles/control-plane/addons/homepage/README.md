@@ -10,12 +10,17 @@ Five tabs. **Home** answers "is anything wrong": a status line with a verdict
 and chips (critical alerts, warnings, unhealthy apps, failed promotions, stuck
 pods), CPU and memory sparklines, per-node cards and the N+1 request line,
 firing alerts by name, ArgoCD and Kargo problems, Umami for integratn.io and
-bosun.integratn.io, one line per host outside the cluster, upstream releases,
-and a launcher for every UI. **Needs you** has the detail behind every chip
+bosun.integratn.io, one line per host outside the cluster, backups and certs
+(etcd snapshot age per cluster, soonest cert expiries, any cert not Ready),
+security (Critical/High image vulnerabilities from Trivy, the worst namespaces,
+Kyverno policies failing in the last 24h), the house (Home Assistant: alarm
+state, kitchen display online, unavailable entities, batteries under 20%),
+upstream releases, and a launcher for every UI. **Needs you** has the detail behind every chip
 and row (below). **Hosts** has the machines outside the cluster (below).
-**Media** has TV and films (only what is coming, plus anything aired or
+**Media** has TV and films side by side (only what is coming, plus anything aired or
 released and not downloaded, flagged Missing and linked to its Sonarr/Radarr
-page), Plex, and SABnzbd (flags a paused queue and this week's failed
+page), what Plex and Jellyfin are playing (each stream tagged Direct, Direct
+stream or Transcode), and SABnzbd (flags a paused queue and this week's failed
 downloads). **News** has Hacker News, Lobsters and RSS.
 
 Grafana's Homelab Overview is the deep view; this page links into it.
@@ -35,6 +40,7 @@ whole dashboard or an unfiltered list:
 | Alerts | active alert instance that is not silenced or inhibited, critical then warning | the rule's `summary` and `description`, the alert name and its namespace/object, how long it has fired | Kargo promotion and stage (`promotion` label, `kargo_url`), the ArgoCD app filtered to its unhealthy resources (`ArgoCD*` alerts), Loki logs for the pod (`namespace`/`pod` or `exported_*`), `runbook_url`, the rule's query, and a prefilled Alertmanager silence |
 | Argo apps | app not Healthy or not Synced | what that health or sync state means here | the app's tree filtered to the Degraded/Missing/... or OutOfSync resources, plus `argocd app get` |
 | Kargo promotions | stage whose last promotion Errored, Failed or Aborted | what that phase means and what to do next | the promotion itself (its failing step and error) and the stage |
+| Pull requests | open PR in gitops_homelab_2_0, nix_dots_2 and kargo-observability (GitHub API) | tagged Review, Draft or Kargo (a `kargo/promotion/*` branch), how long it has been open | the PR itself |
 | Stuck pods | pod older than 5 minutes that is crash-looping, cannot pull, cannot start, unschedulable, stuck creating, Pending, Failed or Unknown | the reason in plain words, age and restarts | Loki logs for the pod, plus `kubectl describe` |
 
 Alerts are read from Alertmanager (`AM_URL`, `/api/v2/alerts?silenced=false&inhibited=false`),
@@ -144,8 +150,8 @@ page file starts with its own `- name:`).
 
 ## API keys
 
-Sonarr, Radarr, SABnzbd, Umami, Plex, Proxmox and Unraid are read from their
-own APIs. Their keys never touch `glance/` or `glance-env`: `templates/externalsecret.yaml` reads
+Sonarr, Radarr, SABnzbd, Umami, Plex, Jellyfin, Home Assistant, GitHub,
+Proxmox and Unraid are read from their own APIs. Their keys never touch `glance/` or `glance-env`: `templates/externalsecret.yaml` reads
 1Password item `homepage-secret` whole (its fields are already named
 `HOMEPAGE_VAR_*`), the Deployment loads it with an optional `envFrom` after
 `glance-env`, and the page files refer to each as `${HOMEPAGE_VAR_<NAME>}`.
@@ -167,6 +173,17 @@ The media apps are called on the Services vcluster syncs into the host
 namespace, `<app>-x-media-x-vcluster-media.vcluster-media.svc`, not through
 `*.vcluster-media.integratn.tech`: the vcluster gateway's LoadBalancer only
 admits traffic from outside the cluster.
+
+The newer keys, all optional (a widget without its key says which field to add):
+
+| Field | What | Where to get it |
+|---|---|---|
+| `HOMEPAGE_VAR_HA_TOKEN` | Home tab's House card | HA profile -> Security -> Long-lived access tokens |
+| `HOMEPAGE_VAR_JELLYFIN_KEY` | Media tab's Jellyfin | Jellyfin Dashboard -> API Keys |
+| `HOMEPAGE_VAR_GITHUB_TOKEN` | Needs you's Pull requests, for private repos and rate limit | a fine-grained read-only token (Pull requests: read) |
+
+Home Assistant (10.0.1.174:8123) and Jellyfin (Tower, 10.0.0.12:8096) are LAN
+hosts in `allow-lan-monitors`; GitHub goes out on 443.
 
 The Umami tiles show visitors online now, and today's visitors and pageviews
 against the same span yesterday. The website IDs are not secret (they ship in

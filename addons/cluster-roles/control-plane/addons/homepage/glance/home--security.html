@@ -1,0 +1,39 @@
+{{ $q := concat (.Options.StringOr "prom" "") "/api/v1/query" }}
+{{/* Trivy Operator's last scan of every running image (fixable findings
+     only, see trivy-operator/values.yaml), and Kyverno rule failures. */}}
+{{ $sev := (newRequest $q | withParameter "query" `sum by (severity) (trivy_image_vulnerabilities{severity=~"Critical|High"})` | getResponse).JSON.Array "data.result" }}
+{{ $top := (newRequest $q | withParameter "query" `topk(4, sum by (namespace) (trivy_image_vulnerabilities{severity="Critical"}) > 0)` | getResponse).JSON.Array "data.result" }}
+{{ $kyv := (newRequest $q | withParameter "query" `sort_desc(sum by (policy_name) (increase(kyverno_policy_results_total{rule_result="fail"}[24h])) > 0.5)` | getResponse).JSON.Array "data.result" }}
+{{ $crit := 0 }}{{ $high := 0 }}
+{{ range $sev }}{{ if eq (.String "metric.severity") "Critical" }}{{ $crit = .Int "value.1" }}{{ else }}{{ $high = .Int "value.1" }}{{ end }}{{ end }}
+{{ if eq (len $sev) 0 }}
+  <p class="hl-none">Not recorded: no Trivy metrics.</p>
+{{ else }}
+<div class="hl-row" style="margin-bottom:1rem">
+  <div><div class="hl-big">{{ $crit }}</div><div class="hl-label">Critical</div></div>
+  <div style="text-align:right"><div class="hl-big">{{ $high }}</div><div class="hl-label">High</div></div>
+</div>
+<div class="hl-label" style="margin-bottom:.6rem">Most critical, by namespace</div>
+<ul class="list list-gap-8" style="margin-bottom:1.2rem">
+  {{ range $top }}
+    <li class="hl-row">
+      <a class="color-highlight text-truncate" href="https://trivy.cluster.integratn.tech/?namespace={{ .String "metric.namespace" }}" target="_blank">{{ .String "metric.namespace" }}</a>
+      <span class="hl-num color-subdue shrink-0">{{ .Int "value.1" }}</span>
+    </li>
+  {{ end }}
+</ul>
+{{ end }}
+<div class="hl-label" style="margin-bottom:.6rem">Kyverno failures, 24h</div>
+{{ if eq (len $kyv) 0 }}
+  <p class="hl-none">No policy failures.</p>
+{{ else }}
+<ul class="list list-gap-8">
+  {{ range $kyv }}
+    <li class="hl-row">
+      <span class="text-truncate">{{ .String "metric.policy_name" }}</span>
+      <span class="shrink-0"><span class="hl-num color-subdue">{{ .Float "value.1" | printf "%.0f" }}</span> <span class="hl-tag warn">Fail</span></span>
+    </li>
+  {{ end }}
+</ul>
+<div class="size-h6 color-subdue" style="margin-top:.6rem"><code>kubectl --context admin@the-cluster get polr -A</code> names the resources.</div>
+{{ end }}

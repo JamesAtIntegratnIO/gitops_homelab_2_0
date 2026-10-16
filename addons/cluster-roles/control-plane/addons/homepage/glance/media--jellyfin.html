@@ -1,0 +1,28 @@
+{{/* Sessions active in the last minute that are playing something. */}}
+{{ $key := .Options.StringOr "key" "" }}
+{{ if eq $key "" }}
+  <p class="hl-none">Not recorded: add a Jellyfin API key to <code>homepage-secret</code> as <code>HOMEPAGE_VAR_JELLYFIN_KEY</code>.</p>
+{{ else }}
+{{ $r := newRequest (concat (.Options.StringOr "url" "") "/Sessions") | withParameter "activeWithinSeconds" "60" | withHeader "X-Emby-Token" $key | getResponse }}
+{{ if ne $r.Response.StatusCode 200 }}
+  <p class="hl-none">Not recorded: Jellyfin answered {{ $r.Response.Status }}.</p>
+{{ else }}
+  {{ $n := 0 }}{{ range $r.JSON.Array "" }}{{ if .Exists "NowPlayingItem" }}{{ $n = add $n 1 }}{{ end }}{{ end }}
+  {{ if eq $n 0 }}
+    <p class="hl-none">Nothing playing.</p>
+  {{ else }}
+  <ul class="list list-gap-10">
+    {{ range $r.JSON.Array "" }}{{ if .Exists "NowPlayingItem" }}
+      {{ $m := .String "PlayState.PlayMethod" }}
+      <li>
+        <div class="hl-row">
+          <span class="color-highlight text-truncate">{{ with .String "NowPlayingItem.SeriesName" }}{{ . }} · {{ end }}{{ .String "NowPlayingItem.Name" }}</span>
+          <span class="hl-tag {{ if eq $m "Transcode" }}warn{{ end }} shrink-0">{{ if eq $m "DirectPlay" }}Direct{{ else if eq $m "DirectStream" }}Direct stream{{ else }}{{ or $m "Unknown" }}{{ end }}</span>
+        </div>
+        <div class="size-h6 color-subdue">{{ .String "UserName" }} · {{ .String "Client" }}{{ if .Bool "PlayState.IsPaused" }} · paused{{ end }}</div>
+      </li>
+    {{ end }}{{ end }}
+  </ul>
+  {{ end }}
+{{ end }}
+{{ end }}

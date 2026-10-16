@@ -146,6 +146,38 @@
           template: |
             $include: home--hosts.html
 
+        # ── Safety nets: the things that fail silently ──────────────
+        # etcd snapshot ages and the soonest certificate expiries. Past
+        # their thresholds both are alerts too, and so on Needs you.
+        - type: custom-api
+          title: Backups and certs
+          title-url: https://grafana.cluster.integratn.tech/d/homelab-overview/homelab-overview
+          cache: 5m
+          options:
+            prom: ${PROM_URL}
+          template: |
+            $include: home--backups-certs.html
+
+        - type: custom-api
+          title: Security
+          title-url: https://trivy.cluster.integratn.tech
+          cache: 15m
+          options:
+            prom: ${PROM_URL}
+          template: |
+            $include: home--security.html
+
+        # ── Home Assistant (outside the cluster, 10.0.1.174) ─────────
+        - type: custom-api
+          title: House
+          title-url: http://10.0.1.174:8123
+          cache: 2m
+          options:
+            url: ${HA_URL}
+            key: ${HOMEPAGE_VAR_HA_TOKEN}
+          template: |
+            $include: home--house.html
+
         - type: releases
           title: Upstream releases
           cache: 6h
