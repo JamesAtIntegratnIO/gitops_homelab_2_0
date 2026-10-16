@@ -1,0 +1,10 @@
+# The page config: one key per file in glance/ (glance.yml $includes the
+# rest). ConfigMap keys cannot hold a `/`, so glance/ stays flat and is
+# mounted flat at /app/config.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: glance-config
+  namespace: homepage
+data:
+{{ (.Files.Glob "glance/*").AsConfig | indent 2 }}

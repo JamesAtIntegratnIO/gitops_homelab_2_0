@@ -78,12 +78,13 @@ they cross a threshold. Signal orange is the Integratn mark in the header
 | File | What it is |
 |---|---|
 | `glance/` | the page config as plain files: `glance.yml` (server, theme, the page list), `page-<tab>.yml` per tab, `<tab>--<widget>.html` per custom widget template, `glance.css` and `glance.js` |
-| `kustomization.yaml` | lists every file and generates the `glance-config` ConfigMap from `glance/`; its content hash is in the ConfigMap name, so any change rolls the pod |
-| `env.yaml` | `glance-env` (API URLs plus an empty default for every key) |
+| `Chart.yaml`, `values.yaml` | a local Helm chart, only so `glance/` can be real files; `values.yaml` holds the Kargo-tracked image pin |
+| `templates/config.yaml` | `glance-config`, one key per file in `glance/`; the Deployment carries its checksum, so any change rolls the pod |
+| `templates/env.yaml` | `glance-env` (API URLs plus an empty default for every key) |
 | `preview/` | `run.sh` serves the page locally against `mock.py`, a fake of every API it reads |
-| `deployment.yaml` | Glance: one replica, non-root, read-only root filesystem, no service-account token; the Service `homepage.homepage.svc.cluster.local:8080` |
-| `externalsecret.yaml` | the API keys as `HOMEPAGE_VAR_*`, from 1Password item `homepage-secret` |
-| `httproute.yaml`, `snippetsfilter.yaml` | `home.cluster.integratn.tech` behind authentik forward-auth, and its http redirect |
+| `templates/deployment.yaml` | Glance: one replica, non-root, read-only root filesystem, no service-account token; the Service `homepage.homepage.svc.cluster.local:8080` |
+| `templates/externalsecret.yaml` | the API keys as `HOMEPAGE_VAR_*`, from 1Password item `homepage-secret` |
+| `templates/httproute.yaml`, `templates/snippetsfilter.yaml` | `home.cluster.integratn.tech` behind authentik forward-auth, and its http redirect |
 
 Elsewhere:
 
@@ -98,18 +99,21 @@ Elsewhere:
 
 ## Editing the page
 
-Edit the file under `glance/` and merge; the ConfigMap's hash changes and the
-pod rolls on its own. Glance stitches the files together with `$include:` (on
+Edit the file under `glance/` and merge; the Deployment's `checksum/config`
+annotation changes and the pod rolls on its own. Glance stitches the files together with `$include:` (on
 a line of its own; the included text is indented to fit, so a template goes
 under `template: |` as an indented `$include: <tab>--<widget>.html`, and a
 page file starts with its own `- name:`).
 
-- **A new file must be listed in `kustomization.yaml`.** ConfigMap keys cannot
-  hold a `/`, so `glance/` is flat and mounted flat at `/app/config`; an
-  unlisted file is simply missing and its `$include` fails. `preview/run.sh`
-  checks the list against the folder.
+- **`glance/` stays flat.** Every file in it becomes a ConfigMap key, and keys
+  cannot hold a `/`, so it is mounted flat at `/app/config`. A new file needs
+  no other change.
+- **The other manifests are Helm templates,** but only `config.yaml` and
+  `deployment.yaml` (image and checksum) use templating. `{{` in any other
+  template is Helm's, so escape it; files under `glance/` are read raw and are
+  never templated by Helm.
 - **Preview it.** `preview/run.sh [busy|quiet|fresh|amdown]` downloads the
-  Glance version pinned in `deployment.yaml` into `~/.cache/glance-preview`,
+  Glance version pinned in `values.yaml` into `~/.cache/glance-preview`,
   starts the mock and serves the page on http://localhost:8088 (`PORT`,
   `MOCK_PORT` override). `preview/run.sh --print` prints the resolved config.
 
@@ -127,7 +131,7 @@ page file starts with its own `- name:`).
   widgets, so a new tile is a PromQL query, not RBAC. Write counts
   `... or vector(0)`.
 - **Every `${NAME}` under `glance/` must be set**, or Glance refuses to start.
-  Add a default for every new name to `glance-env` (`env.yaml`). Glance
+  Add a default for every new name to `glance-env` (`templates/env.yaml`). Glance
   substitutes inside comments too, so never write one literally in a comment.
 - **A host outside the cluster** needs its host and port in
   `allow-lan-monitors` (`network-policies/homepage.yaml`). A new
@@ -141,9 +145,9 @@ page file starts with its own `- name:`).
 ## API keys
 
 Sonarr, Radarr, SABnzbd, Umami, Plex, Proxmox and Unraid are read from their
-own APIs. Their keys never touch `glance/` or `env.yaml`: `externalsecret.yaml` reads
+own APIs. Their keys never touch `glance/` or `glance-env`: `templates/externalsecret.yaml` reads
 1Password item `homepage-secret` whole (its fields are already named
-`HOMEPAGE_VAR_*`), `deployment.yaml` loads it with an optional `envFrom` after
+`HOMEPAGE_VAR_*`), the Deployment loads it with an optional `envFrom` after
 `glance-env`, and the page files refer to each as `${HOMEPAGE_VAR_<NAME>}`.
 
 To add one:

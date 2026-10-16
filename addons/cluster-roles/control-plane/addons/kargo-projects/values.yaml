@@ -450,8 +450,8 @@ projects:
           apps:
             - homepage-the-cluster
         updates:
-          - file: addons/cluster-roles/control-plane/addons/homepage/deployment.yaml
-            keys: [spec.template.spec.containers.0.image]
+          - file: addons/cluster-roles/control-plane/addons/homepage/values.yaml
+            keys: [image]
       pve-exporter:
         scope: host-exporters
         # Docker Hub, polled anonymously, so the old cadence. Plain X.Y.Z.

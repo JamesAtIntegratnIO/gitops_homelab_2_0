@@ -5,17 +5,15 @@
 # All of them are pulled in with Glance's `$include:` (a line of its own,
 # replaced by the file before the YAML is parsed, indented to fit).
 #
-# kustomization.yaml packs every file in this folder into one ConfigMap,
-# mounted flat at /app/config, so file names cannot have subfolders. A new
-# file has to be added to its configMapGenerator list too, or the include
-# fails and Glance does not start; preview/run.sh checks that.
+# templates/config.yaml packs every file in this folder into one ConfigMap,
+# mounted flat at /app/config, so file names cannot have subfolders.
 #
 # Every ${...} reference in these files, comments included, is substituted
 # from the environment when Glance starts, and a name that is not set stops
-# Glance from starting at all. env.yaml sets every name the page uses, the
-# keys empty, and deployment.yaml loads it before the 1Password Secret, so a
-# key missing from 1Password costs only its widget, which then reads "Not
-# recorded".
+# Glance from starting at all. templates/env.yaml sets every name the page
+# uses, the keys empty, and the Deployment loads it before the 1Password
+# Secret, so a key missing from 1Password costs only its widget, which then
+# reads "Not recorded".
 #
 # Styling is the IntegratnIO design system (specmarshal DESIGN.md, "The Night
 # Shift Ledger"), the same tokens integratn.io and Bosun ship: dark ground,
