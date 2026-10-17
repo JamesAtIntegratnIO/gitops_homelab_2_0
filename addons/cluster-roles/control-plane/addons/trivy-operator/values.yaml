@@ -43,6 +43,14 @@ operator:
 # Deferrable: a vulnerability scan must never cost a running service its node.
 priorityClassName: platform-batch
 
+# The operator reads the `trivy-operator` ConfigMap (scanJob.affinity,
+# tolerations, nodeSelector) only at startup, and the chart's checksum covers
+# a different ConfigMap (trivy-operator-config). After #486 set scanJobAffinity
+# a scan Job still landed on talos-4kg-ymz until the pod restarted. Bump this
+# value whenever a scanJob* setting above changes.
+podAnnotations:
+  scanjob-config-revision: "2026-10-16-not-on-102"
+
 trivyOperator:
   # Kratix ships from a gated community registry that Trivy cannot authenticate
   # to. Trivy resolves the reference back to registry-1.docker.io and gets
