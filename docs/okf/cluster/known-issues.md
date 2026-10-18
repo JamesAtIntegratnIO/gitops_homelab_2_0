@@ -693,7 +693,7 @@ Measured over 14 days: fsync p99 sits at 50-64 ms on .101/.102 (about 15 ms on
 cause elections. Stalls do: on 2026-10-16 a Trivy full rescan (Standalone mode
 unpacks the DB per scan Job onto the node disk) pushed .102 to 1-3 s and caused
 196 leader changes. Mitigations: `scanJobsConcurrentLimit: 1`, etcd
-heartbeat/election 250/2500 ms (Talos, step 6 of commands.md), and alerts sized
+heartbeat/election 250/2500 ms (Talos, step 6 of commands.md; takes effect only on a node reboot, since Talos 1.11 does not restart etcd for an extraArgs change), and alerts sized
 to this baseline (`EtcdLeaderChurn`, `EtcdWalFsyncSlow`, `EtcdWalFsyncStalled`,
 `EtcdBackendCommitSlow`; the mixin's `etcdHighFsyncDurations` and
 `etcdHighCommitDurations` are disabled because the commit rule fired on

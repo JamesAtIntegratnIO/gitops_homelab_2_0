@@ -1,8 +1,9 @@
 # LIVE patch -- the etcd timing keys from cp.yaml, for `talosctl patch mc`
 # against a running control-plane node. See live-talos-api-access.yaml for why
-# the gen-time fragment and JSON patches are not used. Restarts etcd on that
-# node only (no reboot); do one node at a time and wait for the member to be
-# healthy before the next. See step 6 of commands.md.
+# the gen-time fragment and JSON patches are not used. Takes effect only after
+# a reboot: Talos 1.11 does not restart etcd for an extraArgs change and refuses
+# `service etcd restart`. Apply with --mode no-reboot, then reboot one node at a
+# time, leader last. See step 6 of commands.md.
 cluster:
   etcd:
     extraArgs:

@@ -105,20 +105,30 @@ talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status     # DB SIZE should be
 # 6. etcd heartbeat/election timing (2026-10-16). Defaults 100 ms / 1000 ms
 #    assume a disk that fsyncs in single-digit ms; here fsync p99 is ~55 ms
 #    and stalls for 0.5-3 s under image/scan I/O, and each stall on the leader
-#    was a leader change (196 on 2026-10-16 against 0-7/day before). Restarts
-#    etcd on the patched node only, no reboot. One node at a time; followers
-#    first, the leader last; wait for all three members healthy in between.
+#    was a leader change (196 on 2026-10-16 against 0-7/day before).
+#    NEEDS A REBOOT to take effect: Talos 1.11 writes the new etcdspec but does
+#    not restart the running etcd for an extraArgs change, and
+#    `talosctl service etcd restart` is refused ("doesn't support restart
+#    operation via API"). Checked on .102, 2026-10-16. Patch all three with
+#    --mode no-reboot, then reboot one node at a time, followers first and the
+#    leader last, waiting for the node Ready and 3 healthy members in between.
+#    CPU requests sit near 69% of three nodes, so with one node down some pods
+#    stay Pending until it is back.
 talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status        # note the leader
-talosctl -n <follower-1> patch mc --patch-file live-etcd-timing.yaml
+talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 patch mc --mode no-reboot --patch-file live-etcd-timing.yaml
+talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 get etcdspec -o yaml | grep -E 'heartbeat|election'   # config, not the running process
+talosctl -n <follower-1> reboot
 talosctl -n 10.0.4.101,10.0.4.102,10.0.4.103 etcd status        # 3 members, same raft index climbing
-talosctl -n <follower-2> patch mc --patch-file live-etcd-timing.yaml
-talosctl -n <leader> patch mc --patch-file live-etcd-timing.yaml
-#    Verify the flags took on each node:
-talosctl -n 10.0.4.101 ps | grep etcd       # or: talosctl -n <ip> get etcdspec -o yaml
+talosctl -n <follower-2> reboot
+talosctl -n <leader> reboot
+#    Verify the running etcd has the flags (the etcdspec above changes before
+#    the process does):
+talosctl -n <ip> processes | grep etcd
+#    Without a reboot window, the patched config simply takes effect at the
+#    next reboot or Talos upgrade of each node.
 #    Optional, any time: prefer .103 as leader. Its disk fsyncs in ~15 ms
-#    against ~55 ms on .101/.102 (and .102's drive is 4x slower than .101's
-#    identical model, so possibly worn). etcd has no leader priority, so this
-#    does not stick across elections; re-run it when the leader is elsewhere.
+#    against ~55 ms on .101/.102. etcd has no leader priority, so this does
+#    not stick across elections; re-run it when the leader is elsewhere.
 talosctl -n <current-leader> etcd forfeit-leadership   # repeat until 10.0.4.103 leads
 ```
 
