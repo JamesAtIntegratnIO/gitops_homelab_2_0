@@ -41,8 +41,17 @@ function byFamily(kind, fam, L) {
   if (L > 0.3) return T('dim');
   return T('text');
 }
+// The few gradients ArgoCD draws, by selector (gen.js drops any not listed).
+// The wave is the placeholder shimmer every list shows while it loads, so it
+// is the "loading screen" when switching views.
+const gradients = {
+  '.mockup-list__wave-loader': `linear-gradient(to right, ${T('panel')}, ${T('raise')}, ${T('panel')})`,
+  '.expandable--collapsed::after': `linear-gradient(transparent 70%, ${T('panel')} 100%)`,
+  '.application-resource-tree--network .application-resource-tree__line': `linear-gradient(90deg, ${T('dim')} 50%, transparent 50%)`,
+};
 module.exports = {
   explicit, byFamily, pillFrom: 12,
+  gradient: (sel) => gradients[sel] || null,
   overlay: (L, a) => (a >= 0.3 ? 'rgba(10, 12, 16, 0.72)' : null),
   font: (v) => (/mono|courier|consol|menlo/i.test(v) ? T('mono') : /heebo|sans|helvetica|arial|roboto|inherit/i.test(v) ? T('sans') : null),
   varKind: (p) => (/toastify-(text|spinner)/.test(p) ? 'tx' : /toastify-color/.test(p) ? 'bg' : null),
