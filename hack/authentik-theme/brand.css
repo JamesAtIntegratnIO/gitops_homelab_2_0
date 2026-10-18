@@ -1,0 +1,241 @@
+/* IntegratnIO brand for authentik ("The Night Shift Ledger", dark first).
+   authentik puts this sheet in the page <head> and adopts it into every
+   component's shadow root, so the token block below reaches the whole UI
+   through inheritance and the component rules match inside each component.
+   The brand also pins the dark theme (attributes.settings.theme.base). */
+
+:root, :host {
+  --i-ground:#0a0c10; --i-well:#14171d; --i-panel:#1d2126; --i-raise:#262a30; --i-line:#393e43;
+  --i-text:#f3f7fc; --i-said:#cfd5dc; --i-dim:#acb2b9; --i-faint:#8d939a;
+  --i-ok:#42c161; --i-ok-surface:#0c2b13; --i-ok-border:#024e1c;
+  --i-warn:#cf9a43; --i-warn-surface:#2f210c; --i-warn-border:#553a08;
+  --i-bad:#f47983; --i-bad-surface:#39191b; --i-bad-border:#67282e;
+  --i-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --i-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* PatternFly's global tokens, which authentik's dark theme sets on <html>.
+   Doubled attribute selector so this wins over html[data-theme="dark"]. */
+html[data-theme][data-theme], :host {
+  color-scheme: dark;
+  --pf-global--FontFamily--sans-serif: var(--i-sans);
+  --pf-global--FontFamily--heading--sans-serif: var(--i-sans);
+  --pf-global--FontFamily--redhat-updated--sans-serif: var(--i-sans);
+  --pf-global--FontFamily--redhat-updated--heading--sans-serif: var(--i-sans);
+  --pf-global--FontFamily--redhatfont--sans-serif: var(--i-sans);
+  --pf-global--FontFamily--redhatfont--heading--sans-serif: var(--i-sans);
+  --pf-global--FontFamily--overpass--sans-serif: var(--i-sans);
+  --pf-global--FontFamily--monospace: var(--i-mono);
+  --pf-global--FontFamily--redhat--monospace: var(--i-mono);
+  --pf-global--FontFamily--redhat-mono--monospace: var(--i-mono);
+  --pf-global--FontFamily--overpass--monospace: var(--i-mono);
+
+  --pf-global--BackgroundColor--100: var(--i-panel);
+  --pf-global--BackgroundColor--150: var(--i-raise);
+  --pf-global--BackgroundColor--200: var(--i-ground);
+  --pf-global--BackgroundColor--300: var(--i-raise);
+  --pf-global--BackgroundColor--400: var(--i-line);
+  --pf-global--BackgroundColor--light-100: var(--i-panel);
+  --pf-global--BackgroundColor--light-200: var(--i-well);
+  --pf-global--BackgroundColor--light-300: var(--i-raise);
+  --pf-global--BackgroundColor--dark-100: var(--i-panel);
+  --pf-global--BackgroundColor--dark-200: var(--i-ground);
+  --pf-global--BackgroundColor--dark-300: var(--i-raise);
+  --pf-global--BackgroundColor--dark-400: var(--i-line);
+  --pf-global--BackgroundColor--dark-transparent-100: rgba(10, 12, 16, .62);
+  --pf-global--BackgroundColor--dark-transparent-200: rgba(10, 12, 16, .8);
+
+  --pf-global--BorderColor--100: var(--i-line);
+  --pf-global--BorderColor--200: var(--i-line);
+  --pf-global--BorderColor--300: var(--i-line);
+  --pf-global--BorderColor--400: var(--i-faint);
+  --pf-global--BorderColor--dark-100: var(--i-line);
+  --pf-global--BorderColor--light-100: var(--i-line);
+  --pf-global--BorderRadius--sm: 6px;
+  --pf-global--BorderRadius--lg: 6px;
+  --pf-global--BoxShadow--sm: none;
+  --pf-global--BoxShadow--md: none;
+  --pf-global--BoxShadow--lg: none;
+  --pf-global--BoxShadow--xl: none;
+
+  --pf-global--Color--100: var(--i-text);
+  --pf-global--Color--200: var(--i-dim);
+  --pf-global--Color--300: var(--i-faint);
+  --pf-global--Color--400: var(--i-faint);
+  --pf-global--Color--dark-100: var(--i-text);
+  --pf-global--Color--dark-200: var(--i-dim);
+  --pf-global--Color--light-100: var(--i-text);
+  --pf-global--Color--light-200: var(--i-dim);
+  --pf-global--Color--light-300: var(--i-faint);
+  --pf-global--icon--Color--light: var(--i-dim);
+  --pf-global--icon--Color--dark: var(--i-dim);
+  --pf-global--disabled-color--100: var(--i-faint);
+  --pf-global--disabled-color--200: var(--i-line);
+  --pf-global--disabled-color--300: var(--i-raise);
+
+  /* No brand colour on links or buttons: links are the text colour,
+     the primary action is the inverted pill of integratn.io. */
+  --pf-global--primary-color--100: var(--i-text);
+  --pf-global--primary-color--200: var(--i-said);
+  --pf-global--primary-color--300: var(--i-text);
+  --pf-global--primary-color--light-100: var(--i-text);
+  --pf-global--primary-color--dark-100: var(--i-text);
+  --pf-global--active-color--100: var(--i-text);
+  --pf-global--active-color--300: var(--i-text);
+  --pf-global--link--Color: var(--i-text);
+  --pf-global--link--Color--hover: var(--i-said);
+  --pf-global--link--Color--visited: var(--i-text);
+  --pf-global--link--Color--light: var(--i-text);
+  --pf-global--link--Color--light--hover: var(--i-said);
+  --pf-global--link--Color--dark: var(--i-text);
+  --pf-global--link--Color--dark--hover: var(--i-said);
+
+  /* Verdicts. */
+  --pf-global--success-color--100: var(--i-ok);
+  --pf-global--success-color--200: var(--i-ok);
+  --pf-global--warning-color--100: var(--i-warn);
+  --pf-global--warning-color--200: var(--i-warn);
+  --pf-global--danger-color--100: var(--i-bad);
+  --pf-global--danger-color--200: var(--i-bad);
+  --pf-global--danger-color--300: var(--i-bad);
+  --pf-global--info-color--100: var(--i-dim);
+  --pf-global--info-color--200: var(--i-dim);
+  --pf-global--palette--red-9999: var(--i-bad);
+  --pf-global--palette--red-8888: var(--i-bad);
+}
+
+/* Ground on <body> only: a background on <html> stops body's propagating to
+   the canvas, and body's own then paints over the flow background (body::before
+   at z-index -1). The second selector beats the dark theme's flow-page grey. */
+body, html[data-theme] body:has(ak-flow-executor) { background-color: var(--i-ground); }
+body { color: var(--i-said); font-family: var(--i-sans); font-variant-numeric: tabular-nums; }
+::selection { background: var(--i-line); color: var(--i-text); }
+a { text-underline-offset: 3px; }
+code, pre, kbd, samp, .pf-c-code-block, .pf-c-clipboard-copy__text { font-family: var(--i-mono); font-variant-numeric: tabular-nums; }
+
+/* Buttons: flat, 6px, primary inverted (text on ground), no shadows. */
+.pf-c-button {
+  --pf-c-button--BorderRadius: 6px;
+  --pf-c-button--m-primary--BackgroundColor: var(--i-text);
+  --pf-c-button--m-primary--Color: var(--i-ground);
+  --pf-c-button--m-primary--hover--BackgroundColor: var(--i-said);
+  --pf-c-button--m-primary--hover--Color: var(--i-ground);
+  --pf-c-button--m-primary--focus--BackgroundColor: var(--i-said);
+  --pf-c-button--m-primary--focus--Color: var(--i-ground);
+  --pf-c-button--m-primary--active--BackgroundColor: var(--i-said);
+  --pf-c-button--m-primary--active--Color: var(--i-ground);
+  --pf-c-button--m-secondary--Color: var(--i-text);
+  --pf-c-button--m-secondary--BorderColor: var(--i-line);
+  --pf-c-button--m-secondary--hover--Color: var(--i-text);
+  --pf-c-button--m-secondary--hover--BorderColor: var(--i-faint);
+  --pf-c-button--m-secondary--focus--Color: var(--i-text);
+  --pf-c-button--m-secondary--focus--BorderColor: var(--i-faint);
+  --pf-c-button--m-secondary--active--Color: var(--i-text);
+  --pf-c-button--m-secondary--active--BorderColor: var(--i-faint);
+  --pf-c-button--m-secondary--BackgroundColor: transparent;
+  --pf-c-button--m-tertiary--Color: var(--i-said);
+  --pf-c-button--m-tertiary--BorderColor: var(--i-line);
+  --pf-c-button--m-link--Color: var(--i-text);
+  --pf-c-button--m-link--hover--Color: var(--i-said);
+  --pf-c-button--m-plain--Color: var(--i-dim);
+  --pf-c-button--m-plain--hover--Color: var(--i-text);
+  --pf-c-button--m-danger--BackgroundColor: var(--i-bad-surface);
+  --pf-c-button--m-danger--Color: var(--i-bad);
+  --pf-c-button--m-danger--hover--BackgroundColor: var(--i-bad-border);
+  --pf-c-button--m-danger--hover--Color: var(--i-text);
+  font-weight: 600;
+}
+.pf-c-button.pf-m-primary { font-weight: 600; }
+
+/* Inputs: well background, hairline, 6px; focus is a brighter hairline. */
+.pf-c-form-control {
+  --pf-c-form-control--BackgroundColor: var(--i-well);
+  --pf-c-form-control--BorderTopColor: var(--i-line);
+  --pf-c-form-control--BorderRightColor: var(--i-line);
+  --pf-c-form-control--BorderBottomColor: var(--i-line);
+  --pf-c-form-control--BorderLeftColor: var(--i-line);
+  --pf-c-form-control--hover--BorderBottomColor: var(--i-faint);
+  --pf-c-form-control--focus--BorderBottomColor: var(--i-text);
+  --pf-c-form-control--focus--BorderBottomWidth: 1px;
+  --pf-c-form-control--focus--PaddingBottom: var(--pf-c-form-control--PaddingBottom);
+  --pf-c-form-control--Color: var(--i-text);
+  --pf-c-form-control--invalid--BorderBottomColor: var(--i-bad);
+  border: 1px solid var(--i-line);
+  border-radius: 6px;
+}
+.pf-c-form-control::placeholder { color: var(--i-faint); }
+.pf-c-form-control:focus { border-color: var(--i-faint); outline: none; }
+
+/* Labels: 12px, 600, uppercase, letter-spaced, dim. */
+.pf-c-form__label, .pf-c-form__label-text {
+  font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--i-dim);
+}
+.pf-c-form__label-required { color: var(--i-dim); }
+.pf-c-form__helper-text { font-size: 12px; }
+.pf-c-form__helper-text.pf-m-error { color: var(--i-bad); }
+
+/* The flow card: panel, hairline, 6px, no shadow. */
+.pf-c-login__main {
+  --ak-c-login__main--BackgroundColor: var(--i-panel);
+  background-color: var(--i-panel) !important;
+  border: 1px solid var(--i-line);
+  border-radius: 6px;
+  box-shadow: none !important;
+}
+.pf-c-login__main-header { padding-block-end: 8px; }
+.pf-c-login__main-header .pf-c-title, .pf-c-title {
+  font-family: var(--i-sans); font-weight: 600; letter-spacing: -0.01em; color: var(--i-text);
+}
+.pf-c-login__main-header-desc, .pf-c-login__main-body > p { color: var(--i-said); }
+.pf-c-login__footer, .pf-c-login__footer .pf-c-list a, .pf-c-login__footer p { color: var(--i-faint) !important; }
+
+/* Logo above the card title. */
+.pf-c-brand { max-height: 44px; }
+
+/* Alerts and labels: verdict colour on a surface + border of the same hue. */
+.pf-c-alert { box-shadow: none; border: 1px solid var(--i-line); border-radius: 6px; background: var(--i-raise); }
+.pf-c-alert.pf-m-success { border-color: var(--i-ok-border); background: var(--i-ok-surface); }
+.pf-c-alert.pf-m-warning { border-color: var(--i-warn-border); background: var(--i-warn-surface); }
+.pf-c-alert.pf-m-danger { border-color: var(--i-bad-border); background: var(--i-bad-surface); }
+.pf-c-alert.pf-m-info, .pf-c-alert.pf-m-default { --pf-c-alert__icon--Color: var(--i-dim); --pf-c-alert__title--Color: var(--i-text); }
+.pf-c-label { border-radius: 999px; --pf-c-label--BackgroundColor: var(--i-raise); --pf-c-label__content--Color: var(--i-said); --pf-c-label__content--before--BorderColor: var(--i-line); }
+.pf-c-label.pf-m-green { --pf-c-label--BackgroundColor: var(--i-ok-surface); --pf-c-label__content--Color: var(--i-ok); --pf-c-label__content--before--BorderColor: var(--i-ok-border); --pf-c-label__icon--Color: var(--i-ok); }
+.pf-c-label.pf-m-orange, .pf-c-label.pf-m-gold { --pf-c-label--BackgroundColor: var(--i-warn-surface); --pf-c-label__content--Color: var(--i-warn); --pf-c-label__content--before--BorderColor: var(--i-warn-border); --pf-c-label__icon--Color: var(--i-warn); }
+.pf-c-label.pf-m-red { --pf-c-label--BackgroundColor: var(--i-bad-surface); --pf-c-label__content--Color: var(--i-bad); --pf-c-label__content--before--BorderColor: var(--i-bad-border); --pf-c-label__icon--Color: var(--i-bad); }
+.pf-c-label.pf-m-blue, .pf-c-label.pf-m-cyan, .pf-c-label.pf-m-purple { --pf-c-label__icon--Color: var(--i-dim); }
+
+/* Cards, tables, modals: flat panels with hairlines. */
+.pf-c-card { --pf-c-card--BackgroundColor: var(--i-panel); box-shadow: none; border: 1px solid var(--i-line); border-radius: 6px; }
+.pf-c-modal-box { box-shadow: none; border: 1px solid var(--i-line); border-radius: 6px; }
+.pf-c-table { --pf-c-table--BackgroundColor: var(--i-panel); --pf-c-table--BorderColor: var(--i-line); --pf-c-table--cell--Color: var(--i-said); }
+.pf-c-table thead th, .pf-c-table thead td, .pf-c-table__sort .pf-c-table__text {
+  font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--i-dim);
+}
+
+/* Navigation (admin + user interfaces): ground sidebar, current item on raise. */
+.pf-c-page__sidebar, .pf-c-page__header, ak-page-navbar, .pf-c-masthead {
+  --pf-c-page__sidebar--BackgroundColor: var(--i-ground);
+  --pf-c-page__header--BackgroundColor: var(--i-ground);
+  --pf-c-masthead--BackgroundColor: var(--i-ground);
+}
+.pf-c-nav {
+  --pf-c-nav--BackgroundColor: var(--i-ground);
+  --pf-c-nav__link--Color: var(--i-dim);
+  --pf-c-nav__link--hover--Color: var(--i-text);
+  --pf-c-nav__link--m-current--Color: var(--i-text);
+  --pf-c-nav__link--m-current--BackgroundColor: var(--i-raise);
+  --pf-c-nav__link--hover--BackgroundColor: var(--i-panel);
+  --pf-c-nav__link--before--BorderColor: transparent;
+  --pf-c-nav__link--after--BorderColor: transparent;
+  --pf-c-nav__link--m-current--after--BorderColor: var(--i-text);
+  --pf-c-nav__section-title--Color: var(--i-faint);
+}
+.pf-c-nav__section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; }
+.pf-c-page__main-section { --pf-c-page__main-section--BackgroundColor: var(--i-ground); }
+.pf-c-page__main-section.pf-m-light, .pf-c-page__main-section.pf-m-dark-200 { --pf-c-page__main-section--BackgroundColor: var(--i-ground); }
+
+/* Phones: the card fills the screen (authentik drops the background there),
+   so it loses its frame. */
+@media (max-width: 35rem) {
+  .pf-c-login__main { border: 0; border-radius: 0; }
+}
