@@ -1,0 +1,57 @@
+/* IntegratnIO brand for ArgoCD ("The Night Shift Ledger", dark first).
+   Hand-written part: tokens, status colours ArgoCD sets inline, typography.
+   The generated part below remaps ArgoCD's own rules onto these tokens. */
+:root {
+  --i-ground:#0a0c10; --i-well:#14171d; --i-panel:#1d2126; --i-raise:#262a30; --i-line:#393e43;
+  --i-text:#f3f7fc; --i-said:#cfd5dc; --i-dim:#acb2b9; --i-faint:#8d939a;
+  --i-ok:#42c161; --i-ok-surface:#0c2b13; --i-ok-border:#024e1c;
+  --i-warn:#cf9a43; --i-warn-surface:#2f210c; --i-warn-border:#553a08;
+  --i-bad:#f47983; --i-bad-surface:#39191b; --i-bad-border:#67282e;
+  --i-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --i-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--i-ground); color: var(--i-said); font-family: var(--i-sans); font-variant-numeric: tabular-nums; }
+::selection { background: var(--i-line); color: var(--i-text); }
+
+/* Status colours ArgoCD writes inline (shared/components/colors.ts).
+   Colour only on a verdict: healthy/synced = ok, out-of-sync/missing = warn,
+   degraded/failed = bad; progressing, suspended and unknown stay neutral. */
+[style*="rgb(24, 190, 148)"] { color: var(--i-ok) !important; }
+[style*="rgb(244, 192, 48)"] { color: var(--i-warn) !important; }
+[style*="rgb(233, 109, 118)"], [style*="rgb(222, 48, 61)"] { color: var(--i-bad) !important; }
+[style*="rgb(13, 173, 234)"] { color: var(--i-said) !important; }
+[style*="rgb(118, 111, 148)"], [style*="rgb(204, 214, 221)"], [style*="rgb(109, 127, 139)"] { color: var(--i-dim) !important; }
+[style*="background-color: rgb(24, 190, 148)"], [style*="background: rgb(24, 190, 148)"] { background-color: var(--i-ok) !important; }
+[style*="background-color: rgb(244, 192, 48)"], [style*="background: rgb(244, 192, 48)"] { background-color: var(--i-warn) !important; }
+[style*="background-color: rgb(233, 109, 118)"], [style*="background: rgb(233, 109, 118)"],
+[style*="background-color: rgb(222, 48, 61)"] { background-color: var(--i-bad) !important; }
+[style*="background-color: rgb(13, 173, 234)"], [style*="background: rgb(13, 173, 234)"] { background-color: var(--i-said) !important; }
+[style*="background-color: rgb(118, 111, 148)"], [style*="background-color: rgb(204, 214, 221)"],
+[style*="background: rgb(118, 111, 148)"], [style*="background: rgb(204, 214, 221)"] { background-color: var(--i-faint) !important; }
+[style*="border-left-color: rgb(24, 190, 148)"], [style*="border-color: rgb(24, 190, 148)"] { border-color: var(--i-ok) !important; }
+[style*="border-left-color: rgb(244, 192, 48)"], [style*="border-color: rgb(244, 192, 48)"] { border-color: var(--i-warn) !important; }
+[style*="border-left-color: rgb(233, 109, 118)"], [style*="border-color: rgb(233, 109, 118)"] { border-color: var(--i-bad) !important; }
+[style*="border-left-color: rgb(13, 173, 234)"], [style*="border-color: rgb(13, 173, 234)"] { border-color: var(--i-dim) !important; }
+[style*="border-left-color: rgb(118, 111, 148)"], [style*="border-left-color: rgb(204, 214, 221)"] { border-color: var(--i-faint) !important; }
+/* The same colours as SVG fill attributes (spinning status icons). */
+[fill="#18BE94" i] { fill: var(--i-ok); }
+[fill="#f4c030" i] { fill: var(--i-warn); }
+[fill="#E96D76" i], [fill="#DE303D" i] { fill: var(--i-bad); }
+[fill="#0DADEA" i] { fill: var(--i-said); }
+[fill="#766f94" i], [fill="#CCD6DD" i], [fill="#6D7F8B" i] { fill: var(--i-dim); }
+
+/* Labels: 12px, 600, uppercase, letter-spaced, dim. */
+.white-box__details-row > .columns.small-3:first-child {
+  font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--i-dim);
+}
+/* Data voice: revisions and timestamps in mono. */
+.application-status-panel__item-value__revision-sha, .application-status-panel__item-value__revision a,
+.application-resource-tree__node-status-icon ~ span, .white-box__details-row code, code, pre {
+  font-family: var(--i-mono); font-variant-numeric: tabular-nums;
+}
+
+/* Login: flat ground instead of the purple starfield. */
+.login { background: var(--i-ground) !important; }
+.login__text { color: var(--i-said); font-weight: 600; }
+.login__box { border-left: 1px solid var(--i-line); }

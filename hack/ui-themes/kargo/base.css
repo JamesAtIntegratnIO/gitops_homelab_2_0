@@ -1,0 +1,21 @@
+/* IntegratnIO brand for Kargo ("The Night Shift Ledger", dark first).
+   Injected by the gateway (SnippetsFilter on the kargo HTTPRoute), since
+   Kargo has no custom-stylesheet setting. Hand-written part first; the
+   generated part remaps Kargo's own rules onto these tokens. */
+:root {
+  --i-ground:#0a0c10; --i-well:#14171d; --i-panel:#1d2126; --i-raise:#262a30; --i-line:#393e43;
+  --i-text:#f3f7fc; --i-said:#cfd5dc; --i-dim:#acb2b9; --i-faint:#8d939a;
+  --i-ok:#42c161; --i-ok-surface:#0c2b13; --i-ok-border:#024e1c;
+  --i-warn:#cf9a43; --i-warn-surface:#2f210c; --i-warn-border:#553a08;
+  --i-bad:#f47983; --i-bad-surface:#39191b; --i-bad-border:#67282e;
+  --i-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --i-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+/* Kargo's own surface variables (its app.less), defined for both themes. */
+:root, :root[data-theme] {
+  --kargo-topbar-bg: var(--i-well); --kargo-sidebar-bg: var(--i-well); --kargo-sidebar-border: var(--i-line);
+  --kargo-tile-hover-border: var(--i-dim); --kargo-color-bg-layout: var(--i-ground); --kargo-color-text: var(--i-text);
+  color-scheme: dark;
+}
+html, body { background: var(--i-ground) !important; font-family: var(--i-sans) !important; font-variant-numeric: tabular-nums; }
+::selection { background: var(--i-line); color: var(--i-text); }
