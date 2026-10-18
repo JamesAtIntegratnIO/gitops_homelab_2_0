@@ -1,6 +1,8 @@
 # kargo.cluster.integratn.tech -> kargo-api (plain HTTP; TLS terminates at the
 # gateway, see api.tls.terminatedUpstream in the chart values). external-dns
 # publishes the hostname from this route.
+# The integratn-theme SnippetsFilter (snippetsfilter.yaml) injects the brand
+# stylesheet into the UI's index.html.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -18,6 +20,12 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: integratn-theme
       backendRefs:
         - name: kargo-api
           port: 80
