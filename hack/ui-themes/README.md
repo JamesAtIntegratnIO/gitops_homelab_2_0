@@ -76,3 +76,7 @@ visited page loaded it.
   Stages are told apart by name.
 - Kargo's graph zoom controls and minimap keep their light look in Kargo's light
   theme.
+- Some backgrounds are painted outside any colour value the generator can map
+  (Kargo's login gradient is one). Those are hand-written in `kargo/base.css`
+  by a selector on the module class's stable prefix (`[class*="_container_"]`),
+  since the hash suffix changes with every Kargo build.

@@ -764,6 +764,10 @@ data:
     }
     html, body { background: var(--i-ground) !important; font-family: var(--i-sans) !important; font-variant-numeric: tabular-nums; }
     ::selection { background: var(--i-line); color: var(--i-text); }
+    /* Login page: Kargo paints a fixed navy gradient (login.module.less) that no
+       colour remap reaches. The module class is hashed per build, so match it by
+       its stable prefix on the login root. */
+    .kargo-light-scope[class*="_container_"] { background: var(--i-ground) !important; }
     :root {
       --kargo-color-bg-layout: var(--i-ground) !important;
       --kargo-color-bg-base: var(--i-ground) !important;
