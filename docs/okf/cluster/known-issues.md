@@ -703,6 +703,18 @@ SATA SSD each) have no second disk. .102's PM871b writes ~84 ms average against
 ~21 ms on .101's identical model, but on 10-09/10-10 its fsync median was 8-9 ms,
 faster than .101: load on that node matters more than drive wear.
 
+**2026-10-18: the load was a Trivy retry loop, and it follows the scans.**
+.102's disk shows no ATA, I/O or timeout errors and the same sysfs error
+counters as the other two; when #487 restarted the operator (17:03Z) and scans
+left .102, it dropped from ~17 MB/s and 140 ms write await to 0.5 MB/s and
+4 ms, and .101 picked up the same ~27 MB/s. Cause: Standalone scan Jobs
+re-downloading the DB, multi-container scans dying on the shared fs-cache lock
+or OOM at 500M, and a 30s retry (`scanJobsRetryDelay`). Fixed by the built-in
+Trivy server (ClientServer), a 1h retry and a 1G limit. cAdvisor's
+`container_fs_writes_bytes_total` missed nearly all of it (~0.2 MB/s per pod);
+per-cgroup `io.stat` via `talosctl read /sys/fs/cgroup/kubepods/.../io.stat`
+and `kube_pod_info{namespace="trivy-system"}` counts are what show it.
+
 ## The database was 82% empty space (found 2026-08-21, **defragmented 2026-08-22**)
 
 **Resolved 2026-08-22T03:4xZ:** `talosctl etcd defrag` on 102, 101, then the

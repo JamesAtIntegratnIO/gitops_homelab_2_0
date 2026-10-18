@@ -53,7 +53,7 @@ alerts. Chart pinned at 0.35.0. Caveat: **scan coverage is not itself
 monitored**, and on 2026-09-01 it was found to have fallen to 2
 VulnerabilityReports cluster-wide with every health signal green — one report
 4% over the 2 MiB apiserver limit had wedged the queue since 2026-08-28. Fixed
-by `trivy.ignoreUnfixed: true`; the missing coverage alert is still open. See
+by `trivy.ignoreUnfixed: true`; the missing coverage alert is still open. Since 2026-10-18 scans run in ClientServer mode against the chart's built-in Trivy server (DB on an NFS PVC), with failed scans retried hourly. See
 [known issues](/cluster/known-issues.md).
 
 **Identity**: Authentik 2026.2.3 (`auth.cluster.integratn.tech`; the 2026.8.0
