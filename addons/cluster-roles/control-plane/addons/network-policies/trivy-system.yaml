@@ -66,6 +66,14 @@ spec:
     - ports:
         - protocol: TCP
           port: 443
+    # Health checks against the built-in Trivy server (ClientServer mode)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: trivy-server
+      ports:
+        - protocol: TCP
+          port: 4954
 ---
 # Scan jobs need to pull vuln DBs from registries
 apiVersion: networking.k8s.io/v1
@@ -80,7 +88,47 @@ spec:
   policyTypes:
     - Egress
   egress:
-    # Container registries (HTTPS) for vulnerability DB downloads
+    # Container registries (HTTPS): image layers, and the Java DB, which the
+    # client still fetches itself in ClientServer mode
+    - ports:
+        - protocol: TCP
+          port: 443
+    # The built-in Trivy server (ClientServer mode)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: trivy-server
+      ports:
+        - protocol: TCP
+          port: 4954
+---
+# Built-in Trivy server (operator.builtInTrivyServer): holds the vulnerability
+# DB and answers scan Jobs and the operator's health checks on 4954; pulls the
+# DB from mirror.gcr.io over 443.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-trivy-server
+  namespace: trivy-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: trivy-server
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/managed-by: trivy-operator
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: trivy-operator
+      ports:
+        - protocol: TCP
+          port: 4954
+  egress:
     - ports:
         - protocol: TCP
           port: 443
