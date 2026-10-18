@@ -56,9 +56,13 @@ VulnerabilityReports cluster-wide with every health signal green — one report
 by `trivy.ignoreUnfixed: true`; the missing coverage alert is still open. See
 [known issues](/cluster/known-issues.md).
 
-**Identity**: Authentik 2026.8.0 (`auth.cluster.integratn.tech`) provides
-OIDC for ArgoCD, Grafana, and Open WebUI (client secrets via 1Password;
-Google OAuth federated). Prometheus/Alertmanager/Loki endpoints have **no
+**Identity**: Authentik 2026.2.3 (`auth.cluster.integratn.tech`; the 2026.8.0
+jump was reverted on 2026-08-22, see the comment in `addons.yaml`) provides
+OIDC for ArgoCD, Grafana, Open WebUI and Kargo, and proxy auth for the
+landing page, Bosun, Specmarshal, Umami and Qdrant (client secrets via
+1Password; Google OAuth federated). It wears the IntegratnIO brand (logo,
+favicon, CSS, a background per flow) from the generated blueprint and assets
+in `hack/authentik-theme/`. Prometheus/Alertmanager/Loki endpoints have **no
 auth** (flagged as future work in the docs).
 
 **Secrets**: see [secret management](/platform/secret-management.md) — the
