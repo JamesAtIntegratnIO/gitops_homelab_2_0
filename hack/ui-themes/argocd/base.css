@@ -11,7 +11,9 @@
   --i-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
 }
-html, body { background: var(--i-ground); color: var(--i-said); font-family: var(--i-sans); font-variant-numeric: tabular-nums; }
+/* !important: ArgoCD's layout writes body.style.background (#100f0f or
+   #dee6eb) inline on every theme change, which beats any stylesheet rule. */
+html, body { background: var(--i-ground) !important; color: var(--i-said); font-family: var(--i-sans); font-variant-numeric: tabular-nums; }
 ::selection { background: var(--i-line); color: var(--i-text); }
 
 /* Status colours ArgoCD writes inline (shared/components/colors.ts).
