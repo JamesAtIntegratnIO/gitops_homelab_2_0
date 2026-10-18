@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-128 -128 256 256" role="img" aria-label="Integratn">
+
+  <g transform="scale(1.5)">
+      <polygon points="-30.74,-62.47 -10.25,-74.00 56.92,-36.22 36.89,-24.43" fill="#f87b4d" stroke="#f87b4d" stroke-width="0.6" stroke-linejoin="round"></polygon>
+      <polygon points="36.89,-24.43 56.92,-36.22 56.92,5.69 36.89,-5.81" fill="#e3612d" stroke="#e3612d" stroke-width="0.6" stroke-linejoin="round"></polygon>
+      <polygon points="36.89,-5.81 56.92,5.69 15.94,28.75 15.94,5.98" fill="#ee6631" stroke="#ee6631" stroke-width="0.6" stroke-linejoin="round"></polygon>
+      <polygon points="30.74,62.47 10.25,74.00 -56.92,36.22 -36.89,24.43" fill="#f87b4d" stroke="#f87b4d" stroke-width="0.6" stroke-linejoin="round"></polygon>
+      <polygon points="-36.89,24.43 -56.92,36.22 -56.92,-5.69 -36.89,5.81" fill="#e3612d" stroke="#e3612d" stroke-width="0.6" stroke-linejoin="round"></polygon>
+      <polygon points="-36.89,5.81 -56.92,-5.69 -15.94,-28.75 -15.94,-5.98" fill="#ee6631" stroke="#ee6631" stroke-width="0.6" stroke-linejoin="round"></polygon>
+      <polygon points="-10.02,-43.99 10.02,-32.72 10.02,43.99 -10.02,32.72" fill="#f26a35" stroke="#f26a35" stroke-width="0.6" stroke-linejoin="round"></polygon>
+  </g>
+</svg>
