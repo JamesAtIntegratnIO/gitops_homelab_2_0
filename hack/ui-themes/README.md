@@ -14,7 +14,7 @@ tool's own rules.
 | Piece | Where |
 |---|---|
 | Both stylesheets | ConfigMap `argocd-styles-cm` (`clusters/the-cluster/addons/argo-cd/manifests/argocd-styles-cm.yaml`), **generated** by `build.sh` |
-| ArgoCD | the chart always mounts `argocd-styles-cm` at `/shared/app/custom` on argocd-server; `configs.cm` `ui.cssurl: ./custom/argocd.css` loads it (the documented mechanism). `configs.styles` must stay unset, or the chart renders a ConfigMap of the same name |
+| ArgoCD | the chart always mounts `argocd-styles-cm` at `/shared/app/custom` on argocd-server; `configs.cm` `ui.cssurl: ./custom/argocd.css` loads it (the documented mechanism). `configs.styles` must stay unset, or the chart renders a ConfigMap of the same name. The UI appends the `ui.cssurl` `<link>` only after `/api/v1/settings` returns, so SnippetsFilter `argocd/integratn-theme` (in `argo-cd/values.yaml` beside the route) also puts it into `index.html`, for the loading screen |
 | Kargo | No stylesheet setting, so the gateway rewrites its `index.html`: SnippetsFilter `kargo/integratn-theme` (`kargo-extras/snippetsfilter.yaml`) adds `<link href="https://argocd.cluster.integratn.tech/custom/kargo.css">` and makes dark the default theme |
 
 argocd-server serves anything under `/shared/app` unauthenticated, which is why

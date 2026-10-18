@@ -285,9 +285,47 @@ extraObjects:
             - path:
                 type: PathPrefix
                 value: /
+          filters:
+            - type: ExtensionRef
+              extensionRef:
+                group: gateway.nginx.org
+                kind: SnippetsFilter
+                name: integratn-theme
           backendRefs:
             - name: argo-cd-argocd-server
               port: 80
+  # The brand stylesheet from the first paint. ui.cssurl alone is not enough:
+  # the UI appends that <link> only after /api/v1/settings returns, so the
+  # loading screen before it renders in ArgoCD's stock colours. nginx puts the
+  # same <link> into index.html as well; ui.cssurl stays as the documented
+  # setting, and loading the same rules twice changes nothing.
+  #
+  # sub_filter cannot see into compressed bodies and argocd-server gzips
+  # index.html, so Accept-Encoding is dropped for page loads only: browsers
+  # send Accept: text/html for those, and argocd-server only answers SPA routes
+  # with index.html when they do. The API, gRPC-web, event streams and assets
+  # keep compression, and sub_filter only touches text/html bodies anyway.
+  #
+  # If the filter is ever detached, ui.cssurl still themes everything after
+  # the loading screen.
+  - apiVersion: gateway.nginx.org/v1alpha1
+    kind: SnippetsFilter
+    metadata:
+      name: integratn-theme
+      namespace: argocd
+    spec:
+      snippets:
+        - context: http
+          value: |
+            map $http_accept $integratn_argocd_accept_encoding {
+              ~text/html  "";
+              default     $http_accept_encoding;
+            }
+        - context: http.server.location
+          value: |
+            proxy_set_header Accept-Encoding $integratn_argocd_accept_encoding;
+            sub_filter_once on;
+            sub_filter '</head>' '<link rel="stylesheet" href="/custom/argocd.css"></head>';
   - apiVersion: gateway.networking.k8s.io/v1
     kind: HTTPRoute
     metadata:

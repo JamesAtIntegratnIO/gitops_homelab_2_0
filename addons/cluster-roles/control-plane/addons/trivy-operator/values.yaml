@@ -28,9 +28,10 @@ securityContext:
 operator:
   # Disable infra assessment scanning — node-collector can't run on Talos
   infraAssessmentScannerEnabled: false
-  # One scan at a time. In Standalone mode every scan Job downloads and
-  # unpacks the Trivy DB onto the node's only disk, the same disk as
-  # /var/lib/etcd. On 2026-10-16 a full rescan (25 -> 790 reports, up to 166
+  # One scan at a time. In Standalone mode (until 2026-10-18) every scan Job
+  # downloaded and unpacked the Trivy DB onto the node's only disk, the same
+  # disk as /var/lib/etcd. ClientServer (builtInTrivyServer below) removes the
+  # per-Job DB download, but the client still pulls and unpacks image layers. On 2026-10-16 a full rescan (25 -> 790 reports, up to 166
   # scan pods/hour on .101/.102) pushed etcd WAL fsync p99 on .102 to 1-3 s and
   # caused 196 leader changes in a day against a 14-day baseline of 0-7. One
   # slot keeps the steady state (~13 scans/hour) and turns a full rescan into
@@ -39,6 +40,24 @@ operator:
   scanJobTimeout: 10m
   # Clean up completed scan jobs after 30s
   scanJobTTL: 30s
+  # A failed scan Job is retried after this long (chart key for
+  # OPERATOR_SCAN_JOB_RETRY_AFTER; chart default 30s). At 30s a scan that
+  # always fails -- OOM, a registry it cannot read, the shared-cache lock
+  # below -- is a loop: from 2026-10-16 to 10-18 the cluster ran ~880 scan
+  # pods a day against a baseline of 13, each re-downloading the Trivy DB,
+  # and the node running them wrote 15-40 MB/s (write await 3 -> 140 ms,
+  # etcd WAL fsync p99 up to 2.6 s). An hour turns a broken image into 24
+  # attempts a day instead of ~2,900.
+  scanJobsRetryDelay: 1h
+  # Run a Trivy server in trivy-system and scan in ClientServer mode (sets
+  # trivy.mode=ClientServer and trivy.serverURL). The vulnerability DB is
+  # then downloaded once, by the server, instead of by every scan Job into
+  # its own emptyDir on the node's only disk -- the same disk as
+  # /var/lib/etcd. It also stops the Standalone failure where every container
+  # of a multi-container workload runs trivy at once against one shared
+  # /tmp/trivy/.cache and all but one die with "unable to initialize fs
+  # cache: cache may be in use by another process: timeout".
+  builtInTrivyServer: true
 
 # Deferrable: a vulnerability scan must never cost a running service its node.
 priorityClassName: platform-batch
@@ -49,7 +68,7 @@ priorityClassName: platform-batch
 # a scan Job still landed on talos-4kg-ymz until the pod restarted. Bump this
 # value whenever a scanJob* setting above changes.
 podAnnotations:
-  scanjob-config-revision: "2026-10-16-not-on-102"
+  scanjob-config-revision: "2026-10-18-client-server"
 
 trivyOperator:
   # Kratix ships from a gated community registry that Trivy cannot authenticate
@@ -68,7 +87,13 @@ trivyOperator:
   # failures. It does leave the Kratix controller image unscanned -- worth
   # revisiting if Syntasso publishes to a registry we can read, or if a pull
   # secret becomes available.
-  excludeImages: "syntasso-community.docker.reo.dev/*"
+  #
+  # The operator matches these with Go's filepath.Match, where `*` does not
+  # cross `/`. The original single pattern `syntasso-community.docker.reo.dev/*`
+  # therefore never matched `.../syntasso/kratix-platform@sha256:...`, and the
+  # Kratix containers were still scanned (and still failing) on 2026-10-18.
+  # Each path depth needs its own `*`.
+  excludeImages: "syntasso-community.docker.reo.dev/*,syntasso-community.docker.reo.dev/*/*"
   # Scan Jobs never run on 10.0.4.102 (talos-4kg-ymz). Its etcd member is the
   # one that stalls under disk load: on 2026-10-16 its WAL fsync p99 reached
   # 3.1 s and backend commit 5.1 s while scan Jobs ran there, against a 14-day
@@ -86,9 +111,37 @@ trivyOperator:
                 values: ["talos-4kg-ymz"]
 
 trivy:
+  # Also the built-in Trivy server's priority class.
   priorityClassName: platform-batch
-  # Standalone mode — no Trivy server needed
-  mode: Standalone
+  # ClientServer against the built-in server (operator.builtInTrivyServer
+  # forces this and the serverURL; set here so the file reads true).
+  mode: ClientServer
+  # The server's DB cache lives on NFS, not the node disk, so a DB refresh
+  # never lands on the disk etcd shares. Chart default size is 5Gi.
+  storageClassEnabled: true
+  storageClassName: config-nfs-client
+  storageSize: 5Gi
+  server:
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    podSecurityContext:
+      runAsUser: 65534
+      runAsNonRoot: true
+      fsGroup: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    # Full set: a partial override replaces the chart default.
+    securityContext:
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: [ALL]
   # Only report actionable severities
   severity: LOW,MEDIUM,HIGH,CRITICAL
   # Drop vulnerabilities with no fixed version available.
@@ -113,7 +166,10 @@ trivy:
       memory: 200M
     limits:
       cpu: "1"    # Raised from 500m — scan jobs CPU-throttle and fail
-      memory: 500M
+      # Raised from 500M: trivy was OOM-killed at ~485 MB anon RSS analysing
+      # larger images on all three nodes (dmesg, 2026-10-17/18), which fails
+      # the Job and feeds the retry loop.
+      memory: 1G
 
 # Enable Prometheus ServiceMonitor for metrics scraping
 serviceMonitor:
