@@ -702,6 +702,10 @@ hostname `talos-4kg-ymz`). The nodes (ThinkCentre M900 Tiny, one 256 GB Samsung
 SATA SSD each) have no second disk. .102's PM871b writes ~84 ms average against
 ~21 ms on .101's identical model, but on 10-09/10-10 its fsync median was 8-9 ms,
 faster than .101: load on that node matters more than drive wear.
+**Resolved 2026-10-18 18:50Z** by Trivy ClientServer mode (#499): over the
+following 22 hours every member's fsync and commit p99 stayed at baseline
+(max 64 ms; .103 15-23 ms) with 0 leader changes. The 10-16..18 trouble was
+entirely scan write load; .102's drive is fine.
 
 **2026-10-18: the load was a Trivy retry loop, and it follows the scans.**
 .102's disk shows no ATA, I/O or timeout errors and the same sysfs error
