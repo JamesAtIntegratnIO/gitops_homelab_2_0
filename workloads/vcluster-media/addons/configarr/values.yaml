@@ -246,7 +246,7 @@ cronJob:
       restartPolicy: Never
       image:
         repository: ghcr.io/raydak-labs/configarr
-        tag: 1.35.0
+        tag: 1.36.0
         imagePullPolicy: IfNotPresent
       env:
         TZ:
