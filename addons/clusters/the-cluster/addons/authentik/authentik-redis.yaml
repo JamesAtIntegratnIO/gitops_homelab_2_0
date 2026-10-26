@@ -31,7 +31,7 @@ spec:
         fsGroup: 999
       containers:
         - name: redis
-          image: redis:7.4.11-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+          image: redis:7.4.12-alpine@sha256:338fbfc036dc5517ac0b04d6de21521085935336e565f223406180e9d84166e2
           ports:
             - name: redis
               containerPort: 6379
