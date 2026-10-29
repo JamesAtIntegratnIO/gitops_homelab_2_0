@@ -186,7 +186,7 @@ if [ -n "$TARGET_TALOS" ]; then
   SUP="$(talos_supports "$TMINOR")"
   if [ -z "$SUP" ]; then
     yel "no support data for Talos $TMINOR -- add it to talos_supports() from the Sidero matrix"
-  elif printf '%s' "$SUP" | tr ' ' '\n' | grep -qx "${CUR_K8S:-none}"; then
+  elif printf '%s' "$SUP" | tr ' ' '\n' | grep -x "${CUR_K8S:-none}" >/dev/null; then
     grn "Talos $TMINOR supports the running Kubernetes $CUR_K8S (range: $SUP)"
   else
     red "Talos $TMINOR does NOT support Kubernetes $CUR_K8S (it supports: $SUP) -- move Kubernetes first or pick another Talos"
@@ -226,13 +226,15 @@ fi
 #     the image carries -- the plain installer silently drops the extension.
 # So: resolve the schematic from the nodes, build the image from it, and ask
 # the factory whether that image exists.
-if printf '%s' "$TARGET_TALOS" | grep -qE '^v?[0-9]+\.[0-9]+\.[0-9]+$'; then
+# (grep without -q throughout: under pipefail, -q exits on the first match and
+# can SIGPIPE the writer into reporting the pipeline as failed.)
+if [[ "$TARGET_TALOS" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   TFULL="${TARGET_TALOS#v}"
   VERSIONS="$(curl -fsS --max-time 10 https://factory.talos.dev/versions 2>/dev/null | "$JQ" -r '.[]' 2>/dev/null)"
   TEXISTS=unknown
   if [ -z "$VERSIONS" ]; then
     yel "could not reach factory.talos.dev/versions -- target version not verified"
-  elif ! printf '%s\n' "$VERSIONS" | grep -qx "v$TFULL"; then
+  elif ! printf '%s\n' "$VERSIONS" | grep -x "v$TFULL" >/dev/null; then
     TEXISTS=no
     red "Talos v$TFULL does not exist (latest ${TFULL%.*}: $(printf '%s\n' "$VERSIONS" | grep -E "^v${TFULL%.*}\.[0-9]+$" | sort -V | tail -1))"
   else
