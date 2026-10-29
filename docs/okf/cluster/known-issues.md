@@ -4,8 +4,8 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-09-01T00:00:00Z }
-stale_after: 2026-10-01
+generated: { by: claude-code/claude-fable-5-1, at: 2026-10-29T16:30:00Z }
+stale_after: 2026-11-29
 sources:
   - id: live-cluster
     resource: kubectl sweep of the-cluster (admin@the-cluster), 2026-08-20
@@ -19,7 +19,130 @@ sources:
   - id: nfs-stale-1008
     resource: kubectl sweep of the-cluster + Prometheus ALERTS history, 2026-10-08
     title: Stale NFS mount triage 2026-10-08
+  - id: kargo-wait-1029
+    resource: kubectl get promotions -A, kargo-controller and bosun logs, GitHub pulls/statuses API, Kargo v1.12.5 source, 2026-10-29
+    title: Orphaned Kargo waits triage 2026-10-29
 ---
+
+# A GitHub 503 ends a human-gated Kargo wait in one second, and the PR it watched is orphaned (2026-10-29)
+
+Auto-merge was never broken. Of the 392 Promotions in the cluster, 173 ran
+`git-merge-pr`, 173 merged their PR, GitHub rejected none, and each merge
+landed 34–36 s after `git-open-pr` (the 30 s poll plus the ~30 s the gate
+takes to render). The pile of green, open PRs merged by hand on 2026-10-29 was
+the *other* branch of every Stage: `git-wait-for-pr`, the human-gated path,
+whose Promotions had been dying on `GET /pulls/N: 503 []` and leaving the PR
+behind with nothing watching it. Every hand-merged PR that day was on the wait
+path by the policy in `kargo-projects/values.yaml`: loki 19.0.x and 20.0.x
+(major against the 18.17.1 on main, under `minor`), podinfo 6.17.0 (minor
+under `patch`, by design — it is the demo target), argo-cd 10.11.x and
+unpoller v5.8.0 (minor under `patch`), trivy-operator 0.38.1 (a `0.x` minor),
+kyverno 3.9.1 (gate red). Bosun's `/pipeline` report already carried the
+podinfo and loki cases with the exact recovery commands.
+
+## The mechanism, from source (Kargo v1.12.5)
+
+`retry.errorThreshold` reads as "N consecutive failures". Two things it does
+not do:
+
+1. **A retry is immediate.** When a step returns a recoverable error the
+   Promotion stays `Running` and the reconciler returns the error to
+   controller-runtime (`pkg/controller/promotions/promotions.go`: *"Retryable
+   error: use progressive backoff"*). Kargo sets no rate limiter of its own
+   (`pkg/controller/options.go`), so the per-item backoff is the default: 5 ms,
+   doubling, capped at 1000 s. Three attempts fit inside one second, and the
+   podinfo wait proved it: `503` logged at 14:44:53 and 14:44:53, step
+   `Errored` at 14:44:54.
+2. **Success never resets the count.** `StepMetadata.Error()` is
+   `ErrorCount++`; `Started()` zeroes it only while `StartedAt` is nil
+   (`pkg/promotion/promotion.go`). A successful poll in between changes
+   nothing, so a wait parked for a week accumulates every blip it meets. Waits
+   that later timed out normally at 168h were carrying counts of 1 and 2 from
+   blips days earlier.
+
+With the chart's `errorThreshold: 3`, the first bodyless 503 that outlasts
+~15 ms of backoff ends the wait. `Errored` is terminal: Kargo never
+re-promotes that Freight, and the PR stays open, green, and orphaned. The
+Stage's queue then advances to the next Pending Promotion, which opens a
+*superseding* PR for the next version — still a major or a gated minor against
+an unchanged main, so it parks too. That cascade is what a pile of
+patch-titled, green, unmerged PRs looks like from outside.
+
+The 503s were GitHub's, not the token's or the egress's: bosun's own log has
+`GET /repos/.../pulls/546..549 returned 503: Service Unavailable` at
+10:34:08–10:34:11, the same minute Kargo's four aligned polls (every wait had
+been re-timestamped to 22:34 by the 1.12.5 upgrade on 10-27, so they polled in
+step) got theirs at 10:33:55–10:34:00. No incident on githubstatus.com covered
+any of the four windows; these are sub-incident blips of a few seconds.
+
+## Per PR
+
+| PR | Bump | Why it parked | Opened (UTC) | `addons-gate` | Wait ended | Cause |
+|---|---|---|---|---|---|---|
+| #471 | kyverno 3.9.1 | minor under `patch` | 10-16 16:03:28 | failure, 38 s | 10-23 04:03:44 | 503 |
+| #509 | loki 19.0.0 | major under `minor` | 10-20 22:30:34 | success, 37 s | 10-23 04:03:45 | 503 |
+| #510 | unpoller v5.7.0 | minor under `patch` | 10-21 01:29:54 | success, 24 s after the 10-27 re-push | 10-29 10:33:58 | 503 |
+| #516 | kyverno 3.9.1 | minor under `patch` | 10-23 04:03:53 | failure | 10-29 10:33:57 | 503 |
+| #517 | loki 19.0.1 | major vs main's 18.17.1 | 10-23 04:03:56 | success, 38 s | 10-29 10:34:00 | 503 |
+| #520 | argo-cd 10.11.1 | minor under `patch` | 10-23 16:30:29 | success, 27 s | 10-29 10:33:55 | 503 |
+| #552 | podinfo 6.17.0 | minor under `patch` | 10-29 12:44:35 | success, 30 s | 10-29 14:44:54 | 503 ×3 in one second |
+| #561 | loki 20.0.0 | major under `minor` | 10-29 13:44:15 | success, 37 s | 10-29 15:19:32 | 503 ×3 in one second |
+
+The gate answered every push within 40 s. The 45-minute `git-merge-pr`
+timeout was never involved; neither was the token (replaced 2026-10-06), the
+ruleset (squash allowed, no review required, `strict` off), or the egress.
+
+What the hand-merges released: once #549 put loki 19.0.2 on main at 12:28Z,
+19.0.3, 19.1.0, 19.1.1, 19.2.0, 19.2.1 and 19.3.0 merged themselves in six
+PRs (#551–#559) between 12:40Z and 13:34Z, each 34–36 s after opening, until
+20.0.0 (#561) parked again, correctly. unpoller v5.8.1–v5.8.3 did the same
+behind the hand-merged v5.8.0.
+
+## Fix, and what it does not fix
+
+- `merge.errorThreshold: 100` in `kargo-projects/values.yaml`. With the 5 ms
+  doubling capped at 1000 s, errors 1–18 cost ~22 minutes of continuous outage
+  and each one after ~17 minutes, so a wait survives ~23 hours of GitHub being
+  down, or a few dozen blips across its week. The per-step `timeout` still
+  ends it. **Only Promotions created after ArgoCD syncs the Stages carry it**;
+  a Promotion snapshots its steps at creation, so the waits in flight (loki
+  20.0.1 on #562, kyverno 3.9.1 on #546, the re-created podinfo 6.17.0 on
+  #564) keep `3`.
+- The cost: a persistent provider error — a revoked token, a deleted PR —
+  shows as a `Running` Promotion whose `status.message` carries the error for
+  up to a day, instead of an `Errored` one within a second. A dead token still
+  fails fast at `push`, whose threshold is Kargo's default of 1; that is how
+  the 2026-09-20 expiry surfaced.
+- **Not fixed: `git-merge-pr`.** Kargo wraps every error from the merge call
+  as terminal, including a 503 on the PR read it makes first
+  ([akuity/kargo#6811](https://github.com/akuity/kargo/issues/6811), closed
+  2026-08-14 without a change; still so in v1.12.5 and on `main`). A blip in
+  the ~35 s a policy-allowed PR lives would orphan it exactly as James
+  described, with a green gate and a `Failed` Promotion. 173 merges, zero so
+  far. The upstream report for both halves is in the PR that carries this fix.
+
+## Recovery for an orphaned wait
+
+Bosun's `/pipeline` prints both commands per finding, and they are the only
+two that work. A Warehouse refresh re-discovers artifacts and does nothing for
+Freight whose Promotion already ended.
+
+```bash
+# the Stage: re-create the Promotion for the same Freight (opens a fresh PR
+# on a fresh branch; the old PR is then superseded)
+kubectl -n addons create -f - <<'EOF'
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Promotion
+metadata:
+  generateName: podinfo
+  namespace: addons
+spec:
+  stage: podinfo
+  freight: <freight name from `kubectl -n addons get freight`>
+EOF
+# the PR: close the one nothing watches any more
+gh pr close <old> --comment 'superseded by #<new>'
+```
 
 # Stale NFS handles strand pods in CreateContainerError, and the alerts for it were ignored for 18 days (2026-10-08)
 
