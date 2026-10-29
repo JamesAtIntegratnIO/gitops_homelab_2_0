@@ -53,11 +53,27 @@ the CA in `matchbox/assets/talos/<ver>/controlplane1.yaml` (gitignored, present
 on the workstation that generated it). Renew while the current one still works:
 
 ```bash
-talosctl --context the-cluster config new --roles os:admin --crt-ttl 8760h talosconfig-new
-# inspect, then merge:
-talosctl config merge ./talosconfig-new
-talosctl --context the-cluster version --short     # still answers?
+# Absolute output path on purpose -- the trailing argument is written relative
+# to your CWD, and a fresh talosconfig is a credential you do not want to
+# discover later in whatever directory you happened to be standing in.
+talosctl --context the-cluster config new \
+  --roles os:admin --crt-ttl 8760h "$HOME/.talos/talosconfig-new"
+
+talosctl config merge "$HOME/.talos/talosconfig-new"   # merges into ~/.talos/config
+talosctl --context the-cluster version --short         # still answers?
+rm "$HOME/.talos/talosconfig-new"                      # merged; do not leave a spare
 ```
+
+### Which of these commands care about your directory
+
+Worth stating because this repo has both conventions:
+
+| | CWD matters? |
+|---|---|
+| `talosctl ... upgrade` / `version` / `etcd members` | **No.** `TALOSCONFIG` is unset here, so talosctl reads `~/.talos/config` and `--context` selects within it. Run from anywhere. |
+| `talosctl config new <out>` / `config merge <in>` | **Only for the file argument.** Use absolute paths, as above. |
+| `preflight.sh` | **No.** It resolves the repo root from its own location; verified from `/tmp`. |
+| the commands in `matchbox/README.md` | **Yes.** Those use `--talosconfig talosconfig` — a bare relative filename — so they must be run from inside `matchbox/assets/talos/<ver>/`. That is the cluster-build convention, not this one. |
 
 `preflight.sh` FAILs under 7 days remaining and WARNs under 30, so this cannot
 be forgotten again.

@@ -26,24 +26,37 @@ nixbin() { # nixbin <store-pkg> [exe] [version-prefix]
     sort -V -k1,1 | tail -1 | cut -d' ' -f2
 }
 
-# kubectl must stay within +/-1 minor of the apiserver. The pin is a PREFERENCE,
-# not a hard pin, because the store moves with nixpkgs and the matching build
-# gets garbage-collected: on 2026-10-29 the flake had only 1.36/1.37 while the
-# apiserver was still 1.34.1, and a hard `1.34` pin resolved to the empty string
-# -- which fails as a confusing "command not found" at the first call site
-# rather than as a version problem. Falling back with a warning keeps the
-# session usable and names the real issue.
+# Every version of a package present in the store, for an error message that
+# tells you what you DO have rather than only what you are missing.
+nixbin_versions() { # nixbin_versions <store-pkg>
+  find /nix/store -maxdepth 1 -type d -name "*-${1}-*" 2>/dev/null |
+    sed -E "s|^/nix/store/[^-]+-${1}-||" |
+    # Drop the -man/-doc/-bin companion outputs: they are the same version and
+    # listing them makes the error look like four choices when there is one.
+    grep -E '^[0-9]+(\.[0-9]+)*$' | sort -V | uniq
+}
+
+# kubectl is pinned HARD to the server minor. The store also carries 1.36/1.37,
+# which are outside the +/-1 skew a 1.34 apiserver supports, and a client two
+# minors ahead is worse than no client: reads mostly work, so you trust it, and
+# then a write uses a field the apiserver will not honour.
+#
+# A silent fallback was tried here on 2026-10-29 and reverted the same day. It
+# was written in the belief that no 1.34 build existed, which was a bad store
+# scan -- the flake pins 1.34.1 and it was present all along. Falling back to
+# 1.37 with only a stderr warning turns a loud stop into a soft one, which is
+# the wrong direction for this repo.
+#
+# What WAS a real bug is the symptom when the pin matches nothing: the export
+# became the empty string and every later call failed as "command not found",
+# which names the wrong problem. So the pin stays hard and says so.
 export KUBECTL_WANT_MINOR="${KUBECTL_WANT_MINOR:-1.34}"
 export KUBECTL="${KUBECTL:-$(nixbin kubectl kubectl "$KUBECTL_WANT_MINOR")}"
 if [ -z "$KUBECTL" ]; then
-  KUBECTL="$(nixbin kubectl kubectl)"
-  export KUBECTL
-  if [ -n "$KUBECTL" ]; then
-    echo "tools.sh: no kubectl ${KUBECTL_WANT_MINOR}.x in the store; using $(basename "$(dirname "$(dirname "$KUBECTL")")")." >&2
-    echo "tools.sh: that is outside the supported skew for a ${KUBECTL_WANT_MINOR} apiserver -- fine for reads, suspect for writes." >&2
-  else
-    echo "tools.sh: no kubectl in the store at all." >&2
-  fi
+  echo "tools.sh: no kubectl ${KUBECTL_WANT_MINOR}.x in /nix/store." >&2
+  echo "tools.sh: available: $(nixbin_versions kubectl | tr '\n' ' ')" >&2
+  echo "tools.sh: run 'nix develop' (or 'nix build .#') to realise the pinned build," >&2
+  echo "tools.sh: or set KUBECTL_WANT_MINOR to match the apiserver if the cluster moved." >&2
 fi
 export HELM="${HELM:-$(nixbin kubernetes-helm helm)}"
 export JQ="${JQ:-$(nixbin jq jq)}"
