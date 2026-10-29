@@ -33,6 +33,11 @@ already there; use them directly.
   1.34.1 and the supported skew is ±1. `tools.sh` pins the prefix.
 - **`yq` here is mikefarah v4** (store package `yq-go`). The bare glob
   `*-yq-*` also matches `python3.13-yq`, which is a different, jq-syntax tool.
+- **The store can hold a binary for another platform.** On 2026-10-29 there
+  were two `yq-go-4.53.3` builds, arm64 Mach-O and x86-64 ELF; same version, so
+  the tie broke on the hash and `$YQ` died with `exec format error`. `[ -x ]`
+  cannot see this -- the exec bit is set either way. `tools.sh` now checks the
+  object format.
 - **The Bash tool runs zsh on macOS.** Unquoted `$var` does *not* word-split —
   use `${=var}` or an array. There is no `timeout` binary.
 - **Never read or print `secrets.env`.** Gitignored, live credentials.

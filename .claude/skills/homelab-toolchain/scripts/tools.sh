@@ -8,6 +8,28 @@
 # gitignored secrets.env is absent, so the flake's shellHook warns or the shell
 # stalls building hctl. These paths are already in the store; use them directly.
 
+# A store path can hold a binary built for a DIFFERENT platform -- a
+# cross-compiled or container-image build input lands in the same /nix/store.
+# The exec bit is set either way, so `[ -x ]` says yes and the exec then dies
+# with "exec format error" (126). On 2026-10-29 the store held two
+# `yq-go-4.53.3` builds, one arm64 Mach-O and one x86-64 ELF: identical
+# versions, so the tie broke on the store HASH and $YQ resolved to the Linux
+# one. Check the object format instead of trusting the exec bit.
+_host_runnable() { # _host_runnable <path>
+  local magic
+  magic="$(od -A n -t x1 -N 4 "$1" 2>/dev/null | tr -d ' \n')"
+  case "$magic" in
+    2321*) return 0 ;;   # "#!" -- a wrapper script, runs wherever its shell does
+  esac
+  case "$(uname -s)" in
+    # Mach-O 64/32-bit little-endian, big-endian, and fat/universal.
+    Darwin) case "$magic" in cffaedfe|cefaedfe|feedfacf|cafebabe) return 0 ;; esac ;;
+    Linux)  case "$magic" in 7f454c46) return 0 ;; esac ;;
+    *)      return 0 ;;  # unknown host -- do not second-guess it
+  esac
+  return 1
+}
+
 nixbin() { # nixbin <store-pkg> [exe] [version-prefix]
   local pkg="$1" exe="${2:-$1}" pref="${3:-}"
   # `find`, not a glob. This file is SOURCED, so the calling shell expands any
@@ -17,7 +39,7 @@ nixbin() { # nixbin <store-pkg> [exe] [version-prefix]
   # `find` does its own matching and simply prints nothing when there is no hit.
   find /nix/store -maxdepth 1 -type d -name "*-${pkg}-*" 2>/dev/null |
     sed "s|\$|/bin/${exe}|" |
-    while IFS= read -r p; do [ -x "$p" ] && printf '%s\n' "$p"; done |
+    while IFS= read -r p; do [ -x "$p" ] && _host_runnable "$p" && printf '%s\n' "$p"; done |
     # Prefix each path with its version field. Sorting the raw paths sorts by
     # the store HASH, not the version -- `sort -V | tail -1` on full paths
     # returns an arbitrary build.
