@@ -14,7 +14,7 @@ workstation — the commands below are James's to run. The agent can run
 | | Running | |
 |---|---|---|
 | Kubernetes | v1.34.1 | **EOL 2026-10-27** — no further patches, including security |
-| Talos | v1.11.5 | the 1.11 line no longer appears in the Sidero support matrix; latest 1.11 patch is 1.11.10 |
+| Talos | v1.11.5 | the 1.11 line no longer appears in the Sidero support matrix; its last patch was **v1.11.6** (2025-12-16) |
 
 And the coupling that decides the order:
 
@@ -121,39 +121,57 @@ Worth stating because this repo has both conventions:
 | `preflight.sh` | **No.** It resolves the repo root from its own location; verified from `/tmp`. |
 | the commands in `matchbox/README.md` | **Yes.** Those use `--talosconfig talosconfig` — a bare relative filename — so they must be run from inside `matchbox/assets/talos/<ver>/`. That is the cluster-build convention, not this one. |
 
-## Step 0b — bump talosctl in the flake
+## Step 0b — the talosctl client follows the nodes
 
-The flake currently carries **talosctl 1.11.3 only**, which is already behind
-the running nodes (1.11.5) and behind every target on the ladder. Drive an
-upgrade with a client at least as new as the target: bump `talosctl` in
-`flake.nix`, `nix flake update` the relevant input, and confirm:
+Sidero's upgrade FAQ, verbatim: *"Which version of `talosctl` should I use to
+update a cluster? We recommend using the version that matches the current
+running version of the cluster."* — the version the nodes run **now**, not the
+target. (The first draft of this runbook said the opposite.)
+
+`flake.nix` pins it in a `talosctlOverlay`, apart from nixpkgs, so bumping it
+moves nothing else in the shell. It is **1.11.5** as of 2026-10-29, matching the
+nodes. During the ladder it trails the nodes by one rung: after every node
+reports a new version, bump `version` in the overlay and replace its four
+hashes — the overlay's comment has the two commands. Then:
 
 ```bash
-source .claude/skills/homelab-toolchain/scripts/tools.sh
-"$TALOSCTL" version --client --short
+nix build .#talosctl --no-link --print-out-paths   # fetch + verify the hash
+direnv reload                                      # or re-enter `nix develop`
+talosctl version --client --short                  # the new version
 ```
 
-This matters more than it looks, because `talosctl upgrade`'s default image is
-derived from the client version — see the trap in Step 3.
+`preflight.sh` compares the client with the running version: a patch mismatch
+WARNs, a minor mismatch FAILs. So a forgotten bump stops you at the next rung.
 
-## Step 1 — patch within the line first: 1.11.5 → 1.11.10
+## Step 1 — patch within the line first: 1.11.5 → 1.11.6
 
-Same minor, no Kubernetes implications. Its purpose is to prove the upgrade
-mechanics on the least dangerous change available: that the image URL is right,
-that a node comes back, that etcd re-joins, that `preflight.sh` goes green
-again. If anything about the procedure is wrong, learn it here.
+Same minor, no Kubernetes implications. Its purpose is to prove the mechanics
+on the least dangerous change available: that the image is right, that a node
+comes back *with its extensions*, that etcd re-joins, that `preflight.sh` goes
+green again. If anything about the procedure is wrong, learn it here.
 
-## Step 2 — the Talos ladder, one minor at a time
-
-```
-1.11.10  →  1.12.x  →  1.13.x  →  (1.14.x)
+```bash
+./matchbox/talos-machineconfigs/preflight.sh 1.11.6
 ```
 
-Kubernetes stays on 1.34 throughout. Do not skip a minor — Talos supports
-`n → n+1`, and `preflight.sh` FAILs on a skip.
+## Step 2 — the Talos ladder, one minor at a time, latest patch of each
 
-Stop at 1.13 if you want a shorter hop; it supports Kubernetes up to 1.36,
-which is enough to get back into support.
+```
+1.11.5  →  1.11.6  →  1.12.12  →  1.13.12  →  (1.14.5)
+```
+
+Latest patches on 2026-10-29. Sidero: *"the recommended upgrade path is to
+always upgrade to the latest patch release of all intermediate minor
+releases"*, because the migrations are *"only tested between adjacent minor
+releases"*. `preflight.sh` FAILs a skipped minor and a version that does not
+exist, and WARNs on one that is not the latest patch — so re-check the numbers
+on the day rather than trusting this table.
+
+Kubernetes stays on 1.34 throughout. Stop at 1.13 if you want a shorter hop; it
+supports Kubernetes up to 1.36, which is enough to get back into support.
+
+Between rungs: bump the talosctl overlay to the version the nodes now run
+(Step 0b), *then* start the next rung.
 
 ## Step 3 — per node, in this order
 
@@ -168,12 +186,13 @@ talosctl --context admin@the-cluster -n 10.0.4.101,10.0.4.102,10.0.4.103 get add
 For each node, in turn:
 
 ```bash
-# 1. Gate.
-./matchbox/talos-machineconfigs/preflight.sh 1.12.0     # must exit 0
+# 1. Gate. It also prints the exact --image for this target and verifies
+#    that the factory has it -- copy it from there rather than typing a hash.
+./matchbox/talos-machineconfigs/preflight.sh <TARGET>    # must exit 0
 
-# 2. Upgrade one node. --image is NOT optional -- see the trap below.
+# 2. Upgrade one node. --image is NOT optional -- see the traps below.
 talosctl --context admin@the-cluster -n <NODE_IP> upgrade \
-  --image ghcr.io/siderolabs/installer:v1.12.0
+  --image factory.talos.dev/metal-installer/c9078f9419961640c712a8bf2bb9174933dfcf1da383fd8ea2b7dc21493f8bac:v<TARGET>
 
 #    --wait defaults to true, so this blocks and streams progress.
 #    If it hangs on kexec, retry that node with: -m powercycle
@@ -183,17 +202,29 @@ kubectl get nodes -w                                     # that node Ready
 talosctl --context admin@the-cluster -n 10.0.4.101 etcd members # 3 members, no learner
 talosctl --context admin@the-cluster -n 10.0.4.101 etcd alarm list   # empty
 
-# 4. Gate again before touching the next one.
-./matchbox/talos-machineconfigs/preflight.sh 1.12.0
+# 4. Confirm the extension survived. An upgrade installs exactly what the
+#    image carries; a node without iscsi-tools here got the wrong image.
+talosctl --context admin@the-cluster -n <NODE_IP> get extensions   # iscsi-tools + schematic c9078f94...
+
+# 5. Gate again before touching the next one.
+./matchbox/talos-machineconfigs/preflight.sh <TARGET>
 ```
 
-Three things about this command, all verified against `talosctl upgrade --help`
-rather than remembered:
+Four things about this command, verified against `talosctl upgrade --help`, the
+nodes and the Image Factory rather than remembered:
 
-- **`--image` is mandatory in practice.** Its default is the *client's* own
-  version — `installer:v1.11.3` for the talosctl in this flake. Running bare
-  `talosctl upgrade` against these 1.11.5 nodes would **downgrade them**. Always
-  pass the target explicitly.
+- **The image is the schematic's, not the plain installer.** These nodes run
+  Image Factory schematic `c9078f94…`, which adds `siderolabs/iscsi-tools`. An
+  upgrade installs what the image carries, so `ghcr.io/siderolabs/installer`
+  would boot each node without the extension. Nothing uses iSCSI today (storage
+  is NFS only), so it would not have broken anything — but dropping an
+  extension is a separate decision, not a side effect of an OS upgrade. The
+  factory's own docs call `factory.talos.dev/installer/…` the *legacy* name;
+  bare metal is `metal-installer`.
+- **`--image` is mandatory in practice.** Its default is the plain installer at
+  the *client's* version (`ghcr.io/siderolabs/installer:v1.11.5` today). With
+  the client matching the nodes, a bare `talosctl upgrade` reinstalls the same
+  version *without the schematic*. Always pass the image.
 - **Never use `-f/--force`.** Its own help says it skips the etcd health and
   member checks and "might lead to data loss". Those checks are the thing
   standing between a one-node reboot and a lost quorum.
@@ -213,13 +244,17 @@ early is how a maintenance window becomes an outage.
 ## Step 4 — Kubernetes, only once Talos is settled
 
 ```bash
-talosctl --context admin@the-cluster --nodes 10.0.4.101 upgrade-k8s --to 1.35.0
+talosctl --context admin@the-cluster --nodes 10.0.4.101 upgrade-k8s --to <latest 1.35 patch>
 ```
 
 `upgrade-k8s` drives the whole control plane from one node; it is not per-node.
-Then repeat for 1.36 if you went to Talos 1.13+.
+Then repeat for 1.36 if you went to Talos 1.13+. Same rule as the Talos ladder:
+the latest patch, looked up on the day — the Talos steps were drafted with a
+`.0` and a version that did not exist, so do not trust a number written here.
 
-Afterwards, update the flake's kubectl so the client matches:
+Afterwards the client has to follow. The flake's kubectl comes from the nixpkgs
+input (1.34.1 on 2026-10-29), so it needs the same treatment talosctl got — an
+overlay, or a deliberate input bump — and then `tools.sh`'s pin moves with it:
 
 ```bash
 # .claude/skills/homelab-toolchain/scripts/tools.sh
@@ -267,6 +302,19 @@ snapshot, and why `preflight.sh` FAILs without one newer than 24h.
   `docs/okf/cluster/known-issues.md`. Check it separately afterwards.
 - **`/var` layout is not uniform**: `sda4` on .101/.102, `sda6` on .103. Harmless,
   but do not pattern-match a disk path across nodes in a script.
+- **`machine.install.image` is stale on every node.** On 2026-10-29 it read
+  `ghcr.io/siderolabs/installer:v1.11.3` — an older version *and* the plain
+  installer — while the nodes ran 1.11.5 from schematic `c9078f94…`.
+  `talosctl upgrade --image` ignores the field, so the ladder is unaffected, but
+  anything that installs *from the machine config* — a reset, a node rebuilt
+  from Matchbox — would come back on 1.11.3 without iscsi-tools. After the
+  ladder, set it to the final `metal-installer` image with a `live-*.yaml`
+  strategic-merge patch.
+- **The schematic is `iscsi-tools` only.** Older notes say it carries AMD GPU
+  firmware and microcode; the factory's definition of `c9078f94…` lists only
+  `siderolabs/iscsi-tools`. The AMD patches in `matchbox/README.md` describe an
+  earlier build. Read a schematic with
+  `curl https://factory.talos.dev/schematics/<id>` before reasoning about it.
 
 ## Sources
 
@@ -274,3 +322,6 @@ snapshot, and why `preflight.sh` FAILs without one newer than 24h.
 - [Talos v1.14 support matrix](https://docs.siderolabs.com/talos/v1.14/getting-started/support-matrix)
 - [Talos v1.12 support matrix](https://docs.siderolabs.com/talos/v1.12/getting-started/support-matrix)
 - [Talos v1.11 support matrix](https://www.talos.dev/v1.11/introduction/support-matrix)
+- [Upgrading Talos (v1.12)](https://docs.siderolabs.com/talos/v1.12/configure-your-talos-cluster/lifecycle-management/upgrading-talos) — latest-patch path; the FAQ on which `talosctl` to use
+- [Image Factory API](https://github.com/siderolabs/image-factory/blob/main/docs/api.md) — `<platform>-installer` naming; `installer/` is the legacy form
+- Release tags: `gh api repos/siderolabs/talos/git/matching-refs/tags/v1.11.` — how v1.11.10 was found not to exist
