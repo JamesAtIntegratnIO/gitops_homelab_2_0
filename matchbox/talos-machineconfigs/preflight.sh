@@ -54,12 +54,36 @@ if need "${TALOSCTL:-}"; then grn "talosctl $("$TALOSCTL" version --client --sho
 else red "no talosctl resolved"; fi
 
 # ---------------------------------------------------------------------------
+# Which talos context. Resolved ONCE and used by every talosctl call below, so
+# the cert we check is the cert we use. Before 2026-10-29 the cert check read
+# the first `crt:` in the file while the etcd calls hard-coded the context
+# name -- and `talosctl config merge` had just added the renewed cert as a NEW
+# context, `admin@the-cluster`, leaving `the-cluster` on the one expiring the
+# next day. The check said "364d ok" purely because of file order.
+TALOSCFG="${TALOSCONFIG:-$HOME/.talos/config}"
+talos_ctx_current() {
+  awk '/^context:[[:space:]]/ { sub(/^context:[[:space:]]*/, ""); print; exit }' "$TALOSCFG" 2>/dev/null
+}
+talos_ctx_crt() { # talos_ctx_crt <context> -> base64 crt of THAT context only
+  awk -v want="$1" '
+    /^contexts:/ { inctx = 1; next }
+    inctx && /^[^[:space:]]/ { inctx = 0 }
+    inctx && /^    [^[:space:]][^:]*:[[:space:]]*$/ {
+      name = $0; sub(/^    /, "", name); sub(/:[[:space:]]*$/, "", name)
+      mine = (name == want); next
+    }
+    mine && /^        crt:/ { sub(/^        crt:[[:space:]]*/, ""); print; exit }
+  ' "$TALOSCFG" 2>/dev/null
+}
+TALOS_CTX="${TALOS_CTX:-$(talos_ctx_current)}"
+
 hdr "talosconfig credential"
+inf "context: ${TALOS_CTX:-<none>}  (override with TALOS_CTX=...)"
 # This gates everything else: `talosctl upgrade` needs a valid os:admin cert,
 # and if it lapses mid-ladder you cannot finish or roll back without
 # regenerating from the CA in matchbox/assets/talos/<ver>/controlplane1.yaml.
 # It expired-in-26-hours on 2026-10-29 and nothing was watching it.
-CRT_B64="$(grep -m1 -E '^[[:space:]]*crt:' "$HOME/.talos/config" 2>/dev/null | sed -E 's/.*crt:[[:space:]]*//')"
+CRT_B64="$(talos_ctx_crt "$TALOS_CTX")"
 if [ -n "$CRT_B64" ]; then
   END="$(printf '%s' "$CRT_B64" | base64 -d 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)"
   if [ -n "$END" ]; then
@@ -72,7 +96,7 @@ if [ -n "$CRT_B64" ]; then
       else grn "os:admin cert valid for ${DAYS}d"; fi
     else yel "could not parse cert end date '$END'"; fi
   else yel "could not decode the os:admin cert"; fi
-else yel "no crt in ~/.talos/config -- cannot check expiry"; fi
+else red "no crt for context '${TALOS_CTX:-<none>}' in $TALOSCFG -- every talosctl call below will fail"; fi
 
 # ---------------------------------------------------------------------------
 hdr "nodes"
@@ -105,15 +129,30 @@ hdr "etcd"
 # 2, so you can afford exactly one down -- which means anything already
 # degraded must be fixed BEFORE you take a node out deliberately.
 if need "${TALOSCTL:-}"; then
-  MEM="$("$TALOSCTL" --context the-cluster -n "${NODES[0]}" etcd members 2>/dev/null)"
+  # An empty answer is a failed CALL (credential, context, network), not an
+  # empty cluster. Reporting it as "0 members" would send you to debug etcd
+  # when the cert is what expired.
+  if ! MEM="$("$TALOSCTL" --context "$TALOS_CTX" -n "${NODES[0]}" etcd members 2>&1)"; then
+    red "talosctl could not list etcd members via context '$TALOS_CTX': $(printf '%s' "$MEM" | grep -m1 -iE 'error|denied|certificate|nodes' || printf 'no output')"
+    MEM=""
+  fi
   COUNT="$(printf '%s\n' "$MEM" | awk 'NR>1 && NF {n++} END{print n+0}')"
   LEARNERS="$(printf '%s\n' "$MEM" | awk 'NR>1 && $NF=="true" {n++} END{print n+0}')"
-  if [ "$COUNT" -lt 3 ]; then red "etcd has $COUNT member(s); expected 3 -- no headroom to reboot a node"
+  if [ -z "$MEM" ]; then :   # already reported as a failed call above
+  elif [ "$COUNT" -lt 3 ]; then red "etcd has $COUNT member(s); expected 3 -- no headroom to reboot a node"
   else grn "etcd has $COUNT voting members"; fi
   [ "$LEARNERS" -gt 0 ] && red "etcd has $LEARNERS learner(s) -- a learner does not count toward quorum"
 
-  ALARM="$("$TALOSCTL" --context the-cluster -n "${NODES[0]}" etcd alarm list 2>/dev/null | sed '/^$/d')"
-  [ -n "$ALARM" ] && red "etcd alarm(s) raised: $ALARM" || grn "no etcd alarms"
+  # Same trap as above: a failed call prints nothing, and nothing reads as
+  # "no alarms". Only an alarm list that SUCCEEDED and came back empty is ok.
+  if [ -z "$MEM" ]; then
+    yel "etcd alarms not checked -- talosctl could not reach etcd"
+  elif ALARM="$("$TALOSCTL" --context "$TALOS_CTX" -n "${NODES[0]}" etcd alarm list 2>/dev/null)"; then
+    ALARM="$(printf '%s\n' "$ALARM" | sed '/^$/d')"
+    if [ -n "$ALARM" ]; then red "etcd alarm(s) raised: $ALARM"; else grn "no etcd alarms"; fi
+  else
+    red "talosctl could not list etcd alarms via context '$TALOS_CTX'"
+  fi
 else
   yel "talosctl unavailable -- etcd not checked"
 fi

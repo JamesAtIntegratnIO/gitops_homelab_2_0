@@ -38,31 +38,77 @@ with two — when something breaks you know which half did it.
 `preflight.sh` encodes that table and refuses a target whose range excludes the
 running Kubernetes, or a jump that skips a minor.
 
-## Step 0 — renew the os:admin certificate (do this first, today)
+## Step 0 — renew the os:admin certificate
 
-On 2026-10-29 the cert had **one day** left:
-
-```
-subject= /O=os:admin
-notAfter= Oct 30 17:10:25 2026 GMT
-```
+**Done 2026-10-29.** The old cert had one day left (`notAfter Oct 30 17:10:25
+2026 GMT`); the renewed one runs to **Oct 29 2027**, on context
+`admin@the-cluster`. `preflight.sh` FAILs under 7 days remaining and WARNs
+under 30, so the next one will not arrive with a day's notice.
 
 This gates everything. `talosctl upgrade` needs a valid `os:admin` cert, and if
 it lapses mid-ladder you cannot finish *or* roll back without regenerating from
 the CA in `matchbox/assets/talos/<ver>/controlplane1.yaml` (gitignored, present
-on the workstation that generated it). Renew while the current one still works:
+on the workstation that generated it).
+
+### Once, now: drop the stale context
+
+The 2026-10-29 renewal left two contexts. `the-cluster` still holds the cert
+that expires on Oct 30; remove it so nothing reaches for it afterwards:
 
 ```bash
-# Absolute output path on purpose -- the trailing argument is written relative
-# to your CWD, and a fresh talosconfig is a credential you do not want to
-# discover later in whatever directory you happened to be standing in.
-talosctl --context the-cluster config new \
-  --roles os:admin --crt-ttl 8760h "$HOME/.talos/talosconfig-new"
-
-talosctl config merge "$HOME/.talos/talosconfig-new"   # merges into ~/.talos/config
-talosctl --context the-cluster version --short         # still answers?
-rm "$HOME/.talos/talosconfig-new"                      # merged; do not leave a spare
+talosctl config remove the-cluster --dry-run
+talosctl config remove the-cluster -y
+talosctl config contexts                     # admin@the-cluster, current, alone
 ```
+
+### Next time: the renewal procedure
+
+`config merge` is not a replace, and three of its behaviours combine badly. All
+three were tested against throwaway configs on 2026-10-29:
+
+- On a **name collision** it renames the *incoming* context
+  (`admin@the-cluster` → `admin@the-cluster-1`) and makes that current. The
+  canonical name keeps the **old** cert.
+- `config remove` **refuses to remove the current context** — it prints
+  "skipping" and **exits 0**, so an `&&` chain carries straight on.
+- A freshly generated context has **no default node**, so commands against it
+  need `-n`.
+
+Together, the obvious sequence — remove the old, merge the new, select it — ends
+on the old cert, current, under the canonical name, with every step exiting 0.
+This order works and leaves any other contexts alone:
+
+```bash
+# Absolute path on purpose: the trailing argument is written relative to your
+# CWD, and a freshly minted talosconfig is a credential.
+NEW="$HOME/.talos/talosconfig-new"
+talosctl --context admin@the-cluster config new \
+  --roles os:admin --crt-ttl 8760h "$NEW"
+
+# Prove the new cert works BEFORE touching the one that does.
+talosctl --talosconfig "$NEW" -n 10.0.4.101 version --short
+
+talosctl config merge "$NEW"                    # lands as admin@the-cluster-1, current
+talosctl config remove admin@the-cluster -y     # the old one: no longer current, so allowed
+talosctl config merge "$NEW"                    # no collision now: admin@the-cluster, current
+talosctl config remove admin@the-cluster-1 -y   # the interim copy
+rm "$NEW"
+```
+
+Then check the result rather than the exit codes, which have already lied once:
+
+```bash
+./matchbox/talos-machineconfigs/preflight.sh    # "context: admin@the-cluster", "valid for 364d"
+```
+
+`preflight.sh` reads the current context, prints its name, and checks *that*
+context's cert; override with `TALOS_CTX=...`. Before 2026-10-29 it read the
+first `crt:` in the file while its etcd calls hard-coded `the-cluster`, so it
+could report one cert healthy while the commands used another.
+
+The first draft of this runbook verified the renewal with
+`talosctl --context the-cluster version` — the *old* context. It passed because
+the old cert still had a day left, so it could not have caught a bad renewal.
 
 ### Which of these commands care about your directory
 
@@ -74,9 +120,6 @@ Worth stating because this repo has both conventions:
 | `talosctl config new <out>` / `config merge <in>` | **Only for the file argument.** Use absolute paths, as above. |
 | `preflight.sh` | **No.** It resolves the repo root from its own location; verified from `/tmp`. |
 | the commands in `matchbox/README.md` | **Yes.** Those use `--talosconfig talosconfig` — a bare relative filename — so they must be run from inside `matchbox/assets/talos/<ver>/`. That is the cluster-build convention, not this one. |
-
-`preflight.sh` FAILs under 7 days remaining and WARNs under 30, so this cannot
-be forgotten again.
 
 ## Step 0b — bump talosctl in the flake
 
@@ -118,7 +161,7 @@ Workers first if there were any; this cluster is three control-plane nodes, so
 go **non-VIP-holder first and the VIP holder last**. Find the VIP holder:
 
 ```bash
-talosctl --context the-cluster -n 10.0.4.101,10.0.4.102,10.0.4.103 get addresses \
+talosctl --context admin@the-cluster -n 10.0.4.101,10.0.4.102,10.0.4.103 get addresses \
   | grep 10.0.4.100
 ```
 
@@ -129,7 +172,7 @@ For each node, in turn:
 ./matchbox/talos-machineconfigs/preflight.sh 1.12.0     # must exit 0
 
 # 2. Upgrade one node. --image is NOT optional -- see the trap below.
-talosctl --context the-cluster -n <NODE_IP> upgrade \
+talosctl --context admin@the-cluster -n <NODE_IP> upgrade \
   --image ghcr.io/siderolabs/installer:v1.12.0
 
 #    --wait defaults to true, so this blocks and streams progress.
@@ -137,8 +180,8 @@ talosctl --context the-cluster -n <NODE_IP> upgrade \
 
 # 3. Confirm it rejoined. Not just Ready -- etcd too.
 kubectl get nodes -w                                     # that node Ready
-talosctl --context the-cluster -n 10.0.4.101 etcd members # 3 members, no learner
-talosctl --context the-cluster -n 10.0.4.101 etcd alarm list   # empty
+talosctl --context admin@the-cluster -n 10.0.4.101 etcd members # 3 members, no learner
+talosctl --context admin@the-cluster -n 10.0.4.101 etcd alarm list   # empty
 
 # 4. Gate again before touching the next one.
 ./matchbox/talos-machineconfigs/preflight.sh 1.12.0
@@ -170,7 +213,7 @@ early is how a maintenance window becomes an outage.
 ## Step 4 — Kubernetes, only once Talos is settled
 
 ```bash
-talosctl --context the-cluster --nodes 10.0.4.101 upgrade-k8s --to 1.35.0
+talosctl --context admin@the-cluster --nodes 10.0.4.101 upgrade-k8s --to 1.35.0
 ```
 
 `upgrade-k8s` drives the whole control plane from one node; it is not per-node.
@@ -197,7 +240,7 @@ Talos keeps the previous image and will roll back on its own if the new one
 fails to boot. To force it:
 
 ```bash
-talosctl --context the-cluster -n <NODE_IP> rollback
+talosctl --context admin@the-cluster -n <NODE_IP> rollback
 ```
 
 If a node is lost rather than merely unhappy, the recovery is a Matchbox

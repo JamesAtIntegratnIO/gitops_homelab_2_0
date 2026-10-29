@@ -59,9 +59,17 @@ file standalone first and back up `~/.kube/config`.
 ## Talos
 
 `talosctl` read-only and `--dry-run` work from an agent session against
-`~/.talos/config` (context `the-cluster`, **cert expires 2026-10-30**). A live
+`~/.talos/config`, context **`admin@the-cluster`** (cert renewed 2026-10-29,
+expires **2027-10-29**). That context has no default node, so always pass `-n`.
+A context named plain `the-cluster` is the pre-renewal one; if it is still
+listed, its cert expired 2026-10-30 and nothing should use it. A live
 `talosctl patch mc` is blocked by the permission classifier — write the patch
 into `matchbox/talos-machineconfigs/` and hand the command to James.
+
+Check a cert by **context**, never by grepping the first `crt:` in the file:
+`talosctl config merge` adds a renewal as a *second* context rather than
+replacing the first, so the file can hold a valid and an expiring cert at once.
+`matchbox/talos-machineconfigs/preflight.sh` does it per context.
 
 Once `watchdog.yaml` is applied the machine config is multi-document and JSON
 6902 patches are refused; use the `live-*.yaml` strategic-merge patches (maps
