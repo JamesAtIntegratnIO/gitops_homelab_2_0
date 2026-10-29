@@ -38,7 +38,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: unpoller
-          image: ghcr.io/unpoller/unpoller:v5.8.1@sha256:097cef1a5fba73a47185d1a2648ddef055938f449d46ac75272afd2d45bd3a2f
+          image: ghcr.io/unpoller/unpoller:v5.8.2@sha256:4968b2589cda58d92837c1a5e559ea9bbf51eefd4d8a0b1c58394a1c43a405c6
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
