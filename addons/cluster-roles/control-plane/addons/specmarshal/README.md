@@ -17,6 +17,7 @@ What the chart leaves to the cluster is in this directory:
 | `values.yaml` | the chart's values: the two Secrets below by name, the home's size and class, and the stop grace period |
 | `externalsecret.yaml` | `specmarshal-env`, the orchestrator's environment (the Postgres store and the model's settings); `specmarshal-registry`, the image pull secret; `specmarshal-license`, the key the chart enters; `specmarshal-github-app`, the App the chart stores; and `specmarshal-sign-in`, the App's OAuth client people sign in with |
 | `limits.yaml` | LimitRange and ResourceQuota on the namespace. The quota caps how many iterations run at once |
+| `home-ownership-job.yaml` | a PreSync Job that gives the home's files to `1000:1000`, the user the chart's pod runs as since 0.2.0-rc.12. The kubelet ignores `fsGroup` on NFS, so the chart cannot do it itself |
 | `httproute.yaml`, `snippetsfilter.yaml` | `specmarshal.cluster.integratn.tech`, behind authentik and then the surface's own GitHub sign-in |
 
 Elsewhere:

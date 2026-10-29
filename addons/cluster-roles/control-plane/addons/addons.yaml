@@ -1074,7 +1074,11 @@ specmarshal:
   # and the chart stores the GitHub App from a Secret the same way it enters
   # the license (IntegratnIO/specmarshal-pro#201). `signIn` and
   # `githubApp.secret` in values.yaml, both Secrets in externalsecret.yaml.
-  defaultVersion: 0.2.0-rc.9
+  # 0.2.0-rc.12 -- the images are on Node 24.22.1, the fix for the Brotli
+  # decoder overflow (CVE-2026-111497, IntegratnIO/specmarshal-pro#300, #303).
+  # The pod now runs as 1000:1000 on a read-only root; home-ownership-job.yaml
+  # hands the NFS home, written as root until now, to that user first.
+  defaultVersion: 0.2.0-rc.12
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/specmarshal

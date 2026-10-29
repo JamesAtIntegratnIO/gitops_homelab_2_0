@@ -1,5 +1,8 @@
 # Update Log
 
+## 2026-10-27
+* **Fix**: **Specmarshal to chart 0.2.0-rc.12, on Node 24.22.1.** rc.9's images ran Node 24.20.0, whose bundled Brotli decoder has the HTTP2Shell overflow (CVE-2026-111497); rc.12's orchestrator and sandbox images are on 24.22.1 (IntegratnIO/specmarshal-pro#300, #303). The chart now runs the pod as 1000:1000 on a read-only root and the Role keeps only `create` on Secrets. The kubelet ignores `fsGroup` on the NFS home, so new PreSync Job `specmarshal-home-ownership` chowns what is not yet 1000:1000 before the pod rolls; on a root-squashed export the chown is refused and the sync stops with rc.9 still running. Not yet checked live. [Addon inventory](addons/addon-inventory.md) updated.
+
 ## 2026-10-19
 * **Update**: **etcd back to baseline after the Trivy fix.** From 10-18 18:50Z (#499 live) to 10-19 17:15Z: 0 leader changes (217 on 10-16, 86 on 10-17), per-member fsync/commit p99 max 64 ms (.102 had a 1.1 s commit median on 10-17/18), only EtcdReclaimableSpaceHigh firing (~200 MB per member, defrag). The Talos heartbeat/election timing is in all three configs and lands at the next reboot.
 
