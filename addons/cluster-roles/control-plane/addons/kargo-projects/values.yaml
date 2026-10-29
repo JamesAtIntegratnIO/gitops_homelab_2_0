@@ -76,6 +76,49 @@ triage:
   url: http://bosun.bosun.svc:8080/v1/promotion-opened
   when: gated
 
+# RETRY BUDGET FOR THE PR STEPS. One knob, and the chart applies it to
+# git-open-pr, git-merge-pr and git-wait-for-pr alike. The chart default is 3
+# and its comment calls that "consecutive failures". Kargo does neither half
+# of that, measured here on 2026-10-29 (Kargo v1.12.5):
+#
+# 1. The retries are immediate. A step that returns a recoverable error hands
+#    it back to controller-runtime, whose per-item backoff starts at 5ms and
+#    doubles. Three attempts fit inside one second: podinfo's wait on PR #552
+#    logged `GET /pulls/552: 503` at 14:44:53 and 14:44:53, and the step was
+#    Errored at 14:44:54.
+# 2. The count lasts the life of the step. `ErrorCount++` on every error, a
+#    reset only when the step first starts, and a successful poll in between
+#    zeroes nothing. Waits that later timed out normally at 168h were carrying
+#    counts of 1 and 2 from blips days earlier.
+#
+# So `3` means: the first GitHub blip that outlasts ~15ms of backoff ends a
+# human-gated wait, and the PR it was watching is orphaned -- open, green, and
+# with nothing left to merge it. Eight waits died that way between 2026-10-23
+# and 2026-10-29 (PRs #471, #509, #510, #516, #517, #520, #552, #561), every
+# one on a bodyless 503 from api.github.com, and bosun's own log saw the same
+# 503s in the same minute, so it was GitHub and not the token or the egress.
+# Each orphaned PR then made the next Freight open a superseding PR, which is
+# the pile of green, open, hand-merged PRs this looked like from outside.
+#
+# 100 is a budget for the whole wait, not for one outage. With the 5ms
+# doubling capped at 1000s, errors 1-18 cost ~22 minutes of continuous outage
+# and each one after costs ~17 minutes, so 100 survives ~23 hours of GitHub
+# being down, or a few dozen blips spread across a week. The `timeout` on each
+# step still bounds it; ending a wait is what `waitTimeout` is for. The cost:
+# a persistent provider error (a revoked token, a deleted PR) now shows as a
+# Running promotion whose message carries the error for up to a day, instead
+# of an Errored one within a second. A dead token still fails fast at `push`,
+# whose threshold is Kargo's default of 1 (the 2026-09-20 expiry did exactly
+# that).
+#
+# This does not help git-merge-pr. Kargo wraps every error from the merge
+# call as terminal, including a 503 on the read it makes first
+# (akuity/kargo#6811, closed without a change; still so in v1.12.5 and on
+# main). Its exposure is the ~35s a policy-allowed PR lives, against the hours
+# or days a gated one waits: 173 merges so far, none lost to it yet.
+merge:
+  errorThreshold: 100
+
 # POLLING CADENCE. The chart keys these by artifact KIND, not by target:
 # `image` is every SemVer/Digest image subscription, `build` is the NewestBuild
 # `main-<sha>` images we publish ourselves, `chart` is every Helm repo. A target
