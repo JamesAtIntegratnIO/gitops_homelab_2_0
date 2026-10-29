@@ -8,6 +8,9 @@
 # Idempotent: nodes already on the target are skipped, so a rung that stopped
 # half way is resumed by running the same command again.
 #
+# Every talosctl and kubectl call has a hard deadline, so a node that dies
+# mid-run stops the ladder with a reason instead of hanging it.
+#
 # It never forces anything. No `talosctl upgrade --force` (skips etcd checks),
 # no drain that bypasses a PodDisruptionBudget. Anything that does not pass
 # stops the run, and a node it cordoned but had not yet upgraded is uncordoned.
@@ -21,8 +24,9 @@
 #     host etcd snapshot through the talos-etcd-snapshot CronJob;
 # per node (others first, the etcd leader next, the VIP holder last):
 #   - gates: nodes Ready, etcd 3 voting members / no learners / no alarms /
-#     errors empty, core Talos services healthy, control-plane pods Ready,
-#     nothing broken that was not broken at the start;
+#     errors empty, core Talos services healthy, no SCSI timeouts on any
+#     node's disk, control-plane pods Ready, nothing broken that was not
+#     broken at the start;
 #   - cordons and drains the node itself with a 15-minute budget, so a PDB that
 #     needs a replacement pod to come Ready elsewhere has time to. Talos's own
 #     drain gives up after 5 minutes and aborts the upgrade;
@@ -70,12 +74,33 @@ die() {
 }
 trap 'die "interrupted"' INT TERM
 
+# deadline <seconds> <command...>: run with a hard limit; 124 if it ran out.
+# Every talosctl call goes through this. A Talos API call against a node whose
+# etcd is down does not fail -- machined's etcd client waits for a connection
+# with no deadline, and talosctl waits with it. On 2026-10-29 one `etcd status`
+# hung for six hours that way while .102 sat dead. TERM then KILL, because Go
+# programs catch SIGALRM and ignore it: `perl -e alarm` does nothing to talosctl.
+kill_tree() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done; kill -TERM "$1" 2>/dev/null; }
+deadline() {
+  local end=$(( SECONDS + $1 )); shift
+  "$@" &
+  local pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$SECONDS" -ge "$end" ]; then
+      kill_tree "$pid"; sleep 2; kill -KILL "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null; return 124
+    fi
+    sleep 0.2
+  done
+  wait "$pid"
+}
+
 # kubectl through the VIP, with retries: while the VIP holder reboots the
 # address refuses connections for ~45s.
 kc() {
   local i out
   for i in 1 2 3 4 5 6; do
-    if out="$("$KUBECTL" --context "${CTX:-admin@the-cluster}" "$@" 2>&1)"; then printf '%s\n' "$out"; return 0; fi
+    if out="$(deadline "${KC_DEADLINE:-120}" "$KUBECTL" --context "${CTX:-admin@the-cluster}" "$@" 2>&1)"; then printf '%s\n' "$out"; return 0; fi
     sleep 10
   done
   printf '%s\n' "$out" >&2
@@ -110,7 +135,7 @@ client_for() { # client_for <version> -> path to a verified talosctl of that ver
   printf '%s\n' "$out"
 }
 TC=""   # the client for this rung
-tc() { "$TC" --context "$TALOS_CTX" "$@"; }
+tc() { deadline "${TC_DEADLINE:-60}" "$TC" --context "$TALOS_CTX" "$@"; }
 
 node_version() { tc -n "$1" version --short 2>/dev/null | awk '/Tag:/{sub(/^v/,"",$2); print $2; exit}'; }
 node_name() { kc get nodes -o json | "$JQ" -r --arg ip "$1" '.items[] | select(any(.status.addresses[]; .type=="InternalIP" and .address==$ip)) | .metadata.name'; }
@@ -118,6 +143,7 @@ node_name() { kc get nodes -o json | "$JQ" -r --arg ip "$1" '.items[] | select(a
 # exactly when it matches: grep exits early, talosctl takes SIGPIPE (141).
 vip_holder() { local n a; for n in "${NODES[@]}"; do a="$(tc -n "$n" get addresses 2>/dev/null)"; [[ "$a" == *" $VIP/"* ]] && { echo "$n"; return; }; done; }
 etcd_leader() { tc -n "$(IFS=,; echo "${NODES[*]}")" etcd status 2>/dev/null | awk 'NR>1 {id[$2]=$1; ld=$8} END{print id[ld]}'; }
+on_target() { [ "$(node_version "$1")" = "$TARGET" ]; }
 minor_of() { local m="${1#*.}"; echo "${m%%.*}"; }   # 1.11.5 -> 11
 
 # --- gates ----------------------------------------------------------------------
@@ -138,6 +164,18 @@ g_etcd() { # 3 voting members, no learners, no alarms, every member answering wi
 g_services() { # g_services <node-ip>
   tc -n "$1" services 2>/dev/null | awk 'NR>1 && $2 ~ /^(apid|containerd|cri|etcd|kubelet|machined|trustd)$/ { n++; if ($3!="Running" || $4!="OK") bad=1 } END { exit !(n==7 && !bad) }'
 }
+# A disk that has started timing out gives way under the load a drain moves
+# onto it. On 2026-10-29 .102's SSD logged 267 SCSI command timeouts, XFS shut
+# /var down, and etcd and the kubelet went with it two minutes into .103's
+# drain. Healthy disks here read 0 (ioerr_cnt is NOT usable: 8 at every boot).
+disk_timeouts() { # disk_timeouts <node-ip> -> SCSI timeouts on the EPHEMERAL disk since boot, "" if not SCSI
+  local dev
+  dev="$(tc -n "$1" get volumestatus EPHEMERAL -o json 2>/dev/null | "$JQ" -r '.spec.parentLocation // empty')"
+  [ -n "$dev" ] || return 0
+  tc -n "$1" read "/sys/block/${dev#/dev/}/device/iotmo_cnt" 2>/dev/null | tr -d ' \n'
+}
+disks_report() { local n; for n in "${NODES[@]}"; do printf '%s=%s ' "$n" "$(disk_timeouts "$n")"; done; }
+g_disks() { local n c; for n in "${NODES[@]}"; do c="$(disk_timeouts "$n")"; [ -z "$c" ] || [ $(( c )) -eq 0 ] || return 1; done; }
 g_cp_pods() { # g_cp_pods <node-name>
   kc -n kube-system get pods -o json | "$JQ" -e --arg n "$1" '[.items[] | select(.spec.nodeName==$n) | select(.metadata.name | test("^kube-(apiserver|controller-manager|scheduler)-")) | ([.status.containerStatuses[]?.ready] | all)] | (length == 3 and all)' >/dev/null
 }
@@ -171,7 +209,7 @@ spread_vc_etcd() {
     until_ok 300 "vcluster etcd PDB allows a disruption" g_vc_pdb_allows || die "vcluster etcd PDB never allowed a disruption"
     log "  moving vcluster etcd member $dup off a node that holds two"
     [ "$DRY" = 1 ] && return 0
-    kc -n vcluster-media delete pod "$dup" --wait=true >>"$LOG" 2>&1 || die "could not delete $dup"
+    KC_DEADLINE=300 kc -n vcluster-media delete pod "$dup" --wait=true >>"$LOG" 2>&1 || die "could not delete $dup"
     sleep 15
     until_ok 600 "vcluster etcd 3/3 Ready again" g_vc_etcd_ready || die "vcluster etcd did not recover after moving $dup"
   done
@@ -227,7 +265,7 @@ log "extensions to preserve: $EXT_EXPECT"
 # A fresh rung (every node on FROM) goes through the full pre-flight.
 if [ "${#PENDING[@]}" -eq "${#NODES[@]}" ]; then
   log "fresh rung: running preflight.sh $TARGET"
-  TALOSCTL="$TC" TALOS_CTX="$TALOS_CTX" "$ROOT/matchbox/talos-machineconfigs/preflight.sh" "$TARGET" >>"$LOG" 2>&1 \
+  TALOSCTL="$TC" TALOS_CTX="$TALOS_CTX" deadline 900 "$ROOT/matchbox/talos-machineconfigs/preflight.sh" "$TARGET" >>"$LOG" 2>&1 \
     || die "preflight.sh $TARGET failed -- see the log"
   log "  ok: preflight passed"
 else
@@ -242,6 +280,7 @@ if [ "$DRY" = 1 ]; then
   g_nodes_ready && log "  ok: nodes Ready" || log "  FAIL: nodes Ready"
   g_etcd && log "  ok: etcd" || log "  FAIL: etcd"
   for n in "${NODES[@]}"; do g_services "$n" && log "  ok: services $n" || log "  FAIL: services $n"; done
+  g_disks && log "  ok: no disk timeouts" || log "  FAIL: disk timeouts: $(disks_report)"
   g_vc_etcd_ready && log "  ok: vcluster etcd 3/3" || log "  FAIL: vcluster etcd"
   log "  vcluster etcd placement: $(vc_etcd_by_node | awk -F'\t' '{print $1}' | sort | uniq -c | awk '{printf "%s x%s  ", $2, $1}')"
   log "  order (recomputed per node in a real run): leader=$(etcd_leader) vip=$(vip_holder); pending: ${PENDING[*]}"
@@ -281,6 +320,7 @@ while :; do
   until_ok 300 "all nodes Ready" g_nodes_ready || die "nodes not all Ready"
   until_ok 300 "etcd healthy" g_etcd || die "etcd not healthy before touching $IP"
   for n in "${NODES[@]}"; do until_ok 300 "Talos services on $n" g_services "$n" || die "core Talos services unhealthy on $n"; done
+  g_disks && log "  ok: no disk timeouts on any node" || die "a disk is timing out ($(disks_report)) -- not moving load onto it"
   until_ok 600 "nothing broken that was not broken at the start" g_nothing_new_broken || die "newly broken before $IP: $(new_broken | tr '\n' ' ')"
   until_ok 300 "vcluster etcd 3/3" g_vc_etcd_ready || die "vcluster etcd not 3/3 Ready"
   spread_vc_etcd
@@ -294,10 +334,10 @@ while :; do
 
   log "  talosctl upgrade --image $IMAGE"
   CORDONED=""   # from here the node may be mid-reboot; never uncordon it blindly
-  tc -n "$IP" upgrade --image "$IMAGE" --wait --timeout 30m >>"$LOG" 2>&1 \
+  TC_DEADLINE=1920 tc -n "$IP" upgrade --image "$IMAGE" --wait --timeout 30m >>"$LOG" 2>&1 \
     || { [ "$(node_version "$IP")" = "$FROM" ] && { CORDONED="$NAME"; die "upgrade of $IP failed before it rebooted -- still on v$FROM"; }; die "upgrade of $IP returned an error -- see the log"; }
 
-  until_ok 1200 "$IP reports v$TARGET" sh -c "[ \"\$(\"$TC\" --context \"$TALOS_CTX\" -n $IP version --short 2>/dev/null | awk '/Tag:/{print \$2}')\" = v$TARGET ]" \
+  until_ok 1200 "$IP reports v$TARGET" on_target "$IP" \
     || die "$IP did not come back on v$TARGET within 20m (if it hangs in kexec, retry with -m powercycle)"
   until_ok 600 "$NAME Ready" g_nodes_ready || die "$NAME did not become Ready"
   if [ "$(kc get node "$NAME" -o jsonpath='{.spec.unschedulable}')" = true ]; then
@@ -316,6 +356,7 @@ while :; do
   spread_vc_etcd
   sleep 60
   until_ok 300 "etcd healthy after a minute's soak" g_etcd || die "etcd unhealthy after soak"
+  g_disks || die "a disk started timing out during $IP ($(disks_report))"
   log "=== $IP done in $(( ($(date +%s) - T0) / 60 ))m"
 done
 

@@ -66,16 +66,34 @@ for want in "$TMINOR" "$CUR_MINOR"; do
 done
 [ -n "${KUBECTL:-}" ] && [ -x "$KUBECTL" ] || die "no kubectl $TMINOR or $CUR_MINOR in the store (have: $(nixbin_versions kubectl | tr '\n' ' '))"
 
-TALOS_RUNNING="$("$TALOSCTL" --context "$TALOS_CTX" -n "${NODES[0]}" version --short 2>/dev/null | awk '/Tag:/{sub(/^v/,"",$2); print $2; exit}')"
+# deadline <seconds> <command...>: the same hard limit as ladder.sh, for the
+# same reason -- a Talos API call against a node whose etcd is down waits
+# forever, and Go ignores SIGALRM. 124 if it ran out.
+kill_tree() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done; kill -TERM "$1" 2>/dev/null; }
+deadline() {
+  local end=$(( SECONDS + $1 )); shift
+  "$@" &
+  local pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$SECONDS" -ge "$end" ]; then
+      kill_tree "$pid"; sleep 2; kill -KILL "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null; return 124
+    fi
+    sleep 0.2
+  done
+  wait "$pid"
+}
+
+TALOS_RUNNING="$(deadline 60 "$TALOSCTL" --context "$TALOS_CTX" -n "${NODES[0]}" version --short 2>/dev/null | awk '/Tag:/{sub(/^v/,"",$2); print $2; exit}')"
 [ -n "$TALOS_RUNNING" ] || die "cannot read the Talos version"
 TC="$CACHE/talosctl-$TALOS_RUNNING-$(uname -s | tr A-Z a-z)-$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
 [ -x "$TC" ] || die "no verified talosctl $TALOS_RUNNING in $CACHE -- run ladder.sh for that version first (it fetches and checks one)"
-tc() { "$TC" --context "$TALOS_CTX" "$@"; }
+tc() { deadline "${TC_DEADLINE:-60}" "$TC" --context "$TALOS_CTX" "$@"; }
 
 kc() {
   local i out
   for i in 1 2 3 4 5 6; do
-    if out="$("$KUBECTL" --context "${CTX:-admin@the-cluster}" "$@" 2>&1)"; then printf '%s\n' "$out"; return 0; fi
+    if out="$(deadline "${KC_DEADLINE:-120}" "$KUBECTL" --context "${CTX:-admin@the-cluster}" "$@" 2>&1)"; then printf '%s\n' "$out"; return 0; fi
     sleep 10
   done
   printf '%s\n' "$out" >&2; return 1
@@ -117,14 +135,14 @@ broken_now() {
 BASELINE_BROKEN=""
 g_nothing_new_broken() { [ -z "$(comm -13 <(printf '%s\n' "$BASELINE_BROKEN" | sed '/^$/d') <(broken_now))" ]; }
 new_broken() { comm -13 <(printf '%s\n' "$BASELINE_BROKEN" | sed '/^$/d') <(broken_now); }
-g_vcluster_api() { "$KUBECTL" --context "$VCTX" get --raw /readyz >/dev/null 2>&1; }
+g_vcluster_api() { deadline 30 "$KUBECTL" --context "$VCTX" get --raw /readyz >/dev/null 2>&1; }
 g_kubelets_at() { kc get nodes -o json | "$JQ" -e --arg v "v$1" '[.items[].status.nodeInfo.kubeletVersion] | (length == 3 and all(. == $v))' >/dev/null; }
-g_apiserver_at() { [ "$("$KUBECTL" --context "${CTX:-admin@the-cluster}" version -o json 2>/dev/null | "$JQ" -r '.serverVersion.gitVersion')" = "v$1" ]; }
+g_apiserver_at() { [ "$(deadline 30 "$KUBECTL" --context "${CTX:-admin@the-cluster}" version -o json 2>/dev/null | "$JQ" -r '.serverVersion.gitVersion')" = "v$1" ]; }
 g_cp_pods_all() {
   kc -n kube-system get pods -o json | "$JQ" -e '[.items[] | select(.metadata.name | test("^kube-(apiserver|controller-manager|scheduler)-")) | ([.status.containerStatuses[]?.ready] | all)] | (length == 9 and all)' >/dev/null
 }
 # A write that goes through every admission webhook and persists nothing.
-g_admission_write() { "$KUBECTL" --context "${CTX:-admin@the-cluster}" create namespace "k8s-upgrade-probe-$$" --dry-run=server -o name >/dev/null 2>&1; }
+g_admission_write() { deadline 60 "$KUBECTL" --context "${CTX:-admin@the-cluster}" create namespace "k8s-upgrade-probe-$$" --dry-run=server -o name >/dev/null 2>&1; }
 
 # --- run --------------------------------------------------------------------------
 log "k8s-upgrade: $CUR_K8S -> $TARGET$( [ "$DRY" = 1 ] && echo ', DRY RUN' )"
@@ -139,14 +157,16 @@ BASELINE_BROKEN="$(ARGO_BAD_RE='^(Degraded|Missing|Unknown|Progressing)$' broken
 log "already not Ready before this run (not held against it): $(printf '%s' "$BASELINE_BROKEN" | tr '\n' ' ')"
 
 log "Talos's plan (--dry-run):"
-tc -n "${NODES[0]}" upgrade-k8s --to "$TARGET" --dry-run --manifests-no-prune >>"$LOG" 2>&1 \
+TC_DEADLINE=900 tc -n "${NODES[0]}" upgrade-k8s --to "$TARGET" --dry-run --manifests-no-prune >>"$LOG" 2>&1 \
   || die "upgrade-k8s --dry-run failed -- see the log"
 log "  ok: dry-run passed"
 [ "$DRY" = 1 ] && { log "DRY RUN -- stopping here"; exit 0; }
 
 T0=$(date +%s)
 log "upgrade-k8s --to $TARGET (pre-pulls images, then control plane, then kubelets)"
-tc -n "${NODES[0]}" upgrade-k8s --to "$TARGET" --manifests-no-prune --with-docs=false --with-examples=false >>"$LOG" 2>&1 \
+# Driven from this client: a kill stops the roll part-way (inside skew; re-run
+# to finish), so the limit is generous -- it only exists so a hang ends.
+TC_DEADLINE=7200 tc -n "${NODES[0]}" upgrade-k8s --to "$TARGET" --manifests-no-prune --with-docs=false --with-examples=false >>"$LOG" 2>&1 \
   || die "upgrade-k8s returned an error -- see the log; the control plane may be part-way"
 log "  ok: upgrade-k8s finished ($(( ($(date +%s) - T0) / 60 ))m)"
 
