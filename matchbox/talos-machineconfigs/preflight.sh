@@ -121,6 +121,12 @@ else
   esac
   CUR_K8S="$(printf '%s' "$NODE_JSON" | "$JQ" -r '.items[0].status.nodeInfo.kubeletVersion' | sed -E 's/^v?([0-9]+\.[0-9]+).*/\1/')"
   CUR_TALOS="$(printf '%s' "$NODE_JSON" | "$JQ" -r '.items[0].status.nodeInfo.osImage' | sed -E 's/.*v([0-9]+\.[0-9]+).*/\1/')"
+  # Full x.y.z, and only when every node agrees -- mid-ladder there is no single
+  # "running version" to match a client against.
+  case "$OSVERS" in
+    *Talos*Talos*) CUR_TALOS_FULL="" ;;
+    *) CUR_TALOS_FULL="$(printf '%s' "$OSVERS" | sed -nE 's/.*v([0-9]+\.[0-9]+\.[0-9]+).*/\1/p')" ;;
+  esac
 fi
 
 # ---------------------------------------------------------------------------
@@ -193,9 +199,78 @@ if [ -n "$TARGET_TALOS" ]; then
     fi
   fi
 else
-  inf "no target given; pass one (e.g. 1.12.0) to check Kubernetes compatibility"
+  inf "no target given; pass one (e.g. 1.12.12) to check Kubernetes compatibility and the installer image"
 fi
-inf "running: Talos ${CUR_TALOS:-?} / Kubernetes ${CUR_K8S:-?}"
+inf "running: Talos ${CUR_TALOS_FULL:-${CUR_TALOS:-?}} / Kubernetes ${CUR_K8S:-?}"
+
+# The client. Sidero's upgrade FAQ: "We recommend using the version that
+# matches the current running version of the cluster." The flake overlay pins
+# it; this catches the overlay not having been bumped after the last rung, and
+# a $TALOSCTL that tools.sh picked up from somewhere else in the store.
+CLIENT_V="$("$TALOSCTL" version --client --short 2>/dev/null | awk '/Talos/{print $2; exit}' | sed 's/^v//')"
+if [ -z "$CLIENT_V" ] || [ -z "${CUR_TALOS_FULL:-}" ]; then
+  inf "talosctl client vs running not compared (client '${CLIENT_V:-?}', nodes not uniform or unknown)"
+elif [ "$CLIENT_V" = "$CUR_TALOS_FULL" ]; then
+  grn "talosctl $CLIENT_V matches the running Talos"
+elif [ "${CLIENT_V%.*}" = "${CUR_TALOS_FULL%.*}" ]; then
+  yel "talosctl $CLIENT_V, nodes run $CUR_TALOS_FULL -- bump the talosctl overlay in flake.nix to match"
+else
+  red "talosctl $CLIENT_V is a different minor from the running Talos $CUR_TALOS_FULL -- bump the talosctl overlay in flake.nix first"
+fi
+
+# The image. Each of these went wrong in the first draft of the runbook:
+#   - it named v1.11.10, which does not exist (1.11 ended at v1.11.6);
+#   - it stepped to x.y.0, where Sidero says the latest patch of every minor;
+#   - it used ghcr.io/siderolabs/installer, but these nodes run an Image
+#     Factory schematic (iscsi-tools), and an upgrade installs exactly what
+#     the image carries -- the plain installer silently drops the extension.
+# So: resolve the schematic from the nodes, build the image from it, and ask
+# the factory whether that image exists.
+if printf '%s' "$TARGET_TALOS" | grep -qE '^v?[0-9]+\.[0-9]+\.[0-9]+$'; then
+  TFULL="${TARGET_TALOS#v}"
+  VERSIONS="$(curl -fsS --max-time 10 https://factory.talos.dev/versions 2>/dev/null | "$JQ" -r '.[]' 2>/dev/null)"
+  TEXISTS=unknown
+  if [ -z "$VERSIONS" ]; then
+    yel "could not reach factory.talos.dev/versions -- target version not verified"
+  elif ! printf '%s\n' "$VERSIONS" | grep -qx "v$TFULL"; then
+    TEXISTS=no
+    red "Talos v$TFULL does not exist (latest ${TFULL%.*}: $(printf '%s\n' "$VERSIONS" | grep -E "^v${TFULL%.*}\.[0-9]+$" | sort -V | tail -1))"
+  else
+    TEXISTS=yes
+    LATEST="$(printf '%s\n' "$VERSIONS" | grep -E "^v${TFULL%.*}\.[0-9]+$" | sort -V | tail -1)"
+    if [ "v$TFULL" = "$LATEST" ]; then grn "v$TFULL is the latest ${TFULL%.*} patch"
+    else yel "v$TFULL is not the latest ${TFULL%.*} patch ($LATEST) -- Sidero: upgrade to the latest patch of every intermediate minor"; fi
+  fi
+
+  SCHEMATICS="$("$TALOSCTL" --context "$TALOS_CTX" -n "$(IFS=,; echo "${NODES[*]}")" get extensions -o json 2>/dev/null \
+    | "$JQ" -r 'select(.spec.metadata.name=="schematic") | .spec.metadata.version' | sort -u)"
+  case "$(printf '%s' "$SCHEMATICS" | grep -c .)" in
+    0) IMAGE="ghcr.io/siderolabs/installer:v$TFULL"
+       yel "no Image Factory schematic on any node -- assuming vanilla Talos; check 'talosctl get extensions' before trusting that" ;;
+    1) IMAGE="factory.talos.dev/metal-installer/$SCHEMATICS:v$TFULL"
+       if [ "$TEXISTS" = no ]; then
+         IMAGE=""   # already a FAIL; do not print an --image line for it
+       else
+         # The factory BUILDS an installer the first time anyone asks for it:
+         # v1.12.0 took 71s on 2026-10-29, a warm version answers in ~3s. A
+         # short timeout here false-failed a real image, so allow for the build
+         # and treat "no answer" as unverified -- only a 404 means absent.
+         inf "asking the factory for the installer (the first request for a version can take ~1 min)"
+         CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 150 \
+           -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+           "https://factory.talos.dev/v2/metal-installer/$SCHEMATICS/manifests/v$TFULL")"
+         case "$CODE" in
+           200|307) grn "installer image exists for the running schematic ${SCHEMATICS:0:12}..." ;;
+           404)     red "factory has no metal-installer for schematic ${SCHEMATICS:0:12}... at v$TFULL"; IMAGE="" ;;
+           000)     yel "factory did not answer within 150s -- image not verified; re-run (it may still be building)" ;;
+           *)       yel "factory answered HTTP $CODE for the installer -- image not verified" ;;
+         esac
+       fi ;;
+    *) IMAGE=""
+       red "nodes run different schematics ($(printf '%s' "$SCHEMATICS" | cut -c1-12 | tr '\n' ' ')) -- each would need its own image; reconcile first" ;;
+  esac
+  [ -n "${IMAGE:-}" ] && inf "upgrade with:  --image $IMAGE"
+fi
 
 # ---------------------------------------------------------------------------
 hdr "baseline noise"
