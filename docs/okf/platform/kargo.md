@@ -4,15 +4,15 @@ title: Kargo — automated image and chart version updates
 description: How every pinned image tag, digest and chart version in the repo is kept current — Kargo Warehouses watch the sources, one Stage per artifact opens a PR against main, merges it under a per-target policy, and verifies the affected ArgoCD Applications afterwards.
 tags: [kargo, updates, images, charts, automation, gitops]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-30T16:20:00Z }
-stale_after: 2026-09-30
+generated: { by: claude-code/claude-fable-5-1, at: 2026-10-29T16:30:00Z }
+stale_after: 2026-11-29
 sources:
   - id: chart
     resource: https://github.com/IntegratnIO/bosun/tree/main/charts/kargo-pipelines
     title: kargo-pipelines factory chart (its own repository since 2026-08-23; superseded addons/charts/kargo-projects in PR #86)
   - id: targets
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml
-    title: target list (55 Warehouse/Stage pairs, measured live 2026-08-30)
+    title: target list (66 Stages and 61 Warehouses, measured live 2026-10-29)
   - id: install
     resource: ../../../addons/cluster-roles/control-plane/addons/kargo/values.yaml
     title: Kargo chart values
@@ -89,6 +89,16 @@ trigger.
 `git-merge-pr` (squash, when the policy allows) or `git-wait-for-pr` (parks
 the promotion until a human merges or closes; later Freight queues behind it).
 
+The three PR steps share one retry budget, `merge.errorThreshold`, and it is
+`100` rather than the chart's `3` since 2026-10-29. Kargo retries a
+recoverable step error immediately (controller-runtime's 5 ms doubling
+backoff) and never resets the count on a successful poll, so `3` was spent by
+the first GitHub 503 that lasted longer than a few milliseconds: eight parked
+`git-wait-for-pr` steps died that way in one week, each orphaning the open PR
+it was watching. `git-merge-pr` is unaffected either way, because Kargo treats
+every error from the merge call as terminal. Details and the per-PR timeline:
+[known-issues](../cluster/known-issues.md).
+
 After `git-open-pr`, a **triage** `http` step POSTs the freight context to the
 [Bosun](https://github.com/IntegratnIO/bosun) — live since
 2026-08-22 (PR #92), and in its own repository since 2026-08-23, consumed as
@@ -96,7 +106,7 @@ the pinned OCI chart `oci://ghcr.io/integratnio/charts/bosun` (Kargo
 target `bosun` tracks the chart version; the image follows the chart's
 appVersion). `when: gated` means it fires only for pull requests the
 merge policy will *not* auto-merge, i.e. the ones already parked on
-`git-wait-for-pr` waiting for a human; all 55 Stages carry it. The step is
+`git-wait-for-pr` waiting for a human; all 66 Stages carry it. The step is
 `continueOnError: true` and the service answers `202` and works
 asynchronously, so triage can be down, slow or asleep without ever failing a
 promotion — the model runs on the workstation, which is not always awake.
