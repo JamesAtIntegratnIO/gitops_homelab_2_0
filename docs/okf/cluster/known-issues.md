@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-fable-5-1, at: 2026-10-29T16:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-30T00:10:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -22,7 +22,55 @@ sources:
   - id: kargo-wait-1029
     resource: kubectl get promotions -A, kargo-controller and bosun logs, GitHub pulls/statuses API, Kargo v1.12.5 source, 2026-10-29
     title: Orphaned Kargo waits triage 2026-10-29
+  - id: disk-102-1029
+    resource: talosctl dmesg / services / read /sys/block/sda/device/{ioerr,iotmo}_cnt on all three nodes, kubectl sweep, ladder.sh run log, 2026-10-29
+    title: .102 SSD failure during the Talos ladder 2026-10-29
 ---
+
+# .102's SSD is failing; it took etcd quorum with it for three minutes (2026-10-29)
+
+The Samsung PM871b in 10.0.4.102 (`talos-4kg-ymz`) is returning medium
+errors: `UNC`, *Unrecovered read error - auto reallocate failed*, and XFS
+metadata I/O errors on `/var` (`sda4`). That is the drive, not the cable (no
+`ICRC`, link stays at 6.0 Gbps) and not the 6.12.62 kernel (a drive does not
+report a medium error because of a driver). Replacement (PNY CS900 250 GB)
+arrives 2026-10-30; the procedure is
+[replace-disk.md](../../../matchbox/talos-machineconfigs/replace-disk.md).
+
+**Timeline.** .102 was upgraded to Talos 1.11.6 at ~16:33Z. At 17:06Z the
+ladder drained .103 and its pods moved onto .101 and .102. At 17:08:51Z
+.102's kubelet stopped heartbeating: the disk had started timing out (267 SCSI
+command timeouts and 30 I/O errors before it was rebooted), XFS shut `/var`
+down, and etcd and the kubelet could not restart (`failed rootfs umount: lstat
+... input/output error`, forever). .103 was still rebooting, so **from 17:08
+to ~17:11Z only .101's etcd member was up -- the host cluster had no quorum.**
+It recovered when .103 returned. The ladder then hung for six hours on one
+`talosctl etcd status`: a Talos API call against a node whose etcd is down
+waits on machined's etcd client, which has no deadline. Fixed in ladder.sh
+(`deadline` on every call, TERM then KILL -- Go ignores SIGALRM).
+
+**Blast radius of a dead node that still answers ping.** 74 pods sat
+`Terminating` on .102 for 6.5 hours: the node lifecycle controller marks them
+for deletion, but only the kubelet can confirm it. Deployments replaced theirs
+elsewhere; **StatefulSets cannot**, so Prometheus, Loki, Qdrant, Open WebUI,
+the vcluster's ArgoCD controller and one vcluster etcd member were down the
+whole time. Nothing alerted: Prometheus was one of the casualties. A
+powercycle reboot of .102 (23:43Z) cleared it -- XFS log recovery succeeded --
+but the disk logged 109 timeouts within 16 s of boot and XFS turned quotas off
+on an unreadable inode cluster. It stays in service until the swap; its etcd
+member is healthy and caught up.
+
+**The early warning existed.** On 2026-10-16 .102's write latency was ~84 ms
+against ~21 ms on .101's identical model and was attributed to load (below).
+In hindsight that 4x gap on identical drives was wear. .101 carries the same
+model; its counters are clean (0 timeouts over 1.67 billion I/Os). The cheap
+check is `talosctl -n <ip> read /sys/block/sda/device/iotmo_cnt`: 0 on a
+healthy disk here (`ioerr_cnt` is 8 on every boot and useless for this).
+ladder.sh refuses to drain while any node's count is non-zero (`g_disks`).
+
+**Until the swap:** do not reboot .101 or .103. With .102's disk in this
+state, any second failure during a reboot is a quorum loss.
+
 
 # A GitHub 503 ends a human-gated Kargo wait in one second, and the PR it watched is orphaned (2026-10-29)
 
@@ -828,7 +876,9 @@ faster than .101: load on that node matters more than drive wear.
 **Resolved 2026-10-18 18:50Z** by Trivy ClientServer mode (#499): over the
 following 22 hours every member's fsync and commit p99 stayed at baseline
 (max 64 ms; .103 15-23 ms) with 0 leader changes. The 10-16..18 trouble was
-entirely scan write load; .102's drive is fine.
+entirely scan write load; .102's drive is fine. **Superseded 2026-10-29:
+.102's drive was failing** -- medium errors, see the section at the top. The
+4x latency gap on identical drives was the warning, not load.
 
 **2026-10-18: the load was a Trivy retry loop, and it follows the scans.**
 .102's disk shows no ATA, I/O or timeout errors and the same sysfs error
