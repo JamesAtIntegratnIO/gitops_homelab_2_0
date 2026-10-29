@@ -152,7 +152,33 @@ Two things bite when standing this up, both verified the hard way on #92:
 All three PR steps carry a `retry` policy from `merge.*` in the chart values.
 Kargo's system-wide default `errorThreshold` is **1** — no retries at all —
 which is how two transient `error getting pull request N` blips from
-api.github.com became Errored promotions on day one. It is `3` here.
+api.github.com became Errored promotions on day one. The chart's default of
+`3` did not fix that, and it is **`100`** here, because `errorThreshold` is not
+what it reads as (Kargo v1.12.5):
+
+- **The retries are immediate.** A step that returns a recoverable error
+  hands it back to controller-runtime, whose per-item backoff starts at 5 ms
+  and doubles. Three attempts fit inside one second, so `3` is spent by any
+  blip that lasts longer than a few milliseconds.
+- **The count lasts the life of the step.** `ErrorCount++` on every error, a
+  reset only when the step first starts, never on a successful poll. A
+  `git-wait-for-pr` parked for days accumulates every blip it meets.
+
+Measured on 2026-10-29: eight human-gated waits died on a bodyless `503` from
+`GET /pulls/N`, each within a second of its first error, and the PR each one
+was watching stayed open with nothing left to merge it. `100` is a budget for
+the whole wait: with the doubling capped at 1000 s it survives roughly 23 hours
+of continuous outage, and the `timeout` below still ends every step. The cost
+is that a persistent error (a revoked token, a deleted PR) shows as a *Running*
+promotion carrying the error in its message for up to a day, rather than an
+*Errored* one within a second. The full timeline is in
+[known-issues](okf/cluster/known-issues.md).
+
+`git-merge-pr` is the exception: Kargo wraps every error from the merge call
+as terminal, including a 503 on the PR read it makes first
+([akuity/kargo#6811](https://github.com/akuity/kargo/issues/6811), closed
+without a change), so `errorThreshold` does not apply to it. Its exposure is
+the ~35 s a policy-allowed PR lives; in 173 merges it has not happened yet.
 
 `git-merge-pr` and `git-wait-for-pr` also carry a `timeout`, which caps how
 long a step returning *Running* may keep being retried:
