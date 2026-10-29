@@ -4,8 +4,8 @@ title: Matchbox PXE provisioning
 description: How bare-metal nodes network-boot into Talos via iPXE and Matchbox, and which MACs map to which nodes.
 tags: [matchbox, pxe, ipxe, talos, bare-metal]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
-stale_after: 2027-02-20
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-29T17:30:00Z }
+stale_after: 2027-04-29
 sources:
   - id: matchbox-dir
     resource: ../../../matchbox/README.md
@@ -13,6 +13,12 @@ sources:
   - id: bootstrap-doc
     resource: ../../bootstrap.md
     title: Bootstrap & Bare-Metal Talos guide
+  - id: factory-schematic
+    resource: https://factory.talos.dev/schematics/c9078f9419961640c712a8bf2bb9174933dfcf1da383fd8ea2b7dc21493f8bac
+    title: Image Factory definition of the running schematic, read 2026-10-29
+  - id: live-extensions
+    resource: talosctl get extensions on 10.0.4.101-103, 2026-10-29
+    title: Extensions loaded on the running nodes
 ---
 
 # Boot flow
@@ -47,7 +53,13 @@ profile that has no file in `profiles/` (acknowledged placeholder). See
 # Assets and sync
 
 - Talos kernel/initramfs come from the **Talos Image Factory** with a pinned
-  schematic hash (carries AMD GPU firmware/microcode); download commands are in
+  schematic hash, `c9078f94…`, whose only customisation is
+  `siderolabs/iscsi-tools` — confirmed against the factory's definition and the
+  extensions loaded on all three nodes on 2026-10-29.[^factory-schematic][^live-extensions]
+  It does **not** carry AMD GPU firmware or microcode, as this page used to say;
+  the AMD patches in `matchbox/README.md` describe an earlier build. Upgrades must
+  use the matching `factory.talos.dev/metal-installer/<schematic>:<ver>` image or
+  the extension is dropped. Download commands are in
   `matchbox/assets/talos/<ver>/<arch>/commands.md`. The binaries themselves are
   gitignored.
 - Rendered machine configs (`controlplane{1,2,3}.yaml`, `worker.yaml`,
