@@ -5,9 +5,22 @@ and both were out of support.
 
 Talos configuration is outside the GitOps loop, so none of this is applied by
 ArgoCD. Every `talosctl upgrade` here is a manual step that reboots a node and
-replaces its OS image, and `talosctl` writes are not available from the agent
-workstation — the commands below are James's to run. The agent can run
-`preflight.sh`, read state and verify each step.
+replaces its OS image.
+
+## Scripted route
+
+The steps below explain each stage. These scripts run them, each behind gates:
+
+| Script | Does |
+|---|---|
+| `preflight.sh <target>` | Checks a target before anything moves |
+| `ladder.sh [--dry-run] <talos-version>` | Upgrades every node to one Talos version, one rung per run; resumes if stopped |
+| `k8s-upgrade.sh [--dry-run] <k8s-version>` | Moves Kubernetes one minor |
+| `regen-served-configs.sh [--dry-run] <talos-version>` | Rebuilds the configs Matchbox serves from the live nodes |
+
+If a node has to be rebuilt along the way, follow [replace-disk.md](replace-disk.md).
+Run `regen-served-configs.sh` when the ladder finishes, so a later reinstall does
+not bring back an old node.
 
 ## Why this is necessary
 

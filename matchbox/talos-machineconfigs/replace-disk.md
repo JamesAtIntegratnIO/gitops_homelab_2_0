@@ -41,41 +41,61 @@ once already -- 17:08-17:11Z on 2026-10-29, .102 died while .103 was rebooting
 for 1.11.6. **Do not reboot .101 or .103 until .102 has a good disk.**
 `ladder.sh` now refuses to (`g_disks`).
 
-## 1. Fix the machine config on the matchbox host -- before the new disk boots
+## 1. Serve a config built from the live one -- before the new disk boots
 
-A reinstall reads three things from `controlplane2.yaml` that are wrong or
-missing for a fresh disk:
+**Done for all three nodes on 2026-10-30.** Do it again before any reinstall that
+comes after a config or version change, because nothing keeps the rendered files
+on the matchbox host in step with the cluster. Until that day they dated from
+February and no node had ever booted them.
+Against .102's live config, `controlplane2.yaml` was missing:
 
-```yaml
-machine:
-  install:
-    # Was ghcr.io/siderolabs/installer:v1.11.3 -- the plain installer, an older
-    # patch, and no iscsi-tools. The ladder never noticed because it always
-    # passes --image; a PXE install has nothing else to go on.
-    image: factory.talos.dev/metal-installer/c9078f9419961640c712a8bf2bb9174933dfcf1da383fd8ea2b7dc21493f8bac:v1.11.6
-    # Unchanged, and it is why step 2 labels the new disk: Talos installs to the
-    # disk carrying this label and nothing else.
-    disk: /dev/disk/by-label/TALOS_INSTALL
-  network:
-    # talos-4kg-ymz is generated from a machine id kept on the disk, so a new
-    # disk means a new name. Pinning it keeps the Node, the CiliumNode, and the
-    # Trivy scanJobAffinity in addons/.../trivy-operator/values.yaml pointing at
-    # the right machine.
-    hostname: talos-4kg-ymz
+- `cluster.network.cni: none`, `cluster.proxy.disabled`, `cluster.coreDNS.disabled`.
+  Without them Talos renders flannel, kube-proxy and CoreDNS manifests on a
+  Cilium cluster.
+- etcd's `election-timeout` and `heartbeat-interval`
+- the apiserver's `default-*-toleration-seconds`
+- `kubernetesTalosAPIAccess`, which the etcd backup job needs
+- the `WatchdogTimerConfig` document
+
+`controlplane1.yaml` and `controlplane3.yaml` differed from their nodes the same
+way. So rebuild them from the live configs, with the version the other nodes run:
+
+```bash
+./matchbox/talos-machineconfigs/regen-served-configs.sh --dry-run 1.11.6
+./matchbox/talos-machineconfigs/regen-served-configs.sh 1.11.6
 ```
 
-Use the version the other nodes run at the time (`talosctl ... version`); it
-is v1.11.6 today with .101 still on v1.11.5. Edit the file in place on the
-matchbox host; do not copy it into this repo.
+It changes two fields in each file and prints no config content:
+
+- `install.image`: the live value is the plain `installer:v1.11.3`, with no
+  iscsi-tools. The ladder never noticed because it always passes `--image`; a
+  PXE install has nothing else to go on.
+- `network.hostname`: the generated name comes from a machine id kept on the
+  disk, so a new disk means a new name. Pinning it keeps the Node, the
+  CiliumNode, and the Trivy `scanJobAffinity` pointing at the right machine.
+
+The previous files go to `/mnt/user/appdata/matchbox/backup/` on the matchbox
+host (`root@10.0.0.12`), outside what Matchbox serves.
+
+**Do not run `sync-to-matchbox.sh` after this.** It rsyncs the gitignored local
+`assets/` with `--delete`, which puts the old files back.
 
 ## 2. Label the replacement SSD
 
-On any Linux machine, per [../README.md](../README.md) "Prepare Talos install disk":
+Talos installs only to the disk labeled `TALOS_INSTALL`. On any Linux machine,
+per [../README.md](../README.md) "Prepare Talos install disk":
 
 ```bash
 lsblk -o NAME,SIZE,MODEL,SERIAL     # confirm the device -- this wipes it
 sudo mkfs.ext4 -F -L TALOS_INSTALL /dev/sdX
 ```
+
+If nothing else can take the drive, label it in the node with the `RELABEL` USB
+stick, after step 3. It boots Alpine and wipes without asking, so it refuses unless
+the machine has .102's MAC, exactly one internal disk reports a CS900 model, and
+that disk has no Talos partitions. It powers off when done. If it refuses, it says
+why on screen and writes nothing. [../usb-sticks/](../usb-sticks/README.md) builds
+it, for any node and drive model.
 
 ## 3. Take .102 out of etcd and power it off
 
@@ -109,10 +129,15 @@ Keep the window short.
 
 ## 4. Swap the disk and boot
 
-Fit the labeled SSD, power on. With an empty disk the box falls through to
-PXE; matchbox matches the MAC, boots the 1.11.5 kernel, and the installer
-image from step 1 decides what lands on disk (v1.11.6 + iscsi-tools). Talos
-joins etcd as a learner and promotes itself.
+Matchbox has to be running first: the `Matchbox` container on the Unraid host
+at `10.0.112.2`. It had been stopped since March, and nothing notices, because
+nothing needs it until a node has an empty disk.
+
+Fit the labeled SSD, insert the `IPXE` USB stick, and pick the stick from the
+firmware's boot menu ([../usb-sticks/](../usb-sticks/README.md) builds it). Pull
+the stick once the node starts installing. Matchbox matches the MAC, boots the 1.11.5 kernel, and the installer image from step 1 decides
+what lands on disk (v1.11.6 + iscsi-tools). Talos joins etcd as a learner and
+promotes itself.
 
 ## 5. Verify, then resume
 
@@ -131,6 +156,13 @@ left), `1.12.12`, `1.13.12`, then `k8s-upgrade.sh 1.35.10` and `1.36.6`. See
 
 ## Afterwards
 
+- Run `regen-served-configs.sh` again when the ladder finishes. They
+  pin the v1.11.6 installer and Kubernetes v1.34.1, so a reinstall after the
+  climb would bring back an old node.
+- Stop Matchbox (`docker stop Matchbox` on the Unraid host) and take the iPXE
+  stick out before the ladder resumes. It serves the machine configs, secrets
+  included, over plain HTTP, and a node that netboots while it is up would get
+  the 1.11.5 kernel and whatever config is on the host.
 - `machine.install.image` on .101 and .103 still names
   `ghcr.io/siderolabs/installer:v1.11.3`. Harmless until one of them is
   reinstalled; patch it to the final metal-installer once the ladder is done.
