@@ -4,7 +4,7 @@ title: Matchbox PXE provisioning
 description: How bare-metal nodes network-boot into Talos via iPXE and Matchbox, and which MACs map to which nodes.
 tags: [matchbox, pxe, ipxe, talos, bare-metal]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-29T17:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-10-30T18:00:00Z }
 stale_after: 2027-04-29
 sources:
   - id: matchbox-dir
@@ -19,14 +19,25 @@ sources:
   - id: live-extensions
     resource: talosctl get extensions on 10.0.4.101-103, 2026-10-29
     title: Extensions loaded on the running nodes
+  - id: matchbox-host-1030
+    resource: docker inspect and docker logs Matchbox on 10.0.0.12, 2026-10-30
+    title: The Matchbox container's state, port and request history
+  - id: served-vs-live-1030
+    resource: redacted diff of served controlplane{1,2,3}.yaml against talosctl get machineconfig, 2026-10-30
+    title: How far the served configs had drifted from the nodes
+  - id: usb-sticks
+    resource: ../../../matchbox/usb-sticks/README.md
+    title: Build, test and write the iPXE and relabel sticks
 ---
 
 # Boot flow
 
 1. Node boots from a custom iPXE image (USB/EFI) whose embedded script runs
-   `dhcp` then `chain http://10.0.112.2:8080/boot.ipxe` — this avoids having to
-   reconfigure the DHCP server for network boot.
-2. **Matchbox** (HTTP on `10.0.112.2:8080`) matches the node's MAC against
+   `dhcp` then `chain http://10.0.112.2/boot.ipxe` — this avoids having to
+   reconfigure the DHCP server for network boot. No stick is left in the nodes,
+   so it is plugged in for a rebuild.
+2. **Matchbox** (HTTP on `10.0.112.2:80`, not the 8080 older docs give[^matchbox-host-1030])
+   matches the node's MAC against
    `matchbox/groups/*.json` selectors.
 3. The matched group names a profile in `matchbox/profiles/*.json` supplying
    kernel, initramfs, and kernel args.
@@ -50,6 +61,31 @@ Known gaps: the arm64 worker group still contains the literal placeholder MAC
 profile that has no file in `profiles/` (acknowledged placeholder). See
 [known issues](/cluster/known-issues.md).[^matchbox-dir]
 
+# Matchbox is not always running
+
+The `Matchbox` container on the Unraid host is only needed while a node reinstalls.
+It sat stopped from March to 2026-10-30, and nothing alerts on that, because nothing
+needs it until a node has an empty disk.[^matchbox-host-1030] Start it for a rebuild and
+stop it afterwards: it serves the machine configs, secrets included, over plain HTTP.
+
+# Served configs drift from the nodes
+
+`talosctl patch mc` changes a node and leaves the rendered files alone. On 2026-10-30
+the files in `assets/talos/1.11.5/` dated from February and had never been served to a
+node. Compared with the live configs they lacked `cni: none`, the kube-proxy and CoreDNS
+switches, etcd's timeouts, the apiserver tolerations, `kubernetesTalosAPIAccess` and the
+watchdog, though every secret matched.[^served-vs-live-1030] A reinstall from them should
+be expected to break the cluster, so run
+`matchbox/talos-machineconfigs/regen-served-configs.sh <version>` first. It rebuilds
+each file from its node's live config, and pins the installer image and hostname.
+
+# Rebuilding a node with no second machine
+
+[matchbox/usb-sticks/](../../../matchbox/usb-sticks/README.md) builds two sticks: one labels
+a new SSD `TALOS_INSTALL` in the node itself, the other is the iPXE loader. Both have been
+tested in QEMU; neither had booted on real hardware as of 2026-10-30.[^usb-sticks]
+The procedure is [replace-disk.md](../../../matchbox/talos-machineconfigs/replace-disk.md).
+
 # Assets and sync
 
 - Talos kernel/initramfs come from the **Talos Image Factory** with a pinned
@@ -67,7 +103,8 @@ profile that has no file in `profiles/` (acknowledged placeholder). See
   keys and tokens — only the patch fragments are committed.
 - `matchbox/sync-to-matchbox.sh` rsyncs `assets/`, `profiles/`, `groups/` to
   the Matchbox host (an Unraid server, default `root@10.0.0.12`, serving from
-  `/mnt/user/appdata/matchbox/`) with `--delete`.
+  `/mnt/user/appdata/matchbox/`) with `--delete`. That includes the gitignored
+  local machine configs, so it undoes `regen-served-configs.sh`.
 - `matchbox/ipxe-builder/build-ipxe.sh` builds the chainloading iPXE images:
   `.lkrn`/`.efi`/`.usb` for x86_64 and a hand-rolled MBR disk image for
   Raspberry Pi (arm64 cross-compile).
@@ -76,3 +113,6 @@ Related: [Talos nodes](/infrastructure/talos-nodes.md),
 [Terraform bootstrap](/infrastructure/terraform-bootstrap.md).
 
 [^matchbox-dir]: matchbox/ directory (groups, profiles, sync script, ipxe-builder)
+[^matchbox-host-1030]: docker inspect and docker logs Matchbox on 10.0.0.12, 2026-10-30
+[^served-vs-live-1030]: redacted diff of served controlplane{1,2,3}.yaml against talosctl get machineconfig, 2026-10-30
+[^usb-sticks]: matchbox/usb-sticks/README.md
