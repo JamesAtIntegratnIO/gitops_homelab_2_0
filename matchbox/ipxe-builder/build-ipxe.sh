@@ -2,18 +2,18 @@
 set -euo pipefail
 
 # Build custom iPXE artifacts that embed a boot script for a Matchbox host.
-# Usage: ./build-ipxe.sh <matchbox_host_or_url> [--port 8080] [--arch x86_64|arm64|both] [--build-dir path]
+# Usage: ./build-ipxe.sh <matchbox_host_or_url> [--port 80] [--arch x86_64|arm64|both] [--build-dir path]
 # Example: ./build-ipxe.sh 10.0.112.2 --port 9090 --arch both
 
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <matchbox_host_or_url> [--port 8080] [--arch x86_64|arm64|both] [--build-dir path]" >&2
+    echo "Usage: $0 <matchbox_host_or_url> [--port 80] [--arch x86_64|arm64|both] [--build-dir path]" >&2
     exit 1
 fi
 
 MATCHBOX_TARGET="$1"
 shift
 
-PORT=8080
+PORT=80
 ARCH_CHOICE="x86_64"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${SCRIPT_DIR}/build"
