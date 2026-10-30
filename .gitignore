@@ -1,5 +1,6 @@
 matchbox/assets/talos/*/*.yaml
 matchbox/assets/talos/*/talosconfig
+matchbox/usb-sticks/build/
 **/initramfs.xz
 **/vmlinuz
 **/kubeconfig
