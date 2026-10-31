@@ -106,6 +106,12 @@ extraObjects:
           storage: 1Gi
       volumeName: sonarr-media-pv
 deployment:
+  # Recreate, not the chart's RollingUpdate: with one replica a rolling update
+  # starts the new pod while the old one still holds the same Postgres
+  # database. On a major upgrade that means a v4 process writing while v5 runs
+  # its one-way schema migrations.
+  strategy:
+    type: Recreate
   securityContext:
     fsGroup: 1000
     seccompProfile:
@@ -126,7 +132,11 @@ deployment:
         - SETGID
   image:
     repository: linuxserver/sonarr
-    tag: 4.0.20.3014-ls2
+    # Sonarr v5 beta (linuxserver `develop` builds). The v5 schema migration is
+    # one-way: going back to a 4.x tag needs the pre-upgrade pg_dump of
+    # sonarr-main/sonarr-log restored first. Kargo tracks develop-* tags only
+    # (kargo-projects values, target sonarr), so it cannot "update" back to 4.x.
+    tag: develop-5.0.0.2870-ls205
     pullPolicy: IfNotPresent
   ports:
     - name: http
@@ -158,7 +168,11 @@ deployment:
       cpu: 100m
       memory: 256Mi
     limits:
-      memory: 512Mi
+      # 1Gi, was 512Mi. A dry run of the v5 migrations on a copy of this
+      # database (2026-10-31, Postgres 13.23) peaked at 313Mi against 216Mi
+      # steady on v4; v5's media-info migration (225) has OOMed bigger
+      # libraries, so this keeps headroom for the one-time migration.
+      memory: 1Gi
   additionalContainers:
     - name: exportarr
       image: ghcr.io/onedr0p/exportarr:v2.3.0

@@ -1009,7 +1009,14 @@ projects:
             keys: [deployment.image.tag]
       sonarr:
         scope: vcluster-media
-        image: { <<: *linuxserverImage, repoURL: linuxserver/sonarr }
+        # On the v5 beta: linuxserver publishes it as develop-A.B.C.D-lsNNN.
+        # Only develop tags are allowed, because NewestBuild would otherwise
+        # pick the newest v4 build and auto-merge a downgrade onto a database
+        # v5 has already migrated. Going back to stable is a manual change.
+        image:
+          <<: *linuxserverImage
+          repoURL: linuxserver/sonarr
+          allowTags: ['^develop-\d+\.\d+\.\d+\.\d+-ls\d+$']
         interval: 12h0m0s
         format: tag
         autoMerge: always
