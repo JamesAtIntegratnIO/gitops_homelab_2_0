@@ -50,6 +50,8 @@ rendered on the host. Registered in host ArgoCD as cluster
 the vcluster's own ArgoCD): **sonarr, radarr, sabnzbd, otterwiki** — each a
 Stakater application with config/media PVCs; the *arr apps use the external
 Postgres at 10.0.3.1.[^workloads]
+Sonarr runs the **v5 beta** (linuxserver `develop-*` tags) since 2026-10-31; its
+schema migration is one-way, so a downgrade needs a database restore.
 
 **configarr** is the fifth entry and the odd one out: the same Stakater chart,
 but rendered as a **CronJob** (`configarr-sync`, 04:00 America/Denver) rather
