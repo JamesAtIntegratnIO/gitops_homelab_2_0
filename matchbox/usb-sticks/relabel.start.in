@@ -1,0 +1,72 @@
+#!/bin/sh
+# Label a replacement SSD TALOS_INSTALL so Talos will install to it. build.sh fills
+# in the one machine and disk model this copy is allowed to touch.
+# This boots and wipes without asking, so it refuses unless ALL of these hold:
+#   1. this machine has the target node's NIC (MAC below)
+#   2. exactly one internal, non-USB disk has the expected model string
+#   3. that disk has no Talos partitions on it
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+WANT_MAC=@WANT_MAC@
+WANT_MODEL=@WANT_MODEL@
+LABEL=TALOS_INSTALL
+
+say() {
+  echo "$*" > /dev/console 2>/dev/null
+  [ "$(cat /sys/class/tty/ttyS0/type 2>/dev/null)" = 0 ] || ( echo "$*" > /dev/ttyS0 ) 2>/dev/null &
+}
+inventory() {
+  for s in /sys/block/sd* /sys/block/nvme*; do
+    [ -e "$s" ] || continue
+    say "   ${s##*/}  $(cat "$s/device/model" 2>/dev/null)  $(( $(cat "$s/size") / 2097152 )) GiB  $(readlink -f "$s" | grep -q /usb && echo usb)"
+  done
+  say "   NICs: $(cat /sys/class/net/*/address | tr '\n' ' ')"
+}
+refuse() {
+  say ""; say "##### REFUSED: $* #####"; say "##### Nothing was written. #####"; inventory
+  exit 0
+}
+fail() {
+  say ""; say "##### FAILED after writing to the disk: $* #####"; inventory
+  exit 0
+}
+candidates() {
+  for s in /sys/block/sd* /sys/block/nvme*; do
+    [ -e "$s" ] || continue
+    readlink -f "$s" | grep -q /usb && continue
+    case "$(cat "$s/device/model" 2>/dev/null)" in *"$WANT_MODEL"*) echo "${s##*/}" ;; esac
+  done
+}
+
+modprobe -a ahci sd_mod ext4 e1000e 2>/dev/null
+say ""; say "===== TALOS_INSTALL relabel stick ====="
+
+# The NIC and the SATA disk can take a few seconds to appear.
+i=0
+while [ $i -lt 30 ]; do
+  grep -qix "$WANT_MAC" /sys/class/net/*/address 2>/dev/null && [ -n "$(candidates)" ] && break
+  sleep 1; i=$((i + 1))
+done
+
+grep -qix "$WANT_MAC" /sys/class/net/*/address 2>/dev/null || refuse "this is not the target machine (no NIC with $WANT_MAC)"
+set -- $(candidates)
+[ $# -eq 1 ] || refuse "expected exactly one internal $WANT_MODEL disk, found $#"
+dev=/dev/$1
+[ -b "$dev" ] || refuse "$dev is not a block device"
+
+if [ "$(e2label "$dev" 2>/dev/null)" = "$LABEL" ]; then
+  say "===== ALREADY-LABELED: $dev is already $LABEL. Nothing to do. ====="
+else
+  # GPT partition names sit in the first 34 sectors as UTF-16; keeping only capitals makes them greppable.
+  dd if="$dev" bs=512 count=34 2>/dev/null | tr -dc 'A-Z' | grep -qE 'EPHEMERAL|STATE' && refuse "$dev has Talos partitions on it"
+  say "Wiping and labeling $dev ($(cat /sys/block/$1/device/model)) ..."
+  mib=$(( $(cat /sys/block/$1/size) / 2048 ))
+  dd if=/dev/zero of="$dev" bs=1M count=1 2>/dev/null
+  dd if=/dev/zero of="$dev" bs=1M seek=$((mib - 1)) count=1 2>/dev/null
+  mkfs.ext4 -q -F -L "$LABEL" "$dev" || fail "mkfs.ext4 failed on $dev"
+  sync
+  [ "$(e2label "$dev")" = "$LABEL" ] || fail "label did not stick on $dev"
+  say "===== RELABEL-DONE: $dev is now $LABEL ====="
+fi
+say "Powering off in 20s. Remove this stick, insert the iPXE stick, power on."
+sleep 20
+poweroff

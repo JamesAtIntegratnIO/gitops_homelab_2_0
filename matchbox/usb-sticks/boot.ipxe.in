@@ -1,0 +1,9 @@
+#!ipxe
+:retry
+echo Configure DHCP ...
+dhcp || goto fail
+chain @MATCHBOX_URL@ || goto fail
+:fail
+echo Chain to matchbox failed -- retrying in 10s. Is the Matchbox container running?
+sleep 10
+goto retry

@@ -11,7 +11,60 @@
     utils.lib.eachDefaultSystem (
       system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
+          # talosctl is pinned apart from nixpkgs, to the Talos version the
+          # NODES run -- Sidero's upgrade FAQ: "We recommend using the version
+          # that matches the current running version of the cluster." Bumping
+          # the nixpkgs input instead would move every tool at once, kubectl
+          # included, which tools.sh hard-pins to the apiserver minor.
+          #
+          # During the upgrade ladder this trails the nodes by one rung: once
+          # every node reports a new version, bump `version` to match, then
+          # replace the four hashes from that release's sha256sum.txt:
+          #
+          #   curl -fsSL https://github.com/siderolabs/talos/releases/download/v<ver>/sha256sum.txt \
+          #     | grep -E 'talosctl-(darwin|linux)-(amd64|arm64)$'
+          #   nix hash convert --hash-algo sha256 --to sri <hex>
+          #
+          # The release binary is used rather than rebuilding from source: it is
+          # the artifact Sidero ships and tests, and it needs no vendorHash.
+          talosctlOverlay = final: prev: {
+            talosctl =
+              let
+                version = "1.11.5";
+                platform = {
+                  x86_64-linux = "linux-amd64";
+                  aarch64-linux = "linux-arm64";
+                  x86_64-darwin = "darwin-amd64";
+                  aarch64-darwin = "darwin-arm64";
+                }.${prev.stdenv.hostPlatform.system};
+                hash = {
+                  darwin-arm64 = "sha256-ZwMd1kGOeLtlkgX7L9dzjKeQM7RMG3Owmorxe399xEg=";
+                  darwin-amd64 = "sha256-BzONljVu6zm4QU9h1HPPGfFILzrhWliRsrIQhBPcVCc=";
+                  linux-amd64 = "sha256-n8dssO5xHcFqA8d38tcTOLlpJwfeSeyRaUTD4zWWP2c=";
+                  linux-arm64 = "sha256-s+DfnfWyz+TZ0XaOddxgBbyebTwlLvxX1yX2yqW2epE=";
+                }.${platform};
+              in
+              prev.stdenvNoCC.mkDerivation {
+                pname = "talosctl";
+                inherit version;
+                src = prev.fetchurl {
+                  url = "https://github.com/siderolabs/talos/releases/download/v${version}/talosctl-${platform}";
+                  inherit hash;
+                };
+                dontUnpack = true;
+                # Never strip: on aarch64-darwin that invalidates the ad-hoc code
+                # signature the Go linker embeds, and the kernel kills the binary.
+                dontStrip = true;
+                installPhase = ''
+                  runHook preInstall
+                  install -Dm755 "$src" "$out/bin/talosctl"
+                  runHook postInstall
+                '';
+                meta.mainProgram = "talosctl";
+              };
+          };
+
+          pkgs = nixpkgs.legacyPackages.${system}.extend talosctlOverlay;
 
           hctl = pkgs.buildGoModule {
             pname = "hctl";
@@ -119,6 +172,7 @@
 
         in {
           packages.hctl = hctl;
+          packages.talosctl = pkgs.talosctl;
           packages.default = hctl;
 
           devShells.default = pkgs.mkShell {

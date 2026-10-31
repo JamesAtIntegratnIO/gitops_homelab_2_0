@@ -26,6 +26,8 @@ This workflow started with the excellent groundwork in [dellathefella/talos-bare
 
 ## Prepare Talos install disk
 
+If the drive is already in the node, the relabel stick in [usb-sticks/](usb-sticks/README.md) does this step there.
+
 Talos installs expect the target disk to be wiped, so double check the device path before you touch anything.
 
 > If using WSL: https://learn.microsoft.com/en-us/windows/wsl/connect-usb#attach-a-usb-device
@@ -193,6 +195,9 @@ Profiles live under `profiles/` and point at the versioned Talos assets in `asse
 
 ## iPXE loader setup
 
+For UEFI nodes, [usb-sticks/](usb-sticks/README.md) builds, tests and writes the stick
+for you, and needs no root to build. Use the steps here for legacy BIOS or arm64.
+
 2. This step is entirely optional but you can build your own custom iPXE boot drive [docs](https://ipxe.org/embed). For our purposes we embed a small script that will point to the host IP of our matchbox server. In this case it's my desktop running Docker desktop with host networking enabled on port 8080. Alternatively you could just install the bare iPXE loader and type in the following commands listed in the script below. 
 
 ```ipxe
@@ -262,6 +267,10 @@ sudo docker run -d --net=host --rm -v /var/lib/matchbox:/var/lib/matchbox:Z -v /
 The `commands.md` files in `assets/talos/1.11.5/{amd64,arm64}/` capture the exact `wget` invocations used to download the current kernels and initramfs artifacts—rerun them when you need to refresh the images.
 
 ### Syncing repo changes to a persistent Matchbox host
+
+**This overwrites the served machine configs with your local copies.** Once
+`talos-machineconfigs/regen-served-configs.sh` has run, the host's copies are the
+current ones, so copy them back first or leave `assets/` out.
 
 If you are running Matchbox persistently on Unraid, use `sync-to-matchbox.sh` from this directory to mirror the repo’s `assets/`, `profiles/`, and `groups/` to the server:
 
