@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T23:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T00:10:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -698,6 +698,46 @@ as progress. `ArgoCDAppDegraded` fired, but on the *health* of the workload,
 not on the age of the operation. Nothing anywhere alerts on "a sync has been
 retrying for two days", and `retry.limit: -1` guarantees it never converts into
 a failure that would.
+
+## A patch bump removed every kubernetes-mcp flag, and the rollout sat stuck for nine days (found 2026-11-01)
+
+**Fix on `fix/kubernetes-mcp-toml-config`, not yet confirmed live.** Until it merges,
+`mcp-system-the-cluster` stays `Synced`/`Degraded` and the old v0.0.67 pod keeps serving.
+
+Upstream's Config rework shipped in v0.0.68 and removed every runtime flag. Only
+`--config`, `--config-dir` and `--version` remain, so the args this Deployment had
+always passed now exit 1 with `Error: unknown flag: --port`. Kargo merged v0.0.67 →
+v0.0.69 on its own (#522, 2026-10-23), because under `autoMerge: minor` a `0.0.x`
+release is a patch whatever it contains. The release notes say only "Config rework";
+the mapping is in upstream's `docs/configuration-changes.md`.
+
+Everything worked as designed except the outcome:
+
+- The `addons-gate` could not see it. A bump changes one image string, and whether a
+  container accepts its args is not in any render.
+- Kargo's verification did catch it: AnalysisRun `Failed` at 2026-10-23T18:11Z. That
+  does not fail a promotion, and it did not stop the next one either.
+- `ArgoCDAppDegraded` (critical) has been firing for about 8 of the 9 days, and
+  `KubeDeploymentRolloutStuck` with it. The rolling update kept the old pod serving, so
+  no user felt it and nobody acted on the alerts.
+
+**Behaviour that changes with the fix**, measured by booting the pinned images
+against the live v0.0.67 tool list:
+
+- `configuration_view` is gone. v0.0.68 hides it in HTTP mode, and restoring it means
+  an `enabled_tools` allowlist of every tool. Nothing in the `mcpo` system prompt uses
+  it. The `config` toolset now contributes no tools here; it stays listed so the
+  config matches the old args one for one.
+- The other 13 tools keep their names and required parameters, and gain `limit` and
+  `continue`.
+- `max_backend_response_bytes` now defaults to 4 MiB, and a list over it errors rather
+  than truncating. A raw cluster-wide pod list is 2.7 MB today, so there is headroom
+  but not much. Set the key in `kubernetes-mcp-config` if that starts to fail.
+
+**Two things that must stay put.** The settings live in a separate file because Kargo
+only rewrites the first YAML document of the Deployment's file. And `args:` stays
+directly under `image:`: that one unchanged line is what lets a Kargo bump PR such as
+#567 still merge cleanly beside a change to the args.
 
 ## external-secrets kept retrying without the fix that was already on main (found 2026-11-01, released the same day)
 

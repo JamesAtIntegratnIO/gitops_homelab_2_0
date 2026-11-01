@@ -40,7 +40,7 @@ differs meaningfully, it's noted — the running image is the truth.
 | Open WebUI / Qdrant | v0.11.0 / v1.19.0 | |
 | vcluster (media) | vcluster-oss 0.31.1, etcd 3.6.8-0 | |
 | llmkube controller | 0.7.6 (orphaned) | |
-| MCP servers | argocd-mcp v0.9.0, github-mcp v1.10.1, kubernetes-mcp v0.0.66, grafana-mcp 1.1.0, supergateway 3.4.3 | only mcpo still floats (`:main`) -- it publishes no release tags |
+| MCP servers | argocd-mcp v0.9.0, github-mcp v1.10.1, kubernetes-mcp v0.0.69, grafana-mcp 1.1.0, supergateway 3.4.3 | only mcpo still floats (`:main`) -- it publishes no release tags |
 | platform-status-reconciler | ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:latest | built from `images/` in this repo |
 | ~~hello-world~~ | — | removed 2026-08-21 |
 
