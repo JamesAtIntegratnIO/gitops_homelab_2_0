@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T21:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T23:30:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -699,7 +699,16 @@ not on the age of the operation. Nothing anywhere alerts on "a sync has been
 retrying for two days", and `retry.limit: -1` guarantees it never converts into
 a failure that would.
 
-## external-secrets kept retrying without the fix that was already on main (found 2026-11-01)
+## external-secrets kept retrying without the fix that was already on main (found 2026-11-01, released the same day)
+
+**Released 2026-11-01 ~21:20Z.** The operation on each app was terminated with the
+patch below, tenant first. Auto-sync started a new one from the current spec,
+server-side, at chart 2.12.0, as predicted. Both apps are `Synced`/`Healthy` on
+v2.12.0 and all 45 ExternalSecrets on the host and all 4 in the tenant are Ready,
+with the webhook's CA intact. Kargo's Stage stayed `Verified=False` until
+re-verified by hand with `kargo.akuity.io/reverify`, and is now `Ready=True`. What
+follows describes the state before that. `specmarshal-the-cluster` is a different
+cause and was not touched.
 
 `external-secrets-the-cluster` and `external-secrets-vcluster-media.integratn-tech`
 have been `OutOfSync` since 2026-08-30T04:54Z, past 9,000 attempts, with:
