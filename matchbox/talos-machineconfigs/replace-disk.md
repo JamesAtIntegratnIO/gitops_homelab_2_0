@@ -175,9 +175,9 @@ talosctl apply-config --insecure -n 10.0.4.102 \
   --file <(ssh root@10.0.0.12 cat /mnt/user/appdata/matchbox/assets/talos/1.11.5/controlplane2.yaml)
 ```
 
-**This joins etcd as soon as it reboots.** Pull the stick while it installs: Talos
-runs from memory by then, and this stick booted first on 2026-11-01 when left in.
-"extra kernel arguments are not supported" is expected under systemd-boot.
+**This joins etcd as soon as it reboots.** Pull the stick while it installs, in case
+the firmware boots it again after the reboot; pulling it mid-install did no harm on
+2026-11-01. "extra kernel arguments are not supported" is expected under systemd-boot.
 
 ### What did not work
 
@@ -185,9 +185,9 @@ runs from memory by then, and this stick booted first on 2026-11-01 when left in
   so the node gets `192.168.0.x`. Port 4 is native Homelab. Installing on the wrong
   network would register the etcd member at the wrong address.
 - **The `IPXE` stick.** iPXE 2.0.0 hung on this M900 right after
-  `file:/autoexec.ipxe... Not found`, before its script printed anything, with the
-  usual cause being the hardware probe. Those lines are harmless on their own. The
-  committed build (1.21.1-unstable) has not been tried on this hardware.
+  `file:/autoexec.ipxe... Not found`, before its script printed anything. Those
+  lines are harmless on their own. The hardware probe is the best guess, unproven.
+  The committed build (1.21.1-unstable) has not been tried on this hardware.
 - **A blank disk with no stick.** The firmware netboots in UEFI mode and DHCP hands
   it `netboot.xyz.kpxe`, a BIOS file. It downloads, nothing follows, and it tries
   again every 4.6 minutes. The logs show only a successful TFTP transfer. Replacing
