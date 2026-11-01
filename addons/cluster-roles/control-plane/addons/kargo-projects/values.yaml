@@ -1023,6 +1023,29 @@ projects:
         updates:
           - file: workloads/vcluster-media/addons/sonarr/values.yaml
             keys: [deployment.image.tag]
+      bazarr:
+        scope: vcluster-media
+        image:
+          <<: *linuxserverImage
+          repoURL: ghcr.io/linuxserver/bazarr
+          allowTags: ['^v\d+\.\d+\.\d+-ls\d+$']
+        interval: 12h0m0s
+        format: tag
+        autoMerge: always
+        updates:
+          - file: workloads/vcluster-media/addons/bazarr/values.yaml
+            keys: [deployment.image.tag]
+      # The yq init container that writes Bazarr's Sonarr/Radarr/OpenSubtitles
+      # settings. Docker Hub, polled anonymously, so the old cadence.
+      bazarr-yq:
+        scope: vcluster-media
+        interval: 6h0m0s
+        image:
+          repoURL: mikefarah/yq
+          allowTags: ['^4\.\d+\.\d+$']
+        updates:
+          - file: workloads/vcluster-media/addons/bazarr/values.yaml
+            keys: [deployment.initContainers.bazarr-config.image]
       sabnzbd:
         scope: vcluster-media
         image:
