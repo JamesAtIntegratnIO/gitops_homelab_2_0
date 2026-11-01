@@ -30,7 +30,7 @@ Layer key: **env** = environments/production, **cp** = cluster-roles/control-pla
 |---|---|---|---|
 | argocd | argocd | argo-cd @ 10.4.0 (+tc: OIDC secret manifests, syncPolicy, ignoreDiffs) | ArgoCD, self-managed |
 | argocd-projects | argocd | manifest | AppProjects: platform, platform-services, appteam-global |
-| external-secrets | external-secrets | external-secrets @ 0.10.3 | ESO + onepassword-store ClusterSecretStore (wave -3) |
+| external-secrets | external-secrets | external-secrets @ 2.12.0 | ESO + onepassword-store ClusterSecretStore (wave -3) |
 | metrics-server | kube-system | @ 3.13.0 | Metrics (Talos needs kubelet-insecure-tls) |
 | nfs-subdir-external-provisioner | nfs-provisioner | @ 4.0.18 (+2 StorageClasses/Deployments) | [NFS storage](/platform/storage.md) |
 | external-dns | external-dns | @ 1.19.0 (+tc: CF secret) | Cloudflare DNS |

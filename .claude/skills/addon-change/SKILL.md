@@ -87,6 +87,14 @@ see the file list in `terraform/cluster/bootstrap/addons-vcluster.yaml`.
   `toEntities: [host, remote-node]`. Likewise a ClusterIP cannot be an
   `ipBlock`: it is DNAT'd to the pod IP before policy evaluation, so select on
   namespace + pod and the **target port** (e.g. metrics-server on 10250).
+- **A fix does not reach a sync already retrying.** An in-flight operation keeps
+  the revision, `syncOptions` and `retry` it started with, and `retry.limit: -1`
+  means it never finishes. If the app you are fixing is stuck, compare
+  `.status.operationState.operation.sync` with `.spec.syncPolicy` and
+  `.status.sync.revisions`; if they differ, the merge also needs the operation
+  terminated. #287 added `ServerSideApply=true` and external-secrets ran another
+  two months without it. See
+  [known issues](../../../docs/okf/cluster/known-issues.md).
 - **Gateway API, not Ingress.** HTTPRoute everywhere.
 - **Pin images and charts.** An unpinned `:latest` silently jumped grafana-mcp
   0.14.0 → 1.1.0 on a rollout. Never point a *liveness* probe at an external

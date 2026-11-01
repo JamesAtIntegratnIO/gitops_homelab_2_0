@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-30T00:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T21:30:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -25,6 +25,9 @@ sources:
   - id: disk-102-1029
     resource: talosctl dmesg / services / read /sys/block/sda/device/{ioerr,iotmo}_cnt on all three nodes, kubectl sweep, ladder.sh run log, 2026-10-29
     title: .102 SSD failure during the Talos ladder 2026-10-29
+  - id: eso-frozen-op-1101
+    resource: kubectl get application/crd --show-managed-fields on both clusters, server-side dry-runs of chart 2.12.0, Prometheus ALERTS history, Argo CD v3.5.1 controller source, 2026-11-01
+    title: external-secrets stuck operation triage 2026-11-01
 ---
 
 # .102's SSD is failing; it took etcd quorum with it for three minutes (2026-10-29)
@@ -695,6 +698,91 @@ as progress. `ArgoCDAppDegraded` fired, but on the *health* of the workload,
 not on the age of the operation. Nothing anywhere alerts on "a sync has been
 retrying for two days", and `retry.limit: -1` guarantees it never converts into
 a failure that would.
+
+## external-secrets kept retrying without the fix that was already on main (found 2026-11-01)
+
+`external-secrets-the-cluster` and `external-secrets-vcluster-media.integratn-tech`
+have been `OutOfSync` since 2026-08-30T04:54Z, past 9,000 attempts, with:
+
+```
+CustomResourceDefinition "clustersecretstores.external-secrets.io" is invalid:
+metadata.annotations: Too long: may not be more than 262144 bytes
+```
+
+That is client-side apply, and the error suggests adding `ServerSideApply=true`.
+**That option has been on main since #287, and both live Applications carry it.**
+The operation does not:
+
+```
+.spec.syncPolicy.syncOptions                         ServerSideApply=true, ...
+.status.operationState.operation.sync.syncOptions    (no ServerSideApply)
+.status.operationState.operation.sync.revisions      d1562ae9, 2.10.0
+.status.sync.revisions                               4e4ee2fe, 2.12.0
+```
+
+#287 merged at 15:21Z, ten hours after the operation started, and the two CRDs
+were fixed by hand with `kubectl apply --server-side` that morning. Nobody
+terminated the operation, so it carried on with the options it started with.
+
+**The entry above understates what an operation freezes.** It is not only the
+revision. `state.Operation.Sync` is a snapshot, so a change to `syncOptions` or
+`retry` does not reach an operation already running either. For the same reason,
+`retry.refresh: true` would not have rescued this one: in Argo CD v3.5.1 it
+clears `Sync.Revision` and `Sync.Revisions` on each retry and leaves
+`Sync.SyncOptions` alone. It would have retried the newest chart, still
+client-side, and failed the same way.
+
+**What was left behind is small.** Rendering 2.10.0 and 2.12.0 with the app's own
+values:
+
+- Outside the CRDs, the only change is the image tag on the three Deployments,
+  plus version labels. No RBAC, webhook or Service changes.
+- The two CRDs gain 260 schema paths and lose 4, all of them `required` entries
+  relaxed on `barbican` and `keepersecurity`. `v1` stays the storage version and
+  `v1beta1` stays declared unserved, so `storedVersions: [v1beta1, v1]` is still
+  legal.
+- Every value this repo sets is still declared by the 2.12.0 chart.
+- The frozen operation's `helm` block matches the current spec, so no values were
+  lost, only the version.
+
+So both clusters run ESO **2.10.0** while main says **2.12.0**. Chart 2.14.0 has
+since been published. The pin went 2.10.0 -> 2.13.0 -> 2.12.0 on 2026-10-16: a
+2.12.0 Promotion opened and merged half an hour after 2.13.0, with no reason
+recorded. None of it ever applied.
+
+**Checked read-only before terminating, on both clusters:** server-side dry-run
+of all 45 rendered resources with `--field-manager=argocd-controller` passes. The
+webhook `caBundle` and the four `external-secrets-webhook` Secret keys survive,
+because the ESO controller co-owns them; conversion stays `None`; images become
+`v2.12.0`. A client-side dry-run of the same two CRDs reproduces the error.
+
+**The cure is runtime state, not a commit.** No merge can release this. Terminate
+the operation on each app, as in the entry above, and auto-sync starts a new one
+from the current spec, server-side, at 2.12.0.
+
+**It was not silent, and one alert cannot see it:**
+
+- `ArgoCDAppOutOfSync` was firing for both apps at every daily sample in
+  Prometheus's 15d retention, routed to `matrix-digest`. A warning on a digest
+  channel that stays on for two months is easy to stop reading.
+- Kargo's `external-secrets` Stage has been `Verified=False` since the 2.12.0
+  Promotion, on `argocd-apps-healthy`.
+- `ArgoCDAppSyncFailing` cannot fire on this. `argocd_app_sync_total` has no series
+  for either app, because the controller only counts an operation when it
+  completes, and with `retry.limit: -1` a persistently failing one never does.
+
+**`specmarshal-the-cluster` is stuck too, for a different reason.** Same pinned
+operation (since 2026-10-29, revision `6e29b5df`), but it does have server-side
+apply. Its PreSync hook fails on its first line:
+
+```
+find: unrecognized: -uid
+```
+
+`home-ownership-job.yaml` calls `find -uid`/`-gid` and `alpine/k8s` ships BusyBox
+find, which has only `-user`/`-group`. The sync stops before the Deployment, so
+ArgoCD's last deployed chart is still rc.9, and the CVE fix in rc.12 has not
+landed. It needs a commit to the hook **and** a terminated operation.
 
 ## Pinning the kratix image froze half an artifact (found 2026-08-30)
 
