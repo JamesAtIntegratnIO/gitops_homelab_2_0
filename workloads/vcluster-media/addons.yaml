@@ -39,3 +39,7 @@ otterwiki:
 configarr:
   <<: *mediaAppDefaults
   enabled: true
+
+bazarr:
+  <<: *mediaAppDefaults
+  enabled: true

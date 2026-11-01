@@ -1,0 +1,250 @@
+applicationName: bazarr
+extraObjects:
+  # Static, like the other apps' config volumes. The folder is the config of
+  # the earlier Bazarr install (January 2026: settings + SQLite db), so this
+  # one resumes from it rather than starting empty.
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: bazarr-config-pv
+      labels:
+        app: bazarr
+      annotations:
+        pv.kubernetes.io/provisioned-by: k8s-sigs.io/nfs-subdir-external-provisioner
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      capacity:
+        storage: 1Gi
+      nfs:
+        path: /mnt/user/kube_storage/bazarr-config-pvc
+        server: 10.0.0.12
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: config-nfs-client
+      volumeMode: Filesystem
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: bazarr-config-pvc
+      namespace: media
+      labels:
+        app: bazarr
+    spec:
+      storageClassName: config-nfs-client
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      volumeName: bazarr-config-pv
+  # Same share Sonarr and Radarr mount at /data, mounted at the same path,
+  # so Bazarr needs no path mappings.
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: bazarr-media-pv
+      labels:
+        app: bazarr
+      annotations:
+        pv.kubernetes.io/provisioned-by: k8s-sigs.io/data-nfs-subdir-external-provisioner
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      capacity:
+        storage: 1Gi
+      nfs:
+        path: /mnt/user/data
+        server: 10.0.0.12
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: data-nfs-client
+      volumeMode: Filesystem
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: bazarr-media-pvc
+      namespace: media
+      labels:
+        app: bazarr
+    spec:
+      storageClassName: data-nfs-client
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
+      volumeName: bazarr-media-pv
+deployment:
+  securityContext:
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  # Bazarr keeps its settings in /config/config/config.yaml. This init
+  # container writes the parts that git owns on every start: the Sonarr and
+  # Radarr connections (API keys from homepage-secret, like exportarr and
+  # configarr), the OpenSubtitles.com login, and the provider list. Anything
+  # else set in the UI (language profiles, scores, schedules) is left alone.
+  initContainers:
+    bazarr-config:
+      image: mikefarah/yq:4.54.1
+      imagePullPolicy: IfNotPresent
+      command:
+        - /bin/sh
+        - -ec
+        - |
+          f=/config/config/config.yaml
+          mkdir -p /config/config
+          [ -s "$f" ] || echo '{}' > "$f"
+          yq -i '
+            .general.use_sonarr = true |
+            .general.use_radarr = true |
+            .general.enabled_providers = ((.general.enabled_providers // []) + ["opensubtitlescom"] | unique) |
+            .sonarr.ip = "sonarr" |
+            .sonarr.port = 8989 |
+            .sonarr.base_url = "/" |
+            .sonarr.ssl = false |
+            .sonarr.apikey = strenv(SONARR_API_KEY) |
+            .radarr.ip = "radarr" |
+            .radarr.port = 7878 |
+            .radarr.base_url = "/" |
+            .radarr.ssl = false |
+            .radarr.apikey = strenv(RADARR_API_KEY)
+          ' "$f"
+          # The OpenSubtitles.com login already lives in the reused config.
+          # Secret bazarr-opensubtitles (username/password) is optional: if it
+          # exists (e.g. an ExternalSecret from 1Password is added later), it
+          # overrides the stored login; if not, the stored one is kept.
+          if [ -n "${OPENSUBTITLES_USERNAME:-}" ] && [ -n "${OPENSUBTITLES_PASSWORD:-}" ]; then
+            yq -i '
+              .opensubtitlescom.username = strenv(OPENSUBTITLES_USERNAME) |
+              .opensubtitlescom.password = strenv(OPENSUBTITLES_PASSWORD)
+            ' "$f"
+          fi
+          chown 1000:1000 /config/config "$f"
+      env:
+        - name: SONARR_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: homepage-secret
+              key: HOMEPAGE_VAR_SONARR_KEY
+        - name: RADARR_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: homepage-secret
+              key: HOMEPAGE_VAR_RADARR_KEY
+        - name: OPENSUBTITLES_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: bazarr-opensubtitles
+              key: username
+              optional: true
+        - name: OPENSUBTITLES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: bazarr-opensubtitles
+              key: password
+              optional: true
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+          add:
+            - CHOWN
+            - DAC_OVERRIDE
+            - FOWNER
+      volumeMounts:
+        - name: config
+          mountPath: /config
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 64Mi
+  containerSecurityContext:
+    runAsNonRoot: false
+    runAsUser: 0
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - CHOWN
+        - DAC_OVERRIDE
+        - FOWNER
+        - SETUID
+        - SETGID
+  image:
+    repository: ghcr.io/linuxserver/bazarr
+    tag: v1.6.2-ls370
+    pullPolicy: IfNotPresent
+  ports:
+    - name: http
+      containerPort: 6767
+      protocol: TCP
+  env:
+    TZ:
+      value: America/Denver
+    PUID:
+      value: "1000"
+    PGID:
+      value: "1000"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  volumes:
+    config:
+      persistentVolumeClaim:
+        claimName: bazarr-config-pvc
+    media:
+      persistentVolumeClaim:
+        claimName: bazarr-media-pvc
+    tmp:
+      emptyDir:
+        sizeLimit: 512Mi
+    s6-run:
+      emptyDir:
+        medium: Memory
+        sizeLimit: 16Mi
+  volumeMounts:
+    config:
+      mountPath: /config
+    media:
+      mountPath: /data
+    tmp:
+      mountPath: /tmp
+    s6-run:
+      mountPath: /run
+persistence:
+  enabled: false
+service:
+  ports:
+    - name: http
+      port: 6767
+      targetPort: 6767
+      protocol: TCP
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - bazarr.vcluster-media.integratn.tech
+  rules:
+    - backendRefs:
+        - name: bazarr
+          port: 6767
+      matches:
+        - path:
+            type: PathPrefix
+            value: /
+certificate:
+  enabled: false
