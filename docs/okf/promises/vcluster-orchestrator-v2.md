@@ -4,7 +4,7 @@ title: vcluster-orchestrator-v2
 description: The composite promise behind VClusterOrchestratorV2 — one Go pipeline that renders a full tenant vcluster (Helm app, ArgoCD registration, DNS/TLS/secrets integrations, network policies).
 tags: [kratix, promise, vcluster, go]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T23:00:00Z }
 stale_after: 2027-02-20
 sources:
   - id: promise-yaml
@@ -27,11 +27,11 @@ else defaults. Highlights:[^promise-yaml]
 | Field | Default | Notes |
 |---|---|---|
 | `vcluster.preset` | `dev` | `dev`: 1 replica, 768Mi–1536Mi, no persistence, 1 CoreDNS. `prod`: 3 replicas, 1–2Gi, persistence 10Gi, 2 CoreDNS. (Authoritative source is the Go code — the READMEs' preset tables are stale.) |
-| `vcluster.k8sVersion` | `v1.34.3` | vclusters may run newer K8s than the host |
+| `vcluster.k8sVersion` | `v1.36.6` | A tag of `ghcr.io/loft-sh/kubernetes`: `vX.Y.Z`, optionally with `@sha256:`. The schema once allowed `1.33`-style values that are not tags and could only give `ImagePullBackOff`. |
 | `vcluster.backingStore` / `helmOverrides` / `exportKubeConfig` | — | free-form pass-through, deep-merged over generated values (user wins) |
 | `exposure.hostname` | `{name}.{baseDomain}` | baseDomain from annotation `platform.integratn.tech/base-domain`, else `integratn.tech` |
 | `exposure.subnet` / `vip` | VIP = subnet network + **200** | code uses offset 200 to land in the MetalLB pool; promise.yaml/README still say ".100" (stale) |
-| `integrations.certManager` / `externalSecrets` | letsencrypt-prod / onepassword-store selector labels | synced into the vcluster |
+| `integrations.certManager` / `externalSecrets` | ignored | Deprecated. These are Pro features the `vcluster-oss` image lacks: the pipeline used to enable them, which synced nothing and gave the syncer unused host RBAC. Tenants run their own addons. |
 | `integrations.argocd.workloadRepo` | this repo, path `workloads`, rev `main` | drives the per-vcluster workloads ApplicationSet |
 | `networkPolicies.enableNFS`, `extraEgress[]` | false / — | e.g. vcluster-media adds postgres egress `10.0.3.1/32:5432` |
 

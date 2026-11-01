@@ -53,8 +53,6 @@ type VClusterConfig struct {
 	ExternalServerURL string
 
 	// Integration configuration
-	CertManagerIssuerLabels        map[string]string
-	ExternalSecretsStoreLabels     map[string]string
 	ArgoCDEnvironment              string
 	ArgoCDClusterLabels            map[string]string
 	ArgoCDClusterAnnotations       map[string]string
@@ -155,7 +153,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Extract vcluster spec
-	config.K8sVersion, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.34.3")
+	config.K8sVersion, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.k8sVersion", "v1.36.6")
 	config.Preset, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.preset", "dev")
 	config.IsolationMode, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.isolationMode", "standard")
 	config.ClusterDomain, _ = u.GetStringValueWithDefault(resource, "spec.vcluster.networking.clusterDomain", "cluster.local")
@@ -242,16 +240,6 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	}
 
 	// Extract integration configuration
-	config.CertManagerIssuerLabels = u.ExtractStringMap(resource, "spec.integrations.certManager.clusterIssuerSelectorLabels")
-	if len(config.CertManagerIssuerLabels) == 0 {
-		config.CertManagerIssuerLabels = map[string]string{"integratn.tech/cluster-issuer": "letsencrypt-prod"}
-	}
-
-	config.ExternalSecretsStoreLabels = u.ExtractStringMap(resource, "spec.integrations.externalSecrets.clusterStoreSelectorLabels")
-	if len(config.ExternalSecretsStoreLabels) == 0 {
-		config.ExternalSecretsStoreLabels = map[string]string{"integratn.tech/cluster-secret-store": "onepassword-store"}
-	}
-
 	config.ArgoCDEnvironment, _ = u.GetStringValue(resource, "spec.integrations.argocd.environment")
 	if config.ArgoCDEnvironment == "" {
 		if config.Preset == "prod" {
@@ -323,7 +311,7 @@ func buildConfig(sdk *kratix.KratixSDK, resource kratix.Resource) (*VClusterConf
 	// Extract ArgoCD application configuration
 	config.ArgoCDRepoURL, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.repoURL", "https://charts.loft.sh")
 	config.ArgoCDChart, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.chart", "vcluster")
-	config.ArgoCDTargetRevision, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.30.4")
+	config.ArgoCDTargetRevision, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.targetRevision", "0.37.6")
 	config.ArgoCDDestServer, _ = u.GetStringValueWithDefault(resource, "spec.argocdApplication.destinationServer", "https://kubernetes.default.svc")
 
 	// Extract sync policy
@@ -490,34 +478,11 @@ func buildValuesObject(config *VClusterConfig) map[string]interface{} {
 			MetalLB: EnabledFlag{Enabled: true},
 		},
 		Integrations: Integrations{
-			ExternalSecrets: IntegrationExternalSecrets{
-				Enabled: true,
-				Webhook: EnabledFlag{Enabled: true},
-				Sync: ESSyncConfig{
-					FromHost: ESFromHostConfig{
-						ClusterStores: ClusterStoresConfig{
-							Enabled: true,
-							Selector: LabelSelector{
-								MatchLabels: config.ExternalSecretsStoreLabels,
-							},
-						},
-					},
-				},
-			},
+			// Metrics-server is the only host integration the vcluster-oss image has.
+			// certManager and externalSecrets are vCluster Pro features: enabling them
+			// here synced nothing and only granted the syncer unused host RBAC. The
+			// tenant runs its own cert-manager and external-secrets addons.
 			MetricsServer: EnabledFlag{Enabled: true},
-			CertManager: IntegrationCertManager{
-				Enabled: true,
-				Sync: CMSyncConfig{
-					FromHost: CMFromHostConfig{
-						ClusterIssuers: ClusterIssuersConfig{
-							Enabled: true,
-							Selector: LabelSelector{
-								Labels: config.CertManagerIssuerLabels,
-							},
-						},
-					},
-				},
-			},
 		},
 		Telemetry: EnabledFlag{Enabled: false},
 		Logging:   LoggingConfig{Encoding: "json"},

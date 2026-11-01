@@ -348,12 +348,6 @@ spec:
     coredns:
       replicas: 1
   integrations:
-    certManager:
-      clusterIssuerSelectorLabels:
-        integratn.tech/cluster-issuer: letsencrypt-prod
-    externalSecrets:
-      clusterStoreSelectorLabels:
-        integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production
       workloadRepo:
@@ -366,7 +360,7 @@ spec:
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
-    targetRevision: 0.31.0
+    targetRevision: 0.37.6
   networkPolicies:
     enableNFS: false
 ```
@@ -784,8 +778,9 @@ kubectl -n talos-backup create job --from=cronjob/talos-etcd-snapshot manual-$(d
 
 ### Restore vcluster-media etcd
 
-Use this when the tenant's etcd is corrupt or its data PVCs are lost but the
-host cluster is fine. The restore writes a snapshot into each of the three
+Rehearsed end to end on a throwaway cluster on 2026-11-01 (steps 2 to 5; ArgoCD
+was not involved, so step 1 is not rehearsed). Use this when the tenant's etcd is
+corrupt or its data PVCs are lost but the host cluster is fine. The restore writes a snapshot into each of the three
 member PVCs with `etcdutl snapshot restore`, then lets the StatefulSet come
 back. **Everything inside the vcluster returns to the moment of the snapshot**;
 the syncer then reconciles host-side pods to match.
@@ -813,7 +808,9 @@ kubectl -n vcluster-media scale statefulset vcluster-media-etcd --replicas 0
 kubectl -n vcluster-media wait --for=delete pod -l app=vcluster-etcd --timeout=5m
 ```
 
-**3. Restore each member.** Pick the snapshot (`ls /mnt/user/kube_storage/backups/vcluster-media-etcd/` on Unraid), then run this Job once per member, `N` = 0, 1, 2. It wipes the member's data directory, restores the snapshot into it with the member's own name and the same `--initial-cluster` the StatefulSet uses, and exits.
+**3. Restore each member.** Pick the snapshot (`ls /mnt/user/kube_storage/backups/vcluster-media-etcd/` on Unraid), then run this Job once per member, `N` = 0, 1, 2. It restores the snapshot into a scratch directory with the member's own name and the same `--initial-cluster` the StatefulSet uses, and swaps that in for the member's data only once the restore has succeeded.
+
+**Do not reorder this to wipe first.** The first version did, and the 2026-11-01 rehearsal ran it with a wrong snapshot name: all three members were wiped, etcd came back empty, and the syncer deleted every host pod. In this order a bad name fails the Job with the member untouched.
 
 ```bash
 SNAP=vcluster-media-etcd-2026-08-22T0345Z.db   # the file to restore
@@ -831,12 +828,12 @@ spec:
       restartPolicy: Never
       securityContext: { seccompProfile: { type: RuntimeDefault } }
       initContainers:
-        - name: wipe
-          image: docker.io/alpine/k8s:1.35.6@sha256:b7a12c5ddf261994c33d2eaaa06fd69a0803ff6b38683bfa3d30a76dcdf92807
-          command: [/bin/sh, -euc, 'rm -rf /data/member /data/restore; ls -la /data']
+        - name: clear-scratch
+          image: docker.io/alpine/k8s:1.35.10@sha256:fa1cea4a667a98eef1ebd9b899897b5f9fa3e0254936505b4eeb9ee27ec22e91
+          command: [/bin/sh, -euc, 'rm -rf /data/restore']
           volumeMounts: [{ name: data, mountPath: /data }]
         - name: restore
-          image: registry.k8s.io/etcd:3.6.8-0
+          image: registry.k8s.io/etcd:3.6.8-0   # the etcd tag the StatefulSet runs now
           args:
             - etcdutl
             - snapshot
@@ -852,8 +849,8 @@ spec:
             - { name: backups, mountPath: /backups, readOnly: true, subPath: backups/vcluster-media-etcd }
       containers:
         - name: place
-          image: docker.io/alpine/k8s:1.35.6@sha256:b7a12c5ddf261994c33d2eaaa06fd69a0803ff6b38683bfa3d30a76dcdf92807
-          command: [/bin/sh, -euc, 'mv /data/restore/member /data/member && rmdir /data/restore && ls -la /data /data/member']
+          image: docker.io/alpine/k8s:1.35.10@sha256:fa1cea4a667a98eef1ebd9b899897b5f9fa3e0254936505b4eeb9ee27ec22e91
+          command: [/bin/sh, -euc, 'rm -rf /data/member && mv /data/restore/member /data/member && rmdir /data/restore && ls -la /data /data/member']
           volumeMounts: [{ name: data, mountPath: /data }]
       volumes:
         - name: data
@@ -862,14 +859,17 @@ spec:
           nfs: { server: 10.0.0.12, path: /mnt/user/kube_storage }
 EOF
 done
-kubectl -n vcluster-media wait --for=condition=complete job -l job-name --timeout=10m 2>/dev/null; kubectl -n vcluster-media get jobs etcd-restore-0 etcd-restore-1 etcd-restore-2
+for N in 0 1 2; do kubectl -n vcluster-media wait --for=condition=complete job/etcd-restore-$N --timeout=10m; done
+kubectl -n vcluster-media get jobs etcd-restore-0 etcd-restore-1 etcd-restore-2
 ```
 
 The three Jobs can run in parallel — each touches only its own PVC. All three
 must be `Complete` before the next step; a member left with the old data would
 refuse to join a cluster restored from a different revision.
 
-**4. Bring etcd back, then the vcluster.**
+**4. Bring etcd back, then the vcluster.** If you are also going back a version,
+stop after etcd and follow [the rollback](../platform/vclusters/upgrades.md#rollback):
+the control plane has to stay at zero until the old chart is in.
 
 ```bash
 kubectl -n vcluster-media scale statefulset vcluster-media-etcd --replicas 3
@@ -895,7 +895,7 @@ argocd app set kratix-the-cluster      --sync-policy automated --self-heal --aut
 argocd app set kratix-state-reconciler --sync-policy automated --self-heal --auto-prune
 argocd app set vcluster-vcluster-media --sync-policy automated --self-heal --auto-prune
 
-kubectl --context vcluster-media get pods -A          # tenant workloads back
+kubectl --context admin@media-cluster get pods -A     # tenant workloads back
 kubectl -n vcluster-media get pods                    # host-side synced pods reconciled
 kubectl -n argocd get application vcluster-vcluster-media -o jsonpath='{.status.sync.status}/{.status.health.status}{"\n"}'
 ```

@@ -29,18 +29,12 @@ spec:
     hostname: my.integratn.tech
     apiPort: 443
   integrations:
-    certManager:
-      clusterIssuerSelectorLabels:
-        integratn.tech/cluster-issuer: letsencrypt-prod
-    externalSecrets:
-      clusterStoreSelectorLabels:
-        integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
-    targetRevision: 0.30.4
+    targetRevision: 0.37.6
 ```
 
 ## Required values
@@ -51,8 +45,6 @@ spec:
 | spec.targetNamespace | string | Namespace where the vcluster will be deployed. |
 | spec.projectName | string | ArgoCD project name for the vcluster. |
 | spec.vcluster.preset | string | Base sizing preset for the vcluster (`dev` or `prod`). |
-| spec.integrations.certManager.clusterIssuerSelectorLabels | object | Label selector for ClusterIssuers to sync from host. |
-| spec.integrations.externalSecrets.clusterStoreSelectorLabels | object | Label selector for ClusterSecretStores to sync from host. |
 | spec.integrations.argocd.environment | string | Environment label used for ArgoCD cluster secret selectors. |
 | spec.argocdApplication.repoURL | string | Helm repo URL for the vcluster chart. |
 | spec.argocdApplication.chart | string | Helm chart name. |
@@ -62,7 +54,7 @@ spec:
 
 | Path | Type | Default | Purpose |
 | --- | --- | --- | --- |
-| spec.vcluster.k8sVersion | string | v1.34.3 | Kubernetes version for the virtual cluster. Allowed: v1.34.3, 1.34, 1.33, 1.32. |
+| spec.vcluster.k8sVersion | string | v1.36.6 | Kubernetes image tag for the virtual cluster: `vX.Y.Z`, optionally `vX.Y.Z@sha256:...`. |
 | spec.vcluster.replicas | integer | - | Override vcluster control plane replicas. |
 | spec.vcluster.isolationMode | string | standard | Workload isolation mode (`standard` or `strict`). |
 | spec.vcluster.resources.requests.cpu | string | 200m | Control plane CPU request. |
@@ -90,7 +82,12 @@ spec:
 | spec.argocdApplication.destinationServer | string | https://kubernetes.default.svc | Destination server for ArgoCD vcluster install. |
 | spec.argocdApplication.syncPolicy | object | - | Override ArgoCD sync policy for vcluster install. |
 
+## Upgrades
+
+[upgrades.md](upgrades.md) has the ladder, the checks and the rollback plan.
+
 ## Notes
 
+- `spec.integrations.certManager` and `spec.integrations.externalSecrets` are deprecated and ignored. Syncing those objects from the host needs vCluster Pro; the tenant runs its own addons.
 - `exportKubeConfig.server` is derived from `spec.exposure.hostname` and `spec.exposure.apiPort` when hostname is set.
 - Use `spec.vcluster.helmOverrides` only for exceptional cases.

@@ -18,10 +18,11 @@
 # it accepts this one. The snapshot is written straight onto the Unraid share
 # at a fixed path, off the nodes, and survives a host-cluster rebuild.
 #
-# vcluster 0.31 has a native `vcluster snapshot create`, but in that release
-# it is processed by a controller inside the vcluster pod and its
-# `container://` target is the vcluster's OWN data PVC -- the thing being
-# backed up. The etcd-native snapshot is the one that lands somewhere else.
+# Not `vcluster snapshot create`: vCluster's docs say it is unsupported on a
+# deployed etcd (it can appear to succeed but the result is not validated) and
+# tell you to use etcd's own tooling, which is what this is. It also lands off
+# the cluster, where that command's `container://` target is the vcluster's own
+# data PVC.
 #
 # Restore procedure: docs/operations.md, "Restore vcluster-media etcd".
 #
