@@ -2,7 +2,7 @@
 # Build the two USB stick images used to rebuild a control-plane node.
 #
 #   ./matchbox/usb-sticks/build.sh ipxe [--url http://10.0.112.2/boot.ipxe]
-#   ./matchbox/usb-sticks/build.sh relabel --mac 00:23:24:e7:25:10 --model CS900
+#   ./matchbox/usb-sticks/build.sh relabel --mac 00:23:24:e7:25:10 --model PNY
 #
 # Writes build/{ipxe,relabel}.img and a .env beside each for test.sh. Runs on
 # x86_64 Linux with Nix; every tool comes from the nixpkgs pinned in flake.lock,

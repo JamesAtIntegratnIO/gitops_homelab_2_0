@@ -4,7 +4,7 @@ title: Matchbox PXE provisioning
 description: How bare-metal nodes network-boot into Talos via iPXE and Matchbox, and which MACs map to which nodes.
 tags: [matchbox, pxe, ipxe, talos, bare-metal]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-30T18:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T19:00:00Z }
 stale_after: 2027-04-29
 sources:
   - id: matchbox-dir
@@ -28,6 +28,9 @@ sources:
   - id: usb-sticks
     resource: ../../../matchbox/usb-sticks/README.md
     title: Build, test and write the iPXE and relabel sticks
+  - id: rebuild-1101
+    resource: talosctl get disks/metakeys/routes on 10.0.4.101-103, TFTP logs and the node's screen, 2026-11-01
+    title: What the .102 rebuild showed on real hardware
 ---
 
 # Boot flow
@@ -81,10 +84,27 @@ each file from its node's live config, and pins the installer image and hostname
 
 # Rebuilding a node with no second machine
 
-[matchbox/usb-sticks/](../../../matchbox/usb-sticks/README.md) builds two sticks: one labels
-a new SSD `TALOS_INSTALL` in the node itself, the other is the iPXE loader. Both have been
-tested in QEMU; neither had booted on real hardware as of 2026-10-30.[^usb-sticks]
-The procedure is [replace-disk.md](../../../matchbox/talos-machineconfigs/replace-disk.md).
+On 2026-11-01 .102's new disk was installed from a plain Talos ISO on a stick, in
+maintenance mode, with `install.diskSelector` and no Matchbox.[^rebuild-1101] That is now the
+documented route: [replace-disk.md](../../../matchbox/talos-machineconfigs/replace-disk.md).
+
+[matchbox/usb-sticks/](../../../matchbox/usb-sticks/README.md) also builds a relabel stick and
+an iPXE loader, which pass in QEMU and failed on the M900.[^usb-sticks] The iPXE stick (2.0.0) hung
+after `autoexec.ipxe`, before its script ran, and the relabel stick never finished; it was
+built for a model string the drive does not report.[^rebuild-1101]
+
+A blank disk does not reach Matchbox by netbooting either. The firmware netboots in UEFI
+mode and DHCP hands it `netboot.xyz.kpxe`, a BIOS file, so it loops every 4.6 minutes with
+clean TFTP logs.[^rebuild-1101] That cause is inferred from the screen and logs; a UEFI loader
+was built and never tried.
+
+# A rebuilt disk has no default route
+
+.101 and .103 get their default route and DNS from `META` key `0x0a` on their disks (a
+`dhcp4` operator and resolvers), not from their machine configs, which hold only the static
+address.[^rebuild-1101] A new disk has neither, and every image pull then fails. .102 now carries
+an explicit route and nameservers in its config. .101 and .103 do not, and will fail the
+same way on a disk swap until they do.
 
 # Assets and sync
 

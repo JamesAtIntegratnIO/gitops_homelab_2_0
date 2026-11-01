@@ -4,6 +4,12 @@ Two sticks that take a control-plane node from a blank SSD to a Talos install,
 with no other machine needed to prepare the disk. The images are built here and
 never committed: `build/` is gitignored.
 
+**On real hardware on 2026-11-01, neither did the job.** The iPXE stick hung on an
+M900 and the relabel stick never finished, most likely because of its model string.
+.102 was rebuilt from a plain Talos ISO instead, with a disk selector and no label:
+[replace-disk.md](../talos-machineconfigs/replace-disk.md) step 4. Start there. These
+sticks had only passed in QEMU, and `write.sh` also writes that ISO.
+
 | Stick | Volume | What it does |
 |---|---|---|
 | relabel | `RELABEL` | Boots Alpine, labels the node's new SSD `TALOS_INSTALL`, powers off |
@@ -28,8 +34,8 @@ sha256 in `build.sh`.
 
 ```bash
 # The MAC comes from `talosctl -n <ip> get links`; matchbox/groups/ has the same list.
-# The model is one word from the new drive's model string.
-./matchbox/usb-sticks/build.sh relabel --mac 00:23:24:e7:25:10 --model CS900
+# The model is one word from the string the drive reports, not the name on the box.
+./matchbox/usb-sticks/build.sh relabel --mac 00:23:24:e7:25:10 --model PNY
 ./matchbox/usb-sticks/build.sh ipxe
 
 ./matchbox/usb-sticks/test.sh relabel
@@ -71,6 +77,9 @@ wiped its test disk.
   `test.sh` uses a MAC that matches no group.
 - **The kernel truncates a SATA model to 16 characters.** `SAMSUNG MZ7TY256HDHP-000L7`
   reads as `SAMSUNG MZ7TY256`. Pick a `--model` word from the start of the string.
+- **The name on the box may not be in the model at all.** A PNY CS900 reports
+  `PNY 250GB SATA S`. Boot a Talos ISO and run `talosctl get disks --insecure` to
+  read it before building anything that matches on it.
 - **Alpine needs a marker file.** Providing an apkovl turns off Alpine's default
   boot services, and with them driver loading, unless the overlay contains
   `etc/.default_boot_services`.
