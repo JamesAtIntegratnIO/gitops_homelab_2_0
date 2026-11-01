@@ -30,13 +30,8 @@ spec:
         - name: kubernetes-mcp
           image: quay.io/containers/kubernetes_mcp_server:v0.0.69@sha256:1da9d62ad0c008a6cadcf2718c86c2e2d18753ca1d9f1f3313068980794b24f2
           args:
-            - "--port"
-            - "8080"
-            - "--read-only"
-            - "--stateless"
-            - "--disable-multi-cluster"
-            - "--toolsets"
-            - "core,config"
+            - "--config"
+            - "/etc/kubernetes-mcp-server/config.toml"
           ports:
             - name: http
               containerPort: 8080
@@ -60,6 +55,14 @@ spec:
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kubernetes-mcp-server
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: kubernetes-mcp-config
 ---
 apiVersion: v1
 kind: Service
