@@ -25,6 +25,28 @@ extraObjects:
           remoteRef:
             key: OPENSUBTITLES_ITEM
             property: password
+  # Static, like the other apps' config volumes. The folder is the config of
+  # the earlier Bazarr install (January 2026: settings + SQLite db), so this
+  # one resumes from it rather than starting empty.
+  - apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: bazarr-config-pv
+      labels:
+        app: bazarr
+      annotations:
+        pv.kubernetes.io/provisioned-by: k8s-sigs.io/nfs-subdir-external-provisioner
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      capacity:
+        storage: 1Gi
+      nfs:
+        path: /mnt/user/kube_storage/bazarr-config-pvc
+        server: 10.0.0.12
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: config-nfs-client
+      volumeMode: Filesystem
   - apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
@@ -39,6 +61,7 @@ extraObjects:
       resources:
         requests:
           storage: 1Gi
+      volumeName: bazarr-config-pv
   # Same share Sonarr and Radarr mount at /data, mounted at the same path,
   # so Bazarr needs no path mappings.
   - apiVersion: v1
@@ -109,10 +132,16 @@ deployment:
             .radarr.port = 7878 |
             .radarr.base_url = "/" |
             .radarr.ssl = false |
-            .radarr.apikey = strenv(RADARR_API_KEY) |
-            .opensubtitlescom.username = strenv(OPENSUBTITLES_USERNAME) |
-            .opensubtitlescom.password = strenv(OPENSUBTITLES_PASSWORD)
+            .radarr.apikey = strenv(RADARR_API_KEY)
           ' "$f"
+          # Only when the 1Password item is present: otherwise keep whatever
+          # login the config already has.
+          if [ -n "${OPENSUBTITLES_USERNAME:-}" ] && [ -n "${OPENSUBTITLES_PASSWORD:-}" ]; then
+            yq -i '
+              .opensubtitlescom.username = strenv(OPENSUBTITLES_USERNAME) |
+              .opensubtitlescom.password = strenv(OPENSUBTITLES_PASSWORD)
+            ' "$f"
+          fi
           chown 1000:1000 /config/config "$f"
       env:
         - name: SONARR_API_KEY
@@ -130,11 +159,13 @@ deployment:
             secretKeyRef:
               name: bazarr-opensubtitles
               key: username
+              optional: true
         - name: OPENSUBTITLES_PASSWORD
           valueFrom:
             secretKeyRef:
               name: bazarr-opensubtitles
               key: password
+              optional: true
       securityContext:
         runAsNonRoot: false
         runAsUser: 0
