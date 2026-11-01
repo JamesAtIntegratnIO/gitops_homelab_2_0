@@ -67,9 +67,10 @@ way. So rebuild them from the live configs, with the version the other nodes run
 
 It changes two fields in each file and prints no config content:
 
-- `install.image`: the live value is the plain `installer:v1.11.3`, with no
-  iscsi-tools. The ladder never noticed because it always passes `--image`; a
-  PXE install has nothing else to go on.
+- `install.image`: the live value lags, because `talosctl upgrade --image` does
+  not update it. .102's still names v1.11.6, and .101 and .103 named the plain
+  `installer:v1.11.3`, with no iscsi-tools, until 2026-11-01. A PXE install has
+  nothing else to go on.
 - `network.hostname`: the generated name comes from a machine id kept on the
   disk, so a new disk means a new name. Pinning it keeps the Node, the
   CiliumNode, and the Trivy `scanJobAffinity` pointing at the right machine.
@@ -80,17 +81,10 @@ host (`root@10.0.0.12`), outside what Matchbox serves.
 **Do not run `sync-to-matchbox.sh` after this.** It rsyncs the gitignored local
 `assets/` with `--delete`, which puts the old files back.
 
-### Add the default route and DNS by hand
+### The default route and DNS are in the config
 
-**A config built from the live one does not give the new disk a default route.**
-.101 and .103 get theirs from `META` key `0x0a`, stored on their disks: a `dhcp4`
-operator plus resolvers `10.0.0.1, 1.1.1.1, 8.8.8.8`. The machine config only has
-the static address, so a new disk comes up with no route to anything outside
-`10.0.0.0/9`. On 2026-11-01 .102 failed its image pulls this way. Compare
-`get metakeys` on a healthy node with the new one if this looks familiar.
-
-Add this to the served file for the node being rebuilt. .102 has it live; .101 and
-.103 do not, so they will hit the same trap.
+All three live configs carry these, so a file built from them does too. Check that
+they survived before a rebuild:
 
 ```yaml
 machine:
@@ -103,20 +97,50 @@ machine:
             gateway: 10.0.0.1
 ```
 
+.102 got them during its rebuild. .101 and .103 got them on 2026-11-01, by hand and
+outside GitOps, because until then a config diff showed nothing was missing:
+
+- Their default route came from `META` key `0x0a` on their disks, a `dhcp4` operator
+  that a new disk does not have. Without it there is no route outside `10.0.0.0/9`,
+  and on 2026-11-01 .102 failed its image pulls this way.
+- `META` is still there on both. It now loses to the config: `get routespecs` and
+  `get resolverspecs` show the `configuration` layer winning over `operator`.
+- Their machine configs are multi-document and these fields are lists, so a
+  strategic-merge patch would duplicate the interface block. The change was a full
+  edited config, streamed to `talosctl apply-config --mode=auto`, after a `--dry-run`
+  reported no reboot. Neither node rebooted and etcd kept its term.
+
+**The router in that list is a choice, not an inheritance.** `META` lists the same
+three resolvers, but at the `platform` layer, and DHCP's `1.1.1.1, 8.8.8.8` at the
+`operator` layer beat it. So `10.0.0.1` was not in .101's or .103's path until
+2026-11-01, when James chose to match .102. That reverses the reason
+[dns.yaml](dns.yaml) was withdrawn: the router is a dnsmasq with its own LAN records.
+Measured that day, all 23 HTTPRoute hostnames answered the same from the router,
+1.1.1.1 and 8.8.8.8, so nothing flips today. It would if the router's records drift
+from Cloudflare's. `tower` and the node names answer only from the router.
+
 ## 2. Select the replacement SSD
 
-No label is needed. Replace `install.disk` in the served file with a selector, using
-the string the drive actually reports. Read it in step 4 if you do not already have
-it: the kernel truncates the model to 16 characters, and the brand on the box may
-not appear at all. `*CS900*` would never have matched this drive.
+No label is needed. The served files for .101 and .103 already select the disk by
+SATA port, so a new drive needs no edit and a USB stick cannot match. All three
+M900s report the same path. Nothing has installed from this selector yet: it only
+runs at install time, and neither node has been reinstalled since it was set.
 
 ```yaml
 machine:
   install:
     wipe: true
     diskSelector:
-      model: 'PNY*'     # reports as `PNY 250GB SATA S`
+      busPath: /pci0000:00/0000:00:17.0/ata1/host0/target0:0:0/0:0:0:0
 ```
+
+.102's still says `model: 'PNY*'`, from its rebuild, which matches only that drive.
+Change it to `busPath` before replacing .102's disk.
+
+To select by model instead, use the string the drive actually reports. Read it in
+step 4 if you do not already have it: the kernel truncates the model to 16
+characters, and the brand on the box may not appear at all. `*CS900*` would never
+have matched `PNY 250GB SATA S`.
 
 The `by-label/TALOS_INSTALL` route and the `RELABEL` stick still exist, but the
 stick was built with `--model CS900` on 2026-10-30 and stayed at its prompt on this
@@ -170,7 +194,7 @@ secrets, so stream it rather than copying it:
 
 ```bash
 talosctl get disks --insecure -n 10.0.4.102
-talosctl get metakeys --insecure -n 10.0.4.102   # no 0x0a means the route from step 1 is required
+talosctl get metakeys --insecure -n 10.0.4.102   # no 0x0a is normal: the route comes from the config in step 1
 talosctl apply-config --insecure -n 10.0.4.102 \
   --file <(ssh root@10.0.0.12 cat /mnt/user/appdata/matchbox/assets/talos/1.11.5/controlplane2.yaml)
 ```
@@ -236,11 +260,6 @@ left), `1.12.12`, `1.13.12`, then `k8s-upgrade.sh 1.35.10` and `1.36.6`. See
   stick out before the ladder resumes. It serves the machine configs, secrets
   included, over plain HTTP, and a node that netboots while it is up would get
   the 1.11.5 kernel and whatever config is on the host.
-- `machine.install.image` on .101 and .103 still names
-  `ghcr.io/siderolabs/installer:v1.11.3`. Harmless until one of them is
-  reinstalled; patch it to the final metal-installer once the ladder is done.
-- .101 and .103 still depend on `META` for their default route. Give them the
-  explicit route and resolvers from step 1 before either disk is replaced.
 - .101 carries the same drive model (PM871b), bought with this one. Its
   counters are clean (0 timeouts over 1.67 billion I/Os), but the only early
   warning .102 gave was write latency: ~84 ms average against ~21 ms on .101

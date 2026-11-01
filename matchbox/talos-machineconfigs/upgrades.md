@@ -315,14 +315,15 @@ snapshot, and why `preflight.sh` FAILs without one newer than 24h.
   `docs/okf/cluster/known-issues.md`. Check it separately afterwards.
 - **`/var` layout is not uniform**: `sda4` on .101/.102, `sda6` on .103. Harmless,
   but do not pattern-match a disk path across nodes in a script.
-- **`machine.install.image` is stale on every node.** On 2026-10-29 it read
-  `ghcr.io/siderolabs/installer:v1.11.3` — an older version *and* the plain
-  installer — while the nodes ran 1.11.5 from schematic `c9078f94…`.
+- **`machine.install.image` goes stale.** On 2026-10-29 it read
+  `ghcr.io/siderolabs/installer:v1.11.3` on every node — an older version *and*
+  the plain installer — while the nodes ran 1.11.5 from schematic `c9078f94…`.
   `talosctl upgrade --image` ignores the field, so the ladder is unaffected, but
   anything that installs *from the machine config* — a reset, a node rebuilt
-  from Matchbox — would come back on 1.11.3 without iscsi-tools. After the
-  ladder, set it to the final `metal-installer` image with a `live-*.yaml`
-  strategic-merge patch.
+  from Matchbox — would come back on the old version without iscsi-tools. Since
+  2026-11-01 .101 and .103 name the v1.13.12 `metal-installer` and .102 names
+  v1.11.6. A later upgrade makes them stale again, so `regen-served-configs.sh`
+  sets it in the served files whatever the live value says.
 - **The schematic is `iscsi-tools` only.** Older notes say it carries AMD GPU
   firmware and microcode; the factory's definition of `c9078f94…` lists only
   `siderolabs/iscsi-tools`. The AMD patches in `matchbox/README.md` describe an

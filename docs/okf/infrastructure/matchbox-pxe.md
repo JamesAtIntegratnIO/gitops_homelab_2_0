@@ -4,7 +4,7 @@ title: Matchbox PXE provisioning
 description: How bare-metal nodes network-boot into Talos via iPXE and Matchbox, and which MACs map to which nodes.
 tags: [matchbox, pxe, ipxe, talos, bare-metal]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T19:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T21:30:00Z }
 stale_after: 2027-04-29
 sources:
   - id: matchbox-dir
@@ -31,6 +31,9 @@ sources:
   - id: rebuild-1101
     resource: talosctl get disks/metakeys/routes on 10.0.4.101-103, TFTP logs and the node's screen, 2026-11-01
     title: What the .102 rebuild showed on real hardware
+  - id: explicit-route-1101
+    resource: talosctl get routespecs/resolverspecs --namespace network-config on 10.0.4.101-103 and dig against 10.0.0.1, 1.1.1.1 and 8.8.8.8 for every HTTPRoute hostname, 2026-11-01
+    title: The explicit default route on .101 and .103, and what each resolver answers
 ---
 
 # Boot flow
@@ -98,13 +101,26 @@ mode and DHCP hands it `netboot.xyz.kpxe`, a BIOS file, so it loops every 4.6 mi
 clean TFTP logs.[^rebuild-1101] That cause is inferred from the screen and logs; a UEFI loader
 was built and never tried.
 
-# A rebuilt disk has no default route
+# A rebuilt disk gets its default route from the config
 
-.101 and .103 get their default route and DNS from `META` key `0x0a` on their disks (a
-`dhcp4` operator and resolvers), not from their machine configs, which hold only the static
-address.[^rebuild-1101] A new disk has neither, and every image pull then fails. .102 now carries
-an explicit route and nameservers in its config. .101 and .103 do not, and will fail the
-same way on a disk swap until they do.
+All three nodes carry an explicit default route (`0.0.0.0/0` via `10.0.0.1`) and nameservers
+(`10.0.0.1, 1.1.1.1, 8.8.8.8`) in their machine configs, and so do the served files.[^explicit-route-1101]
+.102 got them during its rebuild. .101 and .103 got them on 2026-11-01, as a manual change
+outside GitOps.
+
+Before that, .101 and .103 took their route from `META` key `0x0a` on their disks (a `dhcp4`
+operator and resolvers), while their configs held only the static address.[^rebuild-1101] A new
+disk has no `META`, so it had no route and every image pull failed, and a config diff could not
+show why. `META` remains on both disks, and the `configuration` layer now overrides it.
+
+The list adds the router as a resolver, a change `dns.yaml` withdrew in August. `META` named
+`10.0.0.1` too, but at the `platform` layer, where DHCP's `1.1.1.1, 8.8.8.8` overrode it, so the
+router was not in .101's or .103's path before this. All 23 HTTPRoute hostnames answered the same
+from all three resolvers on 2026-11-01. They would stop agreeing if the router's LAN records
+drift from Cloudflare's.[^explicit-route-1101]
+
+.101 and .103 now select their install disk by SATA port (`busPath`), so a replacement drive
+needs no edit; no install has exercised that selector yet. .102 still has `model: 'PNY*'`.
 
 # Assets and sync
 
@@ -136,3 +152,4 @@ Related: [Talos nodes](/infrastructure/talos-nodes.md),
 [^matchbox-host-1030]: docker inspect and docker logs Matchbox on 10.0.0.12, 2026-10-30
 [^served-vs-live-1030]: redacted diff of served controlplane{1,2,3}.yaml against talosctl get machineconfig, 2026-10-30
 [^usb-sticks]: matchbox/usb-sticks/README.md
+[^explicit-route-1101]: talosctl get routespecs/resolverspecs on 10.0.4.101-103 and dig against all three resolvers for every HTTPRoute hostname, 2026-11-01
