@@ -22,7 +22,7 @@ differs meaningfully, it's noted — the running image is the truth.
 | ArgoCD | v3.5.1 | chart 10.4.0; 10.0.0 turns chart NetworkPolicies on -- pinned off, this repo owns netpol. Trivy UI extension installs for the first time as of 2026-08-22 |
 | Kratix | syntasso community image (sha-pinned) | chart 0.0.1 |
 | cert-manager | v1.21.1 | host had been moved off v1.16.2 on 2026-08-21 (Cloudflare DNS01 cleanup bug blocked wildcard renewal) |
-| external-secrets | v0.10.3 | the 2.9.0 bump is open and held: v1beta1 stops being served by default and 39 manifests still use it |
+| external-secrets | v2.10.0 (2026-11-01) | main pins chart 2.12.0, not yet applied: both apps are on a sync operation frozen since 2026-08-30, see known-issues |
 | external-dns | v0.19.0 | |
 | MetalLB | v0.16.1 | L2-only: `speaker.frr.enabled` and `frrk8s.enabled` both pinned off, so the speaker is a single container. Metrics moved 7472 -> 9120 |
 | nginx-gateway-fabric | 2.6.7 (host), 2.8.0 (vcluster-media) | Gateway API v1.6.3 CRDs -- the two move together, by hand |
