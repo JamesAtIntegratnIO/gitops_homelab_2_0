@@ -119,7 +119,7 @@ spec:
   vcluster:
     preset: prod | dev                  # Resource sizing
     replicas: 3                         # Control plane HA
-    k8sVersion: "v1.34.3"               # Kubernetes version
+    k8sVersion: "v1.36.6"               # Kubernetes version
     backingStore:
       etcd:
         deploy:
@@ -131,12 +131,6 @@ spec:
     hostname: media.integratn.tech      # External access
     apiPort: 443                        # API port
   integrations:
-    certManager:
-      clusterIssuerSelectorLabels:      # TLS cert source
-        integratn.tech/cluster-issuer: letsencrypt-prod
-    externalSecrets:
-      clusterStoreSelectorLabels:       # 1Password integration
-        integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production           # Environment tagging
       clusterLabels:                    # Custom cluster labels
@@ -147,7 +141,7 @@ spec:
   argocdApplication:
     repoURL: https://charts.loft.sh     # vCluster Helm chart
     chart: vcluster
-    targetRevision: 0.30.4
+    targetRevision: 0.37.6
 ```
 
 **Pipeline Logic:**

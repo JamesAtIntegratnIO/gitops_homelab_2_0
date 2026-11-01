@@ -67,19 +67,7 @@ type ExposureConfig struct {
 
 // IntegrationsCfg holds platform integration settings.
 type IntegrationsCfg struct {
-	CertManager     *CertManagerCfg     `yaml:"certManager,omitempty"`
-	ExternalSecrets *ExternalSecretsCfg `yaml:"externalSecrets,omitempty"`
-	ArgoCD          *ArgoCDIntegration  `yaml:"argocd,omitempty"`
-}
-
-// CertManagerCfg holds cert-manager integration config.
-type CertManagerCfg struct {
-	ClusterIssuerSelectorLabels map[string]string `yaml:"clusterIssuerSelectorLabels,omitempty"`
-}
-
-// ExternalSecretsCfg holds external-secrets integration config.
-type ExternalSecretsCfg struct {
-	ClusterStoreSelectorLabels map[string]string `yaml:"clusterStoreSelectorLabels,omitempty"`
+	ArgoCD *ArgoCDIntegration `yaml:"argocd,omitempty"`
 }
 
 // ArgoCDIntegration holds ArgoCD-specific integration settings.
@@ -248,16 +236,6 @@ func PresetNames() []string {
 // DefaultIntegrations returns the standard platform integration config.
 func DefaultIntegrations() IntegrationsCfg {
 	return IntegrationsCfg{
-		CertManager: &CertManagerCfg{
-			ClusterIssuerSelectorLabels: map[string]string{
-				"integratn.tech/cluster-issuer": "letsencrypt-prod",
-			},
-		},
-		ExternalSecrets: &ExternalSecretsCfg{
-			ClusterStoreSelectorLabels: map[string]string{
-				"integratn.tech/cluster-secret-store": "onepassword-store",
-			},
-		},
 		ArgoCD: &ArgoCDIntegration{
 			Environment: "production",
 		},
@@ -269,7 +247,7 @@ func DefaultArgocdApp() ArgocdAppConfig {
 	return ArgocdAppConfig{
 		RepoURL:        "https://charts.loft.sh",
 		Chart:          "vcluster",
-		TargetRevision: "0.31.0",
+		TargetRevision: "0.37.6",
 		SyncPolicy: map[string]interface{}{
 			"automated": map[string]interface{}{
 				"selfHeal": true,

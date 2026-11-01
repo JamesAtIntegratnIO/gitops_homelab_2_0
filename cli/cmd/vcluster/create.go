@@ -103,7 +103,7 @@ Examples:
 	cmd.Flags().BoolVar(&createAutoCommit, "auto-commit", false, "automatically commit and push (overrides gitMode)")
 
 	// vCluster settings
-	cmd.Flags().StringVar(&createK8sVersion, "k8s-version", "", "Kubernetes version (v1.34.3, 1.34, 1.33, 1.32)")
+	cmd.Flags().StringVar(&createK8sVersion, "k8s-version", "", "Kubernetes version (v1.36.6, v1.35.10, v1.34.3)")
 	cmd.Flags().StringVar(&createIsolationMode, "isolation", "", "workload isolation mode (standard, strict)")
 
 	// Exposure
@@ -296,18 +296,18 @@ func runCreate(cmd *cobra.Command, args []string) error {
 			// K8s version
 			if !cmd.Flags().Changed("k8s-version") {
 				idx, err := tui.Select("Kubernetes version", []string{
-					"v1.34.3 (default)",
-					"1.33",
-					"1.32",
+					"v1.36.6 (default)",
+					"v1.35.10",
+					"v1.34.3",
 				})
 				if err != nil {
 					return err
 				}
 				switch idx {
 				case 1:
-					spec.VCluster.K8sVersion = "1.33"
+					spec.VCluster.K8sVersion = "v1.35.10"
 				case 2:
-					spec.VCluster.K8sVersion = "1.32"
+					spec.VCluster.K8sVersion = "v1.34.3"
 				}
 			}
 
