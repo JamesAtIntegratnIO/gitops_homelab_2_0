@@ -17,7 +17,7 @@ differs meaningfully, it's noted — the running image is the truth.
 
 | Component | Running version | Notes |
 |---|---|---|
-| Talos / Kubernetes | 1.11.5 / v1.34.1 | host; vcluster runs K8s v1.34.3 |
+| Talos / Kubernetes | 1.13.12 / v1.36.6 (2026-11-01) | host; vcluster still runs K8s v1.34.3 on vcluster 0.31.1, past its EOL of 2026-07-29 |
 | Cilium (+ Hubble UI) | 1.17.3 (+0.13.2) | CNI, kube-proxy replacement |
 | ArgoCD | v3.5.1 | chart 10.4.0; 10.0.0 turns chart NetworkPolicies on -- pinned off, this repo owns netpol. Trivy UI extension installs for the first time as of 2026-08-22 |
 | Kratix | syntasso community image (sha-pinned) | chart 0.0.1 |

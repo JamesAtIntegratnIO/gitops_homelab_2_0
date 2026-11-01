@@ -11,7 +11,100 @@
     utils.lib.eachDefaultSystem (
       system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
+          # talosctl is pinned apart from nixpkgs, to the Talos version the
+          # NODES run -- Sidero's upgrade FAQ: "We recommend using the version
+          # that matches the current running version of the cluster." Bumping
+          # the nixpkgs input instead would move every tool at once, kubectl
+          # included, which tools.sh hard-pins to the apiserver minor.
+          #
+          # During the upgrade ladder this trails the nodes by one rung: once
+          # every node reports a new version, bump `version` to match, then
+          # replace the four hashes from that release's sha256sum.txt:
+          #
+          #   curl -fsSL https://github.com/siderolabs/talos/releases/download/v<ver>/sha256sum.txt \
+          #     | grep -E 'talosctl-(darwin|linux)-(amd64|arm64)$'
+          #   nix hash convert --hash-algo sha256 --to sri <hex>
+          #
+          # The release binary is used rather than rebuilding from source: it is
+          # the artifact Sidero ships and tests, and it needs no vendorHash.
+          talosctlOverlay = final: prev: {
+            talosctl =
+              let
+                version = "1.13.12";
+                platform = {
+                  x86_64-linux = "linux-amd64";
+                  aarch64-linux = "linux-arm64";
+                  x86_64-darwin = "darwin-amd64";
+                  aarch64-darwin = "darwin-arm64";
+                }.${prev.stdenv.hostPlatform.system};
+                hash = {
+                  darwin-arm64 = "sha256-kOOShmFoCBiXMl/x7s7sEKhUdqm8nrQ5n+dBqNf3iT0=";
+                  darwin-amd64 = "sha256-VCR6f5Pino74HDFxFkXVczGeSVhlNK72lc9Pz80YI1M=";
+                  linux-amd64 = "sha256-TOQhh2TCTWpr1WEJcZm2DthhnbBzeS/OW3z85/qNEvw=";
+                  linux-arm64 = "sha256-NcMEw3jXDyQexdY2Et794lMF+BCOVQJWqmPzfaUQtr4=";
+                }.${platform};
+              in
+              prev.stdenvNoCC.mkDerivation {
+                pname = "talosctl";
+                inherit version;
+                src = prev.fetchurl {
+                  url = "https://github.com/siderolabs/talos/releases/download/v${version}/talosctl-${platform}";
+                  inherit hash;
+                };
+                dontUnpack = true;
+                # Never strip: on aarch64-darwin that invalidates the ad-hoc code
+                # signature the Go linker embeds, and the kernel kills the binary.
+                dontStrip = true;
+                installPhase = ''
+                  runHook preInstall
+                  install -Dm755 "$src" "$out/bin/talosctl"
+                  runHook postInstall
+                '';
+                meta.mainProgram = "talosctl";
+              };
+          };
+
+          # kubectl follows the apiserver the same way. The hashes come from
+          #
+          #   curl -fsSL https://dl.k8s.io/release/v<ver>/bin/<os>/<arch>/kubectl.sha256
+          #
+          # and when the minor moves, so does KUBECTL_WANT_MINOR in tools.sh.
+          kubectlOverlay = final: prev: {
+            kubectl =
+              let
+                version = "1.36.6";
+                platform = {
+                  x86_64-linux = "linux/amd64";
+                  aarch64-linux = "linux/arm64";
+                  x86_64-darwin = "darwin/amd64";
+                  aarch64-darwin = "darwin/arm64";
+                }.${prev.stdenv.hostPlatform.system};
+                hash = {
+                  "darwin/arm64" = "sha256-HPc1w9Ncz+wo0GGHhMsGpGFNLEKq3ii2vg6rdqL/tiM=";
+                  "darwin/amd64" = "sha256-LiLTgvJCPIjZ0HYkb4YLs9XHQ90nnKY+ETR0u4g4JCY=";
+                  "linux/amd64" = "sha256-KYGLZynckmK2kjB0cNBVjQJ3Jec4vl3UfHYCYYaKJjQ=";
+                  "linux/arm64" = "sha256-NVB+9AjD04hJ5dMgPhj46GHbgiqmZBAanO0Iae3QYEY=";
+                }.${platform};
+              in
+              prev.stdenvNoCC.mkDerivation {
+                pname = "kubectl";
+                inherit version;
+                src = prev.fetchurl {
+                  url = "https://dl.k8s.io/release/v${version}/bin/${platform}/kubectl";
+                  inherit hash;
+                };
+                dontUnpack = true;
+                dontStrip = true;   # same code-signature reason as talosctl
+                installPhase = ''
+                  runHook preInstall
+                  install -Dm755 "$src" "$out/bin/kubectl"
+                  runHook postInstall
+                '';
+                meta.mainProgram = "kubectl";
+              };
+          };
+
+          pkgs = (nixpkgs.legacyPackages.${system}.extend talosctlOverlay).extend kubectlOverlay;
 
           hctl = pkgs.buildGoModule {
             pname = "hctl";
@@ -119,6 +212,7 @@
 
         in {
           packages.hctl = hctl;
+          packages.talosctl = pkgs.talosctl;
           packages.default = hctl;
 
           devShells.default = pkgs.mkShell {

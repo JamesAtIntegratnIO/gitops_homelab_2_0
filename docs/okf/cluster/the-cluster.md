@@ -19,7 +19,7 @@ sources:
 |---|---|
 | Name | `the-cluster` |
 | API endpoint | `https://10.0.4.100:6443` (Talos VIP; kubeconfig context `admin@the-cluster`) |
-| Kubernetes | v1.34.1 (pinned by Talos 1.11.5) |
+| Kubernetes | v1.36.6 on Talos 1.13.12, since 2026-11-01 |
 | Nodes | 3× control-plane, schedulable — see [Talos nodes](/infrastructure/talos-nodes.md) |
 | Age | ~221 days (provisioned mid-January 2026) |
 | ArgoCD cluster labels | `cluster_role: control-plane`, `environment: production`, ~16 `enable_*` flags |

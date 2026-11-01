@@ -2,7 +2,7 @@
 
 A production-grade GitOps platform running on bare-metal, built for learning and demonstrating enterprise Kubernetes patterns at homelab scale.
 
-**Stack**: Talos Linux · Kubernetes 1.34 · ArgoCD · Kratix · vcluster · ExternalSecrets · 1Password
+**Stack**: Talos Linux · Kubernetes 1.36 · ArgoCD · Kratix · vcluster · ExternalSecrets · 1Password
 
 ## Architecture
 
@@ -131,7 +131,7 @@ See [docs/operations.md](docs/operations.md) for full runbooks.
 
 | Component | Details |
 |-----------|---------|
-| **Nodes** | 3× control-plane (Talos 1.11.5), PXE-booted |
+| **Nodes** | 3× control-plane (Talos 1.13.12), PXE-booted |
 | **Network** | 10.0.4.0/24 cluster, MetalLB L2 (10.0.4.200-253) |
 | **Ingress** | nginx-gateway-fabric, Gateway API |
 | **TLS** | cert-manager, Let's Encrypt (Cloudflare DNS-01) |

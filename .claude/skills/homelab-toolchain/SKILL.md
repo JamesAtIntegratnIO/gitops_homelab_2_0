@@ -29,10 +29,18 @@ already there; use them directly.
 - **`ls /nix/store/*-<pkg>-*/... | sort -V | tail -1` returns an arbitrary
   build.** `sort -V` on a full store path sorts by the *hash* first. Extract the
   version field before sorting — `tools.sh` does.
-- **kubectl must be 1.34.** The store also holds 1.36.x; the apiserver is
-  1.34.1 and the supported skew is ±1. `tools.sh` pins the prefix.
+- **kubectl must match the apiserver's minor, 1.36.** The store also holds other
+  minors, and the supported skew is ±1. `tools.sh` pins the prefix.
+- **talosctl must match the Talos the nodes run.** A 1.11.5 client reading a 1.13
+  node's `get machineconfig` returned a `.spec` that scripts could not parse, and
+  no error. The flake pins it; `ladder.sh` caches its own per version.
 - **`yq` here is mikefarah v4** (store package `yq-go`). The bare glob
   `*-yq-*` also matches `python3.13-yq`, which is a different, jq-syntax tool.
+- **The store can hold a binary for another platform.** On 2026-10-29 there
+  were two `yq-go-4.53.3` builds, arm64 Mach-O and x86-64 ELF; same version, so
+  the tie broke on the hash and `$YQ` died with `exec format error`. `[ -x ]`
+  cannot see this -- the exec bit is set either way. `tools.sh` now checks the
+  object format.
 - **The Bash tool runs zsh on macOS.** Unquoted `$var` does *not* word-split —
   use `${=var}` or an array. There is no `timeout` binary.
 - **Never read or print `secrets.env`.** Gitignored, live credentials.
@@ -54,9 +62,17 @@ file standalone first and back up `~/.kube/config`.
 ## Talos
 
 `talosctl` read-only and `--dry-run` work from an agent session against
-`~/.talos/config` (context `the-cluster`, **cert expires 2026-10-30**). A live
+`~/.talos/config`, context **`admin@the-cluster`** (cert renewed 2026-10-29,
+expires **2027-10-29**). That context has no default node, so always pass `-n`.
+A context named plain `the-cluster` is the pre-renewal one; if it is still
+listed, its cert expired 2026-10-30 and nothing should use it. A live
 `talosctl patch mc` is blocked by the permission classifier — write the patch
 into `matchbox/talos-machineconfigs/` and hand the command to James.
+
+Check a cert by **context**, never by grepping the first `crt:` in the file:
+`talosctl config merge` adds a renewal as a *second* context rather than
+replacing the first, so the file can hold a valid and an expiring cert at once.
+`matchbox/talos-machineconfigs/preflight.sh` does it per context.
 
 Once `watchdog.yaml` is applied the machine config is multi-document and JSON
 6902 patches are refused; use the `live-*.yaml` strategic-merge patches (maps
