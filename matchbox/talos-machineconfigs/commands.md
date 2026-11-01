@@ -71,6 +71,9 @@ kubectl -n kube-system get pod kube-apiserver-<node> -o jsonpath='{.spec.contain
 #    candidate fix is to set that false so CoreDNS forwards to the upstreams
 #    directly and its own health checks get two targets -- untested, and it
 #    changes how Talos renders the CoreDNS manifest, so it is its own task.
+#    2026-11-01: the nodes now resolve through 10.0.0.1, 1.1.1.1, 8.8.8.8 by
+#    choice, set with their explicit default route -- see replace-disk.md step 1.
+#    dns.yaml stays withdrawn.
 
 # 4. CoreDNS handover -- APPLIED 2026-08-30 on all three nodes. Kept as the
 #    procedure for a rebuilt node or a rollback-and-retry. DO NOT RUN THIS

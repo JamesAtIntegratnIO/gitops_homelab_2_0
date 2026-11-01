@@ -12,6 +12,11 @@
 # Talos host-DNS proxy itself (hostDNS.forwardKubeDNSToHost: true), which is
 # a different change -- see commands.md step 3.
 #
+# Update 2026-11-01: the nodes now list 10.0.0.1, 1.1.1.1, 8.8.8.8 by choice, set
+# by hand with their explicit default route. See replace-disk.md step 1 for that
+# decision and what was measured. This file is still not the way to set it: it
+# names 9.9.9.9, and a list-bearing patch duplicates the interface block.
+#
 # Upstream DNS resolvers for the Talos host DNS proxy.
 #
 # WHY

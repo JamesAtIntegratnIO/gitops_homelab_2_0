@@ -1171,6 +1171,19 @@ fix is `forwardKubeDNSToHost: false`, which makes CoreDNS forward to the
 upstreams directly with its own per-upstream health checks; untested, and its
 own task.
 
+**Update 2026-11-01 — the router is in the path now, on purpose.** All three
+nodes resolve through `10.0.0.1, 1.1.1.1, 8.8.8.8`: .102 from its rebuild, .101
+and .103 by James's decision when they got their explicit default route (see
+[Matchbox PXE](../infrastructure/matchbox-pxe.md)). `dns.yaml` itself stays
+withdrawn. The flip it warned about is not happening today: all 23 HTTPRoute
+hostnames answer the same from all three resolvers, because the public records
+now hold the same `10.0.4.x` addresses as the router's. The risk is that those
+records drift apart. The router also answers names the public resolvers do not
+(`tower`, node names). Whether the host-DNS proxy spreads queries across upstreams
+or prefers the first was not tested; this page's claim that it distributes them
+dates from August and is unverified. If a platform hostname ever resolves
+differently from pod to pod, look here first.
+
 Owning CoreDNS outright (`cluster.coreDNS.disabled: true` plus a CoreDNS addon)
 would additionally allow re-enabling `cluster.local` caching and raising the CPU
 limit, which would make the whole chain far less brittle. Worth noting for that
