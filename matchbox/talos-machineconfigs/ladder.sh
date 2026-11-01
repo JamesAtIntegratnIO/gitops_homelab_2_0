@@ -335,7 +335,8 @@ while :; do
   log "  talosctl upgrade --image $IMAGE"
   CORDONED=""   # from here the node may be mid-reboot; never uncordon it blindly
   TC_DEADLINE=1920 tc -n "$IP" upgrade --image "$IMAGE" --wait --timeout 30m >>"$LOG" 2>&1 \
-    || { [ "$(node_version "$IP")" = "$FROM" ] && { CORDONED="$NAME"; die "upgrade of $IP failed before it rebooted -- still on v$FROM"; }; die "upgrade of $IP returned an error -- see the log"; }
+    || { [ "$(node_version "$IP")" = "$FROM" ] && { CORDONED="$NAME"; die "upgrade of $IP failed before it rebooted -- still on v$FROM"; }
+         log "  talosctl lost its stream to $IP (it drops when the node goes down to reboot); waiting for v$TARGET"; }
 
   until_ok 1200 "$IP reports v$TARGET" on_target "$IP" \
     || die "$IP did not come back on v$TARGET within 20m (if it hangs in kexec, retry with -m powercycle)"
