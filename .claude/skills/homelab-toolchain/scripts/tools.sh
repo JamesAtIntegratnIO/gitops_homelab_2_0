@@ -58,9 +58,8 @@ nixbin_versions() { # nixbin_versions <store-pkg>
     grep -E '^[0-9]+(\.[0-9]+)*$' | sort -V | uniq
 }
 
-# kubectl is pinned HARD to the server minor. The store also carries 1.36/1.37,
-# which are outside the +/-1 skew a 1.34 apiserver supports, and a client two
-# minors ahead is worse than no client: reads mostly work, so you trust it, and
+# kubectl is pinned HARD to the server minor (1.36 since 2026-11-01). A client
+# two minors off is worse than no client: reads mostly work, so you trust it, and
 # then a write uses a field the apiserver will not honour.
 #
 # A silent fallback was tried here on 2026-10-29 and reverted the same day. It
@@ -72,7 +71,7 @@ nixbin_versions() { # nixbin_versions <store-pkg>
 # What WAS a real bug is the symptom when the pin matches nothing: the export
 # became the empty string and every later call failed as "command not found",
 # which names the wrong problem. So the pin stays hard and says so.
-export KUBECTL_WANT_MINOR="${KUBECTL_WANT_MINOR:-1.34}"
+export KUBECTL_WANT_MINOR="${KUBECTL_WANT_MINOR:-1.36}"
 export KUBECTL="${KUBECTL:-$(nixbin kubectl kubectl "$KUBECTL_WANT_MINOR")}"
 if [ -z "$KUBECTL" ]; then
   echo "tools.sh: no kubectl ${KUBECTL_WANT_MINOR}.x in /nix/store." >&2

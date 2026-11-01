@@ -29,8 +29,11 @@ already there; use them directly.
 - **`ls /nix/store/*-<pkg>-*/... | sort -V | tail -1` returns an arbitrary
   build.** `sort -V` on a full store path sorts by the *hash* first. Extract the
   version field before sorting — `tools.sh` does.
-- **kubectl must be 1.34.** The store also holds 1.36.x; the apiserver is
-  1.34.1 and the supported skew is ±1. `tools.sh` pins the prefix.
+- **kubectl must match the apiserver's minor, 1.36.** The store also holds other
+  minors, and the supported skew is ±1. `tools.sh` pins the prefix.
+- **talosctl must match the Talos the nodes run.** A 1.11.5 client reading a 1.13
+  node's `get machineconfig` returned a `.spec` that scripts could not parse, and
+  no error. The flake pins it; `ladder.sh` caches its own per version.
 - **`yq` here is mikefarah v4** (store package `yq-go`). The bare glob
   `*-yq-*` also matches `python3.13-yq`, which is a different, jq-syntax tool.
 - **The store can hold a binary for another platform.** On 2026-10-29 there
