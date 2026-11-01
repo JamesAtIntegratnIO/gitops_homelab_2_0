@@ -9,7 +9,7 @@ architecture — [AGENTS.md](AGENTS.md) already does that in depth.
 ## What this repo is
 
 A self-service internal developer platform on bare metal: Talos Linux →
-Kubernetes 1.34 → ArgoCD → Kratix promises → vclusters. One physical cluster,
+Kubernetes 1.36 → ArgoCD → Kratix promises → vclusters. One physical cluster,
 `the-cluster` (API VIP `https://10.0.4.100:6443`, kube context
 `admin@the-cluster`), and one tenant vcluster, `vcluster-media`.
 
@@ -76,15 +76,14 @@ nix develop
   ```
   Do **not** hand-roll it as `ls -d /nix/store/*-<pkg>-*/bin/<exe> | sort -V |
   tail -1`: `sort -V` on a full store path sorts by the *hash*, so that returns
-  an arbitrary build — today it hands you kubectl 1.36.3 against a 1.34.1
-  apiserver, outside the supported skew. `tools.sh` sorts on the version field
+  an arbitrary build, which can be outside the supported kubectl skew. `tools.sh` sorts on the version field
   and pins kubectl to the server minor. The bare `*-yq-*` glob is ambiguous the
   same way: it also matches `python3.13-yq`, a different tool with jq syntax.
 - The Bash tool runs **zsh** on macOS: unquoted `$var` does not word-split (use
   `${=var}`), and there is no `timeout` binary.
-- There is **no talosconfig on this workstation**. Anything needing
-  `talosctl apply-config` / `patch mc` has to be run by James. The pending
-  patches live in [matchbox/talos-machineconfigs/](matchbox/talos-machineconfigs/).
+- `~/.talos/config` on this workstation works (context `admin@the-cluster`).
+  Machine config changes still bypass GitOps, so say so when you make one. Runbooks
+  and scripts live in [matchbox/talos-machineconfigs/](matchbox/talos-machineconfigs/).
 - Merging a kubeconfig? Use `kubecm add -cf <file> --context-name admin@<cluster>`
   from the flake. The `-c/--cover` flag is required in non-TTY sessions.
 

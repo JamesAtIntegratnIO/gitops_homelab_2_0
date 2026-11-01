@@ -104,8 +104,8 @@ GitHub Repo (gitops_homelab_2_0)
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| OS | Talos Linux 1.11.5 | Immutable Kubernetes OS |
-| K8s | Kubernetes 1.34.1 | Container orchestration |
+| OS | Talos Linux 1.13.12 | Immutable Kubernetes OS |
+| K8s | Kubernetes 1.36.6 | Container orchestration |
 | GitOps | ArgoCD 9.4.3 | Declarative continuous delivery |
 | Platform | Kratix (Syntasso) | Self-service internal developer platform |
 | Infra | Terraform/OpenTofu | Infrastructure provisioning |

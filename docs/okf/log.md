@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-11-01
+* **Update**: **the-cluster is on Talos 1.13.12 and Kubernetes 1.36.6, back in support.** Ladder 1.11.6 → 1.12.12 → 1.13.12, then Kubernetes 1.35.10 → 1.36.6, with etcd at three voters and zero disk timeouts afterwards. `vcluster-media` stays on Kubernetes 1.34.3 and vcluster 0.31.1, past its EOL, against a host two minors ahead: its 37 pods were unchanged by the upgrade, but vCluster's lifecycle page rates that pairing as untested. `regen-served-configs.sh` emptied all three served files on its first real run, because its timeout wrapper gave `ssh` an empty stdin and it moved the result into place unchecked; they were restored from its own backups, and it now checks the upload before the move.
 * **Fix**: **.102 is rebuilt on the PNY CS900 and back in etcd as a voter (member `58e870fbfe9455f1`), after both USB sticks failed on real hardware.** Installed from a plain Talos 1.11.6 ISO in maintenance mode with `diskSelector`. Found along the way: the drive reports `PNY 250GB SATA S`, so `*CS900*` could never match; .101 and .103 get their default route from `META` `0x0a` on disk, which a new disk lacks, so .102 failed its image pulls until it got an explicit route, and a pull that times out needs a reboot; a throwaway worker config cannot be wiped remotely because a worker's API certificate needs a control plane. .101 and .103 still depend on `META`.
 
 ## 2026-10-31
