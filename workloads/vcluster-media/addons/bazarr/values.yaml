@@ -1,30 +1,5 @@
 applicationName: bazarr
 extraObjects:
-  # OpenSubtitles.com login for the opensubtitlescom provider. Same account
-  # Jellyfin's Open Subtitles plugin on Tower uses (free tier: 20
-  # downloads/day, shared between the two).
-  - apiVersion: external-secrets.io/v1
-    kind: ExternalSecret
-    metadata:
-      name: eso-bazarr-opensubtitles
-      namespace: media
-    spec:
-      refreshInterval: 1h
-      secretStoreRef:
-        kind: ClusterSecretStore
-        name: onepassword-store
-      target:
-        name: bazarr-opensubtitles
-        creationPolicy: Owner
-      data:
-        - secretKey: username
-          remoteRef:
-            key: OPENSUBTITLES_ITEM
-            property: username
-        - secretKey: password
-          remoteRef:
-            key: OPENSUBTITLES_ITEM
-            property: password
   # Static, like the other apps' config volumes. The folder is the config of
   # the earlier Bazarr install (January 2026: settings + SQLite db), so this
   # one resumes from it rather than starting empty.
@@ -134,8 +109,10 @@ deployment:
             .radarr.ssl = false |
             .radarr.apikey = strenv(RADARR_API_KEY)
           ' "$f"
-          # Only when the 1Password item is present: otherwise keep whatever
-          # login the config already has.
+          # The OpenSubtitles.com login already lives in the reused config.
+          # Secret bazarr-opensubtitles (username/password) is optional: if it
+          # exists (e.g. an ExternalSecret from 1Password is added later), it
+          # overrides the stored login; if not, the stored one is kept.
           if [ -n "${OPENSUBTITLES_USERNAME:-}" ] && [ -n "${OPENSUBTITLES_PASSWORD:-}" ]; then
             yq -i '
               .opensubtitlescom.username = strenv(OPENSUBTITLES_USERNAME) |
