@@ -278,9 +278,9 @@ The tooling follows the cluster; it never drives it.
 
 ## Step 5 — separately, the vcluster
 
-`vcluster-media` runs its own Kubernetes (v1.34.3 on 2026-10-29). That is a
-vcluster chart version bump through the normal addon path, not a Talos
-operation, and it belongs in its own PR.
+`vcluster-media` runs its own Kubernetes (v1.34.3 on 2026-10-29). That is not a
+Talos operation: it goes through the vcluster request, one minor per PR. See
+[the vcluster ladder](../../platform/vclusters/upgrades.md).
 
 ## Rollback
 
