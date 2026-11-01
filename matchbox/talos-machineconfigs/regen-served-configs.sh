@@ -41,7 +41,7 @@ IMAGE="factory.talos.dev/metal-installer/$SCHEMATIC:v$VERSION"
 kill_tree() { local c; for c in $(pgrep -P "$1" 2>/dev/null); do kill_tree "$c"; done; kill -TERM "$1" 2>/dev/null; }
 deadline() { # Go ignores SIGALRM, and talosctl hangs forever on a node whose etcd is down
   local end=$(( SECONDS + $1 )); shift
-  "$@" &
+  "$@" <&0 &   # a background job's stdin is /dev/null unless it is redirected
   local pid=$!
   while kill -0 "$pid" 2>/dev/null; do
     if [ "$SECONDS" -ge "$end" ]; then
@@ -98,6 +98,7 @@ regen() { # regen <slot> <ip>
     mkdir -p '$MATCHBOX_DIR/backup'; chmod 700 '$MATCHBOX_DIR/backup'
     if [ -e '$file' ]; then cp -p '$file' '$MATCHBOX_DIR/backup/${rel##*/}.$(date -u +%Y%m%dT%H%M%SZ)'; fi
     cat > '$file.new'
+    [ \"\$(sha256sum '$file.new' | cut -d' ' -f1)\" = '$want' ] || { rm -f '$file.new'; echo 'upload did not match' >&2; exit 1; }
     if [ -e '$file' ]; then chown --reference='$file' '$file.new'; chmod --reference='$file' '$file.new'; else chmod 644 '$file.new'; fi
     mv '$file.new' '$file'" < "$new" || { echo "  STOP: could not install it"; return 1; }
   have="$(remote "sha256sum '$file' | cut -d' ' -f1")"
