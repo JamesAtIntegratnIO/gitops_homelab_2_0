@@ -119,7 +119,8 @@ deployment:
               .opensubtitlescom.password = strenv(OPENSUBTITLES_PASSWORD)
             ' "$f"
           fi
-          chown 1000:1000 /config/config "$f"
+          # Tower's NFS export may squash root, so ownership is best effort.
+          chown 1000:1000 /config/config "$f" 2>/dev/null || true
       env:
         - name: SONARR_API_KEY
           valueFrom:
@@ -155,9 +156,12 @@ deployment:
             - CHOWN
             - DAC_OVERRIDE
             - FOWNER
+      # yq -i writes its temp file under /tmp; the root filesystem is read-only.
       volumeMounts:
         - name: config
           mountPath: /config
+        - name: tmp
+          mountPath: /tmp
       resources:
         requests:
           cpu: 10m
