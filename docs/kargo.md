@@ -369,6 +369,7 @@ helm template kargo-projects addons/charts/kargo-projects \
 | `gateway-api-crds` (`v1.5.1`) | Gateway API must move in step with NGINX Gateway Fabric; bump both by hand |
 | `kratix` chart `0.0.1` | placeholder version; the images inside are sha-pinned by Syntasso's chart |
 | vcluster-media's etcd `3.6.8-0` | coupled to the vcluster/Kubernetes version |
+| vcluster-media's chart and Kubernetes (`platform/vclusters/vcluster-media.yaml`) | upstream supports one minor at a time, with checks between, so a bot's next-version bump is not a safe unit. Nothing watches these either: 0.31 passed its EOL on 2026-07-29 unnoticed. [upgrades.md](../platform/vclusters/upgrades.md) has the lifecycle dates. |
 | `environments/development` and `staging` | no clusters use them |
 | the disabled `mcp-*`, `ai-platform`, ACK addons | disabled |
 
