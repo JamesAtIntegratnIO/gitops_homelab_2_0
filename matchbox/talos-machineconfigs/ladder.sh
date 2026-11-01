@@ -194,6 +194,9 @@ broken_now() { # namespace/OwnerKind/ownerName of every pod not Running+Ready (m
   } | sort -u
 }
 BASELINE_BROKEN=""
+ext_names() { tc -n "$1" get extensions -o json 2>/dev/null | "$JQ" -r '.spec.metadata.name' | sort -u | tr '\n' ' '; }
+ext_schematic() { tc -n "$1" get extensions -o json 2>/dev/null | "$JQ" -r 'select(.spec.metadata.name=="schematic") | .spec.metadata.version'; }
+g_extensions() { [ "$(ext_names "$1")" = "$EXT_EXPECT" ] && [ "$(ext_schematic "$1")" = "$SCHEMATIC" ]; } # empty for a moment after a reboot
 g_nothing_new_broken() { [ -z "$(comm -13 <(printf '%s\n' "$BASELINE_BROKEN" | sed '/^$/d') <(broken_now))" ]; }
 new_broken() { comm -13 <(printf '%s\n' "$BASELINE_BROKEN" | sed '/^$/d') <(broken_now); }
 
@@ -345,11 +348,8 @@ while :; do
     kc uncordon "$NAME" >>"$LOG" 2>&1 || die "could not uncordon $NAME"
     log "  ok: uncordoned $NAME"
   fi
-  got="$(tc -n "$IP" get extensions -o json 2>/dev/null | "$JQ" -r '.spec.metadata.name' | sort -u | tr '\n' ' ')"
-  [ "$got" = "$EXT_EXPECT" ] || die "$IP extensions changed: had [$EXT_EXPECT], now [$got]"
-  got="$(tc -n "$IP" get extensions -o json 2>/dev/null | "$JQ" -r 'select(.spec.metadata.name=="schematic") | .spec.metadata.version')"
-  [ "$got" = "$SCHEMATIC" ] || die "$IP schematic changed: now '$got'"
-  log "  ok: extensions and schematic preserved"
+  until_ok 300 "extensions and schematic preserved" g_extensions "$IP" \
+    || die "$IP extensions changed: had [$EXT_EXPECT] schematic $SCHEMATIC, now [$(ext_names "$IP")] schematic '$(ext_schematic "$IP")'"
   until_ok 600 "etcd healthy and caught up" g_etcd || die "etcd not healthy after $IP"
   until_ok 300 "Talos services on $IP" g_services "$IP" || die "core services unhealthy on $IP"
   until_ok 600 "control-plane pods on $NAME" g_cp_pods "$NAME" || die "control-plane static pods not Ready on $NAME"
