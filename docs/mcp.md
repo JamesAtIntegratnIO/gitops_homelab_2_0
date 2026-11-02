@@ -131,7 +131,9 @@ Everything is deny-by-default plus narrow allows:
 
 - DNS to kube-dns, kube-apiserver via a CiliumNetworkPolicy
 - monitoring namespace (9090/80/443/3000) for grafana-mcp and prometheus
-- argocd namespace, `app: argocd-mcp` only
+- argocd namespace, `app: argocd-mcp` only; the other half is the
+  `allow-argocd-server` ingress in
+  [network-policies/argocd.yaml](../addons/cluster-roles/control-plane/addons/network-policies/argocd.yaml)
 - public internet on 443, RFC1918 excluded, for `github-mcp` (GitHub API) and
   `sequential-thinking` (npm)
 - ingress from `nginx-gateway` on 8080/8082/8000/3000
@@ -196,7 +198,8 @@ claude mcp add --transport http homelab-k8s https://mcp.cluster.integratn.tech/k
 
 The endpoints are gateway-exposed with TLS but have **no authentication in front
 of them**. They are reachable by anything that can resolve the hostname. The
-kubernetes server is read-only by RBAC; github and argocd are not. Umami is the
+kubernetes server is read-only by RBAC and argocd by `MCP_READ_ONLY` and its
+`mcp-readonly` account; github is not. Umami is the
 exception that checks a credential itself: no API key, no tools. None of these
 are public -- the cloudflared tunnel admits only Umami's tracker paths, never
 `/mcp`.
