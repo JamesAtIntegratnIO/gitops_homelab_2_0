@@ -1,5 +1,31 @@
 applicationName: bazarr
 extraObjects:
+  # AniDB's HTTP API (api.anidb.net:9001) maps anime series to AniDB ids,
+  # which anime providers such as animetosho search by. The generated
+  # allow-vcluster-external permits only 53/80/443/10250 to the internet, so
+  # without this every lookup times out.
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: bazarr-allow-anidb-egress
+      namespace: media
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: bazarr
+      policyTypes:
+        - Egress
+      egress:
+        - to:
+            - ipBlock:
+                cidr: 0.0.0.0/0
+                except:
+                  - 10.0.0.0/8
+                  - 172.16.0.0/12
+                  - 192.168.0.0/16
+          ports:
+            - protocol: TCP
+              port: 9001
   # Static, like the other apps' config volumes. The folder is the config of
   # the earlier Bazarr install (January 2026: settings + SQLite db), so this
   # one resumes from it rather than starting empty.
