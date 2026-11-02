@@ -66,11 +66,12 @@ spec:
       ports:
         - protocol: TCP
           port: 8083
-    # AI platform argocd-mcp queries ArgoCD API
+    # argocd-mcp queries the ArgoCD API. Its egress half is allow-argocd-egress
+    # in mcp-system.yaml.
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: ai
+              kubernetes.io/metadata.name: mcp-system
           podSelector:
             matchLabels:
               app: argocd-mcp
