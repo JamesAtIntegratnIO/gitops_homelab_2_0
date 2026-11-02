@@ -59,7 +59,9 @@ signIn:
 home:
   size: 20Gi
   # The cluster's default class, named so that a change of default never moves
-  # the home. It is NFS, which is why the measurements are in Postgres.
+  # the home. It is NFS, which is why the measurements are in Postgres. Its
+  # export squashes every uid to 99:100, so ownership is not this pod's concern:
+  # the chart's fsGroup does nothing here and no chown is needed (README.md).
   storageClassName: config-nfs-client
 
 # Above the iteration timeout, which is 3h on the `local` provider, so a stop

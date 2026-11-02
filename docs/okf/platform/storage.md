@@ -4,7 +4,7 @@ title: Storage — NFS-backed dynamic provisioning
 description: Two NFS storage classes off the Unraid server, who uses them, and the limits of this design.
 tags: [storage, nfs, pvc, unraid]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T00:00:00Z }
 stale_after: 2027-02-20
 sources:
   - id: live-storage
@@ -13,11 +13,14 @@ sources:
   - id: nfs-addon
     resource: ../../../addons/environments/production/addons/addons.yaml
     title: nfs-subdir-external-provisioner addon (+ StorageClasses in additionalResources)
+  - id: squash-probe
+    resource: scratch PVC on config-nfs-client, written and chowned as uid 0 and uid 1000, 2026-11-01
+    title: Export squash probe
 ---
 
 # Storage classes
 
-Backed by the Unraid NFS server `10.0.0.12:/mnt/user/kube_storage`, via
+Backed by the Unraid NFS server `10.0.0.12`, via
 nfs-subdir-external-provisioner v4.0.2 (three provisioner Deployments run in
 `nfs-provisioner`):[^live-storage]
 
@@ -29,6 +32,24 @@ nfs-subdir-external-provisioner v4.0.2 (three provisioner Deployments run in
 Reclaim `Delete`, binding `Immediate`, **no volume expansion**. (Older docs
 mention a third generic `nfs-client` class; it no longer exists — the plain
 `nfs-subdir-external-provisioner` Deployment still runs but backs no class.)
+
+On the host, `config-nfs-client` volumes live under `/mnt/user/appdata`. Backups and
+some vcluster volumes are on `/mnt/user/kube_storage`, and bulk data on `/mnt/user/data`.
+
+# Ownership: every uid is 99:100
+
+`/mnt/user/appdata` squashes **every** uid to `99:100`, not only root:[^squash-probe]
+
+- A write lands as `99:100` whether the pod runs as uid 0 or uid 1000.
+- `chown` is refused for everyone, root with `CAP_CHOWN` included.
+- Any uid can read, write, `chmod`, rename and unlink anything on the claim,
+  `0600` and `0700` included, because the server checks them all as 99.
+- The kubelet ignores `fsGroup` on these volumes, so it changes nothing here.
+
+So a chart that asks for its home to be given to a user needs nothing done on this
+class, and a hook that runs that chown fails. The server's export options were not
+read, only their effect; `/mnt/user/kube_storage` has shown the same for root but
+has not been tested with another uid.
 
 # Who uses it (23 PVs, 2026-08-20)
 
@@ -56,3 +77,4 @@ mention a third generic `nfs-client` class; it no longer exists — the plain
 
 [^live-storage]: Live storage state
 [^nfs-addon]: nfs-subdir-external-provisioner addon (+ StorageClasses in additionalResources)
+[^squash-probe]: Export squash probe

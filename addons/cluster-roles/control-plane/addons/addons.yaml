@@ -1076,8 +1076,8 @@ specmarshal:
   # `githubApp.secret` in values.yaml, both Secrets in externalsecret.yaml.
   # 0.2.0-rc.12 -- the images are on Node 24.22.1, the fix for the Brotli
   # decoder overflow (CVE-2026-111497, IntegratnIO/specmarshal-pro#300, #303).
-  # The pod now runs as 1000:1000 on a read-only root; home-ownership-job.yaml
-  # hands the NFS home, written as root until now, to that user first.
+  # The pod now runs as 1000:1000 on a read-only root. The home needs no chown
+  # for that: its export maps every uid to 99:100 (specmarshal/README.md).
   defaultVersion: 0.2.0-rc.12
   additionalResources:
     type: manifest
