@@ -62,7 +62,11 @@ the `<app>-allow-jellyfin-egress` NetworkPolicy it needs. Its API key is the
 `HOMEPAGE_VAR_JELLYFIN_KEY` field of 1Password item `homepage-secret` (the
 same key the Glance Jellyfin widget reads). To recreate it, `POST
 /api/v3/notification` with `implementation: MediaBrowser`, `host: 10.0.0.12`,
-`port: 8096`, `updateLibrary: true`.
+`port: 8096`, `updateLibrary: true`. The paths differ between the apps and
+Jellyfin's container, so the connection's *Map Paths From/To* is required:
+Sonarr `/data/media/tv` → `/data/tvshows`, Radarr `/data/media/movies` →
+`/data/movies` (Tower `/mnt/user/data/media/{tv,movies}`). Without it Jellyfin
+gets a path it doesn't know and refreshes nothing.
 
 **configarr** is the fifth entry and the odd one out: the same Stakater chart,
 but rendered as a **CronJob** (`configarr-sync`, 04:00 America/Denver) rather
