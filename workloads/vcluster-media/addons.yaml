@@ -43,3 +43,7 @@ configarr:
 bazarr:
   <<: *mediaAppDefaults
   enabled: true
+
+tracearr:
+  <<: *mediaAppDefaults
+  enabled: true

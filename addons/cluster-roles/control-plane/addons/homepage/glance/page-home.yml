@@ -132,6 +132,7 @@
             - title: Media and house
               links:
                 - { title: Plex,           url: "http://10.0.0.12:32400/web",                    icon: "di:plex" }
+                - { title: Tracearr,       url: "https://tracearr.vcluster-media.integratn.tech", icon: "di:tracearr" }
                 - { title: Sonarr,         url: "https://sonarr.vcluster-media.integratn.tech",  icon: "di:sonarr" }
                 - { title: Radarr,         url: "https://radarr.vcluster-media.integratn.tech",  icon: "di:radarr" }
                 - { title: SABnzbd,        url: "https://sabnzbd.vcluster-media.integratn.tech", icon: "di:sabnzbd" }
