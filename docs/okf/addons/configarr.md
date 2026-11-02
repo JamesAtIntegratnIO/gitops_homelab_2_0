@@ -4,8 +4,8 @@ title: configarr
 description: The daily CronJob in vcluster-media that reconciles Sonarr's and Radarr's custom formats and quality profiles from the TRaSH-Guides, so that config lives in git rather than only in each app's database.
 tags: [media, vcluster-media, custom-formats, trash-guides, cronjob]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-08-29T18:40:00Z }
-stale_after: 2026-11-28
+generated: { by: claude-code/claude-opus-5, at: 2026-11-02T22:10:00Z }
+stale_after: 2027-02-02
 sources:
   - id: values
     resource: ../../../workloads/vcluster-media/addons/configarr/values.yaml
@@ -21,6 +21,9 @@ sources:
   - id: cutoff-audit
     resource: live sonarr/radarr API (qualityprofile, wanted/cutoff, release) via port-forward, 2026-08-29
     title: cutoff-unmet and mediaInfo measurement behind the Bluray-1080p cutoff
+  - id: tv-1080p
+    resource: live sonarr API (qualityprofile item order, release?episodeId for Tracker S04E05), 2026-11-02
+    title: TV made 1080p-only; 2160p tiers rank below 1080p in WEB-1080p
     title: Pre-merge dry run
 ---
 
@@ -57,19 +60,28 @@ would render an empty Deployment and a Service pointing at nothing.
 
 # What it manages
 
-**Two profiles per app**, plus TRaSH's anime profile:
+Radarr has **two profiles** plus TRaSH's anime profile; **Sonarr is 1080p only**
+since 2026-11-02:
 
 | App | Library default (1080p) | Opt-in 4K | Anime |
 |---|---|---|---|
-| Sonarr | `WEB-1080p` | `WEB-2160p` | `Remux-1080p - Anime` |
+| Sonarr | `WEB-1080p` | — (removed 2026-11-02) | `Remux-1080p - Anime` |
 | Radarr | `HD Bluray + WEB` | `UHD Bluray + WEB` | `Remux-1080p - Anime` |
 
-The **default** profile has no 2160p tier at all. That is deliberate and both
-directions were tried: ranking 2160p *below* 1080p makes Sonarr replace
-existing 4K files with 1080p, and ranking it *above* makes every new grab
-chase 4K. Excluding it leaves neither failure mode, and the titles that should
-be 4K — including everything already at 2160p, so it is not downgraded — go on
-the opt-in profile instead.
+The **default** profile has no allowed 2160p tier. Disallowed qualities still
+sit in the profile, and Sonarr ranks them **below** 1080p: on `WEB-1080p` a
+2160p file reads as cutoff-unmet and a 1080p release is an approved upgrade
+(checked live on Tracker S04E05). That is what Radarr's opt-in profile
+exists to prevent for 4K movies. For TV it is now the point: James wants every
+series at 1080p after 4K HEVC played out of sync on the Living Room TV, so
+the series on Sonarr's old `WEB-2160p` (56) and `Any - exclude looniversity`
+(3) move to `WEB-1080p`, and their 4K episodes are replaced by searching.
+On 2026-11-02 that was 1,718 episode files in 75 series, about 10.5 TB. Sonarr
+only swaps a file after the new one imports, and the Media Management recycle
+bin (`/data/media/.sonarr-recycle`, 7-day cleanup) catches what it replaces,
+which was verified on Tracker S04E05.[^tv-1080p] configarr does not delete
+profiles it no longer manages, so the `WEB-2160p` profile that still exists in
+Sonarr has to be removed by hand once no series uses it.
 
 **`until_score` is effectively disabled (`-100000`).** No file falls below it,
 so nothing is ever flagged for replacement on score alone; quality upgrades
@@ -169,3 +181,4 @@ is intended, but it is the change most likely to be felt.
 [^addons]: workloads/vcluster-media addons.yaml
 [^kargo]: kargo-projects target list
 [^dryrun]: Pre-merge dry run
+[^tv-1080p]: TV made 1080p-only; 2160p tiers rank below 1080p in WEB-1080p

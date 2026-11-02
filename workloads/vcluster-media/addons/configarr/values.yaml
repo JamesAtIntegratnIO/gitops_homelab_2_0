@@ -41,21 +41,21 @@ extraObjects:
 
             include:
               - template: sonarr-quality-definition-series
-              # Both profiles are built: WEB-1080p is the library default,
-              # WEB-2160p is opt-in for hand-picked series.
+              # TV is 1080p only: WEB-1080p is the one profile for series.
+              # The opt-in WEB-2160p profile was dropped in Nov 2026 -- 4K
+              # HEVC direct-played out of sync on the Living Room TV, and
+              # 1080p is the target for every series.
               - template: sonarr-v4-quality-profile-web-1080p
               - template: sonarr-v4-custom-formats-web-1080p
-              - template: sonarr-v4-quality-profile-web-2160p
-              - template: sonarr-v4-custom-formats-web-2160p
               - template: sonarr-v4-quality-profile-anime
               - template: sonarr-v4-custom-formats-anime
 
             quality_profiles:
-              # The library default. 2160p is deliberately NOT an allowed
-              # quality here: ranking it below 1080p would make Sonarr replace
-              # existing 4K files with 1080p, and ranking it above would make
-              # every new grab chase 4K. Series that should be 4K go on
-              # WEB-2160p instead.
+              # The library default and the only series profile. 2160p is
+              # not an allowed quality, and Sonarr ranks the disallowed 2160p
+              # tiers BELOW 1080p, so a 2160p file on this profile reads as
+              # cutoff-unmet and a search replaces it with 1080p. That is
+              # intended: it is how existing 4K episodes get downgraded.
               #
               # until_score is effectively disabled (-100000): no file ever
               # falls below it, so nothing is flagged for replacement on score
@@ -106,26 +106,6 @@ extraObjects:
                       - WEBDL-1080p
                       - WEBRip-1080p
                   - name: Bluray-1080p
-              # Opt-in 4K profile for select series, and the home for the ones
-              # that are already 2160p so they are not downgraded.
-              - name: WEB-2160p
-                upgrade:
-                  allowed: true
-                  until_quality: WEB 2160p
-                  until_score: -100000
-                min_format_score: 0
-                quality_sort: top
-                qualities:
-                  - name: Bluray-2160p
-                  - name: WEB 2160p
-                    qualities:
-                      - WEBDL-2160p
-                      - WEBRip-2160p
-                  - name: Bluray-1080p
-                  - name: WEB 1080p
-                    qualities:
-                      - WEBDL-1080p
-                      - WEBRip-1080p
 
             custom_formats:
               # Dolby Vision blocked outright -- all three formats, not just the
@@ -148,8 +128,6 @@ extraObjects:
                   - 9d00418ba386a083fbf4d58235fc37ef # DTS X
                 assign_scores_to:
                   - name: WEB-1080p
-                    score: -10000
-                  - name: WEB-2160p
                     score: -10000
 
         radarr:
