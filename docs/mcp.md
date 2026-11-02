@@ -9,7 +9,7 @@ looking at:
 
 | | Where | Who consumes it |
 |---|---|---|
-| **In-cluster MCP servers** | `mcp-system` namespace, `addons/cluster-roles/control-plane/addons/mcp-system/` | Open WebUI (via mcpo), external MCP clients, agents |
+| **In-cluster MCP servers** | `mcp-system` namespace, `addons/cluster-roles/control-plane/addons/mcp-system/` | External MCP clients, agents |
 | **Editor-side MCP config** | [.vscode/mcp.json](../.vscode/mcp.json), [.continue/mcpServers/](../.continue/mcpServers/) | VS Code / Copilot, Continue |
 
 Claude Code working in this repo needs neither — use `kubectl` and `argocd` from
@@ -60,28 +60,51 @@ Transport is **streamable HTTP** (`/mcp`), not SSE. Older docs and the disabled
 `mcp-*` addons under `addons/clusters/the-cluster/` describe an SSE layout with
 `acuvity/*` images — that generation is retired.
 
-### mcpo — the Open WebUI bridge
+### mcpo — the OpenAPI bridge
 
-Open WebUI speaks OpenAPI "External Tools", not MCP. `mcpo` translates. Its
-server list lives in
+`mcpo` exposes MCP servers as OpenAPI, built for Open WebUI's "External Tools".
+**Nothing uses it today:** Open WebUI has no tool server configured, and has no
+network path to it, because port 8000 admits only this namespace and the gateway
+and no HTTPRoute points there. See
+[known issues](okf/cluster/known-issues.md). Its server list lives in
 [mcpo-configmap.yaml](../addons/cluster-roles/control-plane/addons/mcp-system/mcpo-configmap.yaml)
-and covers the in-cluster servers above (Umami included) plus two stdio
-subprocesses it runs
-itself via `uvx`:
+and covers the in-cluster servers above (Umami included) plus three stdio
+subprocesses it runs itself:
 
-- `prometheus` — `prometheus-mcp-server` against
+- `health` — a one-tool server in this container, the target of mcpo's probes.
+  It must stay first in the list
+- `prometheus` — `prometheus-mcp-server` via `uvx`, against
   `kube-prometheus-stack-prometheus.monitoring:9090`
-- `fetch` — `mcp-server-fetch`, pages as markdown
+- `fetch` — `mcp-server-fetch` via `uvx`, pages as markdown
 
 An initContainer renders `${GITHUB_TOKEN}` and `${UMAMI_MCP_TOKEN}` into the
-config from their ExternalSecrets before mcpo starts. The Umami key is read
-`optional`, because it can only be created once Umami runs; until it exists
-that one server gets an empty bearer and a 401, and the rest are unaffected.
+config from their ExternalSecrets. The Umami key is read `optional`, because it
+can only be created once Umami runs.
 
-The matching Open WebUI system prompt — the tool-first mandate that stops the
-model asking questions it could look up — is checked in at
+**One failing request can take down every backend.** mcpo enters each backend's
+transport in the task that holds its lifespan, so a 401, a refused connection or
+a header httpx rejects cancels that task and tears down all their sessions.
+Nothing reconnects them, the process pins its CPU limit, and `/openapi.json`
+keeps answering 200. Upstream has this as #302, with an unmerged fix in #316.
+[mcpo-ops-configmap.yaml](../addons/cluster-roles/control-plane/addons/mcp-system/mcpo-ops-configmap.yaml)
+works around it:
+
+- `start` connects mcpo only to backends that answer `initialize` at that moment,
+  and leaves out one with an empty credential. Look for `mcpo-ops: leaving out`
+  at the top of the log.
+- `ready` and `live` call `health/ping`, which walks the path that breaks and
+  touches no real backend. A probe through a real backend could cause the failure
+  it looks for, because calling one that is down is one of the triggers.
+- `live` also restarts mcpo when a backend left out at start answers again. A
+  backend still answering 401 stays out and causes no restart loop.
+
+The wedge itself still happens: calling a backend that is down costs every other
+backend up to about 90 seconds, until liveness restarts the container.
+
+The Open WebUI system prompt — the tool-first mandate that stops the model asking
+questions it could look up — is checked in at
 [system-prompt.md](../addons/cluster-roles/control-plane/addons/mcp-system/system-prompt.md).
-It is applied by hand in the Open WebUI admin panel; it is not reconciled.
+It was applied by hand in the Open WebUI admin panel and is not reconciled.
 
 ### Secrets
 
@@ -117,6 +140,10 @@ Everything is deny-by-default plus narrow allows:
   other half, `allow-mcpo-ingress`, is in
   [network-policies/umami.yaml](../addons/cluster-roles/control-plane/addons/network-policies/umami.yaml),
   as is the gateway's admission for `/umami`
+- public internet on 443, RFC1918 excluded, for `app: mcpo` (`uvx` needs PyPI at
+  start, `fetch` needs the web), and Prometheus admits `app: mcpo` from this
+  namespace on 9090 in
+  [network-policies/monitoring.yaml](../addons/cluster-roles/control-plane/addons/network-policies/monitoring.yaml)
 
 Adding a server that talks to something new means adding an egress rule. It will
 fail silently — as a hang, not an error — if you forget.
@@ -145,7 +172,7 @@ to sit there not-ready until the token was repaired. Liveness is now a
 3. Add any egress the server needs to `network-policies/mcp-system.yaml`, and
    its port to `allow-gateway-ingress`.
 4. Credentials → an ExternalSecret, never a literal.
-5. To surface it in Open WebUI, add it to `mcpo-configmap.yaml`.
+5. To expose it over OpenAPI, add it to `mcpo-configmap.yaml`, after `health`.
 6. Commit, push, merge to `main` — ArgoCD does the rest.
 
 ### Connecting a client
@@ -189,7 +216,8 @@ kubectl -n argocd get application mcp-system
 | Request hangs, no error | Missing egress NetworkPolicy |
 | 404 through the gateway | HTTPRoute prefix vs the `ReplacePrefixMatch` rewrite |
 | Pod restart-looping | A probe pointing at a dependency that is down |
-| mcpo missing one server | `mcpo-configmap.yaml`, then restart the Deployment — the config is rendered at init |
+| mcpo missing one server (routes 404) | `mcpo-ops: leaving out` in its log; then `mcpo-configmap.yaml`, and restart the Deployment — the config is rendered at init |
+| mcpo answers `MCP session is not available` | It has wedged: read the first traceback after `Initiating connection` for the request that failed. Liveness restarts it; `/openapi.json` proves nothing |
 
 ## Editor-side MCP config
 
