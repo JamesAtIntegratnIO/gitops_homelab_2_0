@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T00:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T00:35:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -701,8 +701,12 @@ a failure that would.
 
 ## A patch bump removed every kubernetes-mcp flag, and the rollout sat stuck for nine days (found 2026-11-01)
 
-**Fix on `fix/kubernetes-mcp-toml-config`, not yet confirmed live.** Until it merges,
-`mcp-system-the-cluster` stays `Synced`/`Degraded` and the old v0.0.67 pod keeps serving.
+**Fixed by #586, confirmed live 2026-11-02.** `mcp-system-the-cluster` is
+`Synced`/`Healthy` with one Running pod on v0.0.69, 0 restarts, and the old ReplicaSets at
+0. Through `mcp.cluster.integratn.tech/kubernetes` the server lists the 13 tools the
+local boot predicted, real calls answer from the API server, `pods_delete` is an unknown
+tool, and the alerts have cleared. What follows describes the state before that.
+Calls through `mcpo` still fail, for a reason this did not cause: see the next entry.
 
 Upstream's Config rework shipped in v0.0.68 and removed every runtime flag. Only
 `--config`, `--config-dir` and `--version` remain, so the args this Deployment had
@@ -731,13 +735,32 @@ against the live v0.0.67 tool list:
 - The other 13 tools keep their names and required parameters, and gain `limit` and
   `continue`.
 - `max_backend_response_bytes` now defaults to 4 MiB, and a list over it errors rather
-  than truncating. A raw cluster-wide pod list is 2.7 MB today, so there is headroom
-  but not much. Set the key in `kubernetes-mcp-config` if that starts to fail.
+  than truncating. It is not close: the tools ask for table output, and a cluster-wide
+  `pods_list` returned 84 KB live, where the same list as raw JSON is 2.7 MB. Set the key
+  in `kubernetes-mcp-config` if a list ever does fail.
 
 **Two things that must stay put.** The settings live in a separate file because Kargo
 only rewrites the first YAML document of the Deployment's file. And `args:` stays
 directly under `image:`: that one unchanged line is what lets a Kargo bump PR such as
 #567 still merge cleanly beside a change to the args.
+
+## `mcpo` answers no tool call on the kubernetes, grafana, github or argocd paths (found 2026-11-02, open)
+
+Every call returns `500: {'message': 'MCP session is not available'}`, on all four
+backends, while `/openapi.json` stays 200, so both probes and `mcp-system-the-cluster`
+report healthy. Those four servers work directly: `kubernetes-mcp` was called through the
+gateway at the same time. It is not from the #586 rollout, since `grafana`, `github` and
+`argocd` fail identically and did not restart.
+
+The current pod started 2026-11-01T19:34Z and its log holds no tool call before the three
+made to test this, so it may never have worked, and nobody has been calling it. Its
+startup log shows `prometheus` and `fetch` failing to fetch from `pypi.org`, then `umami`
+ending in `CancelledError`. **Unproven:** that cancellation running mcpo's teardown, which
+sets `app.state.session = None`, would produce exactly this error.
+
+Its `/kubernetes` schema also still lists `configuration_view`, because mcpo reads the tool
+list once at startup. Nothing in git points Open WebUI at mcpo, so what depends on it is
+not established either.
 
 ## external-secrets kept retrying without the fix that was already on main (found 2026-11-01, released the same day)
 
