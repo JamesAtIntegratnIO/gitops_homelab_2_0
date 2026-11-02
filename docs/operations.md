@@ -833,7 +833,7 @@ spec:
           command: [/bin/sh, -euc, 'rm -rf /data/restore']
           volumeMounts: [{ name: data, mountPath: /data }]
         - name: restore
-          image: registry.k8s.io/etcd:3.6.8-0   # the etcd tag the StatefulSet runs now
+          image: registry.k8s.io/etcd:3.6.16-0@sha256:b29d816b546a1966fe7034a33b34e231fa98c47ce4d2883f70b0555020b22132   # the etcd the StatefulSet runs now
           args:
             - etcdutl
             - snapshot

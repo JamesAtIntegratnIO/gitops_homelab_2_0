@@ -4,7 +4,9 @@ Written 2026-11-01, when the tenant ran vCluster **0.31.1** and Kubernetes
 **v1.34.3** on a host at Kubernetes 1.36.6. 0.31 reached end of life on
 2026-07-29.
 
-**Status: rung 1 is live and verified (0.32.3, 2026-11-01). Next is rung 2.**
+**Status: finished. All nine rungs landed on 2026-11-01 (UTC 2026-11-02) and each
+passed `verify` 23 of 23.** The tenant runs vCluster 0.37.6, Kubernetes 1.36.6 and
+etcd 3.6.16. Next deadline: **2026-12-08**, when 0.37 leaves support without Platform.
 
 Every rung is one pull request against
 [vcluster-media.yaml](vcluster-media.yaml). Kratix renders it, ArgoCD applies it,
@@ -175,6 +177,34 @@ From the release notes: `0.33` removes k3s, `0.35` deprecates and `0.36` removes
 volume snapshots (`deploy.volumeSnapshotController`, which fails the chart if
 set). None is in use. `controlPlane.distro.k8s.version` still works at 0.37.6.
 
+## What the real ladder measured
+
+The five `media` pods kept their UIDs through every rung and no tenant container
+restarted. "Took" is merge to healthy. Probes hit the tenant's `/readyz` about every
+8 seconds.
+
+| # | Rung | Took | API probes missed |
+|---|---|---|---|
+| 1 | 0.32.3, plus digest pins (etcd rolled) | 343 s | 0 of 42 |
+| 2 | 0.33.4 | 325 s | 0 of 41 |
+| 3 | 0.34.9 | 317 s | 0 of 40 |
+| 4 | 0.35.5 | 350 s | 1 of 44 |
+| 5 | 0.36.4 | not timed: the watcher finished before the roll | 0 of 29 |
+| 6 | 0.37.6 | 392 s | 0 of 49 |
+| 7 | Kubernetes v1.35.10 | 345 s | 0 of 43 |
+| 8 | Kubernetes v1.36.6 | 368 s | 0 of 46 |
+| 9 | etcd 3.6.16 (etcd rolled) | 294 s | 0 of 37 |
+
+Tenant CoreDNS pods are replaced on Kubernetes rungs, so its readiness warnings
+during a roll are expected. Afterwards all 9 Prometheus targets on the control plane
+were up, including the new `syncer` endpoint.
+
+Next time, do not trust `Synced/Healthy` right after the Application changes: rung 5
+showed that before its roll began. Wait for every pod to run the target image. The
+pre-rung snapshots are on Unraid as `pre-ladder-*`, `pre-k8s-*`, `pre-k8s136-*` and
+`pre-etcd-*`, outside the CronJob's pruning. Delete them by hand once they are not
+needed.
+
 ## What the rehearsal proved
 
 A throwaway kind cluster (host v1.36.4, three nodes) ran the real charts and
@@ -206,14 +236,12 @@ answered, and the snapshot CronJob wrote a file with its pinned PKI.
 A direct 0.31.1 to 0.37.6 jump with a populated tenant also passed. That does not
 make it supported, and it does not save much: the rungs are small.
 
-**What kind could not prove, and rung 1 then did on the real cluster:** NFS-backed
-etcd, ArgoCD and Kratix applying the chart, Cilium and the host NetworkPolicies,
-and the live workload set. Etcd rolled one member at a time, the tenant API
-answered 42 of 42 probes about 8 seconds apart, and all five `media` pods kept
-their UIDs with no restarts.
+**What kind could not prove, and the real ladder then did:** NFS-backed etcd, ArgoCD
+and Kratix applying the chart, Cilium and the host NetworkPolicies, and the live
+workload set.
 
-**Still not exercised on the real cluster:** any Kubernetes rung, any revert, and
-the restore, including its ArgoCD pause step.
+**Still not exercised on the real cluster:** any revert, and the restore, including
+its ArgoCD pause step. The Kubernetes revert was only tried on kind.
 
 ## Rollback
 
