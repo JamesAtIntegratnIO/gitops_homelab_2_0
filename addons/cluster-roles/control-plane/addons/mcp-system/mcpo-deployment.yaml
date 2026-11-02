@@ -1,6 +1,7 @@
 # MCPO: MCP-to-OpenAPI proxy
 # Wraps MCP servers (prometheus, kubernetes) as OpenAPI endpoints
-# Open WebUI connects here via External Tools (OpenAPI type)
+# Cluster-internal: no HTTPRoute, and only this namespace can reach port 8000.
+# Open WebUI has no tool server configured and no network path here.
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -45,11 +46,10 @@ spec:
                   name: mcp-github-token
                   key: GITHUB_TOKEN
             # Umami's API key (externalsecret-umami-mcp.yaml). OPTIONAL on
-            # purpose: the key can only be created once Umami is running, so
-            # the item does not exist on the day this merges, and a required
-            # reference would hold every other mcpo server hostage to it. Until
-            # it exists the umami entry renders an empty bearer and Umami
-            # answers 401.
+            # purpose: the key can only be created once Umami is running, and a
+            # required reference would stop the pod starting without it. Until
+            # it exists the umami entry renders an empty bearer, and `start` in
+            # mcpo-ops-configmap.yaml leaves that entry out of the running config.
             - name: UMAMI_MCP_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -79,11 +79,11 @@ spec:
       containers:
         - name: mcpo
           image: ghcr.io/open-webui/mcpo:main@sha256:1e82c9555c19e50b80745705f32b47a2647589f35279527b5118ecd3a71bd467
-          args:
-            - "--config"
-            - "/config-rendered/config.json"
-            - "--port"
-            - "8000"
+          # Starts mcpo on the backends that answer: see mcpo-ops-configmap.yaml.
+          command:
+            - /app/.venv/bin/python
+            - /scripts/mcpo_ops.py
+            - start
           ports:
             - name: http
               containerPort: 8000
@@ -95,10 +95,13 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 512Mi
             limits:
               cpu: 500m
               memory: 1Gi
+          # /openapi.json answers 200 through every wedge, because the schemas
+          # are built at start and never read again. It is only good for this
+          # one: uvicorn does not listen until every backend has been tried.
           startupProbe:
             httpGet:
               path: /openapi.json
@@ -107,27 +110,45 @@ spec:
             periodSeconds: 10
             failureThreshold: 30
             timeoutSeconds: 5
+          # Both of these ask the local `health` server and no real backend, so
+          # a backend being down fails neither. -IS skips site-packages: these
+          # run stdlib only, and on a wedged pod they share a pinned CPU limit.
           readinessProbe:
-            httpGet:
-              path: /openapi.json
-              port: 8000
-            initialDelaySeconds: 5
+            exec:
+              command:
+                - /app/.venv/bin/python
+                - -IS
+                - /scripts/mcpo_ops.py
+                - ready
             periodSeconds: 10
             timeoutSeconds: 5
+          # A wedge is this process's own state and only a restart clears it,
+          # which is why this is safe as liveness. `live` adds one thing: a
+          # backend left out at start answering again. It never fails on a
+          # backend that is down.
           livenessProbe:
-            httpGet:
-              path: /openapi.json
-              port: 8000
-            initialDelaySeconds: 10
+            exec:
+              command:
+                - /app/.venv/bin/python
+                - -IS
+                - /scripts/mcpo_ops.py
+                - live
             periodSeconds: 30
-            timeoutSeconds: 5
+            timeoutSeconds: 15
+            failureThreshold: 3
           volumeMounts:
             - name: config-rendered
               mountPath: /config-rendered
               readOnly: true
             - name: mcpo-home
               mountPath: /tmp/mcpo-home
+            - name: mcpo-ops
+              mountPath: /scripts
+              readOnly: true
       volumes:
+        - name: mcpo-ops
+          configMap:
+            name: mcpo-ops
         - name: config-template
           configMap:
             name: mcpo-config

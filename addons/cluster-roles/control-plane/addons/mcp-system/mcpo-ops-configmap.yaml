@@ -1,0 +1,132 @@
+# What stands between mcpo and its failure mode. mcpo enters every backend's
+# transport in the one task that also holds the app's lifespan, so one failing
+# request (a 401, a refused connection, a header httpx rejects) cancels that
+# task and tears down the sessions of every other backend. Nothing retries, the
+# process pins its CPU limit, and /openapi.json stays 200. Upstream: issue #302,
+# unmerged fix in PR #316. Until that ships:
+#
+# - `start` connects mcpo only to backends that answer now, so one that is down
+#   or refusing its key cannot wedge the start.
+# - `ready` and `live` call a tool on `health`, a stdio server in this container.
+#   That walks the path the wedge breaks and touches no real backend. It must
+#   not touch one: calling a backend that is down is itself what wedges mcpo.
+# - `live` also restarts mcpo when a backend `start` left out comes back. Without
+#   that a backend down at start stays missing until something else restarts it.
+#   A container restart reruns `start`; an init container would not rerun.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcpo-ops
+  namespace: mcp-system
+  labels:
+    app: mcpo
+data:
+  mcpo_ops.py: |
+    import http.client
+    import json
+    import os
+    import sys
+    import urllib.error
+    import urllib.request
+
+    RENDERED = "/config-rendered/config.json"
+    ACTIVE = "/tmp/mcpo-home/config.json"
+    LEFT_OUT = "/tmp/mcpo-home/left-out.json"
+    MCPO = "/app/.venv/bin/mcpo"
+    PING = "http://127.0.0.1:8000/health/ping"
+    INITIALIZE = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "mcpo-ops", "version": "1"},
+        },
+    }).encode()
+
+
+    def log(message):
+        print(f"mcpo-ops: {message}", file=sys.stderr, flush=True)
+
+
+    def post(url, body, headers, timeout):
+        request = urllib.request.Request(url, data=body, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.status
+        except urllib.error.HTTPError as error:
+            return error.code
+        except (OSError, http.client.HTTPException) as error:
+            return type(error).__name__
+
+
+    def answer(server):
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            **server.get("headers", {}),
+        }
+        return post(server["url"], INITIALIZE, headers, timeout=5)
+
+
+    def answered(status):
+        return isinstance(status, int) and status < 400
+
+
+    def start():
+        with open(RENDERED) as f:
+            config = json.load(f)
+        servers = config["mcpServers"]
+        left_out = {}
+        for name, server in list(servers.items()):
+            if "url" not in server:
+                continue
+            authorization = server.get("headers", {}).get("Authorization", "")
+            if authorization.strip() == "Bearer":
+                # httpx refuses this header, so mcpo must never be handed it.
+                # Not a recovery candidate: the key arrives with a restart.
+                log(f"leaving out {name}: its credential is empty")
+                del servers[name]
+                continue
+            status = answer(server)
+            if not answered(status):
+                log(f"leaving out {name}: initialize answered {status}")
+                left_out[name] = servers.pop(name)
+        os.umask(0o077)
+        with open(ACTIVE, "w") as f:
+            json.dump(config, f)
+        with open(LEFT_OUT, "w") as f:
+            json.dump(left_out, f)
+        os.execv(MCPO, [MCPO, "--config", ACTIVE, "--port", "8000"])
+
+
+    def ready():
+        status = post(PING, b"{}", {"Content-Type": "application/json"}, timeout=4)
+        if status != 200:
+            sys.exit(f"mcpo-ops: health/ping answered {status}: sessions are gone")
+
+
+    def live():
+        ready()
+        with open(LEFT_OUT) as f:
+            left_out = json.load(f)
+        for name, server in left_out.items():
+            if answered(answer(server)):
+                sys.exit(f"mcpo-ops: {name} answers again: restart to connect it")
+
+
+    def health():
+        from mcp.server.fastmcp import FastMCP
+
+        server = FastMCP("health")
+
+        @server.tool()
+        def ping() -> str:
+            """Answers pong while mcpo's sessions are alive."""
+            return "pong"
+
+        server.run("stdio")
+
+
+    {"start": start, "ready": ready, "live": live, "health": health}[sys.argv[1]]()

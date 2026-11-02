@@ -1,4 +1,7 @@
 # MCPO config: MCP servers exposed as OpenAPI endpoints
+# - health: stdio subprocess, the target of mcpo's probes (mcpo-ops-configmap.yaml).
+#   Keep it first: mcpo unwinds backends last-in first-out, and the last one
+#   entered can survive a wedge by reopening its session, which would hide it.
 # - prometheus: stdio subprocess via uvx (queries Prometheus for metrics)
 # - kubernetes: remote streamable-http (connects to kubernetes-mcp service)
 # - grafana: remote streamable-http (dashboards, PromQL, LogQL, alerting via Grafana)
@@ -10,6 +13,9 @@
 #   API key (`umami_...`), from 1Password item `umami-mcp` / `token` via
 #   externalsecret-umami-mcp.yaml; the init container in mcpo-deployment.yaml
 #   renders it in the way it renders ${GITHUB_TOKEN}.
+# The uvx servers are not images, so Kargo does not track them: bump them here,
+# and move --exclude-newer with them. It freezes what uvx resolves underneath the
+# pin, which is otherwise whatever PyPI serves on the day the pod starts.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -21,9 +27,13 @@ data:
   config.json: |
     {
       "mcpServers": {
+        "health": {
+          "command": "/app/.venv/bin/python",
+          "args": ["/scripts/mcpo_ops.py", "health"]
+        },
         "prometheus": {
           "command": "uvx",
-          "args": ["prometheus-mcp-server"],
+          "args": ["--exclude-newer", "2026-11-01T00:00:00Z", "prometheus-mcp-server==1.6.2"],
           "env": {
             "PROMETHEUS_URL": "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
           }
@@ -49,7 +59,7 @@ data:
         },
         "fetch": {
           "command": "uvx",
-          "args": ["mcp-server-fetch"]
+          "args": ["--exclude-newer", "2026-11-01T00:00:00Z", "mcp-server-fetch==2026.10.28"]
         },
         "sequential-thinking": {
           "type": "streamable-http",
