@@ -53,6 +53,17 @@ Postgres at 10.0.3.1.[^workloads]
 Sonarr runs the **v5 beta** (linuxserver `develop-*` tags) since 2026-10-31; its
 schema migration is one-way, so a downgrade needs a database restore.
 
+Sonarr and Radarr each have an **Emby / Jellyfin connection** ("Jellyfin
+(Tower)", Settings → Connect) pointing at `10.0.0.12:8096`, with *Update
+Library* on import, upgrade, rename and delete, so Jellyfin refreshes the
+affected path right away instead of at its scheduled library scan. The
+connection lives in each app's Postgres database, not in git; git holds only
+the `<app>-allow-jellyfin-egress` NetworkPolicy it needs. Its API key is the
+`HOMEPAGE_VAR_JELLYFIN_KEY` field of 1Password item `homepage-secret` (the
+same key the Glance Jellyfin widget reads). To recreate it, `POST
+/api/v3/notification` with `implementation: MediaBrowser`, `host: 10.0.0.12`,
+`port: 8096`, `updateLibrary: true`.
+
 **configarr** is the fifth entry and the odd one out: the same Stakater chart,
 but rendered as a **CronJob** (`configarr-sync`, 04:00 America/Denver) rather
 than a Deployment, with `deployment.enabled` and `service.enabled` both forced

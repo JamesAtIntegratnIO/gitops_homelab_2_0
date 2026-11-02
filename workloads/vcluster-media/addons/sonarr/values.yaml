@@ -18,6 +18,28 @@ extraObjects:
           ports:
             - protocol: TCP
               port: 5432
+  # Jellyfin on Tower (host-networked Docker): Sonarr's Emby/Jellyfin
+  # connection calls its library-refresh API on import/upgrade/rename/delete so
+  # new files show up without waiting for Jellyfin's scheduled scan. Tracearr
+  # has its own rule for the same port; NetworkPolicies are per-pod.
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: sonarr-allow-jellyfin-egress
+      namespace: media
+    spec:
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: sonarr
+      policyTypes:
+        - Egress
+      egress:
+        - to:
+            - ipBlock:
+                cidr: 10.0.0.12/32
+          ports:
+            - protocol: TCP
+              port: 8096
   - apiVersion: external-secrets.io/v1
     kind: ExternalSecret
     metadata:
