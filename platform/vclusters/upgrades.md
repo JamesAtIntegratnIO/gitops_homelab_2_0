@@ -4,6 +4,8 @@ Written 2026-11-01, when the tenant ran vCluster **0.31.1** and Kubernetes
 **v1.34.3** on a host at Kubernetes 1.36.6. 0.31 reached end of life on
 2026-07-29.
 
+**Status: rung 1 is live and verified (0.32.3, 2026-11-01). Next is rung 2.**
+
 Every rung is one pull request against
 [vcluster-media.yaml](vcluster-media.yaml). Kratix renders it, ArgoCD applies it,
 and [upgrade-check.sh](upgrade-check.sh) gates the next one.
@@ -94,8 +96,13 @@ outlast that, so keep the pre-ladder copy out of its reach. On Unraid:
 
 ```bash
 cd /mnt/user/kube_storage/backups/vcluster-media-etcd
-cp vcluster-media-etcd-<stamp>.db pre-ladder-0.31.1-k8s1.34.3.db
+cp -p vcluster-media-etcd-<stamp>.db pre-ladder-0.31.1-k8s1.34.3.db
 ```
+
+Keep the `-p`. The export squashes root, so the restore Job reads as `nobody`, and
+a plain `cp` as root leaves a `root`-owned `0600` file that the Job cannot open.
+The real pre-ladder copy hit this and was found by reading it back the same way:
+run `etcdutl snapshot status` from a Job, not just `ls`.
 
 Then, every rung:
 
@@ -111,6 +118,10 @@ Then:
 ```bash
 ./platform/vclusters/upgrade-check.sh verify 0.32.3 v1.34.3
 ```
+
+Rung 1 took 5 min 43 s from merge to healthy: 2 min 41 s to reach the
+`ArgoCDApplication`, 1 min 31 s more to the `Application`, and 1 min 31 s to roll.
+Wait for that before running `verify`, or it will fail on a rung still arriving.
 
 It fails unless the Application, the syncer image, the Kubernetes image and the
 tenant apiserver all report the rung's versions, so a rung that did nothing
@@ -195,17 +206,14 @@ answered, and the snapshot CronJob wrote a file with its pinned PKI.
 A direct 0.31.1 to 0.37.6 jump with a populated tenant also passed. That does not
 make it supported, and it does not save much: the rungs are small.
 
-**Not proven, because kind is not this cluster:**
+**What kind could not prove, and rung 1 then did on the real cluster:** NFS-backed
+etcd, ArgoCD and Kratix applying the chart, Cilium and the host NetworkPolicies,
+and the live workload set. Etcd rolled one member at a time, the tenant API
+answered 42 of 42 probes about 8 seconds apart, and all five `media` pods kept
+their UIDs with no restarts.
 
-- NFS-backed etcd. The live PVCs are slower, so expect longer rolls and leader
-  changes, not 2-second blips. See the
-  [etcd I/O trap](../../CLAUDE.md#traps-that-have-already-caused-incidents).
-- ArgoCD and Kratix applying the chart. The rehearsal used `helm upgrade`. The
-  real pipeline was run locally against the edited request instead, and its
-  output differs from the live values only as intended.
-- Cilium and the host NetworkPolicies. kind ran kindnet without them. The render
-  shows no new ports, but only rung 1 tests this for real, so watch it.
-- The live workload set. Rung 1 is also where Sonarr, Radarr and the rest see it.
+**Still not exercised on the real cluster:** any Kubernetes rung, any revert, and
+the restore, including its ArgoCD pause step.
 
 ## Rollback
 
@@ -216,6 +224,11 @@ make it supported, and it does not save much: the rungs are small.
 1.35.10 worked in the rehearsal, with the workload undisturbed, so try it first if
 the tenant still answers, then re-run `verify`. If tenant objects look wrong or
 the apiserver will not start, restore.
+
+**A revert that only removes keys will not apply by itself.** See
+[known issues](../../docs/okf/cluster/known-issues.md). Reverting a rung also changes
+values, so it applies normally, and `kubectl apply` removes the keys with it. Confirm
+with `verify` either way.
 
 **Restore** returns everything inside the tenant to the snapshot, so use the one
 taken just before the bad rung, or the pre-ladder copy to leave the ladder

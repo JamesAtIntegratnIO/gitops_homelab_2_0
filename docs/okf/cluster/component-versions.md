@@ -17,7 +17,7 @@ differs meaningfully, it's noted — the running image is the truth.
 
 | Component | Running version | Notes |
 |---|---|---|
-| Talos / Kubernetes | 1.13.12 / v1.36.6 (2026-11-01) | host; vcluster still runs K8s v1.34.3 on vcluster 0.31.1, past its EOL of 2026-07-29 |
+| Talos / Kubernetes | 1.13.12 / v1.36.6 (2026-11-01) | host; vcluster on K8s v1.34.3 and vcluster 0.32.3, both past EOL, mid-ladder |
 | Cilium (+ Hubble UI) | 1.17.3 (+0.13.2) | CNI, kube-proxy replacement |
 | ArgoCD | v3.5.1 | chart 10.4.0; 10.0.0 turns chart NetworkPolicies on -- pinned off, this repo owns netpol. Trivy UI extension installs for the first time as of 2026-08-22 |
 | Kratix | syntasso community image (sha-pinned) | chart 0.0.1 |
@@ -38,7 +38,7 @@ differs meaningfully, it's noted — the running image is the truth.
 | Goldilocks / VPA recommender | v4.16.1 / 1.6.0 | chart 11.0.0 |
 | Authentik | 2026.8.0 | |
 | Open WebUI / Qdrant | v0.11.0 / v1.19.0 | |
-| vcluster (media) | vcluster-oss 0.31.1, etcd 3.6.8-0 | |
+| vcluster (media) | vcluster-oss 0.32.3, etcd 3.6.8-0, both digest-pinned | ladder to 0.37.6 in `platform/vclusters/upgrades.md` |
 | llmkube controller | 0.7.6 (orphaned) | |
 | MCP servers | argocd-mcp v0.9.0, github-mcp v1.10.1, kubernetes-mcp v0.0.69, grafana-mcp 1.1.0, supergateway 3.4.3 | only mcpo still floats (`:main`) -- it publishes no release tags |
 | platform-status-reconciler | ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:latest | built from `images/` in this repo |
