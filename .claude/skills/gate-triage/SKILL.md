@@ -44,7 +44,10 @@ k -n bosun get deploy bosun -o jsonpath='{.spec.template.spec.containers[0].imag
   `failure` with it working, against 27 manifests that would have broken at
   apply. Fixed by an emptyDir at `/tmp` in chart 0.16.1.
 
-**A green gate proves only what the gate could actually run.**
+**A green gate proves only what the gate could actually run.** It also says
+nothing about an ApplicationSet template beyond targeting: #589 changed
+`syncPolicy.retry` on 64 of them and the report listed only the alert rule and
+the Alertmanager config. Diff the rendered bootstraps yourself for those.
 
 ## A PR with no verdict at all
 

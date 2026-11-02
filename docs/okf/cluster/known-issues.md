@@ -120,6 +120,10 @@ operation now taking 41 minutes to complete, could not reach `>3` in an hour.
   longer than one sample was external-secrets or specmarshal, and the shortest of
   those was 2 hours, cut short by a metric gap or a termination. Healthy drift
   never lasted a second sample.
+- **Real rule engine on a real wedged app:** a local Prometheus reading live data
+  over `remote_read`, with no Alertmanager attached, took the rule from pending at
+  00:02:38Z to firing by 01:03Z on `specmarshal-the-cluster`, retry 507 of its
+  `-1` operation, `critical`. Delivery through `matrix-critical` needs it on main.
 - **Unit tests with `promtool`:** fires on a retrying operation, on a hung
   operation on a `Synced` app, and on exhausted retries. Stays quiet on 2 minute
   drift, a 45 minute transient that recovers, and automation turned off.
