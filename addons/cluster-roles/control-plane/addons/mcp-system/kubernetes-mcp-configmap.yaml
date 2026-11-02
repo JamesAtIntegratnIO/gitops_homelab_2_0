@@ -1,0 +1,23 @@
+# kubernetes-mcp-server config. Since v0.0.68 runtime settings live only in TOML:
+# the CLI takes --config, --config-dir and --version, and any other flag exits 1
+# with usage. An unknown key here also exits 1, so a typo is a CrashLoopBackOff.
+#
+# Pods do not pick up an edit by themselves: port, stateless and
+# cluster_provider_strategy need a restart, and nothing here sends the SIGHUP
+# that reloads the rest. Roll the Deployment after changing this.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-mcp-config
+  namespace: mcp-system
+  labels:
+    app: kubernetes-mcp
+data:
+  config.toml: |
+    # Empty means stdio, which a pod cannot serve.
+    port = "8080"
+    read_only = true
+    stateless = true
+    # Was --disable-multi-cluster. In a pod this is still the in-cluster client.
+    cluster_provider_strategy = "disabled"
+    toolsets = ["core", "config"]
