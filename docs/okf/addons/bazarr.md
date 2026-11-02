@@ -4,7 +4,7 @@ title: Bazarr
 description: Subtitle manager in vcluster-media. It reads Sonarr's and Radarr's libraries and writes external subtitles (mostly English, from OpenSubtitles.com) next to the media files that Jellyfin on Tower serves.
 tags: [media, vcluster-media, subtitles, opensubtitles, sonarr, radarr]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T15:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T18:30:00Z }
 stale_after: 2027-02-01
 sources:
   - id: values
@@ -79,7 +79,14 @@ fixes in #585 (init `/tmp`) and #595 (AniDB egress).
   x of every season. OpenSubtitles often files anime specials as S01E00.
 - **Season splits:** OpenSubtitles splits Fate/stay night UBW into S01 (1–13)
   and S02 (1–12), while Sonarr has a single 25-episode season. Bazarr can't
-  map between them, so episodes 14–25 never match.
+  map between them, so episodes 13–25 never match automatically (OS
+  S02E01–13 = Sonarr S01E13–25). They were fetched by hand: Crunchyroll
+  English on the FRNcR CR WEB-DL files, checked against the embedded
+  Portuguese track.
+- **Sonarr numbering:** UBW is a `standard` series, so absolute-numbered BD
+  releases (e.g. Moozzi2 "- 15") are rejected as "Wrong season", and UTW titles
+  parse as Unknown quality. E15 and E20 were grabbed manually: UTW 720p mp4
+  with embedded English, which Bazarr counts through `use_embedded_subs`.
 - **`minimum_score: 88`:** fansub results for the UBW BluRay files score 86,
   so automatic search rejects them. The threshold was left alone on purpose,
   because TV/fansub timings often don't fit BD files.
