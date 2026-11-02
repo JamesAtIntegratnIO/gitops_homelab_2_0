@@ -10,7 +10,7 @@ spec:
   vcluster:
     # Explicit so a change to the promise's default cannot move this tenant.
     # One minor at a time: see upgrades.md.
-    k8sVersion: v1.34.3@sha256:826be1580721885d0b1ab790e2957f1ab1325af580fb477848af69270d8ce2f1
+    k8sVersion: v1.35.10@sha256:6113017f3f3508497063a82c3b3b553f5b9475c4383dbbe2a4d5479a47141286
     preset: prod
     replicas: 3
     helmOverrides:
