@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T21:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T00:10:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -699,7 +699,56 @@ not on the age of the operation. Nothing anywhere alerts on "a sync has been
 retrying for two days", and `retry.limit: -1` guarantees it never converts into
 a failure that would.
 
-## external-secrets kept retrying without the fix that was already on main (found 2026-11-01)
+## A patch bump removed every kubernetes-mcp flag, and the rollout sat stuck for nine days (found 2026-11-01)
+
+**Fix on `fix/kubernetes-mcp-toml-config`, not yet confirmed live.** Until it merges,
+`mcp-system-the-cluster` stays `Synced`/`Degraded` and the old v0.0.67 pod keeps serving.
+
+Upstream's Config rework shipped in v0.0.68 and removed every runtime flag. Only
+`--config`, `--config-dir` and `--version` remain, so the args this Deployment had
+always passed now exit 1 with `Error: unknown flag: --port`. Kargo merged v0.0.67 →
+v0.0.69 on its own (#522, 2026-10-23), because under `autoMerge: minor` a `0.0.x`
+release is a patch whatever it contains. The release notes say only "Config rework";
+the mapping is in upstream's `docs/configuration-changes.md`.
+
+Everything worked as designed except the outcome:
+
+- The `addons-gate` could not see it. A bump changes one image string, and whether a
+  container accepts its args is not in any render.
+- Kargo's verification did catch it: AnalysisRun `Failed` at 2026-10-23T18:11Z. That
+  does not fail a promotion, and it did not stop the next one either.
+- `ArgoCDAppDegraded` (critical) has been firing for about 8 of the 9 days, and
+  `KubeDeploymentRolloutStuck` with it. The rolling update kept the old pod serving, so
+  no user felt it and nobody acted on the alerts.
+
+**Behaviour that changes with the fix**, measured by booting the pinned images
+against the live v0.0.67 tool list:
+
+- `configuration_view` is gone. v0.0.68 hides it in HTTP mode, and restoring it means
+  an `enabled_tools` allowlist of every tool. Nothing in the `mcpo` system prompt uses
+  it. The `config` toolset now contributes no tools here; it stays listed so the
+  config matches the old args one for one.
+- The other 13 tools keep their names and required parameters, and gain `limit` and
+  `continue`.
+- `max_backend_response_bytes` now defaults to 4 MiB, and a list over it errors rather
+  than truncating. A raw cluster-wide pod list is 2.7 MB today, so there is headroom
+  but not much. Set the key in `kubernetes-mcp-config` if that starts to fail.
+
+**Two things that must stay put.** The settings live in a separate file because Kargo
+only rewrites the first YAML document of the Deployment's file. And `args:` stays
+directly under `image:`: that one unchanged line is what lets a Kargo bump PR such as
+#567 still merge cleanly beside a change to the args.
+
+## external-secrets kept retrying without the fix that was already on main (found 2026-11-01, released the same day)
+
+**Released 2026-11-01 ~21:20Z.** The operation on each app was terminated with the
+patch below, tenant first. Auto-sync started a new one from the current spec,
+server-side, at chart 2.12.0, as predicted. Both apps are `Synced`/`Healthy` on
+v2.12.0 and all 45 ExternalSecrets on the host and all 4 in the tenant are Ready,
+with the webhook's CA intact. Kargo's Stage stayed `Verified=False` until
+re-verified by hand with `kargo.akuity.io/reverify`, and is now `Ready=True`. What
+follows describes the state before that. `specmarshal-the-cluster` is a different
+cause and was not touched.
 
 `external-secrets-the-cluster` and `external-secrets-vcluster-media.integratn-tech`
 have been `OutOfSync` since 2026-08-30T04:54Z, past 9,000 attempts, with:
@@ -782,7 +831,40 @@ find: unrecognized: -uid
 `home-ownership-job.yaml` calls `find -uid`/`-gid` and `alpine/k8s` ships BusyBox
 find, which has only `-user`/`-group`. The sync stops before the Deployment, so
 ArgoCD's last deployed chart is still rc.9, and the CVE fix in rc.12 has not
-landed. It needs a commit to the hook **and** a terminated operation.
+landed.
+
+**Correcting the flags would only have moved the failure one line down.** Tested
+on a scratch claim on the same export, with the Job's image and security context:
+
+```
+root's writes land as:           99:100
+chown -h 1000:1000 <file>        Operation not permitted
+find ... -exec chown -h ... {} + exit 1
+```
+
+The export [squashes every uid](/platform/storage.md), so the chown is refused for
+everyone, and the hook would have failed the sync for good with `-user` as it did
+with `-uid`. The hook never had a job to do: a second pod shaped like rc.12's
+(1000:1000, no capabilities, read-only root) read a `0600` file root wrote, entered
+a `0700` directory, appended, created, `chmod`ed, renamed over and unlinked, all
+without a chown. Grafana has run as uid 1000 on this export the same way. The live
+home is all `99:100` with not one `0:0` file, and neither rc.12's source nor core's
+checks a file's owner or mode. So the hook is **deleted**, not repaired.
+
+Two things the same test measured, for the next chown hook on BusyBox:
+
+- `-exec ... {} \;` exits **0** when every chown is refused, so `sh -e` carries on
+  to its success message. `{} +` exits 1.
+- Root holding only `CAP_CHOWN` locks itself out mid-walk (on tmpfs). The batched
+  chown gives a `0700` directory to 1000 before `find` descends, and root has no
+  `CAP_DAC_READ_SEARCH` to enter it. The nested file stays root's, and a later walk
+  reports `Permission denied` and matches nothing. `-depth` with `\;` gets it right.
+
+**A merge does not release it.** Terminate the operation, as in the entry above.
+That rolls rc.9 to rc.12 with `Recreate`, so the surface is down from the first
+SIGTERM until the new pod is ready, and the old pod may take up to
+`terminationGracePeriodSeconds` (11100s) if a run is in flight. Not yet verified
+live.
 
 ## Pinning the kratix image froze half an artifact (found 2026-08-30)
 

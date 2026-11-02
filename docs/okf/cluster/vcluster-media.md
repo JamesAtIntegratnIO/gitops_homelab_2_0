@@ -5,8 +5,8 @@ description: The one live tenant vcluster — prod-preset HA control plane with 
 tags: [vcluster, media, tenant]
 resource: https://media.integratn.tech:443
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
-stale_after: 2026-11-20
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T23:00:00Z }
+stale_after: 2026-12-08
 sources:
   - id: request
     resource: ../../../platform/vclusters/vcluster-media.yaml
@@ -23,7 +23,8 @@ sources:
 
 Requested via [vcluster-orchestrator-v2](/promises/vcluster-orchestrator-v2.md):
 preset **prod** — 3 control-plane replicas (vcluster-oss 0.31.1, K8s v1.34.3
-inside), dedicated **3-replica etcd** (registry.k8s.io/etcd:3.6.8-0,
+inside; both past end of life, with the [upgrade ladder](../../../platform/vclusters/upgrades.md)
+prepared on 2026-11-01), dedicated **3-replica etcd** (registry.k8s.io/etcd:3.6.8-0,
 cert-manager-issued certs, client-cert-auth disabled), 2Gi memory, exposed at
 `media.integratn.tech:443`, NFS egress enabled plus a postgres egress rule to
 `10.0.3.1:5432`.[^request]
@@ -72,9 +73,7 @@ run. See [configarr](/addons/configarr.md).
   the same name), or `hctl vcluster kubeconfig vcluster-media`.
 - Status: `kubectl get vco vcluster-media -n platform-requests` — the
   [status contract](/promises/kratix.md) reports Ready/ArgoSynced/PodsReady/
-  KubeconfigAvailable. Note: the aggregate currently shows **Failing** purely
-  because of a 170-day-old suspended pipeline job — the vcluster itself is
-  fully operational. See [known issues](/cluster/known-issues.md).[^live-vc]
+  KubeconfigAvailable. It read `Ready` on 2026-11-01.[^live-vc]
 
 [^request]: VClusterOrchestratorV2 request
 [^live-vc]: Live vcluster state

@@ -8,6 +8,9 @@ spec:
   targetNamespace: vcluster-media
   projectName: vcluster-media
   vcluster:
+    # Explicit so a change to the promise's default cannot move this tenant.
+    # One minor at a time: see upgrades.md.
+    k8sVersion: v1.34.3
     preset: prod
     replicas: 3
     helmOverrides:
@@ -69,12 +72,6 @@ spec:
     hostname: media.integratn.tech
     apiPort: 443
   integrations:
-    certManager:
-      clusterIssuerSelectorLabels:
-        integratn.tech/cluster-issuer: letsencrypt-prod
-    externalSecrets:
-      clusterStoreSelectorLabels:
-        integratn.tech/cluster-secret-store: onepassword-store
     argocd:
       environment: production
       clusterAnnotations:

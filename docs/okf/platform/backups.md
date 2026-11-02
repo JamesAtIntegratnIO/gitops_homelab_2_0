@@ -4,7 +4,7 @@ title: Backups — the recovery layer
 description: Nightly etcd snapshots of the-cluster and vcluster-media onto the Unraid share, what they do and do not cover, how they are watched, and how to restore from them.
 tags: [backup, recovery, etcd, disaster-recovery, resilience]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-21T21:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T23:00:00Z }
 stale_after: 2027-02-21
 sources:
   - id: backups-addon
@@ -47,7 +47,7 @@ snapshots cover.
 **First run verified 2026-08-22T01:34Z** (manual Job from the CronJob, right
 after #68 merged): 33 MB snapshot fetched in 0.8 s, written as
 `vcluster-media-etcd-2026-08-22T0134Z.db`, owned by uid 99 — the export
-root-squashes, which the Job tolerates because it only ever writes into its
+squashes root, which the Job tolerates because it only ever writes into its
 own directory.
 
 The host job needed one fix after it went live: its egress rule was a
@@ -63,11 +63,13 @@ must not depend on the thing it backs up.
 
 ## Tenant etcd: why `etcdctl` and not `vcluster snapshot`
 
-vcluster 0.31 has a native `vcluster snapshot create`, but in that release the
-request is processed by a controller *inside the vcluster pod* and its
-`container://` target is the vcluster's own data PVC — the NFS volume whose
-loss is the scenario being covered. The etcd-native snapshot is the one that
-lands somewhere else. It uses the same PKI the etcd pods mount
+vCluster's backup docs say snapshots are unsupported on a deployed etcd
+(`controlPlane.backingStore.etcd.deploy`): `vcluster snapshot create` can appear
+to succeed, but the result is not validated, and restoring onto a deployed etcd
+is unsupported too. They say to use etcd's own tooling. The command's
+`container://` target is also the vcluster's own data PVC, the NFS volume whose
+loss is the scenario being covered, while the etcd-native snapshot lands
+somewhere else. It uses the same PKI the etcd pods mount
 (`vcluster-media-certs`, the `etcd-healthcheck-client` pair), so if etcd trusts
 its own health check it trusts this.
 
@@ -111,9 +113,10 @@ A run that fails outright is already upstream `KubeJobFailed`.
 - **Two nodes at once.** A host etcd snapshot turns that from "rebuild and
   re-attach everything by hand" into "rebuild and `bootstrap --recover-from`";
   it does not make it fast.
-- **A restore that has been rehearsed.** Neither procedure in
-  [operations](../../operations.md) has been run end to end yet. The first
-  restore drill — against a throwaway vcluster — is the real acceptance test.
+- **A restore on this cluster.** The vcluster-media procedure was rehearsed on a
+  throwaway kind cluster on 2026-11-01, which is how the wipe-before-restore
+  defect below was found. It has never run against the real tenant, and
+  the-cluster's procedure has not been rehearsed at all.
 
 # Restore
 
@@ -122,6 +125,9 @@ one per cluster. In one line each:
 
 - **vcluster-media**: scale the vcluster and its etcd to zero, run one
   `etcdutl snapshot restore` Job per member into its existing PVC, scale back.
+  The Job restores to a scratch directory and swaps it in only on success. It
+  used to wipe first, so a wrong snapshot name destroyed all three members, and
+  the syncer then deleted every host pod.
 - **the-cluster**: wipe etcd on all three nodes, `talosctl bootstrap
   --recover-from=<snapshot>` on one, let the others rejoin.
 

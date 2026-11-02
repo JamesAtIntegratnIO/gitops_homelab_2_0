@@ -259,51 +259,7 @@ type DeployConfig struct {
 }
 
 type Integrations struct {
-	ExternalSecrets IntegrationExternalSecrets `json:"externalSecrets"`
-	MetricsServer   EnabledFlag               `json:"metricsServer"`
-	CertManager     IntegrationCertManager    `json:"certManager"`
-}
-
-type IntegrationExternalSecrets struct {
-	Enabled bool        `json:"enabled"`
-	Webhook EnabledFlag `json:"webhook"`
-	Sync    ESSyncConfig `json:"sync"`
-}
-
-type ESSyncConfig struct {
-	FromHost ESFromHostConfig `json:"fromHost"`
-}
-
-type ESFromHostConfig struct {
-	ClusterStores ClusterStoresConfig `json:"clusterStores"`
-}
-
-type ClusterStoresConfig struct {
-	Enabled  bool          `json:"enabled"`
-	Selector LabelSelector `json:"selector"`
-}
-
-type LabelSelector struct {
-	MatchLabels map[string]string `json:"matchLabels,omitempty"`
-	Labels      map[string]string `json:"labels,omitempty"`
-}
-
-type IntegrationCertManager struct {
-	Enabled bool         `json:"enabled"`
-	Sync    CMSyncConfig `json:"sync"`
-}
-
-type CMSyncConfig struct {
-	FromHost CMFromHostConfig `json:"fromHost"`
-}
-
-type CMFromHostConfig struct {
-	ClusterIssuers ClusterIssuersConfig `json:"clusterIssuers"`
-}
-
-type ClusterIssuersConfig struct {
-	Enabled  bool          `json:"enabled"`
-	Selector LabelSelector `json:"selector"`
+	MetricsServer EnabledFlag `json:"metricsServer"`
 }
 
 type LoggingConfig struct {

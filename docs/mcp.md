@@ -35,7 +35,7 @@ an `URLRewrite` filter so each backend sees its native `/mcp` path.
 
 | Path | Deployment | Image | Port | Notes |
 |---|---|---|---|---|
-| `/kubernetes` | `kubernetes-mcp` | `quay.io/containers/kubernetes_mcp_server` | 8080 | Read-only `kubernetes-mcp-viewer` ClusterRole |
+| `/kubernetes` | `kubernetes-mcp` | `quay.io/containers/kubernetes_mcp_server` | 8080 | Read-only `kubernetes-mcp-viewer` ClusterRole; settings in ConfigMap `kubernetes-mcp-config`, because the server takes no runtime flags since v0.0.68 |
 | `/argocd` | `argocd-mcp` | `ghcr.io/argoproj-labs/mcp-for-argocd:v0.5.0` | 3000 | Token from 1Password |
 | `/github` | `github-mcp` | `ghcr.io/github/github-mcp-server` | 8082 | PAT from 1Password |
 | `/grafana` | `grafana-mcp` | `docker.io/grafana/mcp-grafana:1.1.0` | 8000 | Token minted by a PostSync Job |
