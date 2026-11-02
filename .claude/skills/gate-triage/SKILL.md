@@ -87,6 +87,12 @@ time. When you fix something the gate missed, ask what rule it becomes.
 
 ## Do not
 
+- **Leave a hand-made Application pointing at a path main doesn't have.** The
+  gate renders every Application ArgoCD serves, so while one exists every PR
+  errors with `rendering main: source "app/<name>": ... no such file or
+  directory`. A retry probe did this on 2026-11-02 and #588 got no verdict; its
+  `autoMerge: always` policy merged it anyway. Point a probe at a path on main,
+  or check open PRs while it runs.
 - **Delete `.bosun.yaml`.** Its `roots:` list is the one fact derivation
   cannot supply: a bootstrap ApplicationSet this PR *introduces* has no live
   object to be found by, so nothing would render it at all — and the named
