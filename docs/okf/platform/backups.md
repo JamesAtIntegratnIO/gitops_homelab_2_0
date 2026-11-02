@@ -47,7 +47,7 @@ snapshots cover.
 **First run verified 2026-08-22T01:34Z** (manual Job from the CronJob, right
 after #68 merged): 33 MB snapshot fetched in 0.8 s, written as
 `vcluster-media-etcd-2026-08-22T0134Z.db`, owned by uid 99 — the export
-root-squashes, which the Job tolerates because it only ever writes into its
+squashes root, which the Job tolerates because it only ever writes into its
 own directory.
 
 The host job needed one fix after it went live: its egress rule was a

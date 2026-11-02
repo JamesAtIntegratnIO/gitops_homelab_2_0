@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T23:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T00:00:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -791,7 +791,40 @@ find: unrecognized: -uid
 `home-ownership-job.yaml` calls `find -uid`/`-gid` and `alpine/k8s` ships BusyBox
 find, which has only `-user`/`-group`. The sync stops before the Deployment, so
 ArgoCD's last deployed chart is still rc.9, and the CVE fix in rc.12 has not
-landed. It needs a commit to the hook **and** a terminated operation.
+landed.
+
+**Correcting the flags would only have moved the failure one line down.** Tested
+on a scratch claim on the same export, with the Job's image and security context:
+
+```
+root's writes land as:           99:100
+chown -h 1000:1000 <file>        Operation not permitted
+find ... -exec chown -h ... {} + exit 1
+```
+
+The export [squashes every uid](/platform/storage.md), so the chown is refused for
+everyone, and the hook would have failed the sync for good with `-user` as it did
+with `-uid`. The hook never had a job to do: a second pod shaped like rc.12's
+(1000:1000, no capabilities, read-only root) read a `0600` file root wrote, entered
+a `0700` directory, appended, created, `chmod`ed, renamed over and unlinked, all
+without a chown. Grafana has run as uid 1000 on this export the same way. The live
+home is all `99:100` with not one `0:0` file, and neither rc.12's source nor core's
+checks a file's owner or mode. So the hook is **deleted**, not repaired.
+
+Two things the same test measured, for the next chown hook on BusyBox:
+
+- `-exec ... {} \;` exits **0** when every chown is refused, so `sh -e` carries on
+  to its success message. `{} +` exits 1.
+- Root holding only `CAP_CHOWN` locks itself out mid-walk (on tmpfs). The batched
+  chown gives a `0700` directory to 1000 before `find` descends, and root has no
+  `CAP_DAC_READ_SEARCH` to enter it. The nested file stays root's, and a later walk
+  reports `Permission denied` and matches nothing. `-depth` with `\;` gets it right.
+
+**A merge does not release it.** Terminate the operation, as in the entry above.
+That rolls rc.9 to rc.12 with `Recreate`, so the surface is down from the first
+SIGTERM until the new pod is ready, and the old pod may take up to
+`terminationGracePeriodSeconds` (11100s) if a run is in flight. Not yet verified
+live.
 
 ## Pinning the kratix image froze half an artifact (found 2026-08-30)
 
