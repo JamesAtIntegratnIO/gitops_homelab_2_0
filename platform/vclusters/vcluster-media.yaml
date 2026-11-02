@@ -10,12 +10,15 @@ spec:
   vcluster:
     # Explicit so a change to the promise's default cannot move this tenant.
     # One minor at a time: see upgrades.md.
-    k8sVersion: v1.34.3
+    k8sVersion: v1.34.3@sha256:826be1580721885d0b1ab790e2957f1ab1325af580fb477848af69270d8ce2f1
     preset: prod
     replicas: 3
     helmOverrides:
       controlPlane:
         statefulSet:
+          # vcluster-oss digest: without a tag the chart renders its own version, by tag only.
+          image:
+            tag: "0.32.3@sha256:80bb3664379b0a40d1b1a4539cdc20eb80e5dffb76e5423db32067a8d077ec97"
           persistence:
             addVolumes:
               - name: etcd-certs
@@ -33,7 +36,7 @@ spec:
                 image:
                   registry: registry.k8s.io
                   repository: etcd
-                  tag: "3.6.8-0"
+                  tag: "3.6.8-0@sha256:397189418d1a00e500c0605ad18d1baf3b541a1004d768448c367e48071622e5"
                 extraArgs:
                   - "--client-cert-auth=false"
                 highAvailability:
@@ -79,7 +82,7 @@ spec:
   argocdApplication:
     repoURL: https://charts.loft.sh
     chart: vcluster
-    targetRevision: 0.31.1
+    targetRevision: 0.32.3
     syncPolicy:
       automated:
         selfHeal: true
