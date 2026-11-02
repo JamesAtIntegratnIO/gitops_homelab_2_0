@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T00:35:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T00:45:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -761,6 +761,37 @@ sets `app.state.session = None`, would produce exactly this error.
 Its `/kubernetes` schema also still lists `configuration_view`, because mcpo reads the tool
 list once at startup. Nothing in git points Open WebUI at mcpo, so what depends on it is
 not established either.
+
+## A change that only removes a key never reaches the cluster (found 2026-11-01)
+
+`kratix-state-reconciler` ignores `kubectl.kubernetes.io/last-applied-configuration`
+on the Kratix request kinds and on `Application`
+(`addons/cluster-roles/control-plane/addons/kratix/values.yaml`, added 2026-02-08 to
+silence metadata drift). With that annotation normalised away, ArgoCD no longer
+appears to see a key that git removed: **it reports `Synced` and never applies the
+removal.** That mechanism is inferred from the behaviour below, not read from
+ArgoCD's source.
+
+#582 removed two integration blocks from the pipeline's output. The new pipeline
+ran, the state repo changed, and `ArgoCDApplication/vcluster-vcluster-media` still
+held both blocks with the app `Synced` for 13 minutes. A targeted sync reported
+`configured` and removed them at once, and the final `Application` needed the same.
+
+A change that also adds or alters a key is seen, and its `kubectl apply` removes
+the stale keys too. So a removal can sit unnoticed and then arrive with the next
+unrelated change, which is how this would have rolled into rung 1 had nobody checked.
+
+To release one, with the revision taken from the state repo's head:
+
+```bash
+kubectl -n argocd patch application kratix-state-reconciler --type merge -p '{"operation":{"initiatedBy":{"username":"<you>"},"sync":{"revision":"<sha>","prune":false,"resources":[{"group":"platform.integratn.tech","kind":"ArgoCDApplication","name":"vcluster-vcluster-media","namespace":"platform-requests"}]}}}'
+```
+
+Then the same for `group: argoproj.io`, `kind: Application`, `namespace: argocd`, once
+the sub-request's pipeline has updated the state repo.
+
+**Not fixed.** The real fix is to stop ignoring that annotation on these kinds, which
+needs testing for the drift it was added to silence.
 
 ## external-secrets kept retrying without the fix that was already on main (found 2026-11-01, released the same day)
 

@@ -22,9 +22,8 @@ sources:
 # Spec (from the ResourceRequest)
 
 Requested via [vcluster-orchestrator-v2](/promises/vcluster-orchestrator-v2.md):
-preset **prod** — 3 control-plane replicas (vcluster-oss 0.31.1, K8s v1.34.3
-inside; both past end of life, with the [upgrade ladder](../../../platform/vclusters/upgrades.md)
-prepared on 2026-11-01), dedicated **3-replica etcd** (registry.k8s.io/etcd:3.6.8-0,
+preset **prod** — 3 control-plane replicas (vcluster-oss 0.32.3, K8s v1.34.3
+inside; both past end of life, part way up the [upgrade ladder](../../../platform/vclusters/upgrades.md)), dedicated **3-replica etcd** (registry.k8s.io/etcd:3.6.8-0,
 cert-manager-issued certs, client-cert-auth disabled), 2Gi memory, exposed at
 `media.integratn.tech:443`, NFS egress enabled plus a postgres egress rule to
 `10.0.3.1:5432`.[^request]
