@@ -48,9 +48,12 @@ alertmanager:
       - alertname = InfoInhibitor
       target_matchers:
       - severity = info
-    # A Degraded app is also OutOfSync. Report the worse condition only.
+    # A Degraded or wedged app is also OutOfSync. Report the worse condition only.
+    # Neither silences the other: Degraded is about the workload, wedged about
+    # whether git can reach it, and a wedged app that is also Degraded looks like
+    # a workload problem until you read the operation.
     - source_matchers:
-      - alertname = ArgoCDAppDegraded
+      - alertname =~ ArgoCDAppDegraded|ArgoCDAppSyncWedged
       target_matchers:
       - alertname = ArgoCDAppOutOfSync
       equal:

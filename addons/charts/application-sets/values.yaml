@@ -17,7 +17,14 @@ syncPolicy:
     allowEmpty: true
     prune: true
   retry:
-    limit: -1 # number of failed sync attempt retries; unlimited number of attempts if less than 0
+    # About 41 minutes of attempts at this backoff, then the operation fails.
+    # Never negative: an operation that cannot finish keeps the revision, sources
+    # and syncOptions it started with, so no later commit can reach the app. After
+    # it fails, the next commit to main starts a fresh one from the current spec,
+    # and until then auto-sync and self-heal skip this revision.
+    # Leave retry.refresh off: it moves git sources to HEAD mid-operation but not
+    # chart versions or syncOptions, so it applies a mix no commit ever described.
+    limit: 10
     backoff:
       duration: 5s # the amount to back off. Default unit is seconds, but could also be a duration (e.g. "2m", "1h")
       factor: 2 # a factor to multiply the base duration after each failed retry

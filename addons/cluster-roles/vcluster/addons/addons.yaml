@@ -174,7 +174,6 @@ argocd-vcluster:
   syncPolicy:
     automated: {}
     retry:
-      limit: -1
       backoff:
         duration: 10s
         factor: 2
@@ -459,7 +458,6 @@ cert-manager-vcluster:
     automated:
       selfHeal: true
     retry:
-      limit: -1
       backoff:
         duration: 10s
         factor: 2
@@ -538,7 +536,6 @@ nginx-gateway-fabric-vcluster:
     automated:
       selfHeal: true
     retry:
-      limit: -1
       backoff:
         duration: 10s
         factor: 2

@@ -91,20 +91,41 @@ spec:
             description: "Application {{ $labels.name }} (project {{ $labels.project }}) has been {{ $labels.health_status }} for 15+ minutes. Its workloads are crashing, unschedulable, or absent."
             logs_url: "https://grafana.cluster.integratn.tech/d/argocd-overview/argocd-overview"
 
-        # Replaces the old ArgoCDSyncFailed (fired on a single failure) and
-        # ArgoCDHighSyncFailureRate (a ratio that spikes on low-volume apps).
-        # A repeatedly-failing sync is the actionable signal; one transient
-        # failure that self-heals on the next attempt is not.
-        - alert: ArgoCDAppSyncFailing
+        # Git has stopped reaching this app, and nothing will fix that by itself.
+        # Three states, all of which block every later commit or are waiting on one:
+        #   - retrying an operation pinned to its starting revision and spec
+        #   - an operation that never finishes, such as a hook that hangs; it
+        #     never fails, so retry.limit cannot end it, and the app can read Synced
+        #   - retries exhausted, so auto-sync skips this revision until a new commit
+        # The `operation` label is set while `.operation` exists, retries included.
+        #
+        # 1h sits past the 41 minute retry budget in the application-sets chart.
+        # Backtested over 15 days and 73 apps: every run of OutOfSync or an
+        # operation longer than one 2 minute sample was a wedged app, and the
+        # shortest of those was 2h, so healthy drift never comes close.
+        #
+        # Replaces ArgoCDAppSyncFailing, which never fired: argocd_app_sync_total
+        # only counts completed operations, and one operation takes 41 minutes to
+        # complete now, so it could not reach ">3 in 1h". keep_firing_for rides out
+        # the 6-8 minute metric gaps seen during node outages; without it those
+        # would send a false "resolved" and restart the hour.
+        - alert: ArgoCDAppSyncWedged
           expr: |
-            sum by (name) (increase(argocd_app_sync_total{phase=~"Error|Failed"}[1h])) > 3
-          for: 15m
+            max by (name, project) (
+              argocd_app_info{autosync_enabled="true", sync_status="OutOfSync"}
+            )
+            or
+            max by (name, project) (
+              argocd_app_info{operation="sync"}
+            )
+          for: 1h
+          keep_firing_for: 15m
           labels:
-            severity: warning
+            severity: critical
             component: argocd
           annotations:
-            summary: "ArgoCD app {{ $labels.name }} sync failing repeatedly"
-            description: "Application {{ $labels.name }} has failed {{ $value | printf \"%.0f\" }} sync attempts in the last hour. Check the app's conditions for an admission or templating error."
+            summary: "ArgoCD app {{ $labels.name }} is not converging on git"
+            description: "Application {{ $labels.name }} has been OutOfSync or inside one sync operation for over an hour, past its retry budget. New commits may not be reaching it. If an operation is running, it keeps the revision, sources and syncOptions it started with: fix the cause on main, then `argocd app terminate-op {{ $labels.name }}`. If retries are exhausted, any commit to main or `argocd app sync {{ $labels.name }}` tries again."
             logs_url: "https://grafana.cluster.integratn.tech/d/argocd-overview/argocd-overview"
 
     # ── TLS certificates ─────────────────────────────────────────────────────
