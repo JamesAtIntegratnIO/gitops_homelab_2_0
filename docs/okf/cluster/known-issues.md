@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T02:15:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T02:20:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -858,20 +858,21 @@ only rewrites the first YAML document of the Deployment's file. And `args:` stay
 directly under `image:`: that one unchanged line is what lets a Kargo bump PR such as
 #567 still merge cleanly beside a change to the args.
 
-## `mcpo` answered no tool call from 2026-10-11 to 2026-11-02, and nothing uses it (found 2026-11-02, fixed by #594, `argocd` needs #604)
+## `mcpo` answered no tool call from 2026-10-11 to 2026-11-02, and nothing uses it (found 2026-11-02, fixed by #594 and #604)
 
-**Live since #594, 2026-11-02 02:01Z.** The new pod left out `umami`, connected to the other
-seven and the probes pass. Real calls from inside the pod answer 200 on `prometheus`,
-`kubernetes`, `grafana`, `github`, `fetch` and `sequential-thinking`. CPU settled to 58m
-from the pinned 500m. `/argocd` reaches `argocd-mcp` but still fails with `fetch failed`,
-which #604 fixes. A liveness restart has not happened on the cluster: the wedge and recovery
-are proven only on the pinned image locally. What follows describes the state before #594.
+**Live since #594 and #604, 2026-11-02 02:10Z.** The pod left out `umami` and connected to the
+other seven. Real calls from inside the pod answer 200 on `prometheus`, `kubernetes`,
+`grafana`, `github`, `argocd` (73 applications), `fetch` and `sequential-thinking`, and
+both probes pass. CPU settled to 58-79m from the pinned 500m. `umami` is the one configured
+backend not proven, because its key does not exist yet. A liveness restart has not happened
+on the cluster: the wedge and recovery are proven only on the pinned image locally. What
+follows describes the state before these two PRs.
 
 **`argocd-mcp` was broken on its own, with or without mcpo.** `allow-argocd-server` admitted
 it only from `ai`, the same leftover from 961c8722, so since May every call that reaches
 the ArgoCD API has timed out, including through `/argocd/mcp` on the gateway. Hubble shows
 `Policy denied` on `argocd-mcp` → `argocd-server:8080`. `initialize` still succeeds, so it
-reports healthy. No write path opens with #604: `MCP_READ_ONLY` exposes 11 read tools and
+reports healthy. No write path opened with #604: `MCP_READ_ONLY` exposes 11 read tools and
 the token is the `mcp-readonly` account.
 
 Every call returned `500: {'message': 'MCP session is not available'}`, on every
