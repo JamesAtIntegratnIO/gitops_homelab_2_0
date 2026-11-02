@@ -6,6 +6,7 @@ Development and testing utilities.
 |------|---------|
 | `test-connect-api.sh` | Test 1Password Connect API connectivity |
 | `test-pipeline-job.yaml` | Manual Kubernetes Job for testing vcluster-orchestrator-v2 pipeline locally |
+| `subtitles/` | Fit fansub English subs to a BluRay cut and fill BD-only scenes with local Whisper translation (see its README) |
 
 ## dashboards/
 
