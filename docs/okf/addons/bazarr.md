@@ -4,7 +4,7 @@ title: Bazarr
 description: Subtitle manager in vcluster-media. It reads Sonarr's and Radarr's libraries and writes external subtitles (mostly English, from OpenSubtitles.com) next to the media files that Jellyfin on Tower serves.
 tags: [media, vcluster-media, subtitles, opensubtitles, sonarr, radarr]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T01:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T18:30:00Z }
 stale_after: 2027-02-01
 sources:
   - id: values
@@ -57,7 +57,10 @@ fixes in #585 (init `/tmp`) and #595 (AniDB egress).
   - language profile `English` (id 1: en, not forced, HI off)
   - `serie_default_enabled` and `movie_default_enabled` set to **false**, so
     new items get no profile until one is assigned
-  - providers `opensubtitlescom` + `animetosho`
+  - providers: `opensubtitlescom` only. `animetosho` was removed because the
+    stored AniDB client name is invalid ("Client is disabled or does not
+    exists"), and that error aborts every anime search before any provider runs.
+    Re-adding it needs a registered AniDB client in `anidb.api_client`.
 - **Egress:** OpenSubtitles is internet :443, which the generated
   `allow-vcluster-external` allows. AniDB's API is `api.anidb.net:9001`, which
   needs `bazarr-allow-anidb-egress`. Without AniDB, `get_video()`'s refiners
@@ -73,11 +76,26 @@ fixes in #585 (init `/tmp`) and #595 (AniDB egress).
   unknown). Saving settings resets Bazarr's provider throttles.
 - **Season 0 specials:** the opensubtitlescom provider drops `season_number`
   when it is 0 (`if self.video.season:`), so an S00Exx search asks for episode
-  x of every season. OpenSubtitles often files anime specials as S01E00. For
-  Fate/stay night UBW, the Prologue (Sonarr S00E01, IMDb tt3782680) was fetched
-  by hand from OpenSubtitles (HorribleSubs "- 00") and uploaded through
-  `POST /api/episodes/subtitles`. Subsync shifted it +0.88 s to the ADE BluRay,
-  and the median offset against the embedded Chinese track is 0.02 s.
+  x of every season. OpenSubtitles often files anime specials as S01E00.
+- **Season splits:** OpenSubtitles splits Fate/stay night UBW into S01 (1–13)
+  and S02 (1–12), while Sonarr has a single 25-episode season. Bazarr can't
+  map between them, so episodes 13–25 never match automatically (OS
+  S02E01–13 = Sonarr S01E13–25). They were fetched by hand: Crunchyroll
+  English on the FRNcR CR WEB-DL files, checked against the embedded
+  Portuguese track.
+- **Sonarr numbering:** UBW is a `standard` series, so absolute-numbered BD
+  releases (e.g. Moozzi2 "- 15") are rejected as "Wrong season", and UTW titles
+  parse as Unknown quality. E15 and E20 were grabbed manually: UTW 720p mp4
+  with embedded English, which Bazarr counts through `use_embedded_subs`.
+- **`minimum_score: 88`:** fansub results for the UBW BluRay files score 86,
+  so automatic search rejects them. The threshold was left alone on purpose,
+  because TV/fansub timings often don't fit BD files.
+- **BD vs TV cuts:** BD releases add scenes and the OP, so subtitles timed to
+  TV or a different release need piecewise offsets, not one global shift.
+  Bazarr's upload endpoint runs ffsubsync, which applies one global shift and
+  undoes a piecewise alignment. Write the `.srt` next to the media and rescan
+  instead. The 2026-11-02 UBW work, with scripts and the local whisper.cpp
+  gap-fill for BD-only scenes, is in `hack/subtitles/README.md`.
 - **HI naming:** uploads and some provider downloads are saved as `.en.hi.srt`
   even with HI off. Cause not found.
 - **Old DB:** during the first sync after reuse there were `FOREIGN KEY
