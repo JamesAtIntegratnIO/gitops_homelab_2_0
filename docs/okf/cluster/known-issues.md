@@ -28,7 +28,118 @@ sources:
   - id: eso-frozen-op-1101
     resource: kubectl get application/crd --show-managed-fields on both clusters, server-side dry-runs of chart 2.12.0, Prometheus ALERTS history, Argo CD v3.5.1 controller source, 2026-11-01
     title: external-secrets stuck operation triage 2026-11-01
+  - id: finite-retries-1101
+    resource: throwaway Application probes on the-cluster, Prometheus range queries over 15d, Loki over 7d, promtool, Argo CD v3.5.1 controller source, 2026-11-01
+    title: Finite sync retries decision 2026-11-01
 ---
+
+# Sync retries are finite, and a wedged operation pages (decided 2026-11-01)
+
+`retry.limit: -1` wedged kratix, mcp-system, both external-secrets apps (63 days)
+and specmarshal. The chart default in
+`addons/charts/application-sets/values.yaml` is now **`limit: 10`, with
+`retry.refresh` off**, and every addon that restated `-1` now inherits it.
+
+| Backoff | Addons | Time until the operation fails |
+|---|---|---|
+| 5s, x2, cap 10m | the default | about 41 minutes |
+| 10s, x2, cap 5m | `argocd-vcluster`, `cert-manager-vcluster`, `nginx-gateway-fabric-vcluster` | about 30 minutes |
+| 10s, x2, cap 5m, `limit: 30` | `metallb-config`, already finite and left alone | about 2h10m |
+
+**Why a finite limit is enough.** Tested on a throwaway multi-source Application
+in the factory's shape, against a namespace that did not exist, with a short limit:
+
+- Retries ran out, the phase went `Failed`, and the app gained a `SyncError`
+  condition.
+- Changing only `spec.syncPolicy.syncOptions` and forcing a refresh started
+  nothing. The revision had not moved, so `alreadyAttemptedSync` still matched.
+- An unrelated empty commit started a new operation on the new revision, and it
+  carried the changed `syncOptions`.
+
+So the terminated operation is what lets every frozen field catch up. All 69
+apps with a `HEAD` source tracked main's current commit when checked, so any
+commit to main re-attempts every app in this state. A settings change in git is
+itself such a commit.
+
+**Why not `retry.refresh`.** The same probe with `refresh: true`, moving the spec's
+source to a pinned revision and adding a syncOption mid-operation:
+
+```
+attempted (syncResult.revisions)    new commit, on both sources
+spec.sources[1].targetRevision      87059530
+syncResult.sources[1].targetRevision  still the frozen branch name
+operation.sync.syncOptions          still the frozen list
+operation.sync.revisions            still the old commit
+```
+
+`refresh` moves git sources to `HEAD` but not the chart version or inline values
+in the frozen `Sources`. It would have helped the kratix, mcp-system and
+specmarshal wedges, whose fixes were in git, and not external-secrets, whose fix
+was a syncOption. Set alongside a limit, it saves at most 41 minutes, in exchange
+for applying a chart and values no commit ever paired. The diagnostic in the
+entry on retrying syncs also stops working, because `operation.sync.revisions`
+no longer says what is being attempted. The deep merge is not the reason:
+`refresh: false` and `limit: 0` both override correctly at addon level, and a
+partial `retry` block inherits the rest.
+
+**What the limit costs, measured.**
+
+- In Loki's whole 7 day window, only the wedged apps logged `Retrying operation`.
+  No other app retried once. The window has a 5.4 hour hole from 2026-10-29
+  17:01Z, during the `.102` failure, so it says little about an outage that long.
+  The only other success after retrying in the live `operationState` is
+  `metallb-config`, 5 attempts over 11 minutes, in February.
+- Only an app with an operation in flight spends its budget, so an outage does
+  not exhaust all 73 at once.
+- After an operation fails, auto-sync **and self-heal** skip that revision until
+  the next commit. Since 2026-08-01 the gap between commits to main has a median
+  of 8 minutes and a p90 of 8 hours, but the longest was 16 days, so a quiet
+  stretch relies on the alert. `argocd app sync <app>` or any commit clears it.
+- A rebuild from nothing that takes longer than the budget to settle will leave
+  apps failed. Sync once more, or push a commit. This has not been exercised.
+
+A limit does not end every wedge: **an operation that hangs without failing, such
+as a hook that never completes, never reaches the retry path.** The controller's
+`controller.sync.timeout.seconds` would end those, and is unset. It is not set
+here because none has been seen; the alert below covers them.
+
+**Detection: `ArgoCDAppSyncWedged`, critical, `for: 1h`.**
+
+```
+max by (name, project) (argocd_app_info{autosync_enabled="true", sync_status="OutOfSync"})
+or
+max by (name, project) (argocd_app_info{operation="sync"})
+```
+
+The controller sets `operation="sync"` for as long as `.operation` exists, retries
+included, so that label is the in-flight signal. There is no operation-age metric.
+It replaces `ArgoCDAppSyncFailing`, which had no rows in 15 days and, with one
+operation now taking 41 minutes to complete, could not reach `>3` in an hour.
+
+- **Backtest, 15 days and 73 apps at a 2 minute step:** every run of either branch
+  longer than one sample was external-secrets or specmarshal, and the shortest of
+  those was 2 hours, cut short by a metric gap or a termination. Healthy drift
+  never lasted a second sample.
+- **Real rule engine on a real wedged app:** a local Prometheus reading live data
+  over `remote_read`, with no Alertmanager attached, took the rule from pending at
+  00:02:38Z to firing by 01:03Z on `specmarshal-the-cluster`, retry 507 of its
+  `-1` operation, `critical`. Delivery through `matrix-critical` needs it on main.
+- **Unit tests with `promtool`:** fires on a retrying operation, on a hung
+  operation on a `Synced` app, and on exhausted retries. Stays quiet on 2 minute
+  drift, a 45 minute transient that recovers, and automation turned off.
+  `keep_firing_for: 15m` carries it through an 8 minute series gap; removing it
+  fails that test.
+- `ArgoCDAppDegraded` does not silence it, and it now silences
+  `ArgoCDAppOutOfSync`. Degraded already silenced that warning, which helped kratix
+  read as only a workload problem for 43 hours.
+
+Exhausted retries now reach `on-sync-failed`, whose condition is
+`phase in [Error, Failed]`. A `-1` operation stays `Running`, so that notification
+could never fire for the failure it is named after.
+
+**New settings do not reach an operation already in flight.** An operation started
+before this merged keeps `-1` until it is terminated. On 2026-11-01 that was only
+`specmarshal-the-cluster`.
 
 # .102's SSD is failing; it took etcd quorum with it for three minutes (2026-10-29)
 
@@ -832,8 +943,11 @@ revision. `state.Operation.Sync` is a snapshot, so a change to `syncOptions` or
 `retry` does not reach an operation already running either. For the same reason,
 `retry.refresh: true` would not have rescued this one: in Argo CD v3.5.1 it
 clears `Sync.Revision` and `Sync.Revisions` on each retry and leaves
-`Sync.SyncOptions` alone. It would have retried the newest chart, still
-client-side, and failed the same way.
+`Sync.SyncOptions` and `Sync.Sources` alone. It would have retried the same chart
+2.10.0, still client-side, and failed the same way. (This said "the newest chart"
+until 2026-11-01; the probe under
+[finite retries](#sync-retries-are-finite-and-a-wedged-operation-pages-decided-2026-11-01)
+showed otherwise.)
 
 **What was left behind is small.** Rendering 2.10.0 and 2.12.0 with the app's own
 values:
@@ -873,6 +987,7 @@ from the current spec, server-side, at 2.12.0.
 - `ArgoCDAppSyncFailing` cannot fire on this. `argocd_app_sync_total` has no series
   for either app, because the controller only counts an operation when it
   completes, and with `retry.limit: -1` a persistently failing one never does.
+  The rule has since been replaced by `ArgoCDAppSyncWedged`.
 
 **`specmarshal-the-cluster` is stuck too, for a different reason.** Same pinned
 operation (since 2026-10-29, revision `6e29b5df`), but it does have server-side
@@ -1307,14 +1422,9 @@ kubectl -n argocd patch application <app> --type=json -p '[{"op":"remove","path"
 
 Auto-sync then starts a fresh operation at current `HEAD`.
 
-**Open question:** whether the inherited default should become a finite limit.
-With exponential backoff capped at 10m, a limit of ~10 spends about an hour on
-genuine transients and then gives up, which lets the next commit be tried. The
-cost is that after a terminal failure ArgoCD will not re-attempt the *same*
-revision automatically, so a transient failure that outlasts the limit leaves
-the app `OutOfSync` until a new commit or a manual sync. Not changed here — it
-is a deliberate trade-off across every app, and belongs with the self-healing
-work that set it.
+**Closed 2026-11-01:** the inherited default is now `limit: 10`. See
+[finite retries](#sync-retries-are-finite-and-a-wedged-operation-pages-decided-2026-11-01),
+which also measures the cost this question was worried about.
 
 # Root cause found (2026-08-21): the vcluster-media restart storms
 

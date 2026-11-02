@@ -88,12 +88,13 @@ see the file list in `terraform/cluster/bootstrap/addons-vcluster.yaml`.
   `ipBlock`: it is DNAT'd to the pod IP before policy evaluation, so select on
   namespace + pod and the **target port** (e.g. metrics-server on 10250).
 - **A fix does not reach a sync already retrying.** An in-flight operation keeps
-  the revision, `syncOptions` and `retry` it started with, and `retry.limit: -1`
-  means it never finishes. If the app you are fixing is stuck, compare
-  `.status.operationState.operation.sync` with `.spec.syncPolicy` and
-  `.status.sync.revisions`; if they differ, the merge also needs the operation
-  terminated. #287 added `ServerSideApply=true` and external-secrets ran another
-  two months without it. See
+  the revision, sources, `syncOptions` and `retry` it started with, for up to
+  41 minutes of retries before it fails and the next commit gets a fresh one.
+  Longer if it is hung, or if it predates the finite limit. To land a fix sooner,
+  compare `.status.operationState.operation.sync` with `.spec.syncPolicy` and
+  `.status.sync.revisions`; if they differ, terminate the operation. #287 added
+  `ServerSideApply=true` and external-secrets ran another two months without it.
+  Keep retries finite: a negative `limit` is what made that possible. See
   [known issues](../../../docs/okf/cluster/known-issues.md).
 - **Gateway API, not Ingress.** HTTPRoute everywhere.
 - **Pin images and charts.** An unpinned `:latest` silently jumped grafana-mcp
