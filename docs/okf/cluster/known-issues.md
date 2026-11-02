@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T00:45:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T01:30:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -28,6 +28,9 @@ sources:
   - id: eso-frozen-op-1101
     resource: kubectl get application/crd --show-managed-fields on both clusters, server-side dry-runs of chart 2.12.0, Prometheus ALERTS history, Argo CD v3.5.1 controller source, 2026-11-01
     title: external-secrets stuck operation triage 2026-11-01
+  - id: mcpo-wedge-1102
+    resource: mcpo pod logs and source (mcpo 0.0.20, mcp 1.26.0), Loki and Prometheus history, Open WebUI config table, pinned image run locally against mock backends and real argocd-mcp, open-webui/mcpo #302 and #316, 2026-11-02
+    title: mcpo session wedge triage 2026-11-02
 ---
 
 # .102's SSD is failing; it took etcd quorum with it for three minutes (2026-10-29)
@@ -744,23 +747,81 @@ only rewrites the first YAML document of the Deployment's file. And `args:` stay
 directly under `image:`: that one unchanged line is what lets a Kargo bump PR such as
 #567 still merge cleanly beside a change to the args.
 
-## `mcpo` answers no tool call on the kubernetes, grafana, github or argocd paths (found 2026-11-02, open)
+## `mcpo` has answered no tool call since 2026-10-11, and nothing uses it (found 2026-11-02, fix in #594, not yet verified live)
 
-Every call returns `500: {'message': 'MCP session is not available'}`, on all four
-backends, while `/openapi.json` stays 200, so both probes and `mcp-system-the-cluster`
-report healthy. Those four servers work directly: `kubernetes-mcp` was called through the
-gateway at the same time. It is not from the #586 rollout, since `grafana`, `github` and
-`argocd` fail identically and did not restart.
+Every call returned `500: {'message': 'MCP session is not available'}`, on every
+backend, while `/openapi.json` stayed 200, so both probes and `mcp-system-the-cluster`
+reported healthy.[^mcpo-wedge-1102] `sequential-thinking` is no exception: its 422 was
+the body failing validation before the session check, and a valid body gets the same
+500. The backends themselves work. The pod was not restarted to investigate this, and a
+restart would not have helped: all 9 starts in Loki end the same way.
 
-The current pod started 2026-11-01T19:34Z and its log holds no tool call before the three
-made to test this, so it may never have worked, and nobody has been calling it. Its
-startup log shows `prometheus` and `fetch` failing to fetch from `pypi.org`, then `umami`
-ending in `CancelledError`. **Unproven:** that cancellation running mcpo's teardown, which
-sets `app.state.session = None`, would produce exactly this error.
+**The cause is an empty Umami key.** The `token` field of 1Password item `umami-mcp` is
+empty, so the Secret holds a zero-length value and the init container renders
+`Authorization: Bearer `. httpx refuses that header (`Illegal header value b'Bearer '`).
+mcpo enters every backend's transport in the task that holds its lifespan, so the
+exception cancels that task. The `CancelledError` logged against `umami` is the victim
+of that, not the cause. Uvicorn still finishes starting, then the lifespan's own
+`await receive()` takes the same cancellation, the lifespan exits, and each backend's
+teardown closes its manager and sets `app.state.session = None`. No manager means no
+reconnect, so it stays that way. On the pinned image with mock backends, that config
+reproduces the exact error and the same config without the umami entry works.
 
-Its `/kubernetes` schema also still lists `configuration_view`, because mcpo reads the tool
-list once at startup. Nothing in git points Open WebUI at mcpo, so what depends on it is
-not established either.
+It started with #408: merged 2026-10-11 19:28Z, first such start 19:30Z, first failed
+call 22:51Z. The comment shipped with it said an empty key would mean "a 401, and the
+rest are unaffected". Neither half holds. The process has also pinned its 500m CPU limit
+in every sample of Prometheus's 15.5-day retention (upstream #302 reports this spin).
+
+**Any failing request does the same, not only this header.** Measured on the pinned image:
+
+| Trigger | Result |
+|---|---|
+| Empty bearer | Every backend answers `session is not available` |
+| One backend answers 401 at start, or is down at start | Earlier backends answer the same error; later ones were never connected and 404 |
+| Calling a connected backend that is down | Other backends lose their sessions, CPU pins, and it survives the backend coming back |
+| Calling `argocd-mcp` after it restarts (real image: 400 on the old session id) | The same, so every argocd-mcp rollout can do this |
+| A connected backend down, not called | Nothing |
+
+Upstream's fix, #316, is unmerged, and upstream's `main` has not moved since 2026-02-27. Laid
+over the pinned image it cleared all of these, and a backend recovered on its own. It is
+not adopted here: it would mean building and carrying a third-party fork.
+
+**`prometheus` and `fetch` have never worked in this namespace.** 961c8722 (2026-05-20)
+moved mcpo from `ai` to `mcp-system` and left its policies behind, so `uvx` hit a connect
+timeout on every start. This is not a transient: pypi.org:443 times out from the mcpo pod
+and connects from `sequential-thinking`, which has that egress. Prometheus also admitted
+mcpo only from `ai`.
+
+**Nothing depends on mcpo, and nothing could reach it.** Open WebUI's
+`tool_server.connections` is `[]`, its tool table is empty, no model names a tool, and its
+last chat is 2026-05-11. A connection from `open-webui-0` to `mcpo:8000` times out, because
+only `mcp-system` and the gateway are admitted and no HTTPRoute points there. Across the 29
+days in Loki the only tool calls are 8, all from inside the pod over 127.0.0.1: one on
+10-11 and the tests that found this. Open WebUI 0.12.5's source also has a `type: mcp` tool
+server with its own MCP client, so it may not need a bridge at all (read, not tried).
+
+**The fix (#594), around the pinned image:**
+
+- `mcpo-ops` starts mcpo only on backends that answer `initialize`, leaving out an empty
+  credential. All five real remote backends answered 200 from the live pod.
+- Readiness and liveness call a tool on `health`, a local stdio server. That walks the path
+  the wedge breaks and touches no backend. It has to: a probe through a real backend could
+  cause the wedge it looks for, whenever that backend was down.
+- Liveness also restarts mcpo when a left-out backend answers again, or one down at start
+  would stay missing. A wrong key does not loop: it keeps answering 401, so it stays out.
+- Egress and Prometheus admission moved to `mcp-system`, and the uvx servers pinned.
+
+**What stays true after it:**
+
+- `umami` stays out until James creates the API key (`umami/README.md`, step 4). The key
+  lives in 1Password and only appears in mcpo after a rollout restart.
+- The wedge still happens, then recovers. Calling a down backend hangs that call and takes
+  the others out until liveness restarts the container, up to about 90 seconds.
+- A left-out backend is logged only at start, as `mcpo-ops: leaving out <name>`. Its routes
+  404 meanwhile, and no alert fires.
+- The uvx pins are not images, so Kargo does not bump them.
+- Open WebUI still cannot reach mcpo. Using it from there needs both NetworkPolicy halves
+  and a tool server entry, none of which this adds.
 
 ## A change that only removes a key never reaches the cluster (found 2026-11-01)
 
@@ -1625,3 +1686,4 @@ scan init failures (#4).
 [^live-cluster]: Live cluster observation
 [^repo-review]: Repository review
 [^alert-sweep-0901]: Alert triage sweep 2026-09-01
+[^mcpo-wedge-1102]: mcpo session wedge triage 2026-11-02

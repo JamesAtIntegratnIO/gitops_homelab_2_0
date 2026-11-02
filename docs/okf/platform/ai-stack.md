@@ -37,7 +37,7 @@ path-routed on `mcp.cluster.integratn.tech`:[^mcp-dir]
 | `/github` | github-mcp-server | ghcr.io/github |
 | `/grafana` | mcp-grafana (token minted by a PostSync Job) | grafana/mcp-grafana |
 | `/sequential-thinking` | supergateway wrapping the stdio server (npm pre-install initContainer) | ghcr.io/supercorp-ai/supergateway |
-| — | mcpo (MCP→OpenAPI bridge for Open WebUI; also wires prometheus + fetch) | ghcr.io/open-webui/mcpo |
+| — | mcpo (MCP→OpenAPI bridge; also wires prometheus + fetch). Open WebUI has no tool server configured and no network path to it: see [known issues](../cluster/known-issues.md) | ghcr.io/open-webui/mcpo |
 
 Recent git history is dominated by hardening this stack (routing rewrites,
 egress policies, securityContexts, supergateway transport fixes).[^git-log]
