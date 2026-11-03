@@ -59,8 +59,8 @@ spec:
             # "loopback variants of --address" -- which for 0.0.0.0:8000 means
             # localhost:8000 and 127.0.0.1:8000 and nothing else. Every real
             # caller was therefore answered `403 forbidden: host not allowed`:
-            # the kubelet probe (Host: <podIP>:8000), mcpo (the Service FQDN)
-            # and anything arriving through the Gateway. Matching is exact and
+            # the kubelet probe (Host: <podIP>:8000), an in-cluster client
+            # (the Service FQDN) and anything arriving through the Gateway. Matching is exact and
             # includes the port, so bare `localhost` is rejected where
             # `localhost:8000` is accepted. Extend this list when a new caller
             # appears; `*` disables validation and is only safe behind a proxy
