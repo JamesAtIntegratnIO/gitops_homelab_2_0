@@ -64,6 +64,19 @@ home:
   # the chart's fsGroup does nothing here and no chown is needed (README.md).
   storageClassName: config-nfs-client
 
+# Root, until the image can be read by the uid its own chart runs it as. The
+# rc.12 image ships /opt/specmarshal/package.json (and three branding files) as
+# root:root 0600, and the chart runs every container as 1000, so Node exits on
+# `Cannot read package config ... permission denied` in the first init
+# container. rc.9 ran as root; the rest of the chart's hardening (no
+# capabilities, read-only root, RuntimeDefault seccomp) still applies, and the
+# home is squashed to 99:100 whoever writes it. Delete this block with the bump
+# to an image that fixes the modes.
+podSecurityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+  runAsGroup: 0
+
 # Above the iteration timeout, which is 3h on the `local` provider, so a stop
 # drains the run in flight instead of cutting it off. A rollout therefore waits
 # for work in progress; that is deliberate.
