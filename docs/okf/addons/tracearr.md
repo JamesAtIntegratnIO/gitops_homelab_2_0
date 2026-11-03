@@ -3,7 +3,7 @@ type: Workload
 title: Tracearr
 description: Plex and Jellyfin watch history and stream monitoring in vcluster-media, with its own TimescaleDB and Redis. Replaces Tautulli, which ran as a Docker container on Tower.
 tags: [media, vcluster-media, plex, jellyfin, tautulli, timescaledb, redis]
-status: draft
+status: stable
 generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T23:30:00Z }
 stale_after: 2027-02-01
 sources:
@@ -22,6 +22,9 @@ sources:
   - id: recon
     resource: read-only checks on Tower and both clusters from holocron, 2026-11-02
     title: Pre-deploy reconnaissance
+  - id: live
+    resource: kubectl --context admin@media-cluster -n media (pods, logs, ExternalSecret) and curl from holocron, 2026-11-03
+    title: Post-deploy verification
 ---
 
 # What it is
@@ -89,6 +92,28 @@ chart from another repository's git path.
   connection; the egress policy allows nothing else on 32400.
 - **Jellyfin** needs an administrator API key (Jellyfin Dashboard → API Keys)
   and the URL `http://10.0.0.12:8096`.
+- **Verified live 2026-11-03:** all three pods Running with 0 restarts; Postgres
+  as 99:100 initialised its data directory and Tracearr's migrations ran clean;
+  `/health` 200 through the gateway; from the pod Plex `/identity` 200, Jellyfin
+  200, Tautulli 303 (login redirect).
+- **A new folder on Tower is not served at once.** For about 3 minutes after
+  `mkdir /mnt/user/kube_storage/tracearr`, mounts failed with `reason given by
+  server: No such file or directory`; kubelet's retry then succeeded with no change.
+- **Kyverno `restrict-image-registries`** (audit) reports `tracearr-db-0`,
+  because `timescale/` is not an approved Docker Hub organisation. If that policy
+  moves to Enforce, add `timescale` first or the database will not start.
+- **`BETTER_AUTH_SECRET`** is unset, so Tracearr derives it from `JWT_SECRET`.
+  A dedicated field in the 1Password item would decouple them.
+- **Tautulli import (2026-11-03):** 2,886 plays imported in 37 s, 77 skipped,
+  all from user `Brammage`, who is no longer a Plex user Tracearr knows.
+  Tautulli's 3,991 `session_history` rows are 2,963 plays once resumes are
+  grouped. Tautulli was then stopped and removed from Unraid autostart
+  (backup `/var/lib/docker/unraid-autostart.bak-20261102173021`); its
+  container and `/mnt/user/appdata/tautulli` are kept, so the 77 can still be
+  imported if Brammage reappears (re-running the import skips duplicates).
+- **Jellyfin is polled**, not pushed: without the Tracearr SSE plugin in
+  Jellyfin, `/api/sse/events` 404s every 3 minutes ("Plugin diagnosis ...
+  missing") and Tracearr falls back to polling. Harmless.
 - **Before first sync:** `/mnt/user/kube_storage/tracearr` must exist on Tower
   (NFS cannot mount a missing path) and the 1Password item must exist, or the
   pods sit in `ContainerCreating`.
