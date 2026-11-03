@@ -858,9 +858,9 @@ only rewrites the first YAML document of the Deployment's file. And `args:` stay
 directly under `image:`: that one unchanged line is what lets a Kargo bump PR such as
 #567 still merge cleanly beside a change to the args.
 
-## `mcpo` answered no tool call from 2026-10-11 to 2026-11-02, and nothing uses it (found 2026-11-02, fixed by #594 and #604, removed by #REMOVAL_PR)
+## `mcpo` answered no tool call from 2026-10-11 to 2026-11-02, and nothing uses it (found 2026-11-02, fixed by #594 and #604, removed by #613)
 
-**Removed by #REMOVAL_PR, 2026-11-02.** With nothing calling it, James chose removal over
+**Removed by #613, 2026-11-02.** With nothing calling it, James chose removal over
 carrying the workaround. The Deployment, its ConfigMaps, the `umami-mcp` ExternalSecret,
 its three NetworkPolicies and its Prometheus admission rule, and both Kargo references (its own Warehouse and Stage,
 and the `kubectl` target's update of its init container) went together. The 1Password
