@@ -1,7 +1,7 @@
 # Update Log
 
 ## 2026-11-03
-* **Update**: **Tracearr is live in `vcluster-media` (#610).** All three pods run, TimescaleDB as 99:100 on Tower's all_squash export initialised cleanly, and the pod reaches Plex, Jellyfin and Tautulli. A freshly created `kube_storage` folder failed NFS mounts for about 3 minutes before Tower served it. Kyverno's audit-mode `restrict-image-registries` flags the `timescale/` image. Tautulli still runs until the history import is checked. See [Tracearr](addons/tracearr.md).
+* **Update**: **Tracearr is live in `vcluster-media` (#610).** All three pods run, TimescaleDB as 99:100 on Tower's all_squash export initialised cleanly, and the pod reaches Plex, Jellyfin and Tautulli. A freshly created `kube_storage` folder failed NFS mounts for about 3 minutes before Tower served it. Kyverno's audit-mode `restrict-image-registries` flags the `timescale/` image. The Tautulli import brought 2,886 plays (77 skipped for an unknown user), then Tautulli and its Discord bot Tauticord were stopped and taken out of Unraid autostart, containers kept. See [Tracearr](addons/tracearr.md).
 
 ## 2026-11-02
 * **Update**: **Tracearr is added to `vcluster-media` to replace Tautulli on Tower.** Tracearr needs TimescaleDB and Redis, so both run beside it in `media`. The shared Postgres on 10.0.3.1 is 13.23 with no Timescale, so it is not used. Postgres runs as 99:100, because Tower's exports `all_squash` every uid and Postgres refuses a data directory it does not own. An egress policy lets it reach Plex, Jellyfin and Tautulli on Tower. Tautulli's 3,991 plays (from 2025-04-20) are imported through its API. Tautulli stays running until Tracearr is verified. See [Tracearr](addons/tracearr.md).
