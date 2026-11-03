@@ -158,7 +158,7 @@ deployment:
     # one-way: going back to a 4.x tag needs the pre-upgrade pg_dump of
     # sonarr-main/sonarr-log restored first. Kargo tracks develop-* tags only
     # (kargo-projects values, target sonarr), so it cannot "update" back to 4.x.
-    tag: develop-5.0.0.2907-ls206
+    tag: develop-5.0.0.2941-ls207
     pullPolicy: IfNotPresent
   ports:
     - name: http
