@@ -40,7 +40,7 @@ All workloads were Ready at snapshot time except where noted.[^live-workloads]
 | `authentik` | server ×2, worker, redis |
 | `nfs-provisioner` | config-, data-, and plain nfs-subdir provisioners |
 | `ai` | open-webui (STS), qdrant (STS), git-indexer CronJob (hourly, **failing** — orphaned) |
-| `mcp-system` | argocd-mcp, github-mcp, grafana-mcp, kubernetes-mcp, mcpo, sequential-thinking |
+| `mcp-system` | argocd-mcp, github-mcp, grafana-mcp, kubernetes-mcp, sequential-thinking |
 | `llmkube-system` | llmkube-controller-manager, llama-3.1-8b (0/1, orphaned) |
 | ~~`hello-world`~~ | *removed 2026-08-21* — was the http-service promise's smoke test; deleted because it cost three pipelines re-running every ~10h for nothing |
 | `vcluster-media` | vcluster-media STS ×3 + etcd STS ×3 + 35 synced pods — see [vcluster-media](/cluster/vcluster-media.md) |

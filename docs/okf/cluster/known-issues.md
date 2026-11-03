@@ -858,7 +858,15 @@ only rewrites the first YAML document of the Deployment's file. And `args:` stay
 directly under `image:`: that one unchanged line is what lets a Kargo bump PR such as
 #567 still merge cleanly beside a change to the args.
 
-## `mcpo` answered no tool call from 2026-10-11 to 2026-11-02, and nothing uses it (found 2026-11-02, fixed by #594 and #604)
+## `mcpo` answered no tool call from 2026-10-11 to 2026-11-02, and nothing uses it (found 2026-11-02, fixed by #594 and #604, removed by #613)
+
+**Removed by #613, 2026-11-02.** With nothing calling it, James chose removal over
+carrying the workaround. The Deployment, its ConfigMaps, the `umami-mcp` ExternalSecret,
+its three NetworkPolicies and its Prometheus admission rule, and both Kargo references (its own Warehouse and Stage,
+and the `kubectl` target's update of its init container) went together. The 1Password
+item `umami-mcp` is no longer read by anything. Everything below is the record of why. If
+Open WebUI ever needs these tools, try its native `type: mcp` tool server against the
+servers' own `/mcp` endpoints before reaching for a bridge.
 
 **Live since #594 and #604, 2026-11-02 02:10Z.** The pod left out `umami` and connected to the
 other seven. Real calls from inside the pod answer 200 on `prometheus`, `kubernetes`,
@@ -906,6 +914,7 @@ in every sample of Prometheus's 15.5-day retention (upstream #302 reports this s
 | One backend answers 401 at start, or is down at start | Earlier backends answer the same error; later ones were never connected and 404 |
 | Calling a connected backend that is down | Other backends lose their sessions, CPU pins, and it survives the backend coming back |
 | Calling `argocd-mcp` after it restarts (real image: 400 on the old session id) | The same, so every argocd-mcp rollout can do this |
+| Calling `grafana-mcp` after it restarts (live, the 2.2.0 rollout in #607) | Nothing: it accepts the old session id and answers 200 |
 | A connected backend down, not called | Nothing |
 
 Upstream's fix, #316, is unmerged, and upstream's `main` has not moved since 2026-02-27. Laid

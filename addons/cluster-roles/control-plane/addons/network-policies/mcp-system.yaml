@@ -123,59 +123,6 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# mcpo to Umami's MCP endpoint (http://umami.umami.svc.cluster.local:3000/mcp),
-# the one mcpo server that lives outside this namespace. Selected by namespace
-# and pod on the target port: a ClusterIP is DNAT'd to the pod before Cilium
-# evaluates policy. The other half is allow-mcpo-ingress in umami.yaml.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-mcpo-umami-egress
-  namespace: mcp-system
-spec:
-  podSelector:
-    matchLabels:
-      app: mcpo
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: umami
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: umami
-      ports:
-        - protocol: TCP
-          port: 3000
----
-# mcpo's uvx servers: PyPI when the pod starts, and the public web for `fetch`.
-# This rule stayed behind in network-policies/ai.yaml when mcpo moved here in
-# 961c8722, and uvx failed with a connect timeout on every start after that.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: allow-mcpo-https-egress
-  namespace: mcp-system
-spec:
-  podSelector:
-    matchLabels:
-      app: mcpo
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
-      ports:
-        - protocol: TCP
-          port: 443
----
 # Allow NGINX Gateway Fabric to reach all MCP server pods (ingress)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -225,7 +172,7 @@ spec:
         - protocol: TCP
           port: 443
 ---
-# Allow intra-namespace ingress (gateway, mcpo, etc. -> backends)
+# Allow pod-to-pod traffic within mcp-system
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

@@ -44,8 +44,8 @@ This folder is the **comprehensive, deep-dive knowledge base** for the homelab p
   - External refs: Kratix docs, Kubernetes Jobs
 
 - **[MCP Servers](mcp.md)**: In-cluster Model Context Protocol tool servers for LLM agents
-  - Includes: the `mcp-system` addon, mcpo→Open WebUI bridge, NetworkPolicy model, adding a server
-  - External refs: Model Context Protocol, Open WebUI, mcpo
+  - Includes: the `mcp-system` addon, NetworkPolicy model, adding a server, connecting a client
+  - External refs: Model Context Protocol
 
 ### Observability
 - **[Observability](observability.md)**: Metrics, logs, dashboards, alerting

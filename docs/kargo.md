@@ -200,7 +200,7 @@ rewrites them otherwise and ArgoCD reads the difference as permanent drift.
 | `patch` | patch / metadata only | CNI, ArgoCD, Kyverno, cert-manager, MetalLB, NGINX Gateway Fabric, external-secrets, Kargo — a bad minor here can take the cluster down |
 | `minor` (default) | patch, plus minor when major > 0 (`0.x` minors count as breaking) | everything else: apps, observability, tooling |
 | `always` | whatever the Warehouse found | our own CI images (`main-<sha>` of the reconciler and the promise pipelines) and the linuxserver media images, which were `latest` before and already updated themselves on every restart |
-| `never` | nothing | `mcpo` (a moving `main` tag — no version to judge); `authentik` (refuses major.minor skips in one step); and `gitops-gate`, `kargo-pipelines`, `bosun` — the components that judge everything else, whose failure mode is silence rather than an error. A human reads those bumps |
+| `never` | nothing | `authentik` (refuses major.minor skips in one step); and `kargo-pipelines`, `bosun` — the components that judge everything else, whose failure mode is silence rather than an error. A human reads those bumps |
 
 Everything *not* merged automatically is still opened as a PR; the policy only
 decides who clicks merge. A first-time pin (e.g. `latest` → `v1.10.1`) is
@@ -244,9 +244,7 @@ scraped by the host Prometheus, so there is no `argocd_app_info` to ask.
 |---|---|---|
 | `SemVer` | most images, all charts | `allowTags` regexes keep out `-alpine`, per-arch and `git-*` tags; `alpine/k8s` is constrained to the cluster's minor ±1 |
 | `NewestBuild` | `main-<sha>` images, linuxserver `A.B.C.D-lsNNN` tags | Kargo reads each candidate's build time; `discoveryLimit` is kept at 5 and `platform: linux/amd64` set |
-| `Digest` | `mcpo:main` | follows the tag's digest |
-
-(The chart also supports `git` targets that follow a repository's release tags; nothing uses one today.)
+(The chart also supports `Digest`, which follows a moving tag's digest, and `git` targets that follow a repository's release tags; nothing uses either today.)
 
 Polling: images 15m, our own build images 15m, linuxserver 12h, the anonymous
 Docker Hub targets 6h, charts 6h. Set as `defaults.interval` by artifact *kind*

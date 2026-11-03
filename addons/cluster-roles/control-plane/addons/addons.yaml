@@ -814,7 +814,7 @@ platform-status-reconciler:
     syncOptions:
       - CreateNamespace=true
 
-# MCP servers (kubernetes/argocd/github/grafana/sequential-thinking + mcpo)
+# MCP servers (kubernetes/argocd/github/grafana/sequential-thinking)
 # behind mcp.<domain>. Previously applied out-of-band as a standalone
 # Application (mcp-system-app); adopted into the addon framework so a cluster
 # rebuild recreates it from git.

@@ -115,12 +115,13 @@ Merge policy (`autoMerge`): `patch` for CNI / ArgoCD / Kyverno / cert-manager
 / MetalLB / NGF / external-secrets / Kargo; `minor` (default — patch, plus
 minors when major > 0) for apps and tooling; `always` for our own `main-<sha>`
 images and the linuxserver media images (previously `latest`); `never` for
-`mcpo:main` (digest only). A first-time pin (`latest` → semver) is
+`authentik`, `kargo-pipelines` and `bosun`. A first-time pin (`latest` → semver) is
 `Incomparable` and always waits.[^chart]
 
 Strategies: `SemVer` with `allowTags` regexes for most things; `NewestBuild`
 (+`platform: linux/amd64`, `discoveryLimit: 5`) for `main-<sha>` and
-linuxserver's four-part tags; `Digest` for `mcpo:main`. Intervals come from
+linuxserver's four-part tags. Nothing uses `Digest` since mcpo was removed
+(2026-11-02). Intervals come from
 `defaults.interval`, keyed by artifact *kind* rather than per target — **15m
 images / 15m own builds / 6h charts** — with two per-target holds: the five
 anonymous Docker Hub targets at 6h and linuxserver at 12h.[^targets]

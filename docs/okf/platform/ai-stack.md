@@ -27,7 +27,7 @@ sources:
 - **Qdrant v1.17.0** — vector DB at `qdrant.cluster.integratn.tech`
   (HTTPRoutes with SnippetsFilter auth).
 
-**`mcp-system` namespace** — six Deployments exposing MCP tool servers,
+**`mcp-system` namespace** — five Deployments exposing MCP tool servers,
 path-routed on `mcp.cluster.integratn.tech`:[^mcp-dir]
 
 | Path | Server | Image |
@@ -37,7 +37,10 @@ path-routed on `mcp.cluster.integratn.tech`:[^mcp-dir]
 | `/github` | github-mcp-server | ghcr.io/github |
 | `/grafana` | mcp-grafana (token minted by a PostSync Job) | grafana/mcp-grafana |
 | `/sequential-thinking` | supergateway wrapping the stdio server (npm pre-install initContainer) | ghcr.io/supercorp-ai/supergateway |
-| — | mcpo (MCP→OpenAPI bridge; also wires prometheus + fetch). Open WebUI has no tool server configured and no network path to it: see [known issues](../cluster/known-issues.md) | ghcr.io/open-webui/mcpo |
+
+There was a sixth, mcpo, an MCP→OpenAPI bridge for Open WebUI. It was removed on
+2026-11-02: Open WebUI had no tool server configured and no network path to it, and it
+had gone three weeks answering no tool call without anyone noticing. See [known issues](../cluster/known-issues.md).
 
 Recent git history is dominated by hardening this stack (routing rewrites,
 egress policies, securityContexts, supergateway transport fixes).[^git-log]

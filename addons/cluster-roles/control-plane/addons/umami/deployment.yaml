@@ -146,8 +146,8 @@ spec:
             # The read-only MCP endpoint at /mcp (Umami >= 3.4.0). It 404s
             # unless this is exactly "1", and it accepts only an API key
             # (`Bearer umami_...`), never a browser session. Routed at
-            # mcp.cluster.integratn.tech/umami/mcp (httproute.yaml) and handed
-            # to mcpo; the tunnel's path rule keeps it off the internet.
+            # mcp.cluster.integratn.tech/umami/mcp (httproute.yaml); the
+            # tunnel's path rule keeps it off the internet.
             - name: MCP_ENABLED
               value: "1"
             # `prisma migrate deploy` runs at every start (check-db.js). Keep
@@ -213,8 +213,8 @@ spec:
             sizeLimit: 256Mi
 ---
 # umami.umami.svc.cluster.local:3000 -- the address the cloudflared tunnel's
-# ingress rule names (IntegratnIO/infrastructure), the gateway's routes reach,
-# and mcpo calls. Renaming it breaks the tunnel, which git here cannot see.
+# ingress rule names (IntegratnIO/infrastructure) and the gateway's routes
+# reach. Renaming it breaks the tunnel, which git here cannot see.
 apiVersion: v1
 kind: Service
 metadata:
