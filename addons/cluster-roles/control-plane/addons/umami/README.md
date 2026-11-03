@@ -24,12 +24,10 @@ Elsewhere:
   [`network-policies/umami.yaml`](../network-policies/umami.yaml). Umami is
   admitted on 3000 from three places, and each has its egress half on its own
   side: the gateway (`nginx-gateway.yaml`), the tunnel (`cloudflared.yaml`) and
-  mcpo (`mcp-system.yaml`).
+  Homepage (`homepage.yaml`).
 - The authentik provider is `08b-umami-proxy-provider.yaml` in the blueprint
   ConfigMap (`clusters/the-cluster/addons/authentik/`), and it is on the
   embedded outpost's list in `09-embedded-outpost.yaml`.
-- mcpo's entry is in `mcp-system/mcpo-configmap.yaml`, with its key from
-  `mcp-system/externalsecret-umami-mcp.yaml`.
 - The tunnel's public hostname and path rule are OpenTofu in
   IntegratnIO/infrastructure.
 
@@ -107,7 +105,6 @@ Renaming a field breaks the ExternalSecret that reads it.
 | `umami-db-connection` | `host` (`10.0.3.1`), `port` (`5432`), `text` (`umami`), `password` | the role from step 1. The password goes into `DATABASE_URL` URL-encoded, because Prisma's migration reads the URL alone; it must not contain spaces |
 | `umami-app-secret` | `password` | any long random string. Signs dashboard logins; changing it logs everyone out |
 | `umami-redis` | `password` | a generated password, no spaces. The Redis server and `REDIS_URL` both read it |
-| `umami-mcp` | `token` | created after Umami is running -- see below. mcpo starts without it |
 
 The tunnel's item, `cloudflared-tunnel`, is in [`../cloudflared/README.md`](../cloudflared/README.md).
 
@@ -143,13 +140,11 @@ Platform Services.
 
    Then check a pageview lands in Realtime.
 
-4. **The MCP key.** Settings -> API keys -> create one (it is the whole
-   `umami_...` string, shown once). Put it in 1Password item `umami-mcp`, field
-   `token`, wait for the ExternalSecret (up to an hour, or annotate it with
-   `force-sync`), then `kubectl -n mcp-system rollout restart deploy/mcpo`:
-   mcpo renders its config only when it starts. Clients outside Open WebUI use
+4. **An MCP key, per client.** Settings -> API keys -> create one (it is the
+   whole `umami_...` string, shown once). An MCP client uses
    `https://mcp.cluster.integratn.tech/umami/mcp` with
-   `Authorization: Bearer umami_...`. The endpoint is read-only.
+   `Authorization: Bearer umami_...`. The endpoint is read-only. Nothing in the
+   cluster calls it.
 
 ## Running it
 

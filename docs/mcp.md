@@ -36,11 +36,10 @@ an `URLRewrite` filter so each backend sees its native `/mcp` path.
 | Path | Deployment | Image | Port | Notes |
 |---|---|---|---|---|
 | `/kubernetes` | `kubernetes-mcp` | `quay.io/containers/kubernetes_mcp_server` | 8080 | Read-only `kubernetes-mcp-viewer` ClusterRole; settings in ConfigMap `kubernetes-mcp-config`, because the server takes no runtime flags since v0.0.68 |
-| `/argocd` | `argocd-mcp` | `ghcr.io/argoproj-labs/mcp-for-argocd:v0.5.0` | 3000 | Token from 1Password |
+| `/argocd` | `argocd-mcp` | `ghcr.io/argoproj-labs/mcp-for-argocd` | 3000 | Token from 1Password |
 | `/github` | `github-mcp` | `ghcr.io/github/github-mcp-server` | 8082 | PAT from 1Password |
-| `/grafana` | `grafana-mcp` | `docker.io/grafana/mcp-grafana:1.1.0` | 8000 | Token minted by a PostSync Job |
+| `/grafana` | `grafana-mcp` | `docker.io/grafana/mcp-grafana` | 8000 | Token minted by a PostSync Job |
 | `/sequential-thinking` | `sequential-thinking` | `ghcr.io/supercorp-ai/supergateway` | 8000 | Wraps the stdio server; npm pre-install initContainer |
-| — | `mcpo` | `ghcr.io/open-webui/mcpo:main` | 8000 | MCP→OpenAPI bridge, cluster-internal only |
 | `/umami` | `umami` (namespace `umami`) | `ghcr.io/umami-software/umami` | 3000 | Read-only web analytics; Umami's own `/mcp` (>= 3.4.0, `MCP_ENABLED=1`). Needs an Umami API key. Not part of this addon: see below |
 
 **Umami is the one server outside `mcp-system`.** It is the analytics app
@@ -60,46 +59,16 @@ Transport is **streamable HTTP** (`/mcp`), not SSE. Older docs and the disabled
 `mcp-*` addons under `addons/clusters/the-cluster/` describe an SSE layout with
 `acuvity/*` images — that generation is retired.
 
-### mcpo — the OpenAPI bridge
+### mcpo — removed
 
-`mcpo` exposes MCP servers as OpenAPI, built for Open WebUI's "External Tools".
-**Nothing uses it today:** Open WebUI has no tool server configured, and has no
-network path to it, because port 8000 admits only this namespace and the gateway
-and no HTTPRoute points there. See
-[known issues](okf/cluster/known-issues.md). Its server list lives in
-[mcpo-configmap.yaml](../addons/cluster-roles/control-plane/addons/mcp-system/mcpo-configmap.yaml)
-and covers the in-cluster servers above (Umami included) plus three stdio
-subprocesses it runs itself:
-
-- `health` — a one-tool server in this container, the target of mcpo's probes.
-  It must stay first in the list
-- `prometheus` — `prometheus-mcp-server` via `uvx`, against
-  `kube-prometheus-stack-prometheus.monitoring:9090`
-- `fetch` — `mcp-server-fetch` via `uvx`, pages as markdown
-
-An initContainer renders `${GITHUB_TOKEN}` and `${UMAMI_MCP_TOKEN}` into the
-config from their ExternalSecrets. The Umami key is read `optional`, because it
-can only be created once Umami runs.
-
-**One failing request can take down every backend.** mcpo enters each backend's
-transport in the task that holds its lifespan, so a 401, a refused connection or
-a header httpx rejects cancels that task and tears down all their sessions.
-Nothing reconnects them, the process pins its CPU limit, and `/openapi.json`
-keeps answering 200. Upstream has this as #302, with an unmerged fix in #316.
-[mcpo-ops-configmap.yaml](../addons/cluster-roles/control-plane/addons/mcp-system/mcpo-ops-configmap.yaml)
-works around it:
-
-- `start` connects mcpo only to backends that answer `initialize` at that moment,
-  and leaves out one with an empty credential. Look for `mcpo-ops: leaving out`
-  at the top of the log.
-- `ready` and `live` call `health/ping`, which walks the path that breaks and
-  touches no real backend. A probe through a real backend could cause the failure
-  it looks for, because calling one that is down is one of the triggers.
-- `live` also restarts mcpo when a backend left out at start answers again. A
-  backend still answering 401 stays out and causes no restart loop.
-
-The wedge itself still happens: calling a backend that is down costs every other
-backend up to about 90 seconds, until liveness restarts the container.
+`mcpo`, an MCP→OpenAPI bridge built for Open WebUI's "External Tools", ran here
+until November 2026. Nothing used it: Open WebUI had no tool server configured
+and no network path to it. It also dropped every backend's session on one
+failing request (upstream open-webui/mcpo#302), which kept it broken for three
+weeks unnoticed, so keeping it meant carrying a workaround for a bridge nobody
+called. The history is in [known issues](okf/cluster/known-issues.md). If Open
+WebUI ever needs these tools, its native `type: mcp` tool servers speak
+streamable HTTP to the servers above directly, with no bridge.
 
 The Open WebUI system prompt — the tool-first mandate that stops the model asking
 questions it could look up — is checked in at
@@ -113,10 +82,9 @@ ExternalSecrets against the `onepassword-store` ClusterSecretStore:
 
 | Kubernetes secret | 1Password item | Used by |
 |---|---|---|
-| `mcp-github-token` | `mcp-github-token` / `GITHUB_TOKEN` | github-mcp, mcpo |
+| `mcp-github-token` | `mcp-github-token` / `GITHUB_TOKEN` | github-mcp |
 | `argocd-mcp-secrets` | see [externalsecret-argocd-mcp.yaml](../addons/cluster-roles/control-plane/addons/mcp-system/externalsecret-argocd-mcp.yaml) | argocd-mcp |
 | `grafana-mcp-secrets` | minted in-cluster by `create-grafana-mcp-sa-token` (PostSync Job) | grafana-mcp |
-| `umami-mcp` | `umami-mcp` / `token` — an Umami API key (Settings → API keys), via [externalsecret-umami-mcp.yaml](../addons/cluster-roles/control-plane/addons/mcp-system/externalsecret-umami-mcp.yaml) | mcpo |
 
 The Grafana token is the odd one: rather than a hand-maintained 1Password item,
 a PostSync Job creates a Grafana service account and writes its token into the
@@ -130,22 +98,17 @@ policy**, so its baseline `default-deny-all` is managed explicitly in
 Everything is deny-by-default plus narrow allows:
 
 - DNS to kube-dns, kube-apiserver via a CiliumNetworkPolicy
-- monitoring namespace (9090/80/443/3000) for grafana-mcp and prometheus
+- monitoring namespace (9090/80/443/3000) for grafana-mcp
 - argocd namespace, `app: argocd-mcp` only; the other half is the
   `allow-argocd-server` ingress in
   [network-policies/argocd.yaml](../addons/cluster-roles/control-plane/addons/network-policies/argocd.yaml)
 - public internet on 443, RFC1918 excluded, for `github-mcp` (GitHub API) and
   `sequential-thinking` (npm)
 - ingress from `nginx-gateway` on 8080/8082/8000/3000
-- intra-namespace both ways, so mcpo can reach the backends
-- `app: mcpo` to the `umami` namespace on 3000 (`allow-mcpo-umami-egress`); the
-  other half, `allow-mcpo-ingress`, is in
+- intra-namespace both ways
+- the gateway's admission for `/umami` is in
   [network-policies/umami.yaml](../addons/cluster-roles/control-plane/addons/network-policies/umami.yaml),
-  as is the gateway's admission for `/umami`
-- public internet on 443, RFC1918 excluded, for `app: mcpo` (`uvx` needs PyPI at
-  start, `fetch` needs the web), and Prometheus admits `app: mcpo` from this
-  namespace on 9090 in
-  [network-policies/monitoring.yaml](../addons/cluster-roles/control-plane/addons/network-policies/monitoring.yaml)
+  beside Umami's other policies
 
 Adding a server that talks to something new means adding an egress rule. It will
 fail silently — as a hang, not an error — if you forget.
@@ -174,8 +137,7 @@ to sit there not-ready until the token was repaired. Liveness is now a
 3. Add any egress the server needs to `network-policies/mcp-system.yaml`, and
    its port to `allow-gateway-ingress`.
 4. Credentials → an ExternalSecret, never a literal.
-5. To expose it over OpenAPI, add it to `mcpo-configmap.yaml`, after `health`.
-6. Commit, push, merge to `main` — ArgoCD does the rest.
+5. Commit, push, merge to `main` — ArgoCD does the rest.
 
 ### Connecting a client
 
@@ -208,9 +170,8 @@ are public -- the cloudflared tunnel admits only Umami's tracker paths, never
 
 ```bash
 kubectl -n mcp-system get pods,svc,httproute
-kubectl -n mcp-system logs deploy/mcpo -c mcpo
 kubectl -n mcp-system logs deploy/grafana-mcp
-kubectl -n argocd get application mcp-system
+kubectl -n argocd get application mcp-system-the-cluster
 ```
 
 | Symptom | Look at |
@@ -219,8 +180,7 @@ kubectl -n argocd get application mcp-system
 | Request hangs, no error | Missing egress NetworkPolicy |
 | 404 through the gateway | HTTPRoute prefix vs the `ReplacePrefixMatch` rewrite |
 | Pod restart-looping | A probe pointing at a dependency that is down |
-| mcpo missing one server (routes 404) | `mcpo-ops: leaving out` in its log; then `mcpo-configmap.yaml`, and restart the Deployment — the config is rendered at init |
-| mcpo answers `MCP session is not available` | It has wedged: read the first traceback after `Initiating connection` for the request that failed. Liveness restarts it; `/openapi.json` proves nothing |
+| `initialize` answers 200 but every tool call fails | The server cannot reach its own upstream; `initialize` never touches it. Make a real tool call. argocd-mcp shipped this way for months |
 
 ## Editor-side MCP config
 

@@ -186,9 +186,8 @@ Two unrelated things share the name. See [docs/mcp.md](docs/mcp.md) for the full
 picture.
 
 - **In-cluster (`mcp-system` namespace)** — MCP tool servers behind
-  `mcp.cluster.integratn.tech`, for any external MCP client, plus the `mcpo`
-  MCP→OpenAPI bridge, which nothing uses today. Managed as the `mcp-system`
-  addon in `addons/cluster-roles/control-plane/addons/mcp-system/`.
+  `mcp.cluster.integratn.tech`, for any external MCP client. Managed as the
+  `mcp-system` addon in `addons/cluster-roles/control-plane/addons/mcp-system/`.
 - **Editor-side** — [.vscode/mcp.json](.vscode/mcp.json) configures MCP servers
   for VS Code/Copilot. It contains hard-coded `/home/boboysdadda/...` paths from
   the original Linux workstation and does **not** work on macOS as written.

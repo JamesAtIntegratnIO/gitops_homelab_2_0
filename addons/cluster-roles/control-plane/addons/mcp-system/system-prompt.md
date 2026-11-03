@@ -161,7 +161,7 @@ Before sending your response, mentally check:
 - **Storage**: NFS (config-nfs-client, media-nfs-client), Longhorn (block storage)
 - **Secrets**: External Secrets Operator → 1Password Connect (ClusterSecretStore: `onepassword-connect`)
 - **Monitoring**: kube-prometheus-stack (namespace: `monitoring`), Grafana, Loki, Promtail
-- **AI Platform**: Open WebUI + MCPO + MCP servers (namespace: `ai`)
+- **AI Platform**: Open WebUI (namespace: `ai`); MCP servers (namespace: `mcp-system`)
 - **Platform**: Kratix (namespace: `kratix-platform-system`)
 - **Repository**: github.com/jamesatintegratnio/gitops_homelab_2_0
 - **Domain**: *.cluster.integratn.tech

@@ -19,7 +19,7 @@
 | Namespace | `mcp-system` | `mcp-system` |
 | Transport | SSE, `/{server}/sse` | Streamable HTTP, `/{server}/mcp` |
 | Images | `acuvity/mcp-server-*` | upstream first-party images, digest-pinned |
-| Servers | kubernetes, github, sequential-thinking, grafana | + argocd, + mcpo (MCP→OpenAPI for Open WebUI) |
-| Consumer | Hermes Agent, LM Studio | Open WebUI, any MCP client |
+| Servers | kubernetes, github, sequential-thinking, grafana | + argocd |
+| Consumer | Hermes Agent, LM Studio | any MCP client |
 
 The hostname is unchanged: `mcp.cluster.integratn.tech`.
