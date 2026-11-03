@@ -104,6 +104,16 @@ chart from another repository's git path.
   moves to Enforce, add `timescale` first or the database will not start.
 - **`BETTER_AUTH_SECRET`** is unset, so Tracearr derives it from `JWT_SECRET`.
   A dedicated field in the 1Password item would decouple them.
+- **Tautulli import (2026-11-03):** 2,886 plays imported in 37 s, 77 skipped,
+  all from user `Brammage`, who is no longer a Plex user Tracearr knows.
+  Tautulli's 3,991 `session_history` rows are 2,963 plays once resumes are
+  grouped. Tautulli was then stopped and removed from Unraid autostart
+  (backup `/var/lib/docker/unraid-autostart.bak-20261102173021`); its
+  container and `/mnt/user/appdata/tautulli` are kept, so the 77 can still be
+  imported if Brammage reappears (re-running the import skips duplicates).
+- **Jellyfin is polled**, not pushed: without the Tracearr SSE plugin in
+  Jellyfin, `/api/sse/events` 404s every 3 minutes ("Plugin diagnosis ...
+  missing") and Tracearr falls back to polling. Harmless.
 - **Before first sync:** `/mnt/user/kube_storage/tracearr` must exist on Tower
   (NFS cannot mount a missing path) and the 1Password item must exist, or the
   pods sit in `ContainerCreating`.
