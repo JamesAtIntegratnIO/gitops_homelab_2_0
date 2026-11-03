@@ -111,6 +111,8 @@ chart from another repository's git path.
   (backup `/var/lib/docker/unraid-autostart.bak-20261102173021`); its
   container and `/mnt/user/appdata/tautulli` are kept, so the 77 can still be
   imported if Brammage reappears (re-running the import skips duplicates).
+  Tauticord, the Discord bot that read from Tautulli, was stopped and removed
+  from autostart the same way (backup `.bak-20261102175610`), container kept.
 - **Jellyfin is polled**, not pushed: without the Tracearr SSE plugin in
   Jellyfin, `/api/sse/events` 404s every 3 minutes ("Plugin diagnosis ...
   missing") and Tracearr falls back to polling. Harmless.
