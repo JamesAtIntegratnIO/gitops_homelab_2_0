@@ -40,7 +40,7 @@ differs meaningfully, it's noted — the running image is the truth.
 | Open WebUI / Qdrant | v0.11.0 / v1.19.0 | |
 | vcluster (media) | vcluster-oss 0.37.6, K8s v1.36.6, etcd 3.6.16-0, all digest-pinned | end of support 2026-12-08 without Platform; `platform/vclusters/upgrades.md` |
 | llmkube controller | 0.7.6 (orphaned) | |
-| MCP servers | argocd-mcp v0.9.0, github-mcp v1.10.1, kubernetes-mcp v0.0.69, grafana-mcp 1.1.0, supergateway 3.4.3 | only mcpo still floats (`:main`) -- it publishes no release tags. Its uvx servers are pinned in `mcpo-configmap.yaml` (prometheus-mcp-server 1.6.2, mcp-server-fetch 2026.10.28) and Kargo does not track them |
+| MCP servers | argocd-mcp v0.9.0, github-mcp v2.0.3, kubernetes-mcp v0.0.69, grafana-mcp 2.2.0, supergateway 4.2.1 (live, 2026-11-02) | all digest-pinned and Kargo-tracked. mcpo, the one that floated on `:main`, was removed on 2026-11-02 |
 | platform-status-reconciler | ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:latest | built from `images/` in this repo |
 | ~~hello-world~~ | — | removed 2026-08-21 |
 
