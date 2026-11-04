@@ -474,7 +474,7 @@ nginx-gateway-fabric-vcluster:
   chartName: nginx-gateway-fabric
   project: platform-services
   chartRepository: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
-  defaultVersion: 2.8.0
+  defaultVersion: 2.8.1
   annotationsApp:
     argocd.argoproj.io/sync-wave: "10"
   selector:
