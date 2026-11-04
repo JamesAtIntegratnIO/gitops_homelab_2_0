@@ -210,7 +210,7 @@ deployment:
         - SETGID
   image:
     repository: ghcr.io/linuxserver/bazarr
-    tag: v1.6.2-ls370
+    tag: v1.6.2-ls371
     pullPolicy: IfNotPresent
   ports:
     - name: http
