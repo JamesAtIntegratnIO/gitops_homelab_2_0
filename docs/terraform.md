@@ -159,10 +159,16 @@ cp backend.hcl.example backend.hcl
 # Edit backend.hcl
 # This project uses a PostgreSQL (pg) backend for state storage
 cat > backend.hcl <<EOF
-# PostgreSQL backend
-conn_str = "postgres://user:password@postgres.integratn.tech/terraform_state?sslmode=disable"
+# PostgreSQL backend on datacron (Postgres 18). Credentials come from
+# PGUSER/PGPASSWORD in the environment, not this file.
+conn_str = "postgres://10.0.3.1/terraform_lenovo_cluster"
 EOF
 ```
+
+The server is datacron at `10.0.3.1` (nix_dots_2 `hosts/datacron`).
+`postgres.integratn.tech` does not resolve, so use the address. The state
+databases there are `terraform_state`, `terraform_lenovo_cluster`,
+`terraform_media_cluster` and `terraform_kratix_cluster`.
 
 > **Note:** The actual backend type is `pg` (PostgreSQL), configured in [terraform/cluster/versions.tf](../terraform/cluster/versions.tf). The connection string is provided via `backend.hcl` at init time.
 

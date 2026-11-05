@@ -48,7 +48,7 @@ Renaming a field breaks the ExternalSecret that reads it.
 
 ### 2. The database
 
-The measurements live in Postgres on `10.0.3.1`. The home is on NFS, and the
+The measurements live in Postgres on `10.0.3.1` (datacron, Postgres 18). The home is on NFS, and the
 file backend is SQLite, whose locking is not safe there. Specmarshal creates and
 migrates its own tables; it needs a role that owns its database:
 
@@ -60,8 +60,9 @@ REVOKE ALL ON DATABASE specmarshal FROM PUBLIC;
 ALTER SCHEMA public OWNER TO specmarshal;
 ```
 
-`pg_hba.conf` on `10.0.3.1` has to admit the cluster's pod network for that
-role and database.
+datacron's `pg_hba.conf` is generated from `homelab.postgres.allowedClients`
+in nix_dots_2 `hosts/datacron/default.nix`; its `k8s-nodes` entry
+(`10.0.4.0/24`) already admits the cluster.
 
 ### 3. The model
 

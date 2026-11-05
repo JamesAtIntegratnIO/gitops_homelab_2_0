@@ -19,6 +19,9 @@ sources:
   - id: tunnel
     resource: ../../../addons/cluster-roles/control-plane/addons/cloudflared/README.md
     title: cloudflared addon -- the tunnel and what it exposes
+  - id: datacron
+    resource: https://github.com/JamesAtIntegratnIO/nix_dots_2/tree/main/hosts/datacron
+    title: datacron, the external Postgres (nix_dots_2 hosts/datacron)
   - id: tunnel-netpol
     resource: ../../../addons/cluster-roles/control-plane/addons/network-policies/cloudflared.yaml
     title: cloudflared NetworkPolicies
@@ -37,7 +40,16 @@ sources:
 | vcluster-media gateway LB | `10.0.4.201` |
 | NFS server / Matchbox host (Unraid) | `10.0.0.12` |
 | 1Password Connect | `10.0.1.139` (connect.integratn.tech) |
-| External Postgres (used by media apps, authentik, specmarshal, umami) | `10.0.3.1:5432` |
+| External Postgres, datacron (sonarr, radarr, umami, specmarshal on `10.0.3.1`; authentik, paperless on `10.0.3.24`) | `10.0.3.1:5432`, `10.0.3.24:5432` (admin `10.0.3.5`) |
+
+**External Postgres.** Since 2026-11-05 every database outside the cluster
+lives on **datacron**, a NixOS VM on the Proxmox host (VM 103) running
+Postgres 18.6, configured in nix_dots_2 `hosts/datacron`. It replaced the
+TurnKey containers CT101 (`10.0.3.1`, PG 13) and CT111 (`10.0.3.24`, PG 15) and
+answers on both of their addresses, so no client was repointed. Who may connect
+is `homelab.postgres.allowedClients` in that repo: each entry becomes one
+`pg_hba.conf` line and one firewall allowance on 5432. The cluster's traffic
+arrives from the node addresses, `10.0.4.0/24`.[^datacron]
 
 # CNI: Cilium 1.17.3
 
@@ -125,3 +137,4 @@ East-west traffic is governed by per-namespace default-deny — see
 [^addons-net]: cilium / metallb / nginx-gateway-fabric addon definitions
 [^tunnel]: cloudflared addon -- the tunnel and what it exposes
 [^tunnel-netpol]: cloudflared NetworkPolicies
+[^datacron]: datacron, the external Postgres (nix_dots_2 hosts/datacron)

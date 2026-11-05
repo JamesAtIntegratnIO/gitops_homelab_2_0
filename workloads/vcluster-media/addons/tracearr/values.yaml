@@ -3,7 +3,7 @@ applicationName: tracearr
 # history and stream monitoring. Replaces Tautulli, which ran as a Docker
 # container on Tower. Tracearr needs TimescaleDB (Postgres + the timescaledb
 # and timescaledb_toolkit extensions) and Redis; the shared Postgres on
-# 10.0.3.1 is plain Postgres 13 with neither, so both run here, shaped after
+# 10.0.3.1 is plain Postgres (datacron, 18) with neither, so both run here, shaped after
 # upstream's own Helm chart (docker/helm/tracearr, chart 3.1.3), which the
 # addon factory cannot consume directly because it lives in a git path.
 extraObjects:

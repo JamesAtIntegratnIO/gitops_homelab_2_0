@@ -69,8 +69,8 @@ has not been tested with another uid.
 - NFS server is a single point of failure — but PV data survives cluster
   rebuilds, which is why the production-readiness plan **skipped Velero**:
   git + NFS + Talos configs are the recovery story.
-- Not suitable for heavy-write databases; media apps use an external Postgres
-  (`10.0.3.1`) instead.
+- Not suitable for heavy-write databases; media apps use the external Postgres,
+  datacron (`10.0.3.1`, Postgres 18), instead. See [networking](networking.md).
 - After an NFS server reboot, stale handles are recovered with
   [hack/restart-nfs-pods.sh](../../../hack/restart-nfs-pods.sh), which
   discovers NFS-backed PVs and rollout-restarts their owning controllers.

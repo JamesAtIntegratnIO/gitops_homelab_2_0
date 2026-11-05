@@ -70,7 +70,8 @@ calls just fail.
 
 ### 1. The database
 
-Postgres on `10.0.3.1`, the server specmarshal and authentik use. Umami creates
+Postgres on `10.0.3.1`, datacron, the server specmarshal and the *arr apps
+use (authentik is on the same server at its second address, `10.0.3.24`). Umami creates
 and migrates its own tables (it needs Postgres 9.4 or newer); it needs a role
 that owns its database:
 
@@ -82,18 +83,12 @@ REVOKE ALL ON DATABASE umami FROM PUBLIC;
 ALTER SCHEMA public OWNER TO umami;
 ```
 
-`pg_hba.conf` on `10.0.3.1` has to admit the cluster for that role and
-database. Copy the line that admits specmarshal, with the same address and
-method, and change the database and user:
-
-```
-host  umami  umami  <same address as specmarshal's line>  scram-sha-256
-```
-
-then reload Postgres (`SELECT pg_reload_conf();`). The address is whatever the
-cluster's traffic arrives from at 10.0.3.1 -- pod addresses or node addresses,
-depending on Cilium's masquerading -- and the specmarshal line already has it
-right, so copy it rather than guess.
+datacron's `pg_hba.conf` is generated from `homelab.postgres.allowedClients`
+in nix_dots_2 `hosts/datacron/default.nix`. Its `k8s-nodes` entry already
+admits the cluster (`10.0.4.0/24`, where the traffic arrives from) for every
+database and role, so a new database needs no change there. Declare the role
+and database in `hosts/datacron/postgresql.nix` so the server creates them and
+sets the owner.
 
 ### 2. 1Password items
 

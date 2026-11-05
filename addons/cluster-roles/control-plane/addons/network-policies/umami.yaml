@@ -44,8 +44,8 @@ spec:
         - protocol: TCP
           port: 53
 ---
-# The store: the external Postgres on 10.0.3.1 that specmarshal and authentik
-# also use. Not a node address, so a plain ipBlock matches it.
+# The store: the external Postgres on 10.0.3.1 (datacron), which specmarshal
+# also uses. Not a node address, so a plain ipBlock matches it.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
