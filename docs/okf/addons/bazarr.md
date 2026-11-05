@@ -4,7 +4,7 @@ title: Bazarr
 description: Subtitle manager in vcluster-media. It reads Sonarr's and Radarr's libraries and writes external subtitles (mostly English, from OpenSubtitles.com) next to the media files that Jellyfin on Tower serves.
 tags: [media, vcluster-media, subtitles, opensubtitles, sonarr, radarr]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-05T17:10:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-05T17:45:00Z }
 stale_after: 2027-02-01
 sources:
   - id: values
@@ -132,20 +132,49 @@ There was no Bazarr DB backup: the weekly backup job runs Sundays 03:00 and
 the folder had been in use only since 2026-11-01.
 
 Recovery (run on Tower against the config folder, with the Deployment at 0
-replicas and no Bazarr pod running):
+replicas and no Bazarr pod running). This is what was done on 2026-11-05:
 
 1. Copy `db/bazarr.db`, `bazarr.db-wal` and `bazarr.db-shm` to a dated folder
-   such as `db-corrupt-YYYYMMDD/` and keep them.
-2. `sqlite3 bazarr.db "PRAGMA integrity_check"` on the copy.
-3. `sqlite3 bazarr.db ".recover" | sqlite3 bazarr-recovered.db`, then
-   `PRAGMA integrity_check` on the result and compare row counts of
-   `table_settings_languages_profiles`, `table_shows`, `table_movies` and
-   `table_history` against the original.
-4. Swap it in as `bazarr.db`, delete the old `-wal`/`-shm`, and keep ownership
-   at 99:100 like the rest of the folder.
-5. Scale back to 1 and check `/api/system/settings` returns 200, no job is
-   stuck in `/api/system/tasks`, `/api/badges` answers, the English profile
-   (id 1) and `opensubtitlescom` are still there, and a Sonarr sync completes.
+   such as `db-corrupt-YYYYMMDD/pristine/` with `cp -p`, check the md5s, and
+   **never open that copy**. Opening a SQLite file that has a `-wal` beside it
+   checkpoints the WAL into it and deletes the WAL, even for a read-only
+   `PRAGMA integrity_check`. The first attempt's backup was changed that way.
+2. Work on a second copy in Tower's `/tmp` (RAM). Through the Unraid user
+   share (`/mnt/user`, shfs/FUSE) `integrity_check` and `.recover` crawled
+   for minutes; from `/tmp` `.recover` took about 2 s. There is no tmux on
+   Tower, so run it detached:
+   `nohup sh -c 'sqlite3 /tmp/bz/bazarr.db ".recover" | sqlite3 /tmp/bz/recovered.db' &`.
+3. `PRAGMA integrity_check` on the result (must print `ok`) and compare the
+   row count of every table in `sqlite_master` against the original. The
+   language profiles live in `table_languages_profiles`.
+4. Delete what `.recover` salvaged from damaged pages if it is not real data.
+5. Swap it in as `db/bazarr.db`, delete the old `-wal`/`-shm`, `chown 99:100`,
+   `chmod 644`.
+6. Scale back to 1 and check `/api/system/settings` returns 200, no job is
+   stuck in `/api/system/tasks`, `/api/badges` and `/api/system/health`
+   answer, the English profile (id 1) and `opensubtitlescom` are still there,
+   and a Sonarr sync completes.
+
+Outcome on 2026-11-05: every table came back with identical row counts (275
+shows, 18,191 episodes, 68,593 episode subtitles, 2,794 movies, 15,063 movie
+subtitles, 216 history rows, the English profile) except
+`table_settings_notifier`, the damaged one. Its 451 rows were unreadable and
+`.recover` produced two garbage rows (names `2` and `3`), which were deleted.
+Bazarr re-seeds that table from Apprise on startup (129 rows), so only any
+configured notification URLs were lost. After the restart every endpoint
+answered 200, the startup Sonarr sync finished in about a minute and Radarr's
+in seconds, and no errors were logged. The originals are kept in
+`db-corrupt-20261105/pristine/` and the recovered file as
+`db-corrupt-20261105/recovered-20261105.db`.
+
+The switch to `Recreate` itself needed a one-off patch. The live Deployment
+still carried the `strategy.rollingUpdate` block the API server had defaulted.
+No field manager owns it, so ArgoCD's server-side apply left it in place and
+every sync failed with `spec.strategy.rollingUpdate: Forbidden: may not be
+specified when strategy type is 'Recreate'`. Sonarr had hit the same thing.
+The fix is
+`kubectl patch deploy <app> --type json -p '[{"op":"replace","path":"/spec/strategy","value":{"type":"Recreate"}}]'`,
+which does not restart the pod.
 
 If recovery fails, starting from an empty DB is possible. Bazarr rebuilds its
 series and movie tables from Sonarr and Radarr and rescans the `.srt` files on
