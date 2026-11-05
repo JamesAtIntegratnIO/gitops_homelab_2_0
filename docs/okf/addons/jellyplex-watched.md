@@ -55,6 +55,13 @@ no path mapping.[^values]
 `myPlexAccount()`, which calls plex.tv over HTTPS. Without the :443 rule, the
 user lookup fails.[^dryrun]
 
+**Fixed Plex device ID.** python-plexapi defaults `X-Plex-Client-Identifier` to
+the host's MAC address. Every CronJob pod has a new MAC, so each hourly run
+showed up as a new device and Plex sent a "new device" alert to the owner.
+`PLEXAPI_HEADER_IDENTIFIER` is pinned in the values file (with
+`PLEXAPI_HEADER_DEVICE_NAME`), so Plex sees one device. Don't change the
+identifier, or the alerts come back once.
+
 **Settings load once at start.** Version 9 reads `config.yaml` at startup. A
 CronJob starts fresh every run, so a config change applies at the next run.
 
