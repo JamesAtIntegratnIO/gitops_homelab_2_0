@@ -53,7 +53,7 @@ chart from another repository's git path.
 - **TimescaleDB** (`tracearr-db`, StatefulSet + headless Service):
   `timescale/timescaledb-ha` pg18 with the `timescaledb` and
   `timescaledb_toolkit` extensions. Tracearr does not run on plain Postgres, so
-  the shared Postgres on `10.0.3.1` (13.23, no Timescale) is not an option.
+  the shared Postgres on `10.0.3.1` (datacron, Postgres 18, no Timescale) is not an option.
   Memory is sized down from upstream's 4 GiB to a 1.5 GiB limit.
 - **Redis** (`tracearr-redis`): BullMQ job queues and caches. `noeviction` is
   required: eviction silently corrupts the queues. AOF only.

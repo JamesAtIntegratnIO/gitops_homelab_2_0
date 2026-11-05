@@ -49,7 +49,7 @@ rendered on the host. Registered in host ArgoCD as cluster
 [workloads/vcluster-media/](../../../workloads/vcluster-media/), deployed by
 the vcluster's own ArgoCD): **sonarr, radarr, sabnzbd, otterwiki** — each a
 Stakater application with config/media PVCs; the *arr apps use the external
-Postgres at 10.0.3.1.[^workloads]
+Postgres at 10.0.3.1 (datacron, Postgres 18 since 2026-11-05).[^workloads]
 Sonarr runs the **v5 beta** (linuxserver `develop-*` tags) since 2026-10-31; its
 schema migration is one-way, so a downgrade needs a database restore.
 
