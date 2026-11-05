@@ -9,8 +9,11 @@ applicationName: jellyplex-watched
 # NAME (not full path), so Plex's /data/tv and Jellyfin's /data/tvshows
 # mounts of the same Tower folder do not need a path mapping.
 #
-# dryrun stays true until the first runs' logs have been read: a dry run
-# logs every change it would make and writes nothing.
+# Dry-run checked before merge (2026-11-05, same image and config against the
+# live servers from holocron): 0 errors, nothing ever marked UNwatched, and
+# Plex -> Jellyfin ~6,370 watched + 72 in-progress (years of Plex history
+# meeting a nearly empty Jellyfin account), Jellyfin -> Plex 52 + 5. Set
+# dryrun back to true to make a run log changes without writing them.
 extraObjects:
   # The whole config.yaml is rendered here so the two credentials can be
   # templated in. Both come from the existing 1Password item
@@ -35,7 +38,7 @@ extraObjects:
           engineVersion: v2
           data:
             config.yaml: |
-              dryrun: true
+              dryrun: false
               debug_level: INFO
               run_only_once: true
               log_file: /tmp/jpw/log.log

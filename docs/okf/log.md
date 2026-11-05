@@ -1,5 +1,8 @@
 # Update Log
 
+## 2026-11-05
+* **Creation**: Added [JellyPlex-Watched](addons/jellyplex-watched.md) to `vcluster-media`. It is an hourly CronJob that syncs watched and in-progress state both ways between Plex owner `boboysdadda` and Jellyfin `root`, for Movies and TV. Its config is rendered whole by an ExternalSecret from `homepage-secret`. It runs non-root with a read-only rootfs. Egress allows Tower on 32400 and 8096, and :443 for plex.tv, which v9 needs to resolve the Plex account. Before merge, a dry run of 9.0.0 against the live servers exited 0. It would mark about 6,370 items watched and set 72 resume points from Plex to Jellyfin, and 52 watched plus 5 resume points from Jellyfin to Plex. Nothing would be marked unwatched. The PR ships with `dryrun: false`. Kargo target `jellyplex-watched` added.
+
 ## 2026-11-03
 * **Update**: **Tracearr is live in `vcluster-media` (#610).** All three pods run, TimescaleDB as 99:100 on Tower's all_squash export initialised cleanly, and the pod reaches Plex, Jellyfin and Tautulli. A freshly created `kube_storage` folder failed NFS mounts for about 3 minutes before Tower served it. Kyverno's audit-mode `restrict-image-registries` flags the `timescale/` image. Tautulli still runs until the history import is checked. See [Tracearr](addons/tracearr.md).
 
