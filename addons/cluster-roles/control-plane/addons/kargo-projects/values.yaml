@@ -1073,6 +1073,17 @@ projects:
         updates:
           - file: workloads/vcluster-media/addons/configarr/values.yaml
             keys: [cronJob.jobs.sync.image.tag]
+      # JellyPlex-Watched: stateless, config-only, so default policy. Tags
+      # carry no `v`; the plain N.N.N tags are the alpine build.
+      jellyplex-watched:
+        scope: vcluster-media
+        image:
+          repoURL: ghcr.io/luigi311/jellyplex-watched
+          allowTags: ['^\d+\.\d+\.\d+$']
+        format: tag
+        updates:
+          - file: workloads/vcluster-media/addons/jellyplex-watched/values.yaml
+            keys: [cronJob.jobs.sync.image.tag]
       # Tracearr (replaced Tautulli). Its own DB migrations run on start, so
       # minor, not always. The TimescaleDB image is not tracked (see the
       # values file).
