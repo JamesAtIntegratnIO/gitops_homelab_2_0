@@ -145,6 +145,14 @@ cronJob:
           value: America/Denver
         YAML_FILE:
           value: /app/config/config.yaml
+        # python-plexapi sends X-Plex-Client-Identifier = the pod's MAC
+        # address unless told otherwise, so every hourly pod signed in as a
+        # NEW device and Plex sent a "new device" alert each run. A fixed
+        # identifier makes it one device that Plex remembers.
+        PLEXAPI_HEADER_IDENTIFIER:
+          value: 16425b92-52d7-4308-95ac-6fc7956dc2d3
+        PLEXAPI_HEADER_DEVICE_NAME:
+          value: JellyPlex-Watched (vcluster-media)
       # Runs as 1000 directly: the image's entrypoint skips its root-only
       # user setup and gosu when started non-root. The log and mark files
       # live on the /tmp emptyDir (the /app defaults are not writable).
