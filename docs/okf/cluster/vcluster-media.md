@@ -64,6 +64,12 @@ same key the Glance Jellyfin widget reads). To recreate it, `POST
 /api/v3/notification` with `implementation: MediaBrowser`, `host: 10.0.0.12`,
 `port: 8096`, `updateLibrary: true`.
 
+**Bazarr** (subtitles, since 2026-11-01) is a Stakater Deployment too, but it
+keeps its state in a **SQLite** database on its NFS config volume rather than
+in Postgres. NFS does not give SQLite working locks, so it runs with
+`strategy: Recreate` to keep rollouts to one writer; a rolling update during
+a Kargo bump corrupted the DB on 2026-11-04. See [Bazarr](/addons/bazarr.md).
+
 **configarr** is the fifth entry and the odd one out: the same Stakater chart,
 but rendered as a **CronJob** (`configarr-sync`, 04:00 America/Denver) rather
 than a Deployment, with `deployment.enabled` and `service.enabled` both forced
