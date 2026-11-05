@@ -4,7 +4,7 @@ title: Bazarr
 description: Subtitle manager in vcluster-media. It reads Sonarr's and Radarr's libraries and writes external subtitles (mostly English, from OpenSubtitles.com) next to the media files that Jellyfin on Tower serves.
 tags: [media, vcluster-media, subtitles, opensubtitles, sonarr, radarr]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T18:30:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-05T17:10:00Z }
 stale_after: 2027-02-01
 sources:
   - id: values
@@ -19,6 +19,9 @@ sources:
   - id: live
     resource: live Bazarr API + pod logs via kubectl --context admin@media-cluster, 2026-11-01/02
     title: Post-deploy verification
+  - id: incident
+    resource: live Bazarr API, pod logs and /config/log/bazarr.log via kubectl --context admin@media-cluster, 2026-11-05
+    title: Corrupt-DB diagnosis
 ---
 
 # What it is
@@ -101,3 +104,53 @@ fixes in #585 (init `/tmp`) and #595 (AniDB egress).
 - **Old DB:** during the first sync after reuse there were `FOREIGN KEY
   constraint failed` errors on episode insert (e.g. The Conners S07). Not
   investigated.
+- **SQLite on NFS, one writer only.** `bazarr.db` and its `-wal`/`-shm` live
+  on Tower's NFS export, where SQLite's locks do not hold. `ReadWriteOnce` does
+  not stop a second pod mounting an NFS volume either. The Deployment therefore
+  uses `strategy: Recreate`: with one replica the chart's default
+  RollingUpdate (25%/25%) rounds to surge 1, unavailable 0, so every rollout
+  ran the old and new Bazarr on the same database for a while.
+
+# Incident: corrupted database (2026-11-04/05)
+
+Kargo merged the `v1.6.2-ls371` bump (#626) at 04:57 MST on 2026-11-04 and the
+new pod started at 05:01 beside the old one. From 19:30 that day the log shows
+`sqlite3.DatabaseError: database disk image is malformed` (first seen on
+`table_settings_notifier`). The double writer is the probable cause, inferred
+from the timeline rather than proven.
+
+What it looked like: the pod stayed `1/1 Running` with no restarts, and
+OpenSubtitles was `Good` and unthrottled. But from 04:16 the next morning
+every 15-minute "Sync with Sonarr/Radarr" logged `skipped: maximum number of
+running instances reached (1)`. `/api/system/tasks` showed 7 of 12 jobs with
+`job_running: true`, `/api/badges` and `/api/system/health` hung past 60 s, and
+`/api/system/settings` returned 500. The web server answers probes while the
+scheduler's workers are wedged, so nothing restarts it. A restart alone only
+clears the hung jobs until they reach the damaged pages again.
+
+There was no Bazarr DB backup: the weekly backup job runs Sundays 03:00 and
+the folder had been in use only since 2026-11-01.
+
+Recovery (run on Tower against the config folder, with the Deployment at 0
+replicas and no Bazarr pod running):
+
+1. Copy `db/bazarr.db`, `bazarr.db-wal` and `bazarr.db-shm` to a dated folder
+   such as `db-corrupt-YYYYMMDD/` and keep them.
+2. `sqlite3 bazarr.db "PRAGMA integrity_check"` on the copy.
+3. `sqlite3 bazarr.db ".recover" | sqlite3 bazarr-recovered.db`, then
+   `PRAGMA integrity_check` on the result and compare row counts of
+   `table_settings_languages_profiles`, `table_shows`, `table_movies` and
+   `table_history` against the original.
+4. Swap it in as `bazarr.db`, delete the old `-wal`/`-shm`, and keep ownership
+   at 99:100 like the rest of the folder.
+5. Scale back to 1 and check `/api/system/settings` returns 200, no job is
+   stuck in `/api/system/tasks`, `/api/badges` answers, the English profile
+   (id 1) and `opensubtitlescom` are still there, and a Sonarr sync completes.
+
+If recovery fails, starting from an empty DB is possible. Bazarr rebuilds its
+series and movie tables from Sonarr and Radarr and rescans the `.srt` files on
+disk. What is lost is the history, the UI-owned language profile, provider
+settings and the stored OpenSubtitles login.
+
+Bazarr can also use PostgreSQL (`postgresql.enabled`), as Sonarr and Radarr do
+on 10.0.3.1. That would take SQLite off NFS entirely. It has not been done.

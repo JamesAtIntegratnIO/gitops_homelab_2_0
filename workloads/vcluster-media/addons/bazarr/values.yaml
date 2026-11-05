@@ -100,6 +100,12 @@ extraObjects:
           storage: 1Gi
       volumeName: bazarr-media-pv
 deployment:
+  # Recreate, not the chart's RollingUpdate: with one replica a rolling update
+  # starts the new pod while the old one still has /config/db/bazarr.db open.
+  # That SQLite file is on NFS, where its locks do not hold, and the two
+  # writers corrupted it on the 2026-11-04 Kargo bump.
+  strategy:
+    type: Recreate
   securityContext:
     fsGroup: 1000
     seccompProfile:
