@@ -77,6 +77,13 @@ from the existing `homepage-secret` and needs an egress NetworkPolicy for
 :443, because it clones the TRaSH-Guides and recyclarr template repos on every
 run. See [configarr](/addons/configarr.md).
 
+**jellyplex-watched** is a second CronJob on the same chart
+(`jellyplex-watched-sync`, hourly at :15). It syncs watched and in-progress
+state both ways between Plex owner `boboysdadda` and Jellyfin `root` for Movies
+and TV. Its credentials are the Plex token and Jellyfin key in
+`homepage-secret`. Its egress policy allows Tower on 32400 and 8096, and :443
+for plex.tv. See [JellyPlex-Watched](/addons/jellyplex-watched.md).
+
 # Access
 
 - kubeconfig: ExternalSecret `vcluster-media-kubeconfig` (1Password item of

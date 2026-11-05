@@ -47,3 +47,7 @@ bazarr:
 tracearr:
   <<: *mediaAppDefaults
   enabled: true
+
+jellyplex-watched:
+  <<: *mediaAppDefaults
+  enabled: true
