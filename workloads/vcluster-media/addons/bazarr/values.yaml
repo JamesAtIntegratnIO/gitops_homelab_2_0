@@ -117,7 +117,7 @@ deployment:
   # else set in the UI (language profiles, scores, schedules) is left alone.
   initContainers:
     bazarr-config:
-      image: mikefarah/yq:4.54.1
+      image: mikefarah/yq:4.54.2@sha256:5d56494617dce8311106e905aac5c080a2087c905a7f7de2984db2e2cc60ab2e
       imagePullPolicy: IfNotPresent
       command:
         - /bin/sh
