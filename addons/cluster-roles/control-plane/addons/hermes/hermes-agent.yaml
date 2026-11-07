@@ -143,12 +143,15 @@ spec:
             - cp /config/config.yaml /opt/data/config.yaml && chown 10000:10000 /opt/data/config.yaml
           # Kyverno's mutate-restrict-escalation adds `drop: [ALL]` to any
           # container that names no capabilities, which leaves root unable to
-          # chown. Naming them here keeps that default and adds back only CHOWN.
+          # chown. Naming them here keeps that default and adds back CHOWN, plus
+          # DAC_OVERRIDE: after the first boot Hermes's s6 setup makes /opt/data
+          # 0700 and uid 10000, and without it root cannot even stat inside it
+          # ("cp: can't stat '/opt/data/config.yaml': Permission denied").
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
-              add: [CHOWN]
+              add: [CHOWN, DAC_OVERRIDE]
           volumeMounts:
             - name: data
               mountPath: /opt/data
