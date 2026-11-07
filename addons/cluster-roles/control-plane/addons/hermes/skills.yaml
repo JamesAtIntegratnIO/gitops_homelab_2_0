@@ -1,0 +1,223 @@
+# Hermes skills for the cluster Hermes runs on, owned by git.
+#
+# Each key is one file. The Deployment mounts each with subPath under
+# /opt/hermes-skills/homelab/<skill>/SKILL.md, and config.yaml's
+# skills.external_dirs points Hermes at /opt/hermes-skills. They are read-only
+# in the pod, so the agent cannot rewrite them; skills it writes itself go to
+# /opt/data/skills and are scanned (skills.guard_agent_created).
+#
+# Why subPath and not a plain ConfigMap volume: a ConfigMap volume holds hidden
+# ..data/..<timestamp> directories of symlinks, and Hermes walks skill dirs with
+# followlinks=True without excluding them, so every skill would be found twice.
+# subPath files do not update in place; the pod picks up changes on restart,
+# like config.yaml.
+#
+# Derived from .claude/skills/cluster-triage/SKILL.md and
+# docs/okf/cluster/known-issues.md, rewritten for the tools Hermes actually has:
+# the read-only MCP servers (mcp__kubernetes__*, mcp__grafana__*,
+# mcp__argocd__*). Hermes has no repo checkout and no kubectl. When those
+# sources change, update these.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-skills
+  namespace: hermes
+data:
+  DESCRIPTION.md: |
+    ---
+    description: Looking after James's homelab cluster (the-cluster) that Hermes runs on, read-only, through the in-cluster MCP servers.
+    ---
+
+  cluster-health-check.md: |
+    ---
+    name: cluster-health-check
+    description: "Use for a health check or status report on the-cluster."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Kubernetes, Homelab, Health, ArgoCD, Prometheus]
+        related_skills: [cluster-triage]
+    ---
+
+    # Cluster health check
+
+    For: "how is the cluster doing", a health check or status report, "is
+    anything broken" on the-cluster or vcluster-media. A read-only sweep of
+    ArgoCD, pods, nodes, etcd, storage and alerts.
+
+    You are looking at `the-cluster`: Talos Linux, Kubernetes 1.36, three
+    control-plane nodes (10.0.4.101-103) and one arm64 worker, `talos-pi5-1`
+    (10.0.4.104), where you yourself run. GitOps: ArgoCD reconciles everything
+    from the `main` branch of `gitops_homelab_2_0`. A tenant vcluster,
+    `vcluster-media`, runs the media apps.
+
+    You are **read-only**. You report; you do not fix. Every fix here is a git
+    commit James merges. Never suggest `kubectl` edits, deletes or restarts as
+    the remedy: say what is wrong, the evidence, and what change would fix it.
+
+    ## The sweep
+
+    Run these, then write one short report. Lead with anything broken; say
+    "nothing found" for a step only after it actually returned data.
+
+    1. **ArgoCD**: `mcp__argocd__list_applications`. List every app that is
+       not `Synced` + `Healthy`, with its health message. An app `Progressing`
+       for more than ~15 minutes, or `OutOfSync` with a failed operation, is a
+       finding.
+    2. **Pods**: `mcp__kubernetes__pods_list`. Flag pods not Running/Succeeded,
+       restart counts climbing, and waiting reasons. Or by PromQL:
+       `sum by (namespace, reason) (kube_pod_container_status_waiting_reason)`.
+       `CreateContainerError` on a pod with an NFS volume is the stale-NFS
+       pattern (see cluster-triage).
+    3. **Nodes**: `mcp__kubernetes__nodes_top`, and
+       `kube_node_status_condition{status="true", condition!="Ready"} == 1`
+       for pressure conditions. Memory headroom on the Pi matters: you share
+       it.
+    4. **etcd**, the platform's known weak point (`mcp__grafana__query_prometheus`,
+       datasource uid `prometheus`):
+       - p99 WAL fsync per member:
+         `histogram_quantile(0.99, sum by (instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])))`.
+         The target is 10ms. Tens of ms is this cluster's normal; sustained
+         hundreds of ms is a finding.
+       - leader changes in the last day:
+         `sum(increase(etcd_server_leader_changes_seen_total[1d]))`.
+    5. **Storage**: `kube_persistentvolumeclaim_status_phase{phase!="Bound"} == 1`,
+       and volumes nearly full:
+       `kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes < 0.1`.
+    6. **Alerts**: `mcp__grafana__query_prometheus` with
+       `ALERTS{alertstate="firing"}`, and `mcp__grafana__alerting_rules_read`
+       for anything Grafana-managed. Name each firing alert and how long it has
+       fired.
+
+    ## Report shape
+
+    - One line verdict: healthy / degraded / broken.
+    - Findings, most serious first: what, where, since when, evidence (the
+      query or tool and what it returned).
+    - For each, the likely cause from cluster-triage if one fits, and who acts
+      (almost always: a PR for James).
+    - Nothing else. No restating healthy components one by one.
+
+    ## Limits
+
+    - A query that returns no rows is not proof of health: check the metric
+      exists (`mcp__grafana__list_prometheus_metric_names`) before reporting
+      "zero".
+    - Green is not evidence on this platform. See cluster-triage, "the house
+      style of failure".
+
+  cluster-triage.md: |
+    ---
+    name: cluster-triage
+    description: "Use when something on the-cluster is broken or hangs."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Kubernetes, Homelab, Troubleshooting, Talos, etcd, NetworkPolicy]
+        related_skills: [cluster-health-check]
+    ---
+
+    # Diagnosing the-cluster
+
+    For: a connection that hangs, a controller restarting or losing its lease,
+    pods stuck in CreateContainerError, stale responses while everything
+    reports healthy, a vcluster-media restart storm, a metric that returns
+    nothing.
+
+    Read-only. Gather evidence with the MCP tools, name the cause, propose the
+    fix. Fixes are git commits James merges; never offer `kubectl` mutation as
+    the fix.
+
+    ## The house style of failure here
+
+    Nearly every incident on this platform has been an **absence nothing
+    observes**, not an error. Green dashboards are not evidence. Match the
+    symptom to one of these first.
+
+    ### A hang with zero bytes → NetworkPolicy
+
+    Not an error or a refusal: a hang. Every namespace is default-deny
+    (Kyverno generates `default-deny-all`), so traffic needs **both halves**:
+    egress from the caller's namespace and ingress in the target's. One-sided
+    policies are the usual cause.
+
+    - Through the gateway: the service's namespace must admit `nginx-gateway`
+      **and** the gateway data plane's egress list
+      (`network-policies/nginx-gateway.yaml`) must name the namespace and port.
+    - A rule of `0.0.0.0/0` minus RFC1918 permits the internet and forbids every
+      ClusterIP. Kargo's controller and Hermes's own internet rule are like
+      that; an in-cluster target needs its own rule.
+    - A ClusterIP cannot be an `ipBlock` (it is DNAT'd before policy runs):
+      select namespace + pod, and the **target port**, not the Service port.
+    - Cilium never matches `ipBlock` against node IPs: that needs a
+      CiliumNetworkPolicy with `toEntities: [host, remote-node]` or
+      `[kube-apiserver]`.
+
+    Evidence: `mcp__kubernetes__resources_list` for `networking.k8s.io/v1`
+    `NetworkPolicy` in both namespaces; compare selectors and ports.
+
+    ### A controller drops its lease for no local reason → etcd, not the controller
+
+    All three control-plane nodes put etcd on the same disk as the OS and
+    containerd. The signature in logs is `Failed to update lock: etcdserver:
+    request timed out` followed by `leaderelection lost`. Check etcd before
+    blaming the controller:
+    `histogram_quantile(0.99, sum by (instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])))`
+    and `increase(etcd_server_leader_changes_seen_total[1h])`. The real fix
+    is a dedicated disk: hardware, James only. Past cause worth ruling out: a
+    status write loop (one object rewritten many times a second) feeding etcd;
+    look for one resource dominating `mcp__kubernetes__events_list`.
+
+    ### vcluster-media restart storms → host DNS, not etcd-on-NFS
+
+    Talos host DNS (169.254.116.108) stalls → CoreDNS saturates (the Talos
+    Corefile does not cache cluster.local) → the vcluster syncer cannot resolve
+    its etcd → every in-vcluster controller dies at once. Evidence in Loki
+    (`mcp__grafana__query_loki_logs`, datasource uid `loki`):
+    `{container="coredns"} |= "i/o timeout"`, compared across a crash burst and
+    a quiet window.
+
+    ### Stuck in CreateContainerError on NFS → stale handles after a Tower reset
+
+    Tower (Unraid VM 100) serves NFS. After it resets, running pods keep stale
+    handles. Deleting the pod fixes most; some node + path combinations stay
+    stale until the pod moves to another node. Moving it means cordoning a
+    node, which needs James's OK. **Never propose resetting, loading or backing
+    up to Tower**: it is hands-off without James's explicit go-ahead. Local
+    storage (local-path, emptyDir) is not an acceptable fix either.
+
+    ### Serving stale config while every signal is green → nginx-gateway data plane
+
+    An NGF data-plane replica that never connects to its control plane keeps
+    its start-time config forever, pointing at pod IPs that no longer exist.
+    Pods Ready, Gateway Programmed, app Healthy, and some requests fail.
+    Evidence: the control-plane pod's logs in `nginx-gateway` should show
+    `Creating connection for nginx pod` for every data-plane replica; one
+    missing is the stale replica. The remedy, deleting that replica, is James's
+    call.
+
+    ### A metric that returns nothing
+
+    Parsing is not existing. kube-state-metrics prefixes custom-resource
+    metrics with `kube_customresource_` unless configured otherwise, so a
+    query for `kargo_*` can match nothing while data flows. Check with
+    `mcp__grafana__list_prometheus_metric_names` before concluding anything.
+
+    ### ArgoCD stuck on an old revision
+
+    A sync that keeps retrying pins the revision it started with and never
+    re-plans, so a fix merged to main does not reach the cluster until the
+    operation is terminated. `mcp__argocd__get_application` shows the
+    operation's revision and retry count; compare with the latest commit.
+    Terminating is James's action.
+
+    ## Before proposing a fix
+
+    - Name the evidence: tool, query, what came back, and when.
+    - Prefer the git change (which file, roughly what) over any live action.
+    - Say plainly when something needs James: hardware, Talos machine config,
+      cordoning, Tower, terminating an ArgoCD operation, anything destructive.
