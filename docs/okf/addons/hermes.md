@@ -108,10 +108,11 @@ allows.[^manifests][^mcp-doc]
 | `grafana` | `--disable-write` | 18: Prometheus and Loki queries and labels, alert rules and silences, datasources, dashboard search and summaries |
 | `argocd` | `MCP_READ_ONLY=true`, account `mcp-readonly` | 6: applications, resource trees, events, workload logs |
 
-Every server is `trust: untrusted`, so Hermes asks before any tool that does not
-declare `readOnlyHint`. All kubernetes and grafana tools declare it; no argocd
-tool does, so each argocd call needs an approval even though the server cannot
-write. Each server has a `tools.include` list, so a tool added in a server
+kubernetes, grafana and github-mcp-hermes are `trust: untrusted`, so Hermes asks
+before any tool that does not declare `readOnlyHint`. All kubernetes and grafana
+tools declare it. No argocd tool does, so argocd is `trust: full` (2026-11-07):
+the server cannot write, and a prompt on every call blocked scheduled health
+checks, which have nobody to approve it. Each server has a `tools.include` list, so a tool added in a server
 upgrade stays off until it is named in git. The shared `github-mcp` is not
 used; GitHub goes through Hermes's own server (see GitOps fixes). The `*.cluster.integratn.tech` website
 blocklist and `allow_private_urls` apply only to the web and browser tools, not to

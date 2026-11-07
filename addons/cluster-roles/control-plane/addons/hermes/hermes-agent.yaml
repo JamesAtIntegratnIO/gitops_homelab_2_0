@@ -175,10 +175,12 @@ data:
     # The shared github-mcp (gateway, read-only, client token) is not used;
     # Hermes has its own github-mcp-hermes for GitOps PRs (below).
     # trust: untrusted makes Hermes ask before any tool that does not declare
-    # readOnlyHint. Every kubernetes and grafana tool declares it; no argocd
-    # tool does, so argocd calls are approved per call (or per session) even
-    # though the server cannot write. The include lists are the second guard:
-    # a tool added in a server upgrade stays off until it is named here.
+    # readOnlyHint. Every kubernetes and grafana tool declares it. No argocd
+    # tool does, so argocd is trust: full (James, 2026-11-07): argocd-mcp runs
+    # MCP_READ_ONLY=true with the mcp-readonly account, so it cannot write,
+    # and an approval prompt would block scheduled health checks that have
+    # nobody to answer it. The include lists are the second guard: a tool
+    # added in a server upgrade stays off until it is named here.
     mcp_servers:
       kubernetes:
         url: "http://kubernetes-mcp.mcp-system.svc.cluster.local:8080/mcp"
@@ -228,7 +230,7 @@ data:
           prompts: false
       argocd:
         url: "http://argocd-mcp.mcp-system.svc.cluster.local:3000/mcp"
-        trust: "untrusted"
+        trust: "full"
         timeout: 60
         tools:
           include:
