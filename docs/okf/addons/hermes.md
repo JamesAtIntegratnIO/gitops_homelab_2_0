@@ -19,6 +19,9 @@ sources:
   - id: mcp-doc
     resource: ../../mcp.md
     title: In-cluster MCP servers
+  - id: skills
+    resource: ../../../addons/cluster-roles/control-plane/addons/hermes/skills.yaml
+    title: Hermes cluster skills
   - id: optimization-guide
     resource: https://github.com/OnlyTerp/hermes-optimization-guide/tree/f865f8a
     title: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
@@ -110,11 +113,34 @@ MCP connections.
 Config reaches the pod only at start (the init container copies the ConfigMap),
 so a merged config change takes effect after the pod restarts.
 
+# Cluster skills
+
+Two skills from git, in ConfigMap `hermes-skills`, mounted read-only under
+`/opt/hermes-skills/homelab/` and listed in `skills.external_dirs`:
+`cluster-health-check` (a sweep of ArgoCD, pods, nodes, etcd, storage and
+firing alerts) and `cluster-triage` (this platform's failure shapes: one-sided
+NetworkPolicies, etcd disk stalls, host-DNS restart storms, stale NFS after a
+Tower reset, the stale nginx-gateway data plane). Both use only the read-only
+MCP tools and treat every fix as a PR for James. They are adapted from the
+repo's `.claude/skills/cluster-triage` and [known issues](../cluster/known-issues.md).[^skills]
+
+Each file is a `subPath` mount: a plain ConfigMap volume adds hidden `..data`
+symlink directories, and Hermes walks skill directories following symlinks, so
+every skill would be listed twice. Hermes truncates a skill's `description` to
+60 characters in its prompt index, so keep them short. Skills the agent writes
+itself go to `/opt/data/skills` and are scanned.
+
+Hermes cannot open PRs yet. Its terminal strips `GITHUB_TOKEN`/`GH_TOKEN` from
+every command by design, and the `main` ruleset (required `addons-gate`, no
+force-push or deletion) has no pull-request rule and lets the Admin role bypass
+it, so a token from an admin account could push to `main`.
+
 [^manifests]: Hermes addon manifests
 [^policies]: Hermes namespace and network policies
 [^upstream-docker]: Hermes Agent Docker guide (v0.23.0)
 [^mcp-policies]: mcp-system network policies
 [^mcp-doc]: In-cluster MCP servers
+[^skills]: Hermes cluster skills
 
 # Tuning
 
