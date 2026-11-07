@@ -5,12 +5,19 @@
 # security.allow_lazy_installs: false, and the venv is root-owned anyway (the
 # agent runs as uid 10000), so local STT has to be built in.
 #
-# This rebuilds the venv with Hermes's own build command (the one in upstream's
-# Dockerfile at v0.23.0) and its own uv.lock, with one extra added:
-# stt-whisper (faster-whisper 1.2.1, ctranslate2 4.8.3, ...). Every version
-# comes from the lock in the base image, so a change to the FROM line is the
-# only way anything here moves. --record-selection makes the extra part of the
-# image's recorded baseline, so Hermes's boot-time dependency refresh keeps it.
+# Upstream's /opt/hermes, its venv and its package-manager state are left
+# exactly as shipped. Rebuilding the venv instead (the first version of this
+# file) dropped Hermes's source binding and put PM's install records out of
+# sync, so the gateway crash-looped at boot (2026-11-07, reverted in #676).
+#
+# Instead:
+#   1. Export the stt-whisper extra's requirements from Hermes's own uv.lock
+#      (exact pins: faster-whisper 1.2.1, ctranslate2 4.8.3, ...).
+#   2. Drop every package the venv already has, so nothing shadows it.
+#   3. Install the rest, without resolving (--no-deps: the export is the full
+#      closure), into /opt/hermes-stt with upstream's bundled uv.
+#   4. Put /opt/hermes-stt on PYTHONPATH. Hermes's launcher runs python with
+#      -P only, which honours PYTHONPATH.
 #
 # The base is pinned by digest; bump it together with the tag in the hermes
 # Deployment's comments (addons/cluster-roles/control-plane/addons/hermes/).
@@ -19,15 +26,25 @@ FROM docker.io/nousresearch/hermes-agent:v0.23.0@sha256:adb7890916de63245523492b
 USER root
 WORKDIR /opt/hermes
 
-RUN mv /opt/hermes/.venv /opt/hermes/.venv-base \
- && python3 -m pm.build_env --source /opt/hermes --python /usr/local/bin/python3 \
-      --cache /opt/hermes/uv-cache \
-      --out /opt/hermes/.venv --no-install-project --sealed --record-selection \
-      --extra all --extra messaging --extra otlp --extra anthropic --extra bedrock \
-      --extra azure-identity --extra matrix --extra google-chat --extra fal --extra documents \
-      --extra stt-whisper \
- && /opt/hermes/.venv/bin/python -c "import faster_whisper, ctranslate2, aiohttp, anthropic" \
- && rm -rf /opt/hermes/.venv-base
+# HERMES_HOME is /opt/data in the base image. Point it at a throwaway dir for
+# this step: running Hermes code at build time otherwise creates root-owned
+# directories in /opt/data, which then seed the data volume and make the boot
+# fail with "Permission denied" on /opt/data/logs.
+RUN set -eu; \
+    export HERMES_HOME=/tmp/hermes-build-home; mkdir -p "$HERMES_HOME"; \
+    python3 -m pm.build_env --source /opt/hermes --python /usr/local/bin/python3 \
+      --no-install-project --extra stt-whisper --export-requirements /tmp/stt-all.txt; \
+    /opt/hermes/.venv/bin/python -c 'import re, sys; from importlib.metadata import distributions; norm = lambda n: re.sub(r"[-_.]+", "-", n).lower(); have = {norm(d.metadata["Name"]) for d in distributions()}; keep = [l for l in open(sys.argv[1]) if l.strip() and not l.startswith(("#", " ")) and norm(l.split("==")[0]) not in have]; open(sys.argv[2], "w").writelines(keep); print("stt packages to add:", len(keep))' /tmp/stt-all.txt /tmp/stt.txt; \
+    uv=$(ls /opt/hermes/tools/uv-*/uv); \
+    "$uv" pip install --no-deps --no-cache --target /opt/hermes-stt \
+      --python /opt/hermes/.venv/bin/python -r /tmp/stt.txt; \
+    rm -rf /tmp/stt-all.txt /tmp/stt.txt; \
+    chmod -R a+rX,go-w /opt/hermes-stt; \
+    PYTHONPATH=/opt/hermes-stt /opt/hermes/.venv/bin/python -c "import faster_whisper, ctranslate2, av, onnxruntime, hermes_cli; print('faster-whisper', faster_whisper.__version__)"; \
+    PYTHONPATH=/opt/hermes-stt /opt/hermes/.venv/bin/hermes --version; \
+    rm -rf "$HERMES_HOME" /root/.cache
+
+ENV PYTHONPATH=/opt/hermes-stt
 
 # Upstream's ENTRYPOINT (s6-overlay via entrypoint-dispatch.sh), CMD, USER and
 # WORKDIR are inherited unchanged.
