@@ -6,9 +6,16 @@
 # RFC1918: it can reach no LAN host and no in-cluster service, which matters for
 # an agent that can run shell commands.
 #
-# No ingress rule: the API server (8642) is reachable only through
-# `kubectl exec` / port-forward for now. A client in another namespace needs an
-# ingress rule here naming it.
+# Ingress, and nothing else:
+#   - nginx-gateway to the Webapp (9120) and dashboard (9119). Hermes signs
+#     users in itself, against authentik (OIDC). The other half is the gateway's
+#     egress list in nginx-gateway.yaml.
+#   - Open WebUI (namespace ai) to the OpenAI-compatible API server (8642),
+#     which also demands API_SERVER_KEY. The other half is in ai.yaml.
+#
+# Egress to authentik goes to the gateway pods on 443 (auth.cluster.integratn.tech
+# resolves to the gateway VIP, an RFC1918 address the internet rule excludes):
+# Hermes fetches the OIDC discovery document and JWKS from there.
 #
 # PodSecurity stays at the cluster default (baseline): the image's s6 /init
 # starts as root to chown /opt/data and then drops to uid 10000; it needs no
@@ -68,3 +75,68 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-ingress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+      ports:
+        - protocol: TCP
+          port: 9119
+        - protocol: TCP
+          port: 9120
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-open-webui-ingress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: open-webui
+      ports:
+        - protocol: TCP
+          port: 8642
+---
+# Same shape as allow-authentik-egress in ai.yaml: authentik is reached through
+# the gateway VIP, which Cilium resolves to the gateway pods.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-authentik-egress
+  namespace: hermes
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: nginx-gateway
+            app.kubernetes.io/name: nginx-gateway-nginx
+      toPorts:
+        - ports:
+            - port: "443"
