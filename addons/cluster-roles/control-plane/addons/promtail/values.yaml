@@ -33,3 +33,19 @@ config:
 podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
+
+# Setting tolerations REPLACES the chart default, so its two control-plane
+# entries are restated. The third lets promtail run on the Raspberry Pi 5 worker
+# (talos-pi5-1), which is tainted so amd64-only images cannot land there; the
+# promtail image is multi-arch.
+tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+  - key: node.integratn.tech/arch
+    operator: Equal
+    value: arm64
+    effect: NoSchedule

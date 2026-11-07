@@ -26,7 +26,8 @@
 # Talos mints a short-lived talosconfig into the Secret named after the
 # ServiceAccount, scoped to the single `os:etcd:backup` role. The pod calls
 # `talosctl etcd snapshot` against the node it happens to be scheduled on
-# (every node here is a control-plane member) and streams the snapshot onto
+# (a nodeSelector keeps it on the control-plane members, which run etcd; the
+# Raspberry Pi worker talos-pi5-1 does not) and streams the snapshot onto
 # the Unraid share -- off the nodes, at a fixed path that survives a rebuild.
 #
 # Restore procedure: docs/operations.md, "Restore the-cluster etcd".
@@ -68,6 +69,11 @@ spec:
         spec:
           restartPolicy: Never
           priorityClassName: platform-batch
+          # The snapshot asks the Talos API on its own node (NODE_IP below) for
+          # etcd, so it must run on a control-plane member. talos-pi5-1 is a
+          # worker with no etcd.
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
           securityContext:
             seccompProfile:
               type: RuntimeDefault

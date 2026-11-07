@@ -54,3 +54,12 @@ write:
 
 backend:
   replicas: 0
+
+# The canary DaemonSet also runs on the Raspberry Pi 5 worker (talos-pi5-1),
+# which carries the arm64 NoSchedule taint; the loki-canary image is multi-arch.
+lokiCanary:
+  tolerations:
+    - key: node.integratn.tech/arch
+      operator: Equal
+      value: arm64
+      effect: NoSchedule
