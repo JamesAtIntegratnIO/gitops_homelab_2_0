@@ -1,0 +1,161 @@
+# GitHub MCP for Hermes Agent only: lets Hermes propose GitOps fixes as
+# branch + PR on JamesAtIntegratnIO/gitops_homelab_2_0. James merges.
+#
+# Why a second instance instead of github-mcp:
+#   - github-mcp runs `http` mode, which authenticates each request with the
+#     CLIENT's Authorization header (its own env token is unused). That would
+#     put the token in the Hermes pod, where the agent's terminal and anything
+#     it runs could read it (Hermes strips GITHUB_TOKEN from terminal commands,
+#     but a header in config or /proc/<pid>/environ is still reachable by the
+#     same uid). Here the token stays in this pod: `stdio` mode with the token
+#     from the environment, served over streamable HTTP by supergateway (the
+#     same wrapper as sequential-thinking).
+#   - It is writable, scoped by tools rather than read-only, so it must not be
+#     reachable by every gateway client. No HTTPRoute; ingress from Hermes only
+#     (network-policies/mcp-system.yaml, allow-hermes-ingress).
+#
+# The github-mcp-server binary comes from its own digest-pinned image, mounted
+# as an image volume (Kubernetes 1.36, containerd 2.2): the image is distroless,
+# so there is no shell to copy it out with an init container.
+#
+# Tools: toolsets repos + pull_requests, minus everything that merges, deletes,
+# creates or forks repos, or reviews. Enforced here with --exclude-tools, not
+# only in Hermes's config. What remains (19): read files, branches, commits,
+# PRs, code search, releases/tags; create_branch, create_or_update_file,
+# push_files, create_pull_request, update_pull_request.
+#
+# Token: 1Password item `hermes-github-bot` (vault homelab), field `token`.
+# Intended: a fine-grained PAT from a NON-ADMIN bot account that has Write on
+# gitops_homelab_2_0 only (Contents RW, Pull requests RW, Metadata R). The
+# main-branch ruleset lets the Admin role bypass it, so an admin's token could
+# push to main. Until the item exists the ExternalSecret fails, the env var is
+# empty (optional), and every GitHub call returns 401; the pod still runs.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: github-mcp-hermes-token
+  namespace: mcp-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: github-mcp-hermes-token
+    creationPolicy: Owner
+  data:
+    - secretKey: GITHUB_TOKEN
+      remoteRef:
+        key: hermes-github-bot
+        property: token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-mcp-hermes
+  namespace: mcp-system
+  labels:
+    app: github-mcp-hermes
+spec:
+  replicas: 1
+  # One stdio child holds the MCP sessions; never run two side by side.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: github-mcp-hermes
+  template:
+    metadata:
+      labels:
+        app: github-mcp-hermes
+    spec:
+      # Deferrable: developer tooling, not a platform dependency.
+      priorityClassName: platform-batch
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: github-mcp-hermes
+          image: ghcr.io/supercorp-ai/supergateway:4.2.1@sha256:ba077866d6daae4c5157bce792dd87468e29d3bcac98153d8029ed772d743ea6
+          args:
+            - --stdio
+            - "/opt/github/server/github-mcp-server stdio --toolsets=repos,pull_requests --exclude-tools=merge_pull_request,delete_file,create_repository,fork_repository,update_pull_request_branch,pull_request_review_write,add_comment_to_pending_review,add_reply_to_pull_request_comment,search_repositories,list_repository_collaborators"
+            - --port
+            - "8083"
+            - --outputTransport
+            - streamableHttp
+            - --stateful
+            - --path
+            - /mcp
+            - --healthEndpoint
+            - /healthz
+          env:
+            - name: GITHUB_PERSONAL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-mcp-hermes-token
+                  key: GITHUB_TOKEN
+                  optional: true
+          ports:
+            - containerPort: 8083
+              name: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: github-mcp-server
+              mountPath: /opt/github
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          # Liveness is "is the process wedged", never "is GitHub reachable".
+          livenessProbe:
+            tcpSocket:
+              port: 8083
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      volumes:
+        - name: github-mcp-server
+          image:
+            reference: ghcr.io/github/github-mcp-server:v2.1.0@sha256:f6056fc10bfffcc8c81a6417a2e9ca12808647e8dd6049642a4feaadee0e0f8a
+            pullPolicy: IfNotPresent
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-mcp-hermes
+  namespace: mcp-system
+  labels:
+    app: github-mcp-hermes
+spec:
+  type: ClusterIP
+  selector:
+    app: github-mcp-hermes
+  ports:
+    - name: http
+      port: 8083
+      targetPort: 8083
+      protocol: TCP

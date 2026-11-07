@@ -22,6 +22,9 @@ sources:
   - id: skills
     resource: ../../../addons/cluster-roles/control-plane/addons/hermes/skills.yaml
     title: Hermes cluster skills
+  - id: github-mcp
+    resource: ../../../addons/cluster-roles/control-plane/addons/mcp-system/github-mcp-hermes.yaml
+    title: github-mcp-hermes
   - id: optimization-guide
     resource: https://github.com/OnlyTerp/hermes-optimization-guide/tree/f865f8a
     title: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
@@ -109,8 +112,8 @@ Every server is `trust: untrusted`, so Hermes asks before any tool that does not
 declare `readOnlyHint`. All kubernetes and grafana tools declare it; no argocd
 tool does, so each argocd call needs an approval even though the server cannot
 write. Each server has a `tools.include` list, so a tool added in a server
-upgrade stays off until it is named in git. `github-mcp` is not connected: it
-needs a client token and reaches GitHub. The `*.cluster.integratn.tech` website
+upgrade stays off until it is named in git. The shared `github-mcp` is not
+used; GitHub goes through Hermes's own server (see GitOps fixes). The `*.cluster.integratn.tech` website
 blocklist and `allow_private_urls` apply only to the web and browser tools, not to
 MCP connections.
 
@@ -119,7 +122,7 @@ so a merged config change takes effect after the pod restarts.
 
 # Cluster skills
 
-Two skills from git, in ConfigMap `hermes-skills`, mounted read-only under
+Skills from git, in ConfigMap `hermes-skills`, mounted read-only under
 `/opt/hermes-skills/homelab/` and listed in `skills.external_dirs`:
 `cluster-health-check` (a sweep of ArgoCD, pods, nodes, etcd, storage and
 firing alerts) and `cluster-triage` (this platform's failure shapes: one-sided
@@ -134,10 +137,36 @@ every skill would be listed twice. Hermes truncates a skill's `description` to
 60 characters in its prompt index, so keep them short. Skills the agent writes
 itself go to `/opt/data/skills` and are scanned.
 
-Hermes cannot open PRs yet. Its terminal strips `GITHUB_TOKEN`/`GH_TOKEN` from
-every command by design, and the `main` ruleset (required `addons-gate`, no
-force-push or deletion) has no pull-request rule and lets the Admin role bypass
-it, so a token from an admin account could push to `main`.
+# GitOps fixes
+
+Hermes proposes manifest fixes as branch + PR on
+`JamesAtIntegratnIO/gitops_homelab_2_0`, through its own GitHub MCP server,
+`github-mcp-hermes` in `mcp-system` (port 8083, no HTTPRoute, ingress from
+Hermes only). James merges. The `gitops-fix` skill carries the repo's rules
+(never `main`, no secrets, pinned images, Kargo pin layout, both NetworkPolicy
+halves).[^github-mcp][^skills]
+
+- **The token never enters the Hermes pod.** The shared `github-mcp` runs in
+  `http` mode, which takes the token from each client request; Hermes would
+  have had to hold it, and its terminal (same uid) could read it.
+  `github-mcp-hermes` runs the server in `stdio` mode with the token in its own
+  environment, served over streamable HTTP by supergateway. The binary comes
+  from the pinned `github-mcp-server` image as an image volume (it is
+  distroless).
+- **Tools are cut on the server**: toolsets `repos,pull_requests` with
+  `--exclude-tools` for merge, delete, repo create/fork and reviews, leaving
+  19. Hermes's `tools.include` repeats the 13 it uses, and `trust: untrusted`
+  makes every write call (branch, commit, PR) wait for approval.
+- **Token**: 1Password item `hermes-github-bot`, field `token`, a fine-grained
+  PAT from a non-admin bot account with Write on this repository only. The
+  `main` ruleset (required `addons-gate`, no force-push or deletion) has no
+  pull-request rule and lets the Admin role bypass it, so an admin's token
+  could push to `main`; the bot must not be an admin or on the bypass list,
+  and a "require a pull request" rule makes the PR gate GitHub's, not the
+  skill's. Until the item exists the server runs and every GitHub call
+  returns 401.
+- Hermes strips `GITHUB_TOKEN`/`GH_TOKEN` from every terminal command by
+  design, so git with a token in the Hermes pod was never the route.
 
 [^manifests]: Hermes addon manifests
 [^policies]: Hermes namespace and network policies
@@ -145,6 +174,7 @@ it, so a token from an admin account could push to `main`.
 [^mcp-policies]: mcp-system network policies
 [^mcp-doc]: In-cluster MCP servers
 [^skills]: Hermes cluster skills
+[^github-mcp]: github-mcp-hermes
 
 # Tuning
 
