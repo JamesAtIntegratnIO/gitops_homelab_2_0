@@ -132,6 +132,19 @@ data:
       adopt_external_logins: false # never borrow a Claude Code login
     browser:
       use_real_profile: false
+      # Chromium's own sandbox cannot start on this node: Talos sets
+      # user.max_user_namespaces=0, so there are no user namespaces, and the
+      # setuid fallback would need CAP_SYS_ADMIN. Hermes adds --no-sandbox by
+      # itself only under Docker, as root or under AppArmor's userns
+      # restriction, and detects none of those under containerd, so browser_exec
+      # died with "No usable sandbox!". A renderer exploit lands as uid 10000
+      # in this pod: the user the terminal tool already runs shell commands as,
+      # with capabilities dropped, RuntimeDefault seccomp and internet-only
+      # egress. Opening user namespaces on the node would expose every pod on
+      # it to a common kernel-exploit path, which is the worse trade.
+      # /dev/shm is a 1Gi tmpfs (below), so no --disable-dev-shm-usage.
+      chromium_args:
+        - "--no-sandbox"
     vault:                         # no 1Password/Bitwarden CLI in this pod
       onepassword:
         enabled: false
