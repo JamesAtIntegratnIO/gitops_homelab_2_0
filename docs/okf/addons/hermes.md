@@ -33,8 +33,12 @@ sources:
 # What runs
 
 One pod, `hermes-agent` in namespace `hermes`, pinned to `talos-pi5-1` (it
-tolerates the node's arm64 taint). The image is the official multi-arch
-`nousresearch/hermes-agent:v0.23.0`, digest-pinned. It runs `gateway run`; with
+tolerates the node's arm64 taint). The image is
+`ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt`,
+digest-pinned: the official `nousresearch/hermes-agent:v0.23.0` with the
+`stt-whisper` extra (faster-whisper 1.2.1) rebuilt into its venv from Hermes's
+own `uv.lock`, so speech-to-text runs locally on the Pi's CPU
+(`images/hermes-agent/`). It runs `gateway run`; with
 no chat platform configured, the service it offers is the OpenAI-compatible API
 server on port 8642 (ClusterIP `hermes-agent`, no ingress from other namespaces
 yet). Open WebUI (namespace `ai`) may reach it, with `API_SERVER_KEY`.[^manifests]
