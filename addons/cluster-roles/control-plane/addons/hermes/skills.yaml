@@ -15,8 +15,9 @@
 # Derived from .claude/skills/cluster-triage/SKILL.md and
 # docs/okf/cluster/known-issues.md, rewritten for the tools Hermes actually has:
 # the read-only MCP servers (mcp__kubernetes__*, mcp__grafana__*,
-# mcp__argocd__*). Hermes has no repo checkout and no kubectl. When those
-# sources change, update these.
+# mcp__argocd__*) and, for gitops-fix, github-mcp-hermes (mcp__github__*).
+# Hermes has no repo checkout and no kubectl. gitops-fix restates the rules in
+# the repo's CLAUDE.md. When those sources change, update these.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -221,3 +222,80 @@ data:
     - Prefer the git change (which file, roughly what) over any live action.
     - Say plainly when something needs James: hardware, Talos machine config,
       cordoning, Tower, terminating an ArgoCD operation, anything destructive.
+
+  gitops-fix.md: |
+    ---
+    name: gitops-fix
+    description: "Use to propose a fix to the-cluster as a GitHub PR."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [GitOps, GitHub, ArgoCD, Kubernetes, Homelab]
+        related_skills: [cluster-triage, cluster-health-check]
+    ---
+
+    # Fixing the cluster the GitOps way
+
+    For: you have diagnosed something on the-cluster (see cluster-triage) and
+    the fix is a change to the manifests. The cluster is reconciled by ArgoCD
+    from `main` of `JamesAtIntegratnIO/gitops_homelab_2_0`, so a fix is a
+    branch and a pull request. **James merges. You never merge, and you never
+    write to `main`.** You have no tool that merges or deletes, by design.
+
+    Tools: `mcp__github__*` (owner `JamesAtIntegratnIO`, repo
+    `gitops_homelab_2_0`). Every write call asks James for approval; say in
+    one line what the call does before you make it.
+
+    ## Steps
+
+    1. **Read the rules first.** `mcp__github__get_file_contents` on
+       `CLAUDE.md` (and `AGENTS.md` if the area is unfamiliar). They win over
+       anything here. Then read every file you will change, from `main`, in
+       full. Never guess a file's contents.
+    2. **Check nobody is on it.** `mcp__github__search_pull_requests` for open
+       PRs touching the same files or problem. If one exists, report it
+       instead of opening a duplicate.
+    3. **Branch.** `mcp__github__create_branch` from `main`, named
+       `hermes/<type>-<short-slug>` (for example
+       `hermes/fix-grafana-netpol`). Never write to `main` or to a branch you
+       did not create.
+    4. **Change.** Smallest change that fixes the cause. One commit with
+       `mcp__github__push_files` (several files) or
+       `mcp__github__create_or_update_file` (one), always with
+       `branch: hermes/...`. Commit message: conventional and scoped like the
+       history, e.g. `fix(network-policies): let grafana-mcp reach loki`.
+    5. **PR.** `mcp__github__create_pull_request`, base `main`, head your
+       branch, not a draft. Body: what is wrong (symptom and evidence:
+       tool, query, result, time), the cause, the change, how James can
+       verify it after merge, and anything that needs his hands. End with
+       "Opened by Hermes Agent".
+    6. **Report** the PR link and a two-line summary. Then stop.
+
+    ## Hard rules (from CLAUDE.md)
+
+    - Never touch `main` directly. Never merge. Never force anything.
+    - Never read, print or edit `secrets.env`. Never put a secret value in any
+      file or PR: no `kind: Secret` anywhere, and especially not near
+      `promises/` (the Kratix state repo is public). Credentials are
+      `ExternalSecret`s against ClusterSecretStore `onepassword-store`.
+    - Gateway API (`HTTPRoute`), never `Ingress`.
+    - Pin images by tag and digest. Never `:latest`.
+    - A Kargo-tracked pin (listed in
+      `addons/cluster-roles/control-plane/addons/kargo-projects/values.yaml`)
+      must stay in the first YAML document of its file, stay a scalar, and
+      carry no trailing `# comment`.
+    - A NetworkPolicy fix needs both halves: egress in the caller's namespace
+      and ingress in the target's (and the nginx-gateway egress list for a
+      service behind the gateway).
+    - Addon values resolve `environments/` → `cluster-roles/` → `clusters/`
+      by chart name; a change can reach vclusters too. Say so in the PR when
+      unsure.
+    - Do not "fix" with local storage (local-path, emptyDir) for stale NFS.
+      Do not propose anything that loads, resets or backs up to Tower.
+    - When the right fix is not a manifest change (hardware, Talos machine
+      config, cordoning a node, terminating an ArgoCD operation), do not open
+      a PR: report it for James.
+    - If the change would touch more than a handful of files or you are not
+      sure of the cause, report instead and ask.

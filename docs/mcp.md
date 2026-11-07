@@ -40,6 +40,7 @@ an `URLRewrite` filter so each backend sees its native `/mcp` path.
 | `/github` | `github-mcp` | `ghcr.io/github/github-mcp-server` | 8082 | PAT from 1Password |
 | `/grafana` | `grafana-mcp` | `docker.io/grafana/mcp-grafana` | 8000 | Token minted by a PostSync Job |
 | `/sequential-thinking` | `sequential-thinking` | `ghcr.io/supercorp-ai/supergateway` | 8000 | Wraps the stdio server; npm pre-install initContainer |
+| (none: Hermes only) | `github-mcp-hermes` | `ghcr.io/supercorp-ai/supergateway` + `github-mcp-server` image volume | 8083 | Writable (branches, commits, PRs; no merge/delete) for Hermes Agent's GitOps fixes. Token server-side from 1Password `hermes-github-bot`. No HTTPRoute; only namespace `hermes` may connect. See [Hermes Agent](okf/addons/hermes.md) |
 | `/umami` | `umami` (namespace `umami`) | `ghcr.io/umami-software/umami` | 3000 | Read-only web analytics; Umami's own `/mcp` (>= 3.4.0, `MCP_ENABLED=1`). Needs an Umami API key. Not part of this addon: see below |
 
 **Umami is the one server outside `mcp-system`.** It is the analytics app

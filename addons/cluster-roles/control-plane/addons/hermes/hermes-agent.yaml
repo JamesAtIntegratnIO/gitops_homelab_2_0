@@ -167,7 +167,8 @@ data:
     #   kubernetes  read_only=true, ClusterRole kubernetes-mcp-viewer (no secrets)
     #   grafana     --disable-write; its --allowed-hosts already lists this host
     #   argocd      MCP_READ_ONLY=true and the mcp-readonly account
-    # github-mcp is left out (it needs a client token and reaches GitHub).
+    # The shared github-mcp (gateway, read-only, client token) is not used;
+    # Hermes has its own github-mcp-hermes for GitOps PRs (below).
     # trust: untrusted makes Hermes ask before any tool that does not declare
     # readOnlyHint. Every kubernetes and grafana tool declares it; no argocd
     # tool does, so argocd calls are approved per call (or per session) even
@@ -232,6 +233,32 @@ data:
             - "get_application_events"
             - "get_resource_events"
             - "get_application_workload_logs"
+          resources: false
+          prompts: false
+      # GitOps fixes: branch + PR on JamesAtIntegratnIO/gitops_homelab_2_0,
+      # through github-mcp-hermes (mcp-system/github-mcp-hermes.yaml), which
+      # holds the bot token so it never enters this pod. The server already
+      # refuses merge, delete, repo create/fork and reviews; this list is the
+      # second guard. Writes (no readOnlyHint) each need approval: untrusted.
+      github:
+        url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
+        trust: "untrusted"
+        timeout: 120
+        tools:
+          include:
+            - "get_file_contents"
+            - "list_branches"
+            - "list_commits"
+            - "get_commit"
+            - "list_pull_requests"
+            - "pull_request_read"
+            - "search_code"
+            - "search_pull_requests"
+            - "create_branch"
+            - "create_or_update_file"
+            - "push_files"
+            - "create_pull_request"
+            - "update_pull_request"
           resources: false
           prompts: false
     # ---- Features, 2026-11-07. Only free ones that need no key beyond
@@ -451,6 +478,10 @@ spec:
             - name: skills
               mountPath: /opt/hermes-skills/homelab/cluster-triage/SKILL.md
               subPath: cluster-triage.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/gitops-fix/SKILL.md
+              subPath: gitops-fix.md
               readOnly: true
       volumes:
         - name: dshm
