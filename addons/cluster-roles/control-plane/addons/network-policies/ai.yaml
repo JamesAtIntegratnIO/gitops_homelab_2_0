@@ -61,23 +61,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-ollama-egress
-  namespace: ai
-spec:
-  podSelector: {}
-  policyTypes:
-    - Egress
-  egress:
-    - to:
-        - ipBlock:
-            cidr: 10.0.3.4/32
-      ports:
-        - protocol: TCP
-          port: 11434
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
   name: allow-pipelines-https-egress
   namespace: ai
 spec:
