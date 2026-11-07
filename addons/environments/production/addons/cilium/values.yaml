@@ -6,9 +6,14 @@
 policyAuditMode: false
 
 # Explicit device list — prevents Cilium from picking up flannel.1 leftover
-# flannel.1 VXLAN interface from pre-migration CNI still exists on nodes
+# flannel.1 VXLAN interface from pre-migration CNI still exists on nodes.
+# The list is a name filter: each node uses whichever of these it has.
+#   eno1 -- the Lenovo control-plane nodes
+#   end0 -- the Raspberry Pi 5 worker (talos-pi5-1, RP1/macb NIC). Without it the
+#           agent there crashloops: "unable to determine direct routing device".
 devices:
   - eno1
+  - end0
 
 # Use Kubernetes IPAM (preserves existing pod CIDR 10.244.0.0/16)
 ipam:
