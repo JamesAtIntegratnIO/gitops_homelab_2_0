@@ -424,6 +424,10 @@ spec:
               value: "/opt/data/cache/huggingface"
             - name: HF_HUB_DISABLE_TELEMETRY
               value: "1"
+            # faster-whisper's ctranslate2 threads (cpu_threads=0 defers to
+            # this). Keep equal to limits.cpu so it is not throttled.
+            - name: OMP_NUM_THREADS
+              value: "4"
           envFrom:
             - secretRef:
                 name: hermes-agent
@@ -459,8 +463,12 @@ spec:
             requests:
               cpu: 250m
               memory: 1Gi
+            # 4 = every core on the Pi, which runs little else. Local
+            # speech-to-text (faster-whisper) is CPU-bound: at a 2-CPU limit
+            # its default 4 threads were throttled and a 6 s clip took 14 s
+            # (7 s on 2 threads). OMP_NUM_THREADS below matches this.
             limits:
-              cpu: "2"
+              cpu: "4"
               memory: 4Gi
           volumeMounts:
             - name: data
