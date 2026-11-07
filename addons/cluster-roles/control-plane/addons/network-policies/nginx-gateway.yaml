@@ -278,6 +278,22 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # Hermes Agent: the Webapp (hermes.cluster.integratn.tech, 9120) and the
+    # dashboard (hermes-admin.cluster.integratn.tech, 9119), both signed in
+    # by Hermes itself against authentik (OIDC). The other half is
+    # allow-gateway-ingress in hermes.yaml.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-agent
+      ports:
+        - protocol: TCP
+          port: 9119
+        - protocol: TCP
+          port: 9120
     # LLMKube inference backends (bare-metal/metal agent on LAN).
     # Cilium DNATs service ClusterIP → Mac endpoint before policy evaluation,
     # so the post-DNAT destination is 10.0.x.x:ephemeral — ipBlock is required.

@@ -363,3 +363,30 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+---
+# Open WebUI to Hermes Agent's OpenAI-compatible API server (hermes namespace,
+# port 8642, which also requires API_SERVER_KEY). The other half is
+# allow-open-webui-ingress in hermes.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-openwebui-hermes-egress
+  namespace: ai
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: open-webui
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-agent
+      ports:
+        - protocol: TCP
+          port: 8642
+

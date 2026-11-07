@@ -66,6 +66,31 @@ data:
     terminal:
       # Commands run inside this pod: no Docker socket, no host access.
       backend: "local"
+    # The browser UIs, behind nginx-gateway (internal only, LAN/Tailscale):
+    #   Webapp     https://hermes.cluster.integratn.tech        -> 9120
+    #   dashboard  https://hermes-admin.cluster.integratn.tech  -> 9119
+    # Both sign in with authentik through Hermes's self-hosted OIDC plugin: a
+    # PUBLIC PKCE client `hermes` (authentik blueprint 10-hermes-provider.yaml),
+    # so there is no client secret. The authentik application is bound to the
+    # `authentik Admins` group: every account that can sign in acts as the
+    # machine owner.
+    webapp:
+      enabled: true
+      host: "0.0.0.0"
+      port: 9120
+      public_url: "https://hermes.cluster.integratn.tech"
+    dashboard:
+      public_url: "https://hermes-admin.cluster.integratn.tech"
+      # The gateway's data-plane pods connect from the pod network; only they
+      # may set X-Forwarded-* (so cookies are marked Secure behind TLS).
+      trusted_proxies:
+        - "10.244.0.0/16"
+      oauth:
+        provider: "self-hosted"
+        self_hosted:
+          issuer: "https://auth.cluster.integratn.tech/application/o/hermes/"
+          client_id: "hermes"
+          scopes: "openid profile email"
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -151,12 +176,26 @@ spec:
               value: "0.0.0.0"
             - name: API_SERVER_PORT
               value: "8642"
+            # s6 supervises the dashboard alongside the gateway. Bound to all
+            # interfaces, it refuses to start without the OIDC sign-in above.
+            - name: HERMES_DASHBOARD
+              value: "1"
+            - name: HERMES_DASHBOARD_HOST
+              value: "0.0.0.0"
+            - name: HERMES_DASHBOARD_PORT
+              value: "9119"
           envFrom:
             - secretRef:
                 name: hermes-agent
           ports:
             - name: api
               containerPort: 8642
+              protocol: TCP
+            - name: dashboard
+              containerPort: 9119
+              protocol: TCP
+            - name: webapp
+              containerPort: 9120
               protocol: TCP
           readinessProbe:
             httpGet:
@@ -195,3 +234,56 @@ spec:
     - name: api
       port: 8642
       targetPort: api
+    - name: dashboard
+      port: 9119
+      targetPort: dashboard
+    - name: webapp
+      port: 9120
+      targetPort: webapp
+---
+# Internal only: the gateway VIP is on the LAN, not the internet (see
+# docs/okf/platform/networking.md). No authentik forward-auth filter: Hermes
+# signs users in itself, and a second sign-in in front would break its own
+# OIDC callback and WebSocket.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hermes-webapp
+  namespace: hermes
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - hermes.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: hermes-agent
+          port: 9120
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hermes-dashboard
+  namespace: hermes
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - hermes-admin.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: hermes-agent
+          port: 9119
+
