@@ -1,0 +1,70 @@
+# hermes: Nous Research's Hermes Agent on the Raspberry Pi 5 worker.
+#
+# The namespace gets its default-deny from the Kyverno generate policy like any
+# other. Hermes calls the Anthropic API, and its tools (web, git, npx/uvx) reach
+# the public internet, so egress is DNS plus TCP 443/80 to anywhere EXCEPT
+# RFC1918: it can reach no LAN host and no in-cluster service, which matters for
+# an agent that can run shell commands.
+#
+# No ingress rule: the API server (8642) is reachable only through
+# `kubectl exec` / port-forward for now. A client in another namespace needs an
+# ingress rule here naming it.
+#
+# PodSecurity stays at the cluster default (baseline): the image's s6 /init
+# starts as root to chown /opt/data and then drops to uid 10000; it needs no
+# host access or privilege.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hermes
+  labels:
+    app.kubernetes.io/part-of: platform
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: hermes
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internet-egress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80

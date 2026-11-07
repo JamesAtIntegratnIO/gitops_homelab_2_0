@@ -1,0 +1,181 @@
+# Hermes Agent (Nous Research) on the Raspberry Pi 5 worker, talos-pi5-1.
+#
+# Image: the official multi-arch image (amd64 + arm64), v0.23.0, digest-pinned.
+# Docs: website/docs/user-guide/docker.md in NousResearch/hermes-agent at v0.23.0.
+#
+# How the image runs, and what that requires here:
+#   - ENTRYPOINT is s6-overlay /init. It starts as root, fixes ownership of
+#     /opt/data, seeds .env/config.yaml/SOUL.md if missing, then drops every
+#     service to the `hermes` user (uid 10000). So: no runAsNonRoot, no
+#     readOnlyRootFilesystem, and never override the entrypoint.
+#   - `gateway run` keeps the container alive while s6 supervises the gateway.
+#     With no chat platform configured, what it serves is the OpenAI-compatible
+#     API server on 8642 (API_SERVER_* below). The dashboard stays off: it
+#     refuses a non-loopback bind without an auth provider.
+#   - All state is /opt/data. state.db is SQLite in WAL mode, which needs a
+#     local filesystem (not NFS) and exactly one gateway per data dir: hence
+#     `local-nvme` and a single replica with Recreate.
+#
+# Secrets: 1Password item `hermes-agent` in the `homelab` vault, fields
+# ANTHROPIC_API_KEY (the Anthropic API key, billed per token) and
+# API_SERVER_KEY (a random string; the API server can run shell commands, so it
+# is mandatory even inside the cluster).
+#
+# Talking to it:
+#   kubectl --context admin@the-cluster -n hermes exec -it deploy/hermes-agent -- hermes chat
+#   kubectl --context admin@the-cluster -n hermes port-forward svc/hermes-agent 8642
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hermes-agent
+  namespace: hermes
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: hermes-agent
+    creationPolicy: Owner
+  data:
+    - secretKey: ANTHROPIC_API_KEY
+      remoteRef:
+        key: hermes-agent
+        property: ANTHROPIC_API_KEY
+    - secretKey: API_SERVER_KEY
+      remoteRef:
+        key: hermes-agent
+        property: API_SERVER_KEY
+---
+# The settings git owns. An init container copies this over
+# /opt/data/config.yaml on every start, so a change made inside the pod
+# (`hermes config set ...`) lasts only until the next restart; make it here.
+# Everything not set falls back to Hermes's defaults, and its own config
+# migrations still run at boot.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-config
+  namespace: hermes
+data:
+  config.yaml: |
+    model:
+      provider: "anthropic"
+      default: "claude-sonnet-5-5"
+    terminal:
+      # Commands run inside this pod: no Docker socket, no host access.
+      backend: "local"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-data
+  namespace: hermes
+spec:
+  storageClassName: local-nvme
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes-agent
+  namespace: hermes
+  labels:
+    app.kubernetes.io/name: hermes-agent
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hermes-agent
+    spec:
+      nodeSelector:
+        node.integratn.tech/board: rpi5
+      tolerations:
+        - key: node.integratn.tech/arch
+          operator: Equal
+          value: arm64
+          effect: NoSchedule
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: config
+          image: docker.io/library/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+          command:
+            - sh
+            - -c
+            - cp /config/config.yaml /opt/data/config.yaml && chown 10000:10000 /opt/data/config.yaml
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: config
+              mountPath: /config
+              readOnly: true
+      containers:
+        - name: hermes
+          image: docker.io/nousresearch/hermes-agent:v0.23.0@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
+          args: ["gateway", "run"]
+          env:
+            - name: API_SERVER_ENABLED
+              value: "true"
+            - name: API_SERVER_HOST
+              value: "0.0.0.0"
+            - name: API_SERVER_PORT
+              value: "8642"
+          envFrom:
+            - secretRef:
+                name: hermes-agent
+          ports:
+            - name: api
+              containerPort: 8642
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: api
+            periodSeconds: 15
+            failureThreshold: 4
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-data
+        - name: config
+          configMap:
+            name: hermes-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-agent
+  namespace: hermes
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: hermes-agent
+  ports:
+    - name: api
+      port: 8642
+      targetPort: api

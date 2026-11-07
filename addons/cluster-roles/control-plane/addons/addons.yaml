@@ -421,6 +421,22 @@ local-path-provisioner:
     syncOptions:
       - CreateNamespace=false
 
+hermes:
+  # Nous Research's Hermes Agent on the Raspberry Pi 5 worker, data on the
+  # local-nvme StorageClass. The Namespace and its network policies are in
+  # network-policies/hermes.yaml. Secrets: 1Password item `hermes-agent`.
+  enabled: true
+  type: manifest
+  namespace: hermes
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/hermes
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+
 platform-backups-talos:
   enabled: true
   type: manifest
