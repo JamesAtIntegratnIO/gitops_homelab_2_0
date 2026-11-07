@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-07T19:45:00Z }
+generated: { by: claude-code, at: 2026-11-07T20:20:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -13,6 +13,9 @@ sources:
   - id: policies
     resource: ../../../addons/cluster-roles/control-plane/addons/network-policies/hermes.yaml
     title: Hermes namespace and network policies
+  - id: optimization-guide
+    resource: https://github.com/OnlyTerp/hermes-optimization-guide/tree/f865f8a
+    title: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
   - id: upstream-docker
     resource: https://github.com/NousResearch/hermes-agent/blob/v0.23.0/website/docs/user-guide/docker.md
     title: Hermes Agent Docker guide (v0.23.0)
@@ -75,3 +78,31 @@ Ingress: nginx-gateway to 9119/9120, and Open WebUI to 8642.[^policies]
 [^manifests]: Hermes addon manifests
 [^policies]: Hermes namespace and network policies
 [^upstream-docker]: Hermes Agent Docker guide (v0.23.0)
+
+# Tuning
+
+Applied 2026-11-07 from the third-party optimization guide, which targets
+v0.21.4, with every key checked against v0.23.0's built-in defaults first.[^optimization-guide]
+
+- **Cost**: the side tasks (compression, titles, background review, approval
+  classifier, curator, goal judge) run on `claude-haiku-5-5` instead of the main
+  Sonnet model. `tts` is disabled, at most 4 concurrent subagents, and
+  exact-repeat tool loops hard-stop.
+- **Security**: smart approvals with a deny list (`sudo`, piping `curl`/`wget`
+  to a shell, `dd` to devices, force-push, `authorized_keys`, `kubectl`), no
+  private URLs, secret redaction, no runtime pip installs, internal hosts on the
+  website blocklist, agent-written skills scanned, no borrowed external logins,
+  no vault CLIs. The guide's `terminal.backend: docker` is impossible in a pod;
+  the pod and its network policy are the sandbox.
+- **Ops**: sessions are pruned after 90 days, `/dev/shm` is a 1 Gi memory
+  volume for Chromium, and a liveness probe on `/health` restarts a wedged
+  gateway.
+- **Monitoring**: Hermes has no Prometheus endpoint; its gateway-health export
+  is OTLP push only and is not wired up. Alert `HermesGatewayDown` (platform
+  alerts, group `platform.hermes`) uses kube-state-metrics instead. There is no
+  cron-health signal without OTLP.
+- **Not used**: `security.tirith_fail_open` does not exist in v0.23.0.
+  Delegation and cron stay on the main model.
+
+[^optimization-guide]: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
+
