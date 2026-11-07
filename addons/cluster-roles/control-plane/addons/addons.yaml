@@ -405,6 +405,22 @@ platform-backups:
 # check). Without it the talos.dev/v1alpha1 ServiceAccount below is a kind the
 # API does not serve and the Application can never reach Synced -- set this
 # back to false if the cluster is ever rebuilt without that feature.
+local-path-provisioner:
+  # rancher/local-path-provisioner serving the `local-nvme` StorageClass on the
+  # Raspberry Pi 5 worker's NVMe user volume. The Namespace and its network
+  # policy are in network-policies/local-path-storage.yaml.
+  enabled: true
+  type: manifest
+  namespace: local-path-storage
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/local-path-provisioner
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+
 platform-backups-talos:
   enabled: true
   type: manifest

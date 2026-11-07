@@ -33,6 +33,19 @@ Reclaim `Delete`, binding `Immediate`, **no volume expansion**. (Older docs
 mention a third generic `nfs-client` class; it no longer exists — the plain
 `nfs-subdir-external-provisioner` Deployment still runs but backs no class.)
 
+## Local NVMe on the Raspberry Pi 5 (`local-nvme`)
+
+One more class, not NFS: `local-nvme` (`rancher.io/local-path`,
+local-path-provisioner v0.0.37 in `local-path-storage`). Its volumes are
+directories on the `local-nvme` Talos user volume of the Pi 5 worker
+`talos-pi5-1` (`/var/mnt/local-nvme`, about 900 GB of a Samsung 990 PRO).
+`WaitForFirstConsumer`, reclaim **`Retain`**, and `allowedTopologies` pins it to
+that one node, so a claim binds only for a pod that can run there (it must
+tolerate the node's `node.integratn.tech/arch=arm64:NoSchedule` taint). Single
+disk, no replication, no backup: for workloads that want local speed and can
+lose their data. Talos already propagates user volumes into the kubelet's mount
+namespace, so no `kubelet.extraMounts` is needed (checked 2026-11-07).
+
 On the host, `config-nfs-client` volumes live under `/mnt/user/appdata`. Backups and
 some vcluster volumes are on `/mnt/user/kube_storage`, and bulk data on `/mnt/user/data`.
 
