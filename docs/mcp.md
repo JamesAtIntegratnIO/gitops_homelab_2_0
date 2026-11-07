@@ -105,6 +105,9 @@ Everything is deny-by-default plus narrow allows:
 - public internet on 443, RFC1918 excluded, for `github-mcp` (GitHub API) and
   `sequential-thinking` (npm)
 - ingress from `nginx-gateway` on 8080/8082/8000/3000
+- ingress from Hermes Agent (namespace `hermes`) to kubernetes-mcp, argocd-mcp and
+  grafana-mcp only, on 8080/3000/8000 (`allow-hermes-ingress`); Hermes calls them by
+  Service DNS, see [Hermes Agent](okf/addons/hermes.md)
 - intra-namespace both ways
 - the gateway's admission for `/umami` is in
   [network-policies/umami.yaml](../addons/cluster-roles/control-plane/addons/network-policies/umami.yaml),

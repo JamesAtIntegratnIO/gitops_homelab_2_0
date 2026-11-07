@@ -143,6 +143,82 @@ data:
       auto_prune: true
       retention_days: 90
 
+    # ---- Cluster access, read-only, through the platform's own MCP servers
+    # (addons/.../mcp-system, docs/mcp.md), called by Service DNS: the
+    # NetworkPolicies are allow-mcp-system-egress (hermes.yaml) and
+    # allow-hermes-ingress (mcp-system.yaml). Hermes holds no kube or ArgoCD
+    # credentials: what it can see is what those servers' RBAC allows.
+    #   kubernetes  read_only=true, ClusterRole kubernetes-mcp-viewer (no secrets)
+    #   grafana     --disable-write; its --allowed-hosts already lists this host
+    #   argocd      MCP_READ_ONLY=true and the mcp-readonly account
+    # github-mcp is left out (it needs a client token and reaches GitHub).
+    # trust: untrusted makes Hermes ask before any tool that does not declare
+    # readOnlyHint. Every kubernetes and grafana tool declares it; no argocd
+    # tool does, so argocd calls are approved per call (or per session) even
+    # though the server cannot write. The include lists are the second guard:
+    # a tool added in a server upgrade stays off until it is named here.
+    mcp_servers:
+      kubernetes:
+        url: "http://kubernetes-mcp.mcp-system.svc.cluster.local:8080/mcp"
+        trust: "untrusted"
+        timeout: 60
+        tools:
+          include:
+            - "events_list"
+            - "namespaces_list"
+            - "nodes_log"
+            - "nodes_stats_summary"
+            - "nodes_top"
+            - "pods_get"
+            - "pods_list"
+            - "pods_list_in_namespace"
+            - "pods_log"
+            - "pods_top"
+            - "resources_get"
+            - "resources_list"
+          resources: false
+          prompts: false
+      grafana:
+        url: "http://grafana-mcp.mcp-system.svc.cluster.local:8000/mcp"
+        trust: "untrusted"
+        timeout: 60
+        tools:
+          include:
+            - "query_prometheus"
+            - "query_prometheus_histogram"
+            - "list_prometheus_metric_names"
+            - "list_prometheus_metric_metadata"
+            - "list_prometheus_label_names"
+            - "list_prometheus_label_values"
+            - "query_loki_logs"
+            - "query_loki_stats"
+            - "query_loki_patterns"
+            - "list_loki_label_names"
+            - "list_loki_label_values"
+            - "alerting_rules_read"
+            - "alerting_silences_read"
+            - "list_datasources"
+            - "check_datasources_health"
+            - "search_dashboards"
+            - "get_dashboard_summary"
+            - "get_dashboard_panel_queries"
+          resources: false
+          prompts: false
+      argocd:
+        url: "http://argocd-mcp.mcp-system.svc.cluster.local:3000/mcp"
+        trust: "untrusted"
+        timeout: 60
+        tools:
+          include:
+            - "list_applications"
+            - "get_application"
+            - "get_application_resource_tree"
+            - "get_application_events"
+            - "get_resource_events"
+            - "get_application_workload_logs"
+          resources: false
+          prompts: false
+
     # The browser UIs, behind nginx-gateway (internal only, LAN/Tailscale):
     #   Webapp     https://hermes.cluster.integratn.tech        -> 9120
     #   dashboard  https://hermes-admin.cluster.integratn.tech  -> 9119

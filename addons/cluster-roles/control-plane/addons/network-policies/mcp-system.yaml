@@ -189,3 +189,36 @@ spec:
   egress:
     - to:
         - podSelector: {}
+---
+# Hermes Agent (namespace hermes) calls the read-only MCP servers directly by
+# Service DNS, not through the gateway. Only these three; github-mcp and
+# sequential-thinking stay gateway-only. The other half is
+# allow-mcp-system-egress in hermes.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-hermes-ingress
+  namespace: mcp-system
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [kubernetes-mcp, argocd-mcp, grafana-mcp]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-agent
+      ports:
+        - protocol: TCP
+          port: 8080   # kubernetes-mcp
+        - protocol: TCP
+          port: 3000   # argocd-mcp
+        - protocol: TCP
+          port: 8000   # grafana-mcp

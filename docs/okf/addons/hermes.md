@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-07T20:20:00Z }
+generated: { by: claude-code, at: 2026-11-07T21:50:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -13,6 +13,12 @@ sources:
   - id: policies
     resource: ../../../addons/cluster-roles/control-plane/addons/network-policies/hermes.yaml
     title: Hermes namespace and network policies
+  - id: mcp-policies
+    resource: ../../../addons/cluster-roles/control-plane/addons/network-policies/mcp-system.yaml
+    title: mcp-system network policies
+  - id: mcp-doc
+    resource: ../../mcp.md
+    title: In-cluster MCP servers
   - id: optimization-guide
     resource: https://github.com/OnlyTerp/hermes-optimization-guide/tree/f865f8a
     title: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
@@ -72,12 +78,43 @@ fields `ANTHROPIC_API_KEY` and `API_SERVER_KEY`). The terminal backend is
 
 Egress is DNS plus TCP 443/80 to anywhere outside RFC1918: Hermes reaches the
 Anthropic API and the public web, but no LAN host and no in-cluster service,
-except authentik through the gateway pods on 443 for OIDC discovery and JWKS.
-Ingress: nginx-gateway to 9119/9120, and Open WebUI to 8642.[^policies]
+with two exceptions: authentik through the gateway pods on 443 for OIDC
+discovery and JWKS, and the three read-only MCP servers in `mcp-system`
+(kubernetes-mcp 8080, argocd-mcp 3000, grafana-mcp 8000), which admit Hermes
+through `allow-hermes-ingress`. Ingress: nginx-gateway to 9119/9120, and Open
+WebUI to 8642.[^policies][^mcp-policies]
+
+# Cluster access
+
+Hermes inspects the cluster it runs on through the platform's own MCP servers,
+called by Service DNS (`http://<server>.mcp-system.svc.cluster.local:<port>/mcp`),
+not through the gateway. It holds no kube or ArgoCD credentials and `kubectl`
+stays on its approval deny list: what it can see is what those servers' RBAC
+allows.[^manifests][^mcp-doc]
+
+| Server | Scope | Tools enabled |
+|---|---|---|
+| `kubernetes` | `read_only=true`, ClusterRole `kubernetes-mcp-viewer` (no secrets) | 12 list/get/log/top tools |
+| `grafana` | `--disable-write` | 18: Prometheus and Loki queries and labels, alert rules and silences, datasources, dashboard search and summaries |
+| `argocd` | `MCP_READ_ONLY=true`, account `mcp-readonly` | 6: applications, resource trees, events, workload logs |
+
+Every server is `trust: untrusted`, so Hermes asks before any tool that does not
+declare `readOnlyHint`. All kubernetes and grafana tools declare it; no argocd
+tool does, so each argocd call needs an approval even though the server cannot
+write. Each server has a `tools.include` list, so a tool added in a server
+upgrade stays off until it is named in git. `github-mcp` is not connected: it
+needs a client token and reaches GitHub. The `*.cluster.integratn.tech` website
+blocklist and `allow_private_urls` apply only to the web and browser tools, not to
+MCP connections.
+
+Config reaches the pod only at start (the init container copies the ConfigMap),
+so a merged config change takes effect after the pod restarts.
 
 [^manifests]: Hermes addon manifests
 [^policies]: Hermes namespace and network policies
 [^upstream-docker]: Hermes Agent Docker guide (v0.23.0)
+[^mcp-policies]: mcp-system network policies
+[^mcp-doc]: In-cluster MCP servers
 
 # Tuning
 
