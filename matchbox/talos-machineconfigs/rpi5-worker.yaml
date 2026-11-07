@@ -1,28 +1,48 @@
 # Raspberry Pi 5 (16 GB) arm64 WORKER for the-cluster -- talos-pi5-1.
 #
-# DRAFT, NOT APPLIED. Generation-time patch, used INSTEAD of all.yaml/work.yaml
+# Applied 2026-11-07. Generation-time patch, used INSTEAD of all.yaml/work.yaml
 # for this one node (see rpi5-worker.md). Holds no secrets; the rendered config
 # does, and it is never committed.
 #
 # Hardware: Pi 5 16 GB, MAC 2c:cf:67:ed:44:0e, on the Homelab VLAN.
-#   - Boots Talos from a USB stick (Samsung FIT 256 GB) written from the Image
-#     Factory raw image for the rpi_5 overlay, schematic a636242d... (no extensions).
-#   - 1 TB NVMe on the M.2 HAT, wiped 2026-11-07, holds EPHEMERAL and a user volume.
+#   - Boots Talos from the 1 TB NVMe on the M.2 HAT, flashed 2026-11-07 with a
+#     yama6a/talos-raspberry-pi5 build at Talos v1.13.12 (raspberrypi/linux
+#     6.18.57, community U-Boot with BCM2712 PCIe). The NVMe also holds
+#     EPHEMERAL and the local-nvme user volume.
+#   - Not the Image Factory rpi_5 overlay: as of sbc-raspberrypi v0.2.0 it ships
+#     the Pi 4 U-Boot, which cannot read NVMe or USB on a Pi 5 (see rpi5-worker.md).
 #
 # Why not all.yaml: it installs to /dev/disk/by-label/TALOS_INSTALL with
 # wipe: true and carries the x86 schematic. An SBC boots the raw image it was
 # written with; install.disk is only what upgrades rewrite, so it must point at
-# the USB stick and must not wipe.
+# the NVMe and must not wipe.
 machine:
   install:
-    # Confirm in maintenance mode first: `talosctl -n <ip> --insecure get disks`
-    # must show the 256 GB stick as sda (transport usb) and the NVMe as nvme0n1.
-    disk: /dev/sda
+    # Confirm in maintenance mode first: `talosctl -n <ip> get disks --insecure`
+    # must show the 1 TB NVMe as nvme0n1.
+    disk: /dev/nvme0n1
     wipe: false
-    image: factory.talos.dev/metal-installer/a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4:v1.13.12
+    # The Pi kernel installer for upgrades. It exists only in holocron's
+    # build registry today; push it somewhere the node can pull before any
+    # `talosctl upgrade` (rpi5-worker.md, "Upgrades").
+    image: ghcr.io/jamesatintegratnio/talos-rpi5-installer:v1.13.12
   kubelet:
     defaultRuntimeSeccompProfileEnabled: true
     disableManifestsDirectory: true
+    # Nothing schedules here unless it tolerates this. Six running images are
+    # amd64-only (Kratix pipeline images in platform-requests, bosun,
+    # delivery-agent): without the taint they would land here and fail with
+    # "exec format error". Drop it once those carry kubernetes.io/arch affinity.
+    #
+    # Set at kubelet registration, NOT machine.nodeTaints: on a worker the
+    # NodeRestriction admission plugin forbids the node from changing its own
+    # taints after it registers, and Talos's NodeApplyController then fails
+    # the labels too ("node ... is not allowed to modify taints", 2026-11-07).
+    extraConfig:
+      registerWithTaints:
+        - key: node.integratn.tech/arch
+          value: arm64
+          effect: NoSchedule
   network:
     interfaces:
       - deviceSelector:
@@ -40,12 +60,6 @@ machine:
   nodeLabels:
     cluster-role: worker
     node.integratn.tech/board: rpi5
-  # Nothing schedules here unless it tolerates this. Six running images are
-  # amd64-only (Kratix pipeline images in platform-requests, bosun,
-  # delivery-agent): without the taint they would land here and fail with
-  # "exec format error". Drop it once those carry kubernetes.io/arch affinity.
-  nodeTaints:
-    node.integratn.tech/arch: arm64:NoSchedule
 cluster:
   network:
     cni:
@@ -59,14 +73,14 @@ kind: HostnameConfig
 auto: off
 hostname: talos-pi5-1
 ---
-# EPHEMERAL (/var: containerd images, pod logs, emptyDir) on the NVMe, not the
-# USB stick: a flash stick would wear out and be the I/O bottleneck.
+# EPHEMERAL (/var: containerd images, pod logs, emptyDir) capped at 100 GiB on the
+# boot NVMe (system_disk), leaving the rest for local-nvme.
 apiVersion: v1alpha1
 kind: VolumeConfig
 name: EPHEMERAL
 provisioning:
   diskSelector:
-    match: disk.transport == "nvme"
+    match: system_disk
   minSize: 50GiB
   maxSize: 100GiB
   grow: false
@@ -78,7 +92,7 @@ kind: UserVolumeConfig
 name: local-nvme
 provisioning:
   diskSelector:
-    match: disk.transport == "nvme"
+    match: system_disk
   minSize: 100GiB
   grow: true
 filesystem:

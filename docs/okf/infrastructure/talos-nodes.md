@@ -1,12 +1,18 @@
 ---
 type: Infrastructure
-title: Talos control-plane nodes
-description: The three bare-metal Talos Linux nodes that form the-cluster, their machine-config patches, and how they are managed.
-tags: [talos, bare-metal, nodes, control-plane]
+title: Talos nodes
+description: The three bare-metal Talos control-plane nodes and the Raspberry Pi 5 arm64 worker that form the-cluster, their machine-config patches, and how they are managed.
+tags: [talos, bare-metal, nodes, control-plane, worker, arm64, raspberry-pi]
 status: stable
-generated: { by: claude-code/claude-fable-5, at: 2026-08-20T23:40:00Z }
+generated: { by: claude-code, at: 2026-11-07T19:00:00Z }
 stale_after: 2027-02-20
 sources:
+  - id: pi5-node
+    resource: kubectl get node talos-pi5-1 -o wide and talosctl get volumestatus,disks on 10.0.4.104, 2026-11-07
+    title: Raspberry Pi 5 worker join
+  - id: pi5-runbook
+    resource: ../../../matchbox/talos-machineconfigs/rpi5-worker.md
+    title: Raspberry Pi 5 worker runbook and patch
   - id: node-observation
     resource: kubectl get nodes -o wide on the-cluster (admin@the-cluster), 2026-08-20
     title: Live node listing
@@ -21,14 +27,18 @@ sources:
 # Node inventory
 
 Three identical bare-metal machines run Talos Linux and form both the control
-plane and the worker pool (`allowSchedulingOnControlPlanes: true` — there are
-no dedicated workers today).[^node-observation]
+plane and the main worker pool (`allowSchedulingOnControlPlanes: true`).[^node-observation]
+Since 2026-11-07 a Raspberry Pi 5 is the first dedicated worker and the first
+arm64 node. It is tainted `node.integratn.tech/arch=arm64:NoSchedule`, so only
+workloads that tolerate it run there (cilium, cilium-envoy, node-exporter,
+promtail, loki-canary).[^pi5-node]
 
 | Node name       | IP         | CPU | Memory | Max pods | Role          |
 |-----------------|------------|-----|--------|----------|---------------|
 | `talos-xez-xys` | 10.0.4.101 | 4   | ~32 Gi | 110      | control-plane |
 | `talos-4kg-ymz` | 10.0.4.102 | 4   | ~32 Gi | 110      | control-plane |
 | `talos-1jv-u7d` | 10.0.4.103 | 4   | ~32 Gi | 110      | control-plane |
+| `talos-pi5-1`   | 10.0.4.104 | 4   | 16 Gi  | 110      | worker (arm64) |
 
 As of 2026-08-20: Talos **v1.11.5**, Kubernetes **v1.34.1**, kernel
 6.12.57-talos, containerd 2.1.5. Nodes have been up ~221 days (provisioned
@@ -76,3 +86,18 @@ Key decisions encoded in the patches:
 
 [^node-observation]: Live node listing
 [^machineconfigs]: Talos machine-config patches (all.yaml, cp.yaml, work.yaml)
+
+# Raspberry Pi 5 worker
+
+`talos-pi5-1` boots a community Talos v1.13.12 build (yama6a/talos-raspberry-pi5,
+built on holocron) from its own Samsung 990 PRO 1 TB NVMe, not a Matchbox PXE
+boot: the official Image Factory `rpi_5` overlay ships a U-Boot that cannot read
+NVMe or USB on a Pi 5. EPHEMERAL is capped at 100 GiB and the rest of the NVMe is
+the `local-nvme` user volume at `/var/mnt/local-nvme`. Its NIC is `end0`, so
+Cilium's `devices` lists it beside `eno1`; MetalLB's L2Advertisement stays
+`eno1`-only so the Pi never announces a VIP. Upgrades need its installer in a
+registry the node can reach, which does not exist yet. Full runbook:
+[rpi5-worker.md](../../../matchbox/talos-machineconfigs/rpi5-worker.md).[^pi5-runbook]
+
+[^pi5-node]: Raspberry Pi 5 worker join
+[^pi5-runbook]: Raspberry Pi 5 worker runbook and patch
