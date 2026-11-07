@@ -16,7 +16,8 @@
 # The one in-cluster exception besides authentik: the read-only MCP servers in
 # mcp-system (kubernetes 8080, argocd 3000, grafana 8000), by Service DNS, so
 # Hermes can inspect the cluster through their RBAC rather than holding any
-# credentials of its own.
+# credentials of its own; and github-mcp-hermes (8083), which holds the GitHub
+# token Hermes uses to open PRs, so that token never enters this pod.
 #
 # Egress to authentik goes to the gateway pods on 443 (auth.cluster.integratn.tech
 # resolves to the gateway VIP, an RFC1918 address the internet rule excludes):
@@ -169,7 +170,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [kubernetes-mcp, argocd-mcp, grafana-mcp]
+                values: [kubernetes-mcp, argocd-mcp, grafana-mcp, github-mcp-hermes]
       ports:
         - protocol: TCP
           port: 8080
@@ -177,3 +178,5 @@ spec:
           port: 3000
         - protocol: TCP
           port: 8000
+        - protocol: TCP
+          port: 8083   # github-mcp-hermes
