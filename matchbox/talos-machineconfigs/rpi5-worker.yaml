@@ -1,0 +1,85 @@
+# Raspberry Pi 5 (16 GB) arm64 WORKER for the-cluster -- talos-pi5-1.
+#
+# DRAFT, NOT APPLIED. Generation-time patch, used INSTEAD of all.yaml/work.yaml
+# for this one node (see rpi5-worker.md). Holds no secrets; the rendered config
+# does, and it is never committed.
+#
+# Hardware: Pi 5 16 GB, MAC 2c:cf:67:ed:44:0e, on the Homelab VLAN.
+#   - Boots Talos from a USB stick (Samsung FIT 256 GB) written from the Image
+#     Factory raw image for the rpi_5 overlay, schematic a636242d... (no extensions).
+#   - 1 TB NVMe on the M.2 HAT, wiped 2026-11-07, holds EPHEMERAL and a user volume.
+#
+# Why not all.yaml: it installs to /dev/disk/by-label/TALOS_INSTALL with
+# wipe: true and carries the x86 schematic. An SBC boots the raw image it was
+# written with; install.disk is only what upgrades rewrite, so it must point at
+# the USB stick and must not wipe.
+machine:
+  install:
+    # Confirm in maintenance mode first: `talosctl -n <ip> --insecure get disks`
+    # must show the 256 GB stick as sda (transport usb) and the NVMe as nvme0n1.
+    disk: /dev/sda
+    wipe: false
+    image: factory.talos.dev/metal-installer/a636242df247ad4aad2e36d1026d8d4727b716a3061749bd7b19651e548f65e4:v1.13.12
+  kubelet:
+    defaultRuntimeSeccompProfileEnabled: true
+    disableManifestsDirectory: true
+  network:
+    interfaces:
+      - deviceSelector:
+          physical: true
+        dhcp: true
+    # Same resolvers the control plane runs with live (10.0.4.103, 2026-11-07).
+    nameservers:
+      - 10.0.0.1
+      - 1.1.1.1
+      - 8.8.8.8
+  features:
+    hostDNS:
+      enabled: true
+      forwardKubeDNSToHost: true
+  nodeLabels:
+    cluster-role: worker
+    node.integratn.tech/board: rpi5
+  # Nothing schedules here unless it tolerates this. Six running images are
+  # amd64-only (Kratix pipeline images in platform-requests, bosun,
+  # delivery-agent): without the taint they would land here and fail with
+  # "exec format error". Drop it once those carry kubernetes.io/arch affinity.
+  nodeTaints:
+    node.integratn.tech/arch: arm64:NoSchedule
+cluster:
+  network:
+    cni:
+      name: none
+  proxy:
+    disabled: true
+---
+# Hostname via its own document (Talos 1.12+); stable across reinstalls.
+apiVersion: v1alpha1
+kind: HostnameConfig
+auto: off
+hostname: talos-pi5-1
+---
+# EPHEMERAL (/var: containerd images, pod logs, emptyDir) on the NVMe, not the
+# USB stick: a flash stick would wear out and be the I/O bottleneck.
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+provisioning:
+  diskSelector:
+    match: disk.transport == "nvme"
+  minSize: 50GiB
+  maxSize: 100GiB
+  grow: false
+---
+# The rest of the NVMe, mounted at /var/mnt/local-nvme. Not wired to any
+# StorageClass yet; local storage is not the cluster's default (NFS is).
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: local-nvme
+provisioning:
+  diskSelector:
+    match: disk.transport == "nvme"
+  minSize: 100GiB
+  grow: true
+filesystem:
+  type: xfs
