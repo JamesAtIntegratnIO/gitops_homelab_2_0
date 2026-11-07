@@ -1,0 +1,35 @@
+# local-path-storage: rancher/local-path-provisioner for the `local-nvme`
+# StorageClass on the Raspberry Pi 5 worker (talos-pi5-1).
+#
+# The namespace gets its default-deny from the Kyverno generate policy like any
+# other. The provisioner only talks to the Kubernetes API. Its helper pods
+# (mkdir/rm -rf on the node) need no network at all.
+#
+# PodSecurity `privileged`: the helper pods mount the node path as a hostPath,
+# which the cluster-wide `baseline` level refuses. Nothing here runs with
+# `privileged: true` (Kyverno's disallow-privileged still applies).
+#
+# The Namespace lives here rather than in the local-path-provisioner addon so
+# this policy never targets a namespace that does not exist yet.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: local-path-storage
+  labels:
+    app.kubernetes.io/part-of: platform
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-api
+  namespace: local-path-storage
+spec:
+  endpointSelector:
+    matchLabels:
+      app: local-path-provisioner
+  egress:
+    - toEntities:
+        - kube-apiserver
