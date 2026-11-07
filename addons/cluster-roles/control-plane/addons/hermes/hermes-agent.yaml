@@ -116,8 +116,14 @@ spec:
             - sh
             - -c
             - cp /config/config.yaml /opt/data/config.yaml && chown 10000:10000 /opt/data/config.yaml
+          # Kyverno's mutate-restrict-escalation adds `drop: [ALL]` to any
+          # container that names no capabilities, which leaves root unable to
+          # chown. Naming them here keeps that default and adds back only CHOWN.
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN]
           volumeMounts:
             - name: data
               mountPath: /opt/data
@@ -128,6 +134,16 @@ spec:
         - name: hermes
           image: docker.io/nousresearch/hermes-agent:v0.23.0@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
           args: ["gateway", "run"]
+          # s6 /init runs as root to chown /opt/data, then s6-setuidgid drops
+          # every service to uid 10000, and s6-svscan signals those processes.
+          # Kyverno would otherwise drop ALL capabilities (see the init
+          # container); these are the ones that startup needs, all within the
+          # baseline PodSecurity level. Dropping uid needs no escalation.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL]
           env:
             - name: API_SERVER_ENABLED
               value: "true"
