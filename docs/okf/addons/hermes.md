@@ -120,6 +120,10 @@ MCP connections.
 Config reaches the pod only at start (the init container copies the ConfigMap),
 so a merged config change takes effect after the pod restarts.
 
+# Speech-to-text
+
+Local faster-whisper (`stt.provider: local`, model `base`), from `/opt/hermes-stt` in our derived image; the model (~142 MB) is cached in `/opt/data/cache/huggingface`. On the Pi 5 with all 4 cores (`limits.cpu: 4`, `OMP_NUM_THREADS=4`) a 6 s clip takes about 5 s warm and 8 s on first use. Hermes fixes `beam_size` at 5. `tiny` is about twice as fast with the same result on clear speech; switch `stt.local.model` if latency matters more than accuracy.
+
 # Cluster skills
 
 Skills from git, in ConfigMap `hermes-skills`, mounted read-only under
