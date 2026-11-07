@@ -13,6 +13,11 @@
 #   - Open WebUI (namespace ai) to the OpenAI-compatible API server (8642),
 #     which also demands API_SERVER_KEY. The other half is in ai.yaml.
 #
+# The one in-cluster exception besides authentik: the read-only MCP servers in
+# mcp-system (kubernetes 8080, argocd 3000, grafana 8000), by Service DNS, so
+# Hermes can inspect the cluster through their RBAC rather than holding any
+# credentials of its own.
+#
 # Egress to authentik goes to the gateway pods on 443 (auth.cluster.integratn.tech
 # resolves to the gateway VIP, an RFC1918 address the internet rule excludes):
 # Hermes fetches the OIDC discovery document and JWKS from there.
@@ -140,3 +145,35 @@ spec:
       toPorts:
         - ports:
             - port: "443"
+---
+# The read-only MCP servers in mcp-system, by Service DNS. A ClusterIP is
+# RFC1918, which allow-internet-egress excludes, so this needs its own rule.
+# The other half is allow-hermes-ingress in mcp-system.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mcp-system-egress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mcp-system
+          podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [kubernetes-mcp, argocd-mcp, grafana-mcp]
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 8000
