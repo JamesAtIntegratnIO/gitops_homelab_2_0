@@ -842,3 +842,29 @@ spec:
               is not installed in a cluster that expects it. Findings from this sweep mean nothing
               either way — it examined nothing.
             logs_url: "https://grafana.cluster.integratn.tech/d/kargo-overview/kargo-overview"
+
+    # ── Hermes Agent (namespace hermes, on talos-pi5-1) ─────────────────────
+    # Hermes exposes no Prometheus metrics (its gateway-health export is OTLP
+    # push only, and that is deliberately not wired up), so this keys off
+    # kube-state-metrics. Readiness is GET /health on the gateway, so "no
+    # available replica" means the gateway is down or wedged. There is no cron
+    # health signal without OTLP; a HermesCronOverdue rule is not possible.
+    - name: platform.hermes
+      interval: 60s
+      rules:
+        - alert: HermesGatewayDown
+          expr: |
+            (kube_deployment_status_replicas_available{namespace="hermes", deployment="hermes-agent"} < 1)
+              or absent(kube_deployment_status_replicas_available{namespace="hermes", deployment="hermes-agent"})
+          for: 5m
+          labels:
+            severity: warning
+            component: hermes
+          annotations:
+            summary: "Hermes Agent gateway is down"
+            description: >-
+              hermes/hermes-agent has had no ready replica for 5 minutes, so the Webapp,
+              dashboard, Open WebUI connection and cron jobs are all unavailable. Check
+              `kubectl --context admin@the-cluster -n hermes get pods -o wide` (it is pinned
+              to talos-pi5-1) and the pod's logs.
+

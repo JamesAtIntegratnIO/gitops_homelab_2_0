@@ -64,8 +64,85 @@ data:
       provider: "anthropic"
       default: "claude-sonnet-5-5"
     terminal:
-      # Commands run inside this pod: no Docker socket, no host access.
+      # Commands run inside this pod: no Docker socket, no host access. The
+      # optimization guide's hardened profile wants terminal.backend: docker;
+      # a Kubernetes pod has no Docker, so the pod is the sandbox instead:
+      # non-root uid 10000 after init, all capabilities dropped but six, and
+      # egress limited to the public internet (network-policies/hermes.yaml).
       backend: "local"
+
+    # ---- Tuning from OnlyTerp/hermes-optimization-guide (written for
+    # v0.21.4), every key checked against v0.23.0's DEFAULT_CONFIG on
+    # 2026-11-07. Dropped as absent in v0.23.0: security.tirith_fail_open.
+
+    # Cost: side tasks default to the main model (auxiliary.*: auto). Put them
+    # on Haiku. No `vision` block: Sonnet sees images itself.
+    auxiliary:
+      compression:
+        provider: "anthropic"
+        model: "claude-haiku-5-5"
+        reasoning_effort: "low"
+      title_generation:
+        provider: "anthropic"
+        model: "claude-haiku-5-5"
+        reasoning_effort: "low"
+      background_review:   # the memory/skill review fork
+        provider: "anthropic"
+        model: "claude-haiku-5-5"
+      approval:            # the classifier behind approvals.mode: smart
+        provider: "anthropic"
+        model: "claude-haiku-5-5"
+      curator:
+        provider: "anthropic"
+        model: "claude-haiku-5-5"
+      goal_judge:
+        provider: "anthropic"
+        model: "claude-haiku-5-5"
+    agent:
+      disabled_toolsets:
+        - "tts"          # no voice provider; browser stays (see /dev/shm below)
+    delegation:
+      max_concurrent_children: 4   # default 10; a Pi 5 has 4 cores and tools run in-pod
+    tool_loop_guardrails:
+      hard_stop_enabled: true      # stop exact-repeat failure loops (default false)
+
+    # Security: it reads web pages, so assume prompt injection.
+    approvals:
+      mode: "smart"
+      deny:                        # blocked even under /yolo
+        - "sudo *"
+        - "*curl*|*sh*"
+        - "*wget*|*sh*"
+        - "dd if=* of=/dev/*"
+        - "git push --force*"
+        - "*authorized_keys*"
+        - "kubectl *"              # the pod has no kube credentials; be explicit anyway
+    security:
+      allow_private_urls: false    # also enforced by network-policies/hermes.yaml
+      redact_secrets: true
+      allow_lazy_installs: false   # no runtime pip installs
+      website_blocklist:
+        enabled: true
+        domains:
+          - "*.cluster.integratn.tech"   # the platform's own hosts
+    hooks_auto_accept: false
+    skills:
+      guard_agent_created: true    # scan agent-written skills for injection/exfiltration
+    auth:
+      adopt_external_logins: false # never borrow a Claude Code login
+    browser:
+      use_real_profile: false
+    vault:                         # no 1Password/Bitwarden CLI in this pod
+      onepassword:
+        enabled: false
+      bitwarden:
+        enabled: false
+
+    # Ops
+    sessions:
+      auto_prune: true
+      retention_days: 90
+
     # The browser UIs, behind nginx-gateway (internal only, LAN/Tailscale):
     #   Webapp     https://hermes.cluster.integratn.tech        -> 9120
     #   dashboard  https://hermes-admin.cluster.integratn.tech  -> 9119
@@ -206,6 +283,18 @@ spec:
               port: api
             periodSeconds: 15
             failureThreshold: 4
+          # /health is answered by the gateway itself (no upstream call), so a
+          # failing liveness means a wedged gateway, not a slow Anthropic API.
+          # s6 already restarts a crashed gateway inside the container; this
+          # catches one that hangs.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: api
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
           resources:
             requests:
               cpu: 250m
@@ -216,7 +305,16 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /opt/data
+            # Chromium (browser toolset) needs more than the container
+            # runtime's 64Mi /dev/shm. Memory-backed, so it counts against the
+            # 4Gi limit.
+            - name: dshm
+              mountPath: /dev/shm
       volumes:
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
         - name: data
           persistentVolumeClaim:
             claimName: hermes-data
