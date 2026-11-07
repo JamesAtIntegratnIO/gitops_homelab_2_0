@@ -128,6 +128,9 @@ data:
     hooks_auto_accept: false
     skills:
       guard_agent_created: true    # scan agent-written skills for injection/exfiltration
+      # Cluster skills from git (skills.yaml), mounted read-only.
+      external_dirs:
+        - "/opt/hermes-skills"
     auth:
       adopt_external_logins: false # never borrow a Claude Code login
     browser:
@@ -386,6 +389,20 @@ spec:
             # 4Gi limit.
             - name: dshm
               mountPath: /dev/shm
+            # Cluster skills from git, one subPath per file (see skills.yaml
+            # for why not a plain ConfigMap mount).
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/DESCRIPTION.md
+              subPath: DESCRIPTION.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/cluster-health-check/SKILL.md
+              subPath: cluster-health-check.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/cluster-triage/SKILL.md
+              subPath: cluster-triage.md
+              readOnly: true
       volumes:
         - name: dshm
           emptyDir:
@@ -397,6 +414,9 @@ spec:
         - name: config
           configMap:
             name: hermes-config
+        - name: skills
+          configMap:
+            name: hermes-skills
 ---
 apiVersion: v1
 kind: Service
