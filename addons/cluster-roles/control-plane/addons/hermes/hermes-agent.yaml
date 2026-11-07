@@ -143,6 +143,37 @@ data:
       auto_prune: true
       retention_days: 90
 
+    # ---- Features, 2026-11-07. Only free ones that need no key beyond
+    # Anthropic and send nothing to Nous. Already on by default in v0.23.0 and
+    # left alone: memory and user profile, skills, session_search, cron (the
+    # gateway's ticker runs jobs), Claude-native vision (agent.image_input_mode:
+    # auto), and web search, which with no key configured falls back to the
+    # free Exa/Parallel/Keenable endpoints (the queries go to those vendors).
+    #
+    # File snapshots before the agent edits, so /rollback can undo them.
+    # Stored under /opt/data (local-nvme), pruned after 7 days.
+    checkpoints:
+      enabled: true
+    # Speech-to-text on the Pi's CPU with faster-whisper: no audio leaves the
+    # pod. The library comes from our derived image (images/hermes-agent);
+    # until the Deployment runs it, local STT reports itself unavailable and
+    # nothing else changes. `base` (~150MB, int8 on CPU) is the model; it
+    # downloads from the Hugging Face Hub on first use into HF_HOME on the
+    # PVC. Unloaded after 10 idle minutes to give the memory back.
+    stt:
+      enabled: true
+      provider: "local"
+      local:
+        model: "base"
+        unload_after_idle_seconds: 600
+    # Defaults, pinned so an upstream default change cannot turn them on.
+    telemetry:
+      shared_metrics:
+        enabled: false
+        send: false
+    cron:
+      allow_agent_scheduling: false   # the agent may not schedule its own jobs
+
     # The browser UIs, behind nginx-gateway (internal only, LAN/Tailscale):
     #   Webapp     https://hermes.cluster.integratn.tech        -> 9120
     #   dashboard  https://hermes-admin.cluster.integratn.tech  -> 9119
@@ -264,6 +295,12 @@ spec:
               value: "0.0.0.0"
             - name: HERMES_DASHBOARD_PORT
               value: "9119"
+            # Whisper model cache on the PVC, not the container's overlay,
+            # so a restart does not download it again.
+            - name: HF_HOME
+              value: "/opt/data/cache/huggingface"
+            - name: HF_HUB_DISABLE_TELEMETRY
+              value: "1"
           envFrom:
             - secretRef:
                 name: hermes-agent
