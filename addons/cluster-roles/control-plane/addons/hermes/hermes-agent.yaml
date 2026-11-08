@@ -580,7 +580,7 @@ spec:
               readOnly: true
       containers:
         - name: hermes
-          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2@sha256:a1a8de48b0ba04ae757fd7008c649d4800a9a2b4d7654001178098b0e12b0e20
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2-tc1.13.12@sha256:ba93ef0fda7ab0e6cbd262b9afe142804c7415a8589d500eb5b4dac9d7b35550
           args: ["gateway", "run"]
           # s6 /init runs as root to chown /opt/data, then s6-setuidgid drops
           # every service to uid 10000, and s6-svscan signals those processes.
