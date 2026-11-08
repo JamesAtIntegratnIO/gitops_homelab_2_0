@@ -211,6 +211,12 @@ configs:
     accounts.mcp-readonly: apiKey
     accounts.mcp-readonly.enabled: "true"
 
+    # Local account for Hermes Agent's argocd-mcp-ops (API key only, no UI
+    # login): read plus sync, nothing else. Each sync is approved by James in
+    # Hermes. Token in 1Password `argocd-hermes-ops`/`token`.
+    accounts.hermes-ops: apiKey
+    accounts.hermes-ops.enabled: "true"
+
     # Local account for Bosun's gate (API key only, no UI login).
     #
     # It exists to REPLACE an RBAC grant, not to add access. The gate renders
@@ -247,6 +253,15 @@ configs:
       p, role:mcp-readonly, repositories, get, *, allow
       p, role:mcp-readonly, logs, get, */*, allow
       g, mcp-readonly, role:mcp-readonly
+
+      # Hermes Agent's argocd-mcp-ops: read, and sync. No create, update,
+      # delete or resource actions: config changes go through git.
+      p, role:hermes-ops, applications, get, */*, allow
+      p, role:hermes-ops, applications, sync, */*, allow
+      p, role:hermes-ops, clusters, get, *, allow
+      p, role:hermes-ops, projects, get, *, allow
+      p, role:hermes-ops, logs, get, */*, allow
+      g, hermes-ops, role:hermes-ops
       
       # Bosun's gate, all of it read-only. `clusters` is the inventory it
       # expands ApplicationSets against. `applications` and `applicationsets`

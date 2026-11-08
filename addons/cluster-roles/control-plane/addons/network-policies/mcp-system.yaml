@@ -83,8 +83,10 @@ metadata:
   namespace: mcp-system
 spec:
   podSelector:
-    matchLabels:
-      app: argocd-mcp
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [argocd-mcp, argocd-mcp-ops]
   policyTypes:
     - Egress
   egress:
@@ -207,7 +209,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [kubernetes-mcp, kubernetes-mcp-ops, argocd-mcp, grafana-mcp, github-mcp-hermes, arr-mcp]
+        values: [kubernetes-mcp, kubernetes-mcp-ops, argocd-mcp, argocd-mcp-ops, grafana-mcp, github-mcp-hermes, arr-mcp]
   policyTypes:
     - Ingress
   ingress:
@@ -222,7 +224,7 @@ spec:
         - protocol: TCP
           port: 8080   # kubernetes-mcp, kubernetes-mcp-ops
         - protocol: TCP
-          port: 3000   # argocd-mcp
+          port: 3000   # argocd-mcp, argocd-mcp-ops
         - protocol: TCP
           port: 8000   # grafana-mcp
         - protocol: TCP

@@ -189,6 +189,8 @@ projects:
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/argocd-mcp-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/argocd-mcp-ops-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
       github-mcp:
         scope: mcp-system
         image:

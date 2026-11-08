@@ -330,6 +330,18 @@ data:
     Do two stuck apps one after the other, each with its own
     cordon -> delete -> verify -> uncordon cycle.
 
+    ## ArgoCD sync
+
+    `mcp__argocdops__sync_application` syncs one Application (approval
+    each time). Use it when an app is OutOfSync and self-heal is not
+    retrying (a failed sync stays failed until the next commit), or right
+    after James merges a fix. Check first with the read-only `argocd`
+    tools: the app's operation state, its last sync error, and that `main`
+    holds what you expect. Never sync to "make a diff go away" you have not
+    explained, and never sync an app whose last sync failed on an immutable
+    field (that needs a one-off patch from James, e.g. `rollingUpdate` left
+    on a Deployment moving to `Recreate`).
+
     ## Report
 
     What you changed (tool, object), what you saw afterwards, the final state

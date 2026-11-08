@@ -1,0 +1,129 @@
+# argocd-mcp-ops: a second mcp-for-argocd for Hermes Agent only, with writes
+# on (MCP_READ_ONLY=false) but ArgoCD account `hermes-ops`, whose RBAC allows
+# only get + sync (addons/clusters/the-cluster/addons/argo-cd/values.yaml).
+# create/update/delete_application and run_resource_action are refused by
+# ArgoCD, and Hermes's tools.include lists only the reads and
+# sync_application, each sync approved by James (trust: untrusted).
+# The read-only argocd-mcp stays as it is for the gateway and Hermes's
+# scheduled checks.
+#
+# Token: 1Password `argocd-hermes-ops`, field `token`
+# (`argocd account generate-token --account hermes-ops`). Missing: the env var
+# is empty and every call fails 401.
+#
+# No HTTPRoute; ingress from Hermes only (network-policies/mcp-system.yaml).
+# The image line is a Kargo pin (argocd-mcp target): keep the Deployment the
+# first document and the line comment-free.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-mcp-ops
+  namespace: mcp-system
+  labels:
+    app: argocd-mcp-ops
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: argocd-mcp-ops
+  template:
+    metadata:
+      labels:
+        app: argocd-mcp-ops
+    spec:
+      priorityClassName: platform-batch
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: argocd-mcp
+          image: ghcr.io/argoproj-labs/mcp-for-argocd:v0.9.0@sha256:dffc6c719d8635be2d5f2c8ad1c0178540325da4b40da0b373307e12b4c48f86
+          args:
+            - "http"
+            - "--allow-unauthenticated"
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: ARGOCD_BASE_URL
+              value: "http://argo-cd-argocd-server.argocd.svc.cluster.local"
+            - name: ARGOCD_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: argocd-mcp-ops-token
+                  key: token
+                  optional: true
+            - name: MCP_READ_ONLY
+              value: "false"
+            - name: MCP_BIND_ADDRESS
+              value: "0.0.0.0"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          startupProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-mcp-ops
+  namespace: mcp-system
+  labels:
+    app: argocd-mcp-ops
+spec:
+  type: ClusterIP
+  selector:
+    app: argocd-mcp-ops
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: argocd-mcp-ops-token
+  namespace: mcp-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: argocd-mcp-ops-token
+    creationPolicy: Owner
+  data:
+    - secretKey: token
+      remoteRef:
+        key: argocd-hermes-ops
+        property: token
