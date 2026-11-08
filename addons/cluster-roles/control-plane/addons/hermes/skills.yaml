@@ -35,7 +35,7 @@ data:
     ---
     name: cluster-health-check
     description: "Use for a health check or status report on the-cluster."
-    version: 1.0.0
+    version: 1.1.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -51,8 +51,9 @@ data:
     ArgoCD, pods, nodes, etcd, storage and alerts.
 
     You are looking at `the-cluster`: Talos Linux, Kubernetes 1.36, three
-    control-plane nodes (10.0.4.101-103) and one arm64 worker, `talos-pi5-1`
-    (10.0.4.104), where you yourself run. GitOps: ArgoCD reconciles everything
+    control-plane nodes (10.0.4.101-103) and three arm64 workers:
+    `talos-pi5-1` (10.0.4.104), where you yourself run, and `talos-pi4-1`/
+    `talos-pi4-2` (10.0.4.105-106). GitOps: ArgoCD reconciles everything
     from the `main` branch of `gitops_homelab_2_0`. A tenant vcluster,
     `vcluster-media`, runs the media apps.
 
@@ -287,9 +288,9 @@ data:
     ```
 
     Never cordon a second node while one is cordoned. The cluster has three
-    control-plane nodes doing all the work plus `talos-pi5-1` (arm64, tainted,
-    takes only tolerating pods), so a cordoned Lenovo removes a third of the
-    capacity.
+    control-plane nodes doing all the work plus three arm64 workers
+    (`talos-pi5-1`, `talos-pi4-1`, `talos-pi4-2`; tainted, they take only
+    tolerating pods), so a cordoned Lenovo removes a third of the capacity.
 
     ## Rollout restart
 
@@ -676,7 +677,7 @@ data:
     ---
     name: talos-node-health
     description: "Use for node health on the-cluster's Talos nodes."
-    version: 1.0.0
+    version: 1.1.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -695,7 +696,10 @@ data:
     | Node | IP | Role | Notes |
     |---|---|---|---|
     | talos-xez-xys, talos-4kg-ymz, talos-1jv-u7d | 10.0.4.101-103 | control plane + workloads | ThinkCentre M900 Tiny, one SATA SSD each holding OS, containerd and etcd |
-    | talos-pi5-1 | 10.0.4.104 | arm64 worker, tainted | Raspberry Pi 5, NVMe, community Talos build. You run here. |
+    | talos-pi5-1 | 10.0.4.104 | arm64 worker, tainted | Raspberry Pi 5, NVMe, community Talos build, label `node.integratn.tech/board=rpi5`. Only node with the `local-nvme` StorageClass. You run here. |
+    | talos-pi4-1, talos-pi4-2 | 10.0.4.105-106 | arm64 workers, tainted | Raspberry Pi 4 8GB booting from USB sticks, official rpi_generic image, label `node.integratn.tech/board=rpi4`. Joined 2026-11-08. USB storage is slow: nothing stateful belongs here. |
+
+    All three Pis carry the taint `node.integratn.tech/arch=arm64:NoSchedule`.
 
     There is no Talos MCP and no talosctl here. Talos services, the kernel log
     and machine config are out of your reach. Say so rather than guessing, and
@@ -708,7 +712,7 @@ data:
        MemoryPressure, DiskPressure, PIDPressure. Also `.spec.unschedulable`:
        a cordon left behind is a finding (cluster-remediate always uncordons).
     2. **Versions**: `.status.nodeInfo` (osImage = Talos version, kubelet
-       version). All four should match, except the Pi may lag on its community
+       version). All should match, except the Pi 5 may lag on its community
        build.
     3. **Resources**: `mcp__kubernetes__nodes_top`,
        `mcp__kubernetes__nodes_stats_summary` (filesystem and image fs use per
@@ -725,7 +729,7 @@ data:
     5. **Kubelet logs**: `mcp__kubernetes__nodes_log` with the node name (and
        `query` for a unit if supported). PLEG, eviction and image-GC lines
        matter.
-    6. **Scrape health**: `up{instance=~"10.0.4.10[1-4].*"} == 0`. A node whose
+    6. **Scrape health**: `up{instance=~"10.0.4.10[1-6].*"} == 0`. A node whose
        kubelet or node-exporter target is down has no data; say the checks
        above are blind for it rather than reporting it healthy.
 
