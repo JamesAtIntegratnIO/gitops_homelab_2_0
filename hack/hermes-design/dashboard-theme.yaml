@@ -98,4 +98,6 @@ customCSS: |
   main a:not([class]) { color: #f3f7fc; text-decoration: underline; text-decoration-color: #393e43; text-underline-offset: 3px; }
   main a:not([class]):hover { text-decoration-color: #f3f7fc; }
   :focus-visible { outline: 2px solid #f3f7fc !important; outline-offset: 2px; }
+  /* Fields: the border turns to Text on focus, no outline box inside them. */
+  input:focus-visible, textarea:focus-visible, [contenteditable]:focus-visible { outline: none !important; border-color: #f3f7fc !important; }
   ::selection { background: #393e43; color: #f3f7fc; }

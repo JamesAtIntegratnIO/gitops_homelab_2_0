@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-11-08
+* **Fix**: **No focus box inside Hermes text fields.** The `integratn` skin and theme drew a 2px outline inside the Webapp composer; inputs and textareas now rely on their own frame. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes's own UIs wear James's design system.** Dashboard theme `integratn` and skin `integratn` (CLI/TUI, Chat tab, Webapp) from `hack/hermes-design/`, mounted from ConfigMap `hermes-skill-design` into `/opt/data/dashboard-themes/` and `/opt/data/skins/`, selected in config.yaml. See [Hermes Agent](addons/hermes.md).
 * **Update**: **cq-server is backed up; Hermes backup verified.** First `hermes-backup` run 18:44Z wrote a 36 MB zip to datacron (nix_dots_2#6 deployed, Postgres untouched). New `cq-backup` CronJob (ns `cq`, 04:40 UTC) copies cq-server's SQLite with the backup API, integrity-checks it and keeps 14 under `/srv/backups/hermes/cq/`; `HermesBackupStale`/`NeverSucceeded` now cover both. `hermes-backup` image aligned with the Deployment's. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Sonarr's WEB-2160p profile is gone; TV is 1080p-only.** The leftover profile the configarr page said still needed deleting by hand has been deleted. Live on 2026-11-08: 267 of 277 series on `WEB-1080p`, 10 on `Any` (max 1080p); the built-in `Ultra-HD` profile (id 5) still exists but is unused; replaced 4K files go to the recycle bin `/data/media/.sonarr-recycle` (7-day cleanup). Also fixed a duplicate `title` in the page's `sources`. See [configarr](addons/configarr.md).
