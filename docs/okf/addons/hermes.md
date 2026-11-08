@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-08T17:40:00Z }
+generated: { by: claude-code, at: 2026-11-08T18:40:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -22,6 +22,9 @@ sources:
   - id: skills
     resource: ../../../addons/cluster-roles/control-plane/addons/hermes/skills.yaml
     title: Hermes cluster skills
+  - id: design-skill
+    resource: ../../../hack/hermes-design/SKILL.md
+    title: integratn-design skill (source; generated into design-skill.yaml)
   - id: github-mcp
     resource: ../../../addons/cluster-roles/control-plane/addons/mcp-system/github-mcp-hermes.yaml
     title: github-mcp-hermes
@@ -150,6 +153,18 @@ James). For kargo-health the `kubernetes-mcp-viewer` ClusterRole reads
 `kargo.akuity.io` projects, projectconfigs, warehouses, stages, freights and
 promotions. They are adapted from the
 repo's `.claude/skills/cluster-triage` and [known issues](../cluster/known-issues.md).[^skills]
+
+**Design system** (`integratn-design`, 2026-11-08). James rejected Hermes's
+first architecture page as generic AI styling, so anything visual Hermes makes
+now follows the IntegratnIO design system ("The Night Shift Ledger",
+`DESIGN.md` in IntegratnIO/specmarshal, the same tokens as Glance and the
+ArgoCD/Kargo/authentik themes). The skill carries `templates/base.css` (tokens,
+components, SVG diagram classes, light ramp) and `templates/page.html` (the
+cluster architecture page redone in the system) as linked files. Its source is
+`hack/hermes-design/`; `gen.sh` writes ConfigMap `hermes-skill-design`
+(`design-skill.yaml`), mounted with `subPath` under
+`/opt/hermes-skills/homelab/integratn-design/`. Edit the source files and
+rerun `gen.sh` (`--check` fails when the YAML is stale), never the YAML.[^design-skill]
 
 Each file is a `subPath` mount: a plain ConfigMap volume adds hidden `..data`
 symlink directories, and Hermes walks skill directories following symlinks, so
@@ -364,4 +379,4 @@ v0.21.4, with every key checked against v0.23.0's built-in defaults first.[^opti
   Delegation and cron stay on the main model.
 
 [^optimization-guide]: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
-
+[^design-skill]: integratn-design skill (source; generated into design-skill.yaml)
