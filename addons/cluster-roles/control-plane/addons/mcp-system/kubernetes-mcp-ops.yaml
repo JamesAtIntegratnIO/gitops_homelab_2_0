@@ -8,8 +8,11 @@
 # What it can do is bounded three times:
 #   1. RBAC (below): read like kubernetes-mcp-viewer, plus delete pods, patch
 #      nodes (cordon/uncordon) and patch Deployments/StatefulSets/DaemonSets
-#      (rollout restart). No Secrets, no RBAC, no create/delete of workloads,
-#      no namespaces.
+#      (rollout restart). In the Kargo project namespaces only (addons,
+#      promises, workloads): create/patch Promotions, patch + promote Stages,
+#      patch Warehouses -- the abort, re-verify, refresh and re-promote
+#      remedies. No Secrets, no RBAC, no create/delete of workloads, no
+#      namespaces.
 #   2. enabled_tools: only pods_delete and resources_create_or_update are
 #      exposed. No exec, no pods_run, no resources_delete, no helm.
 #   3. Hermes calls it with trust: untrusted, and neither tool declares
@@ -102,6 +105,80 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: kubernetes-mcp-ops
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-ops
+    namespace: mcp-system
+---
+# Kargo remedies, only in its three project namespaces (the kargo-health
+# skill has the exact manifests):
+#   abort       annotate Promotion kargo.akuity.io/abort={"action":"terminate"}
+#   re-verify   annotate Stage kargo.akuity.io/reverify={"id":"<id>"}
+#   refresh     annotate Warehouse kargo.akuity.io/refresh=<RFC3339>
+#   re-promote  create a Promotion {stage, freight}; Kargo's webhook also
+#               demands the custom `promote` verb on the Stage.
+# Server-side apply creates an object through PATCH, which needs `create` as
+# well. No delete: a Promotion is never removed, only aborted.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubernetes-mcp-ops-kargo
+  labels:
+    app: kubernetes-mcp-ops
+rules:
+  - apiGroups: ["kargo.akuity.io"]
+    resources: ["promotions"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["kargo.akuity.io"]
+    resources: ["stages"]
+    verbs: ["patch", "promote"]
+  - apiGroups: ["kargo.akuity.io"]
+    resources: ["warehouses"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubernetes-mcp-ops-kargo
+  namespace: addons
+  labels:
+    app: kubernetes-mcp-ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-mcp-ops-kargo
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-ops
+    namespace: mcp-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubernetes-mcp-ops-kargo
+  namespace: promises
+  labels:
+    app: kubernetes-mcp-ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-mcp-ops-kargo
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-ops
+    namespace: mcp-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubernetes-mcp-ops-kargo
+  namespace: workloads
+  labels:
+    app: kubernetes-mcp-ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-mcp-ops-kargo
 subjects:
   - kind: ServiceAccount
     name: kubernetes-mcp-ops
