@@ -363,9 +363,17 @@ data:
             - "status"
           resources: false
           prompts: false
+      # Branches and PRs without approval (James, 2026-11-08: approving each
+      # one was busywork). trust: full is safe here because none of these can
+      # change `main`: create_branch only adds a ref, a PR only proposes, and
+      # github-mcp-hermes refuses merge, delete, repo create/fork and reviews
+      # outright. The file writes, which take any branch name including
+      # `main`, are on `githubwrite` below and still need approval, because
+      # the token is James's admin PAT and the `main` ruleset lets the Admin
+      # role bypass it.
       github:
         url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
-        trust: "untrusted"
+        trust: "full"
         timeout: 120
         tools:
           include:
@@ -378,8 +386,6 @@ data:
             - "search_code"
             - "search_pull_requests"
             - "create_branch"
-            - "create_or_update_file"
-            - "push_files"
             - "create_pull_request"
             - "update_pull_request"
             # Read-only: issues and CI (workflow runs, job logs), so a PR's
@@ -390,6 +396,17 @@ data:
             - "actions_list"
             - "actions_get"
             - "get_job_logs"
+          resources: false
+          prompts: false
+      # Commits: the same server, each call approved by James (untrusted).
+      githubwrite:
+        url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
+        trust: "untrusted"
+        timeout: 120
+        tools:
+          include:
+            - "create_or_update_file"
+            - "push_files"
           resources: false
           prompts: false
       # Inside the media apps (mcp-system/arr-mcp.yaml): Sonarr, Radarr, Bazarr,

@@ -357,7 +357,7 @@ data:
     ---
     name: gitops-fix
     description: "Use to propose a fix to the-cluster as a GitHub PR."
-    version: 1.0.0
+    version: 1.1.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -392,8 +392,9 @@ data:
        `hermes/fix-grafana-netpol`). Never write to `main` or to a branch you
        did not create.
     4. **Change.** Smallest change that fixes the cause. One commit with
-       `mcp__github__push_files` (several files) or
-       `mcp__github__create_or_update_file` (one), always with
+       `mcp__githubwrite__push_files` (several files) or
+       `mcp__githubwrite__create_or_update_file` (one; James approves each
+       commit), always with
        `branch: hermes/...`. Commit message: conventional and scoped like the
        history, e.g. `fix(network-policies): let grafana-mcp reach loki`.
     5. **PR.** `mcp__github__create_pull_request`, base `main`, head your
@@ -610,19 +611,20 @@ data:
     ---
     name: kargo-health
     description: "Use for Kargo promotion and version-pin health."
-    version: 1.0.0
+    version: 1.1.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
       hermes:
         tags: [Kargo, GitOps, Homelab, Versions]
-        related_skills: [cluster-health-check, gitops-fix]
+        related_skills: [cluster-health-check, gitops-fix, cluster-remediate]
     ---
 
     # Kargo health
 
     For: "is Kargo OK", "why hasn't X bumped", a stuck or failed Promotion,
-    a Kargo bump PR that sits open. Read-only.
+    a Kargo bump PR that sits open. Reads are free; the four remedies at the
+    end are approval-gated.
 
     Kargo is the repo's version-bump bot. Warehouses watch images and charts;
     Stages (in Projects `addons`, `promises`, `workloads`) open PRs that move
@@ -669,14 +671,37 @@ data:
       scalar, with no trailing `# comment`. Breaking that fails the promotion
       silently.
 
-    ## What you can and cannot do
+    ## Remedies (each approved by James)
 
-    The remedies (re-verify, abort, refresh, re-promote) are annotations or new
-    Promotion objects. You have no tool for them and must not ask for one: report
-    the Stage, the Freight, the id from
-    `status.freightHistory[0].verificationHistory[0].id` if relevant, and
-    which remedy fits, for James. Config fixes (a pin layout, a verification
-    budget in `kargo-projects/values.yaml`) go through gitops-fix.
+    `mcp__kubeops__resources_create_or_update` can apply these, only in
+    namespaces `addons`, `promises` and `workloads`. Say first, in one line,
+    which Stage or Promotion, what is wrong and which remedy fits; then make
+    the call. Re-read the object right before you act: if it has moved on,
+    stop.
+
+    - **Abort** a Promotion wedged in Running (for example on a PR James
+      closed or on `git-wait-for-pr` for days):
+      `{apiVersion: kargo.akuity.io/v1alpha1, kind: Promotion, metadata:
+      {name: <promotion>, namespace: <ns>, annotations:
+      {kargo.akuity.io/abort: '{"action":"terminate"}'}}}`.
+      `abort: "true"` is silently ignored; it must be that JSON.
+    - **Re-verify** a Stage whose verification failed after its cause was
+      fixed: annotation `kargo.akuity.io/reverify: '{"id":"<id>"}'` on the
+      Stage, id from `status.freightHistory[0].verificationHistory[0].id`.
+    - **Refresh** a Warehouse so it polls now: annotation
+      `kargo.akuity.io/refresh: "<now, RFC3339>"`. This does not re-run a
+      Promotion.
+    - **Re-promote** Freight that already has a terminal Promotion (one
+      transient error stopped the Stage): create
+      `{apiVersion: kargo.akuity.io/v1alpha1, kind: Promotion, metadata:
+      {name: <stage>-hermes-<yyyymmddhhmm>, namespace: <ns>}, spec: {stage:
+      <stage>, freight: <freight name>}}`. Use the Freight the Stage last
+      tried, never an older one: that would be a downgrade.
+
+    Never delete a Promotion, Stage, Freight or Warehouse; you cannot, and a
+    gap in history hides what happened. Config fixes (a pin layout, a
+    verification budget in `kargo-projects/values.yaml`) go through
+    gitops-fix.
 
   talos-node-health.md: |
     ---
