@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-11-08
+* **Update**: **Hermes knows about the Pi 4 workers.** `talos-node-health` and `cluster-health-check` 1.1.0 list `talos-pi4-1`/`talos-pi4-2` (10.0.4.105-106, `board=rpi4`, USB storage, nothing stateful), widen the scrape check to .101-.106, and note that `talos-4kg-ymz` was found cordoned with no recorded reason (ask James before uncordoning). See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes can sync ArgoCD apps, each approved by James.** New `argocd-mcp-ops` in `mcp-system` (Hermes only) with ArgoCD account `hermes-ops`, RBAC get + sync only; Hermes exposes only `sync_application`. Rules in `cluster-remediate`. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes has a knowledge memory: Mozilla.ai cq.** The `cq` CLI (v0.19.2, built into the Hermes image) runs as a stdio MCP server with its SQLite store on the Pi's local NVMe (`/opt/data/cq/local.db`). New skill `knowledge-memory`. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes can improve its own skills, through PRs.** Hermes tried to add a rule to `cluster-remediate` and found the git skills read-only (by design). New skill `skill-improve`: git skills change by PR to `skills.yaml` via github-mcp-hermes (James merges); Hermes's own skills live in `/opt/data/skills`; never shadow a git skill locally. Added Hermes's rule: `cluster-remediate` 1.1.0 re-reads pod state right before acting and stops if the failure no longer persists. See [Hermes Agent](addons/hermes.md).
