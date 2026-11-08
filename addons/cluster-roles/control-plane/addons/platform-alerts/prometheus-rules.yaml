@@ -867,4 +867,35 @@ spec:
               dashboard, Open WebUI connection and cron jobs are all unavailable. Check
               `kubectl --context admin@the-cluster -n hermes get pods -o wide` (it is pinned
               to talos-pi5-1) and the pod's logs.
+        - alert: HermesBackupStale
+          expr: |
+            (time() - kube_cronjob_status_last_successful_time{namespace=~"hermes|cq", cronjob=~"hermes-backup|cq-backup"}) > 36 * 3600
+          for: 30m
+          labels:
+            severity: warning
+            component: hermes
+          annotations:
+            summary: "No successful {{ $labels.cronjob }} in {{ $value | humanizeDuration }}"
+            description: >-
+              {{ $labels.namespace }}/{{ $labels.cronjob }} last succeeded more than 36h ago, so
+              the newest copy on datacron (/srv/backups/hermes, cq-server's under cq/) is
+              old. Check `kubectl --context admin@the-cluster -n {{ $labels.namespace }} get jobs`
+              and the job's log. A
+              mount error means the datacron export (nix_dots_2 hosts/datacron/hermes-backup.nix)
+              or the path from talos-pi5-1 to 10.0.3.5:2049.
+        - alert: HermesBackupNeverSucceeded
+          expr: |
+            kube_cronjob_info{namespace=~"hermes|cq", cronjob=~"hermes-backup|cq-backup"}
+              unless on (namespace, cronjob)
+            kube_cronjob_status_last_successful_time{namespace=~"hermes|cq", cronjob=~"hermes-backup|cq-backup"}
+          for: 36h
+          labels:
+            severity: warning
+            component: hermes
+          annotations:
+            summary: "{{ $labels.cronjob }} has never completed"
+            description: >-
+              {{ $labels.namespace }}/{{ $labels.cronjob }} exists but has no successful run on record after 36h. The
+              usual cause is that the datacron NFS export isn't deployed yet (nix_dots_2
+              hosts/datacron/hermes-backup.nix).
 

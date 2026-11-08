@@ -851,9 +851,16 @@ data:
 
     All three Pis carry the taint `node.integratn.tech/arch=arm64:NoSchedule`.
 
-    There is no Talos MCP and no talosctl here. Talos services, the kernel log
-    and machine config are out of your reach. Say so rather than guessing, and
-    name the `talosctl` command James would run.
+    You have **read-only talosctl** in the terminal (`TALOSCONFIG` is set,
+    role `os:reader`; Talos refuses every write for it). Always name the node:
+    `talosctl -n 10.0.4.102 <cmd>`. Useful: `version`, `services`,
+    `service etcd`, `dmesg | tail`, `logs kubelet --tail 100`, `disks`,
+    `get volumestatus`, `etcd status`, `etcd members`, `read /proc/...` and
+    `read /sys/...`, `get mounts`. If `talosctl` says the config is missing,
+    the control-plane patch (commands.md step 2b) isn't applied yet: say so.
+    Writes (apply-config, patch, reboot, upgrade, reset, etcd defrag or
+    snapshot) are James's; name the exact command for him. Machine config
+    changes bypass GitOps.
 
     ## Checks
 
@@ -875,7 +882,8 @@ data:
        - `histogram_quantile(0.99, sum by (instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])))` (above ~25 ms is trouble)
        - `increase(etcd_server_leader_changes_seen_total[1h])`
        The decisive check is `talosctl -n <ip> read /sys/block/sda/device/iotmo_cnt`
-       (0 on a healthy disk): James runs it.
+       (0 on a healthy disk; `ioerr_cnt` is 8 every boot and useless). Run it
+       yourself on all three Lenovos and compare.
     5. **Kubelet logs**: `mcp__kubernetes__nodes_log` with the node name (and
        `query` for a unit if supported). PLEG, eviction and image-GC lines
        matter.

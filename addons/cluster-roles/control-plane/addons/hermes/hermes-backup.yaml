@@ -1,0 +1,117 @@
+# Nightly backup of Hermes's state, off the Pi.
+#
+# Everything Hermes knows (state.db, memories, skills it wrote, sessions,
+# cron jobs) is on the one local-nvme claim `hermes-data` on talos-pi5-1.
+# This runs `hermes backup` against that claim and writes the zip to datacron
+# (VM 103, 10.0.3.5) over NFSv4, keeping the newest 14. The export is declared in
+# nix_dots_2 hosts/datacron/hermes-backup.nix. It admits only 10.0.4.104 and
+# squashes every uid to a 0700 directory. Never Tower.
+#
+# - `hermes backup` snapshots each SQLite db with sqlite3.backup(), so it is
+#   safe while the gateway is writing (WAL mode). It skips caches, installs and
+#   checkpoints: about 32 MB on 2026-11-08.
+# - The claim is ReadWriteOnce and local, so this pod must land on the same
+#   node as the gateway. RWO allows that; the PV's node affinity enforces it.
+# - The command bypasses the image's s6 /init (no chown, no services) and runs
+#   straight as the hermes uid, which owns /opt/data.
+# - The kubelet mounts the export, so no NetworkPolicy is involved and the pod
+#   itself needs no network.
+# - The zip holds .env and auth.json, so umask 077.
+#
+# Restore: copy a zip back into the pod and run `hermes import <zip>`, with
+# the gateway stopped (see docs/okf/addons/hermes.md).
+# Watched by HermesBackupStale / HermesBackupNeverSucceeded (platform-alerts).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hermes-backup
+  namespace: hermes
+  labels:
+    app.kubernetes.io/name: hermes-backup
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: hermes
+spec:
+  # 04:30 UTC, clear of the etcd snapshots at 03:15 and 03:45.
+  schedule: "30 4 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: hermes-backup
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          priorityClassName: platform-batch
+          nodeSelector:
+            node.integratn.tech/board: rpi5
+          tolerations:
+            - key: node.integratn.tech/arch
+              operator: Equal
+              value: arm64
+              effect: NoSchedule
+          securityContext:
+            runAsUser: 10000
+            runAsGroup: 10000
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              # Keep equal to the Deployment's image in hermes-agent.yaml.
+              image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2-tc1.13.12@sha256:ba93ef0fda7ab0e6cbd262b9afe142804c7415a8589d500eb5b4dac9d7b35550
+              command: [/bin/sh, -eu, -c]
+              args:
+                - |
+                  umask 077
+                  name="hermes-backup-$(date -u +%Y-%m-%dT%H%MZ).zip"
+                  hermes backup -o "/backups/$name" -k "$KEEP"
+                  if ! python3 -m zipfile -t "/backups/$name" >/dev/null; then
+                    mv "/backups/$name" "/backups/$name.bad"
+                    echo "zip failed its integrity test, kept as $name.bad"
+                    exit 1
+                  fi
+                  echo "wrote $name ($(stat -c %s "/backups/$name") bytes)"
+                  echo "retained:"; ls -l /backups
+              env:
+                - name: KEEP
+                  value: "14"
+                - name: HOME
+                  value: /opt/data/home
+                - name: HERMES_HOME
+                  value: /opt/data
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: data
+                  mountPath: /opt/data
+                - name: backups
+                  mountPath: /backups
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: hermes-data
+            - name: backups
+              nfs:
+                server: 10.0.3.5
+                path: /srv/backups/hermes
+            - name: tmp
+              emptyDir:
+                sizeLimit: 512Mi

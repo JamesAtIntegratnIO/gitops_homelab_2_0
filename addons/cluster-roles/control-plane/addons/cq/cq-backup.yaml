@@ -1,0 +1,117 @@
+# Nightly backup of cq-server's SQLite database, off the Pi.
+#
+# cq-server is the store of record for Hermes's knowledge (approved units,
+# review state, users, API key hashes). Its only copy is /data/cq.db on the
+# local-nvme claim `cq-server-data` on talos-pi5-1; hermes-backup does NOT
+# cover it (Hermes's own local.db is empty since the switch to cq-server).
+#
+# - Python's sqlite3 backup API takes a consistent copy while cq-server writes.
+#   The result is integrity-checked; a bad copy is renamed .bad and the job fails.
+# - Writes to datacron's existing Hermes export (10.0.3.5:/srv/backups/hermes,
+#   nix_dots_2 hosts/datacron/hermes-backup.nix; admits only 10.0.4.104, the
+#   Pi 5, and squashes every uid), in its own `cq` subdirectory via subPath,
+#   which the kubelet creates. Keeps the newest 14. Never Tower.
+# - The claim is ReadWriteOnce and local; RWO lets this pod share the node with
+#   cq-server, and the PV's node affinity puts it there.
+# - Same image as cq-server for its Python; keep the digest equal to
+#   cq-server.yaml's (Kargo bumps only that file).
+# - 04:40 UTC, after hermes-backup (04:30).
+#
+# Restore: scale cq-server to 0, copy a cq-*.db back over /data/cq.db on the
+# claim, scale back to 1.
+# Watched by HermesBackupStale / HermesBackupNeverSucceeded (platform-alerts).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cq-backup
+  namespace: cq
+  labels:
+    app.kubernetes.io/name: cq-backup
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/part-of: cq
+spec:
+  schedule: "40 4 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: cq-backup
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          priorityClassName: platform-batch
+          nodeSelector:
+            node.integratn.tech/board: rpi5
+          tolerations:
+            - key: node.integratn.tech/arch
+              operator: Equal
+              value: arm64
+              effect: NoSchedule
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              image: ghcr.io/mozilla-ai/cq/server:v0.12.4@sha256:5424a5db01f3e427f028fdee9699d641f6dc8434b6d327f04f07a707b9a43092
+              command: [/app/.venv/bin/python, -c]
+              args:
+                - |
+                  import os, sqlite3, time, glob
+                  os.umask(0o077)
+                  keep = int(os.environ["KEEP"])
+                  out = "/backups/cq-%s.db" % time.strftime("%Y-%m-%dT%H%MZ", time.gmtime())
+                  src = sqlite3.connect("file:/data/cq.db?mode=ro", uri=True)
+                  dst = sqlite3.connect(out)
+                  src.backup(dst)
+                  src.close()
+                  ok = dst.execute("PRAGMA integrity_check").fetchone()[0]
+                  n = dst.execute("SELECT count(*) FROM sqlite_master").fetchone()[0]
+                  dst.close()
+                  if ok != "ok" or n == 0:
+                      os.rename(out, out + ".bad")
+                      raise SystemExit("backup failed its check (%s, %d tables), kept as .bad" % (ok, n))
+                  print("wrote %s (%d bytes, %d schema objects)" % (out, os.path.getsize(out), n))
+                  for old in sorted(glob.glob("/backups/cq-*.db"))[:-keep]:
+                      os.remove(old)
+                      print("pruned", old)
+                  print("retained:", *sorted(os.listdir("/backups")), sep="\n  ")
+              env:
+                - name: KEEP
+                  value: "14"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: data
+                  # Not readOnly: SQLite needs the -shm file writable even for a
+                  # mode=ro reader of a WAL database.
+                  mountPath: /data
+                - name: backups
+                  mountPath: /backups
+                  subPath: cq
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: cq-server-data
+            - name: backups
+              nfs:
+                server: 10.0.3.5
+                path: /srv/backups/hermes

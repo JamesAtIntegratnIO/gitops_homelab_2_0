@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-08T18:40:00Z }
+generated: { by: claude-code, at: 2026-11-08T19:00:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -22,6 +22,12 @@ sources:
   - id: skills
     resource: ../../../addons/cluster-roles/control-plane/addons/hermes/skills.yaml
     title: Hermes cluster skills
+  - id: backup
+    resource: ../../../addons/cluster-roles/control-plane/addons/hermes/hermes-backup.yaml
+    title: Hermes nightly backup CronJob
+  - id: cq-backup
+    resource: ../../../addons/cluster-roles/control-plane/addons/cq/cq-backup.yaml
+    title: cq-server nightly backup CronJob
   - id: design-skill
     resource: ../../../hack/hermes-design/SKILL.md
     title: integratn-design skill (source; generated into design-skill.yaml)
@@ -129,6 +135,36 @@ MCP connections.
 
 Config reaches the pod only at start (the init container copies the ConfigMap),
 so a merged config change takes effect after the pod restarts.
+
+# Backup
+
+`hermes-backup`, a CronJob in `hermes` at 04:30 UTC, runs `hermes backup`
+against the `hermes-data` claim on talos-pi5-1 and writes
+`hermes-backup-<time>.zip` to datacron (10.0.3.5, VM 103) over NFSv4 at
+`/srv/backups/hermes`, keeping the newest 14 (`-k 14`). It then tests the zip,
+and renames a bad one to `.bad`. `hermes backup` snapshots each SQLite db with
+`sqlite3.backup()`, so the gateway keeps running, and it skips caches and
+installs: about 32 MB on 2026-11-08. The zip includes `.env` and
+`auth.json`. The export is declared in nix_dots_2
+`hosts/datacron/hermes-backup.nix`: it admits only 10.0.4.104, squashes every
+uid to `hermes-backup` (10000), and the directory is 0700. Never Tower. The copy
+is off the Pi, but it sits on the same Proxmox host as datacron's Postgres
+dumps.[^backup]
+
+Watched by `HermesBackupStale` (no success in 36h) and
+`HermesBackupNeverSucceeded` in `platform.hermes`.
+
+Restore: scale `hermes-agent` to 0 (ArgoCD self-heal will fight this; pause
+auto-sync on `hermes-the-cluster` first), run a pod on talos-pi5-1 with the
+claim and the export mounted as uid 10000, `hermes import <zip>`, then
+re-enable sync. First run verified 2026-11-08 18:44Z (36 MB zip).
+
+cq-server's knowledge lives in its own SQLite file (`/data/cq.db` on claim
+`cq-server-data`), which `hermes backup` never sees. `cq-backup`, a CronJob in
+`cq` at 04:40 UTC, copies it with the sqlite3 backup API, runs
+`PRAGMA integrity_check`, and writes `cq-<time>.db` to the same export's `cq/`
+subdirectory, keeping 14. The same two alerts watch both jobs. Restore: scale
+`cq-server` to 0, copy a `cq-*.db` over `/data/cq.db`, scale back.[^cq-backup]
 
 # Speech-to-text
 
@@ -241,6 +277,18 @@ includes only `sync_application`, `trust: untrusted`, and cluster-remediate
 says when a sync is appropriate. Token: 1Password `argocd-hermes-ops`/`token`
 (`argocd account generate-token --account hermes-ops`).
 
+# Talos (read-only)
+
+Hermes runs `talosctl` (built into the image, v1.13.12) with a talosconfig
+that Talos mints for the `talos.dev` ServiceAccount `hermes-talos`
+(`talos-serviceaccount.yaml`): role `os:reader` only, so Talos refuses every
+write. The Secret is mounted `optional` at `/var/run/secrets/talos.dev` with
+`TALOSCONFIG` set. The endpoint is `talos.default:50000` (control-plane apid);
+CiliumNetworkPolicy `allow-talos-api-egress` allows it by entity. It needs
+`live-talos-api-access-hermes.yaml` applied to the three control-plane nodes
+by James (`matchbox/talos-machineconfigs/commands.md` step 2b); until then
+the Secret doesn't exist and talosctl has no config.
+
 # GitOps fixes
 
 Hermes proposes manifest fixes as branch + PR on
@@ -341,6 +389,8 @@ included), a multi-arch image and `readOnlyHint` on every read tool.[^arr-mcp][^
 [^mcp-doc]: In-cluster MCP servers
 [^skills]: Hermes cluster skills
 [^github-mcp]: github-mcp-hermes
+[^backup]: Hermes nightly backup CronJob
+[^cq-backup]: cq-server nightly backup CronJob
 [^arr-mcp]: arr-mcp config and ExternalSecret
 [^arr-mcp-upstream]: bardesss/arr-mcp v1.73.0
 
