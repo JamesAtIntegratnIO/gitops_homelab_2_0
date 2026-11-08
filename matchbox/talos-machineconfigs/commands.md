@@ -59,6 +59,17 @@ kubectl -n kube-system get pod kube-apiserver-<node> -o jsonpath='{.spec.contain
 #    switched on: set platform-backups-talos.enabled to true in
 #    addons/cluster-roles/control-plane/addons/addons.yaml (one-line PR).
 
+# 2b. Read-only Talos API for Hermes Agent (control plane only, no reboot).
+#    Appends os:reader and namespace hermes to kubernetesTalosAPIAccess; the
+#    Hermes ServiceAccount asks for os:reader only, which refuses every write.
+for n in 10.0.4.101 10.0.4.102 10.0.4.103; do
+  talosctl -n $n patch mc --dry-run --patch-file live-talos-api-access-hermes.yaml && \
+  talosctl -n $n patch mc --patch-file live-talos-api-access-hermes.yaml
+done
+#    Verify: the Secret appears and Hermes can read:
+kubectl --context admin@the-cluster -n hermes get secret hermes-talos
+kubectl --context admin@the-cluster -n hermes exec deploy/hermes-agent -c hermes -- talosctl -n 10.0.4.101 version --short
+
 # 3. DNS -- dns.yaml is WITHDRAWN; do not apply it. Its pre-checks were run
 #    on 2026-08-21 and both failed its premise:
 #      talosctl -n 10.0.4.101 get resolvers   -> ["1.1.1.1","8.8.8.8"], both healthy
@@ -148,11 +159,12 @@ kubectl -n kube-system get pods -l component=kube-apiserver -o wide
 
 | File | Contains | Why |
 |---|---|---|
-| `all.yaml` | install disk, certSANs, `kubernetesTalosAPIAccess` | Install by disk *label* so device reordering cannot wipe the wrong disk. The API access grants only `os:etcd:backup`, scoped to the `talos-backup` namespace — the prerequisite for scheduled etcd snapshots. |
+| `all.yaml` | install disk, certSANs, `kubernetesTalosAPIAccess` | Install by disk *label* so device reordering cannot wipe the wrong disk. The API access grants `os:etcd:backup` to the `talos-backup` namespace (scheduled etcd snapshots) and `os:reader` to `hermes` (Hermes Agent's read-only node checks). |
 | `cp.yaml` | VIP, CNI none, kube-proxy disabled, metrics bind addresses, apiserver toleration defaults | Cilium replaces CNI and kube-proxy. The toleration defaults cut node-failure failover from 5 minutes to 1 for *every* pod, including ones from charts this repo does not control. |
 | `work.yaml` | DHCP networking | No dedicated workers exist today; kept for when one is added. |
 | `dns.yaml` | `machine.network.nameservers` | Nothing set this, so nodes took a single DHCP resolver and CoreDNS forwarded everything to it. One upstream means "upstream unhealthy" and "no healthy upstream" are the same event, which is how a router stall becomes a cluster-internal DNS outage. |
 | `live-coredns-disabled.yaml` | `cluster.coreDNS.disabled` | Hands CoreDNS to ArgoCD. `cluster.coreDNS` accepts only `disabled` and `image` — `talosctl validate` rejects `corefile`/`Corefile`/`extraConfig` as unknown keys — so a Corefile that needs a custom line has to be owned from git. Paired with the `coredns-workload` addon; apply it **second**. Applied 2026-08-30. |
+| `live-talos-api-access-hermes.yaml` | `kubernetesTalosAPIAccess` + `os:reader`, namespace `hermes` | Read-only Talos API for Hermes Agent (dmesg, services, disks, etcd status, `read` of /sys). Control plane only; appends to the existing list. Step 2b. |
 | `live-etcd-timing.yaml` | `cluster.etcd.extraArgs` heartbeat-interval 250, election-timeout 2500 | Fewer leader elections on a shared SATA disk: a leader stalled on fsync for up to ~2.5 s keeps its term. Real failover takes ~2.5 s instead of ~1 s. Also in `cp.yaml` for rebuilt nodes. |
 | `watchdog.yaml` | `WatchdogTimerConfig` | Talos reboots itself on a kernel panic already. The watchdog covers the case where nothing panics — a hung kernel or a hardware fault — by resetting the machine after 2 minutes without a heartbeat. |
 
