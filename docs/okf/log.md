@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-11-08
+* **Issue → Fix**: **talos-pi5-1's kubelet, node-exporter and hubble scrapes were policy-denied since it joined.** Prometheus reached node IPs only through the `kube-apiserver` entity (control-plane nodes); its 10.0.4.0/24 ipBlock never matches a node in Cilium. New CNP `allow-prometheus-node-scrape` (host + remote-node, 10250/9100/9965). See [Talos nodes](infrastructure/talos-nodes.md).
 * **Update**: **Three more read-only Hermes skills from git**: `loki-log-triage`, `kargo-health`, `talos-node-health`. kubernetes-mcp's viewer role can now read Kargo objects (no write). See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes cost caps and a closed approval bypass.** `agent.max_turns: 60`, `budget_warning_ratio: 0.8`, `prompt_caching.cache_ttl: auto`. Found that `hermes -z` runs with yolo, which also skips the `trust: untrusted` MCP gate; the terminal's deny list now blocks nested one-shot/yolo runs and self-edits of approval config. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes Agent can take operational actions on the-cluster, each approved by James.** New `kubernetes-mcp-ops` in `mcp-system` (Hermes only, no HTTPRoute) exposes `pods_delete` and `resources_create_or_update`; RBAC allows pod delete, node cordon/uncordon and rollout restarts only. New skill `cluster-remediate` with the stale-NFS cordon -> delete -> verify -> uncordon playbook. Config changes still go through gitops-fix. See [Hermes Agent](addons/hermes.md).
