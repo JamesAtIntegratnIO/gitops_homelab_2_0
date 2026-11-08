@@ -2,15 +2,15 @@
 #
 # The Pi workers carry node.integratn.tech/arch=arm64:NoSchedule because the
 # scheduler does not check image architecture, so nothing lands there unless it
-# tolerates the taint. This policy gives that toleration -- and a preference for
-# the Pi 4s -- to a pod in which EVERY container image is on the
-# arm64-image-allowlist ConfigMap below. One image that is not listed leaves the
-# whole pod untouched.
+# tolerates the taint. This policy gives that toleration to a pod in which
+# EVERY container image is on the arm64-image-allowlist ConfigMap below. One
+# image that is not listed leaves the whole pod untouched.
 #
-# Placement is soft. The pod gets (1) the arch toleration, (2) a REQUIRED
-# nodeAffinity that excludes board=rpi5, so the Pi 5 stays reserved for hermes
-# and cq, and (3) a PREFERRED nodeAffinity (weight 100) for board=rpi4. If the
-# Pi 4s are full or down the pod runs on the control-plane nodes as before.
+# The pod gets (1) the arch toleration and (2) a REQUIRED nodeAffinity that
+# excludes board=rpi5, so the Pi 5 stays reserved for hermes and cq. Nothing
+# prefers or avoids the Pi 4s: the scheduler places the pod on any eligible node
+# by its normal scoring, so the Pi 4s are candidates alongside the control-plane
+# nodes. If the Pi 4s are full or down the pod runs on the control-plane nodes.
 # This keeps mutated pods off the Pi 5 but is not a hard guarantee: only a taint
 # on the Pi 5 itself (a Talos machine-config change) would be.
 #
@@ -27,9 +27,9 @@
 #
 # Allowlist entries are repositories ("repo:*"), so a new version of a listed
 # image is picked up without editing this file. If a repository ever drops its
-# arm64 build, a new tag will be placed on a Pi 4 and fail to start there (the
-# preference does not know about architecture): remove the entry, or replace it
-# with exact tags.
+# arm64 build, a pod using the new tag can be scheduled onto a Pi 4 and fail to
+# start there (the scheduler does not know about image architecture): remove the
+# entry, or replace it with exact tags.
 #
 # The second rule is the Audit half: it reports any pod that selects arm64 (by
 # hand) while running an image that is not on the list.
@@ -118,22 +118,21 @@ kind: ClusterPolicy
 metadata:
   name: schedule-arm64-images
   annotations:
-    policies.kyverno.io/title: Schedule Allowlisted Images On The Pi 4 Workers
+    policies.kyverno.io/title: Allow Allowlisted Images On The Pi Workers
     policies.kyverno.io/category: Scheduling
     policies.kyverno.io/severity: low
     policies.kyverno.io/subject: Pod
     policies.kyverno.io/description: >-
       Pods whose images are all on the arm64-image-allowlist ConfigMap in the
-      kyverno namespace get the node.integratn.tech/arch toleration, a required
-      nodeAffinity that excludes board=rpi5, and a preferred nodeAffinity for
-      board=rpi4. Any other pod, and any pod in a protected namespace, is left
-      alone.
+      kyverno namespace get the node.integratn.tech/arch toleration and a
+      required nodeAffinity that excludes board=rpi5. Any other pod, and any pod
+      in a protected namespace, is left alone.
 spec:
   admission: true
   validationFailureAction: Audit
   background: false
   rules:
-    - name: mutate-allowlisted-images-to-pi4
+    - name: tolerate-arm64-for-allowlisted-images
       skipBackgroundRequests: true
       match:
         any:
@@ -208,14 +207,6 @@ spec:
                         operator: NotIn
                         values:
                           - rpi5
-              preferredDuringSchedulingIgnoredDuringExecution:
-                - weight: 100
-                  preference:
-                    matchExpressions:
-                      - key: node.integratn.tech/board
-                        operator: In
-                        values:
-                          - rpi4
           - op: add
             path: /spec/tolerations
             value: {{ [request.object.spec.tolerations || `[]`, `[{"key":"node.integratn.tech/arch","operator":"Equal","value":"arm64","effect":"NoSchedule"}]`][] }}

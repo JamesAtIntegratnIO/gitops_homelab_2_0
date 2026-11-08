@@ -4,7 +4,7 @@ title: Talos nodes
 description: The three bare-metal Talos control-plane nodes and the Raspberry Pi 5 and Pi 4 arm64 workers that form the-cluster, their machine-config patches, how they are managed, and what is scheduled onto the Pis.
 tags: [talos, bare-metal, nodes, control-plane, worker, arm64, raspberry-pi]
 status: stable
-generated: { by: hermes-agent, at: 2026-11-08T19:00:00Z }
+generated: { by: hermes-agent, at: 2026-11-08T19:30:00Z }
 stale_after: 2027-02-08
 sources:
   - id: arm64-scheduling
@@ -164,15 +164,16 @@ namespace, the policy adds, at pod CREATE:
 
 - the `node.integratn.tech/arch=arm64:NoSchedule` toleration;
 - a required nodeAffinity excluding `node.integratn.tech/board=rpi5`, so the Pi 5
-  stays free for hermes and cq;
-- a preferred nodeAffinity (weight 100) for `board=rpi4`.
+  stays free for hermes and cq.
 
-Placement is soft: if the Pi 4s are full or down, the pod runs on the
-control-plane nodes. One unlisted image leaves the whole pod untouched. A pod
-is also skipped if it already sets `nodeName`, a control-plane or board
-nodeSelector, any nodeAffinity (every DaemonSet pod has one), or an arch
-selector other than arm64. A second, Audit-only rule reports a pod that selects
-arm64 by hand while running an unlisted image.[^arm64-scheduling]
+Nothing prefers or avoids the Pi 4s (James asked for balance, not a Pi 4
+preference): the scheduler treats them as candidates alongside the three
+control-plane nodes and places the pod by its normal scoring. If the Pi 4s are
+full or down, the pod runs on the control-plane nodes. One unlisted image leaves
+the whole pod untouched. A pod is also skipped if it already sets `nodeName`, a
+control-plane or board nodeSelector, any nodeAffinity (every DaemonSet pod has
+one), or an arch selector other than arm64. A second, Audit-only rule reports a
+pod that selects arm64 by hand while running an unlisted image.[^arm64-scheduling]
 
 The allowlist has one entry per image repository. A `repo:*` entry matches every
 tag, so a version bump (Kargo or by hand) keeps landing on the Pis without
@@ -195,16 +196,18 @@ Limits, stated plainly:
   that tolerates the arch taint and sets no node constraint could still schedule
   there. A hard reservation needs a second taint on the Pi 5, which is a Talos
   machine-config change.
-- A wildcard trusts future tags. If a listed repository drops its arm64 build,
-  the new tag is still placed on a Pi 4 preferentially and fails to start there;
-  the preference does not know about architecture. Remove the entry or go back to
-  exact tags.
+- A wildcard trusts future tags. If a listed repository drops its arm64 build, a
+  pod using the new tag can still be scheduled onto a Pi 4 and fail to start
+  there, because the scheduler does not know about image architecture. Remove the
+  entry or go back to exact tags.
 - Mutation is CREATE-only, so existing pods move only when recreated.
 - Mutate rules have no Audit mode; the allowlist is the control.
-- Not verified: the total resource requests of the allowlisted workloads against
-  the Pi 4s' allocatable (about 3.95 CPU and 7.1 GiB each), and whether every
-  PVC the allowlisted workloads use is reachable from a Pi. `bazarr` mounted an
-  NFS PVC on `talos-pi4-1` on 2026-11-08.
+- Not verified: how the scheduler actually spreads these pods across the Pi 4s
+  (8 GB each) and the 32 GB control-plane nodes once pods are recreated; the
+  total resource requests of the allowlisted workloads against the Pi 4s'
+  allocatable (about 3.95 CPU and 7.1 GiB each); and whether every PVC the
+  allowlisted workloads use is reachable from a Pi. `bazarr` mounted an NFS PVC
+  on `talos-pi4-1` on 2026-11-08.
 
 [^arm64-scheduling]: The schedule-arm64-images Kyverno policy and its image allowlist
 [^arm64-image-check]: arm64 image check and Pi occupants
