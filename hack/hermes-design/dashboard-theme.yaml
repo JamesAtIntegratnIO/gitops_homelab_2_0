@@ -1,0 +1,101 @@
+# Hermes dashboard theme in the IntegratnIO design system ("The Night Shift
+# Ledger", IntegratnIO/specmarshal DESIGN.md). Hermes reads it from
+# $HERMES_HOME/dashboard-themes/; config.yaml sets dashboard.theme: integratn.
+# Schema: website/docs/user-guide/features/extending-the-dashboard.md (v0.23.0).
+name: integratn
+label: Integratn
+description: Night Shift Ledger. Graphite, flat, colour only for verdicts.
+
+palette:
+  background: "#0a0c10"          # ground
+  midground: "#f3f7fc"           # text; the dashboard derives chrome from it
+  foreground:
+    hex: "#f3f7fc"
+    alpha: 0
+  warmGlow: "rgba(0, 0, 0, 0)"   # no vignette
+  noiseOpacity: 0                # no grain
+
+typography:
+  fontSans: 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+  fontMono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+  fontDisplay: 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+  baseSize: "14px"
+  lineHeight: "1.5"
+  letterSpacing: "0"
+
+layout:
+  radius: "6px"
+  density: compact
+
+layoutVariant: standard
+
+# The palette cascade mixes card/border from midground; pin the ledger's own
+# steps instead. Primary is neutral (Text on Night): orange is the mark only.
+colorOverrides:
+  card: "#1d2126"                # panel
+  cardForeground: "#f3f7fc"
+  popover: "#14171d"             # well
+  popoverForeground: "#f3f7fc"
+  primary: "#f3f7fc"
+  primaryForeground: "#0a0c10"
+  secondary: "#262a30"           # raise
+  secondaryForeground: "#f3f7fc"
+  muted: "#14171d"
+  mutedForeground: "#acb2b9"     # dim
+  accent: "#262a30"
+  accentForeground: "#f3f7fc"
+  destructive: "#f47983"         # bad
+  destructiveForeground: "#0a0c10"
+  success: "#42c161"             # ok
+  warning: "#cf9a43"             # warn
+  border: "#393e43"              # hairline
+  input: "#393e43"
+  ring: "#f3f7fc"
+
+componentStyles:
+  card:
+    background: "#1d2126"
+    boxShadow: "none"
+  header:
+    background: "#0a0c10"
+    boxShadow: "none"
+  footer:
+    background: "#0a0c10"
+  sidebar:
+    background: "#14171d"
+  backdrop:
+    background: "#0a0c10"
+  badge:
+    boxShadow: "none"
+
+customCSS: |
+  /* Text ladder: Text, Said, Dim, Faint. */
+  :root {
+    --text-primary: #f3f7fc;
+    --text-secondary: #cfd5dc;
+    --text-tertiary: #acb2b9;
+    --text-disabled: #8d939a;
+    --text-display: #f3f7fc;
+    --text-on-accent: #0a0c10;
+    /* No brand typefaces: the Nous DS display faces fall back to system sans. */
+    --font-rules-compressed: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-rules-expanded: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mondwest: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --series-input-token: #acb2b9;
+    --series-output-token: #f3f7fc;
+  }
+  .font-courier { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  /* Flat: tonal depth only. Kill drop shadows but keep Tailwind focus rings
+     (they ride --tw-ring-shadow, not --tw-shadow), and drop glass blur. */
+  *, *::before, *::after { --tw-shadow: 0 0 #0000 !important; --tw-shadow-colored: 0 0 #0000 !important; }
+  * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
+  .grain::after { display: none !important; }
+  /* Nothing below 12px. */
+  .text-\[10px\], .text-\[11px\], .text-\[0\.65rem\], .text-\[0\.7rem\] { font-size: 12px !important; }
+  /* Figures read as data. */
+  table, .tabular-nums, code, pre { font-variant-numeric: tabular-nums; }
+  /* Links read by underline, not hue. */
+  main a:not([class]) { color: #f3f7fc; text-decoration: underline; text-decoration-color: #393e43; text-underline-offset: 3px; }
+  main a:not([class]):hover { text-decoration-color: #f3f7fc; }
+  :focus-visible { outline: 2px solid #f3f7fc !important; outline-offset: 2px; }
+  ::selection { background: #393e43; color: #f3f7fc; }
