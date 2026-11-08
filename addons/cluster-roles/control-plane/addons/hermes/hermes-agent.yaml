@@ -304,6 +304,31 @@ data:
       # holds the bot token so it never enters this pod. The server already
       # refuses merge, delete, repo create/fork and reviews; this list is the
       # second guard. Writes (no readOnlyHint) each need approval: untrusted.
+      # Knowledge memory: Mozilla.ai's cq (James's pick, 2026-11-08), the
+      # `cq` CLI built into our image (images/hermes-agent) and run as a stdio
+      # MCP server. Its SQLite store sits on the data volume, the Pi's local
+      # NVMe, so a query never leaves the node. No remote store yet: proposals
+      # stay local. trust: full because cq declares no readOnlyHint and its
+      # writes only touch that local file; an approval per query would make
+      # it useless. Skill: knowledge-memory.
+      cq:
+        command: "/usr/local/bin/cq"
+        args: ["mcp"]
+        env:
+          CQ_LOCAL_DB_PATH: "/opt/data/cq/local.db"
+          CQ_CONFIG_DIR: "/opt/data/cq"
+        trust: "full"
+        timeout: 60
+        tools:
+          include:
+            - "query"
+            - "propose"
+            - "confirm"
+            - "flag"
+            - "revoke"
+            - "status"
+          resources: false
+          prompts: false
       github:
         url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
         trust: "untrusted"
@@ -496,7 +521,7 @@ spec:
               readOnly: true
       containers:
         - name: hermes
-          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt@sha256:21ab2657e366698eef8f07a65fb7c3e148f292011c9da28e9bdcffafc001b00a
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2@sha256:a1a8de48b0ba04ae757fd7008c649d4800a9a2b4d7654001178098b0e12b0e20
           args: ["gateway", "run"]
           # s6 /init runs as root to chown /opt/data, then s6-setuidgid drops
           # every service to uid 10000, and s6-svscan signals those processes.
@@ -624,6 +649,10 @@ spec:
             - name: skills
               mountPath: /opt/hermes-skills/homelab/talos-node-health/SKILL.md
               subPath: talos-node-health.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/knowledge-memory/SKILL.md
+              subPath: knowledge-memory.md
               readOnly: true
             - name: skills
               mountPath: /opt/hermes-skills/homelab/media-house-rules/SKILL.md
