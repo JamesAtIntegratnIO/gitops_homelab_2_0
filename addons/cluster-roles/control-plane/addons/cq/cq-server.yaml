@@ -19,11 +19,11 @@
 #   so a re-seed means running that script's bcrypt upsert by hand in the pod.
 #   API keys are made in the UI (API Keys page); Hermes's is the item's
 #   HERMES_API_KEY field.
-# - UI and API at https://cq.cluster.integratn.tech, behind authentik
-#   forward-auth (admins only, snippetsfilter.yaml), because data-plane READS
-#   (GET /api/v1/knowledge) are open by upstream design. Then the UI's own
-#   login; writes need an API key. Nothing secret goes into cq regardless
-#   (the knowledge-memory skill says so).
+# - UI and API at https://cq.cluster.integratn.tech with cq's own login only
+#   (James: no double login, so no authentik). The keyless read path
+#   GET /api/v1/knowledge is not served through the gateway
+#   (snippetsfilter.yaml); everything else needs the JWT or an API key.
+#   Nothing secret goes into cq regardless (the knowledge-memory skill says so).
 # - Network: ingress from nginx-gateway and Hermes only, no egress
 #   (network-policies/cq.yaml). Semantic search (TOKEN_EMBEDDING_URL) is off.
 #
@@ -189,18 +189,26 @@ spec:
   hostnames:
     - cq.cluster.integratn.tech
   rules:
+    # cq's keyless read path is not served through the gateway (404 via
+    # snippetsfilter.yaml); the longer prefix wins over `/`.
     - matches:
         - path:
             type: PathPrefix
-            value: /
-      # authentik forward-auth (snippetsfilter.yaml): reads are open in cq
-      # itself, so the gateway is the door.
+            value: /api/v1/knowledge
       filters:
         - type: ExtensionRef
           extensionRef:
             group: gateway.nginx.org
             kind: SnippetsFilter
-            name: authentik-forward-auth
+            name: block-keyless-reads
+      backendRefs:
+        - name: cq-server
+          port: 3000
+    # Everything else: the UI and the JWT/API-key checked API. One login, cq's.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
       backendRefs:
         - name: cq-server
           port: 3000
