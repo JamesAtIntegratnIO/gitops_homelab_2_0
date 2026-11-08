@@ -204,13 +204,15 @@ store: `ghcr.io/mozilla-ai/cq/server` v0.12.4 in namespace `cq`, on the Pi 5
 with SQLite on a 2 Gi local-nvme PVC, UI and API at
 `https://cq.cluster.integratn.tech` (addon `cq`, Kargo target `cq-server`).
 Secrets from 1Password item `cq-server` (`CQ_JWT_SECRET`,
-`CQ_API_KEY_PEPPER`; UI user `james` seeded once with the image's
-`seed-users.py`; API keys are made in the UI). Ingress from nginx-gateway and
+`CQ_API_KEY_PEPPER`, `HERMES_API_KEY`; UI user `james` seeded once by hand,
+since the image lacks upstream's `seed-users.py`; API keys are made in the UI). Ingress from nginx-gateway and
 Hermes only, no egress. The CLI stays the MCP surface: with `CQ_ADDR` and
 `CQ_API_KEY` set, `cq mcp` sends proposals to the server as `private` and, on
 start, drains every local unit to it (deleting the local copy); remote units
 reach agents only after James approves them in the UI's review queue. Data
-reads on the API are open by upstream design, so nothing secret goes in.
+reads on the API are open by upstream design, so the route sits behind
+authentik forward-auth (provider `cq-proxy-provider`, admins only) and Hermes
+uses the ClusterIP; nothing secret goes in regardless.
 
 # Live operational fixes
 

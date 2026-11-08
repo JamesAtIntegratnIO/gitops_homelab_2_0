@@ -14,17 +14,16 @@
 # - Secrets (1Password item `cq-server`, homelab vault): CQ_JWT_SECRET signs
 #   UI logins; CQ_API_KEY_PEPPER is the HMAC pepper for every API key. Never
 #   rotate the pepper casually: it invalidates every key. The UI login
-#   (`UI_USERNAME` + the item's `password`) is seeded once with the image's
-#   own script:
-#     kubectl --context admin@the-cluster -n cq exec deploy/cq-server -- \
-#       /app/.venv/bin/python /app/scripts/seed-users.py --username james --password '<item password>'
+#   (`UI_USERNAME` + the item's `password`) was seeded once (2026-11-08). The
+#   image does not ship upstream's scripts/seed-users.py (compose mounts it),
+#   so a re-seed means running that script's bcrypt upsert by hand in the pod.
 #   API keys are made in the UI (API Keys page); Hermes's is the item's
 #   HERMES_API_KEY field.
-# - UI and API at https://cq.cluster.integratn.tech (LAN only, like every
-#   *.cluster.integratn.tech host). The UI has its own login; writes need an
-#   API key; data-plane READS (GET /api/v1/knowledge) are open by upstream
-#   design, so nothing secret goes into cq (the knowledge-memory skill says
-#   so).
+# - UI and API at https://cq.cluster.integratn.tech, behind authentik
+#   forward-auth (admins only, snippetsfilter.yaml), because data-plane READS
+#   (GET /api/v1/knowledge) are open by upstream design. Then the UI's own
+#   login; writes need an API key. Nothing secret goes into cq regardless
+#   (the knowledge-memory skill says so).
 # - Network: ingress from nginx-gateway and Hermes only, no egress
 #   (network-policies/cq.yaml). Semantic search (TOKEN_EMBEDDING_URL) is off.
 #
@@ -194,6 +193,14 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      # authentik forward-auth (snippetsfilter.yaml): reads are open in cq
+      # itself, so the gateway is the door.
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: authentik-forward-auth
       backendRefs:
         - name: cq-server
           port: 3000

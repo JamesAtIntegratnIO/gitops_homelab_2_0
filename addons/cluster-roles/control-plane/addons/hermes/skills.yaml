@@ -604,7 +604,7 @@ data:
     ---
     name: knowledge-memory
     description: "Use before and after any task: query and save lessons."
-    version: 1.0.0
+    version: 1.1.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -617,9 +617,17 @@ data:
 
     The `cq` MCP server is your long-term knowledge store: short, structured
     "knowledge units" (KUs) about what works and what bites in this homelab.
-    It is a SQLite file on your own NVMe, so queries are fast and cheap. Your
-    built-in MEMORY.md/USER.md still hold facts about James and preferences;
-    cq holds operational lessons.
+    The store of record is cq-server on the Pi's NVMe
+    (cq.cluster.integratn.tech, shared with Claude); the local file is only
+    the fallback when it is unreachable. Your built-in MEMORY.md/USER.md
+    still hold facts about James and preferences; cq holds operational
+    lessons.
+
+    What you propose goes to the server as `private` and waits for James to
+    approve it in the cq UI before any agent can query it. So a fresh
+    proposal will not show up in your own next query: that is expected, do
+    not propose it again. API reads on the server are open on the LAN, which
+    is one more reason nothing secret goes in.
 
     | Tool | When |
     |---|---|
@@ -641,8 +649,8 @@ data:
        the error was misleading, the fix was not the obvious one, or a
        check James asked for turned out to matter. Summary in one line,
        `action` = what to do, `detail` = why and the evidence (tool, query,
-       time). Homelab specifics are fine here (the store is private): node
-       names, namespaces, app names.
+       time). Homelab specifics are fine here (the store is private to the
+       LAN): node names, namespaces, app names.
     4. **Before you report done:** confirm what helped, flag what misled you,
        propose anything you missed.
 
