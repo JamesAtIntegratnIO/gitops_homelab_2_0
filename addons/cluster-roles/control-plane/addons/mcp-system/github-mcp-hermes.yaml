@@ -18,11 +18,15 @@
 # as an image volume (Kubernetes 1.36, containerd 2.2): the image is distroless,
 # so there is no shell to copy it out with an init container.
 #
-# Tools: toolsets repos + pull_requests, minus everything that merges, deletes,
-# creates or forks repos, or reviews. Enforced here with --exclude-tools, not
-# only in Hermes's config. What remains (19): read files, branches, commits,
-# PRs, code search, releases/tags; create_branch, create_or_update_file,
-# push_files, create_pull_request, update_pull_request.
+# Tools: toolsets repos + pull_requests + issues + actions, minus everything
+# that merges, deletes, creates or forks repos, reviews, writes issues or
+# comments, or triggers/cancels/reruns workflows. Enforced here with
+# --exclude-tools, not only in Hermes's config. What remains: read files,
+# branches, commits, PRs, code search, releases/tags, issues, workflow runs
+# and job logs; create_branch, create_or_update_file, push_files,
+# create_pull_request, update_pull_request. issues/actions write tools in
+# v2.1.0 (readOnlyHint false): issue_write, sub_issue_write,
+# add_issue_comment, update_issue_comment, actions_run_trigger.
 #
 # Token: 1Password item `hermes-agent` (vault homelab), field `GITHUB_TOKEN`
 # (added 2026-11-08). The Hermes pod's own ExternalSecret (hermes/
@@ -88,7 +92,7 @@ spec:
           image: ghcr.io/supercorp-ai/supergateway:4.2.1@sha256:ba077866d6daae4c5157bce792dd87468e29d3bcac98153d8029ed772d743ea6
           args:
             - --stdio
-            - "/opt/github/server/github-mcp-server stdio --toolsets=repos,pull_requests --exclude-tools=merge_pull_request,delete_file,create_repository,fork_repository,update_pull_request_branch,pull_request_review_write,add_comment_to_pending_review,add_reply_to_pull_request_comment,search_repositories,list_repository_collaborators"
+            - "/opt/github/server/github-mcp-server stdio --toolsets=repos,pull_requests,issues,actions --exclude-tools=issue_write,sub_issue_write,add_issue_comment,update_issue_comment,actions_run_trigger,merge_pull_request,delete_file,create_repository,fork_repository,update_pull_request_branch,pull_request_review_write,add_comment_to_pending_review,add_reply_to_pull_request_comment,search_repositories,list_repository_collaborators"
             - --port
             - "8083"
             - --outputTransport
