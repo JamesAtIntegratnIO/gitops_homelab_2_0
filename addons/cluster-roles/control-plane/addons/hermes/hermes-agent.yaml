@@ -586,6 +586,10 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: hermes-agent
+      annotations:
+        # Rolls the pod when hermes-skill-design changes: subPath mounts never
+        # update in place. Written by hack/hermes-design/gen.sh.
+        integratn.tech/design-hash: "474ba8649864f068"
     spec:
       nodeSelector:
         node.integratn.tech/board: rpi5

@@ -24,8 +24,14 @@ for key in ("SKILL.md", "base.css", "page.html", "dashboard-theme.yaml", "skin.y
     for line in text.rstrip("\n").split("\n"):
         print(("    " + line).rstrip())
 PY
+# The Deployment carries a hash of the ConfigMap so a change rolls the pod.
+deploy="$here/../../addons/cluster-roles/control-plane/addons/hermes/hermes-agent.yaml"
+hash="$(sha256sum "$tmp" | cut -c1-16)"
+tmpd="$(mktemp)"; trap 'rm -f "$tmp" "$tmpd"' EXIT
+sed -E "s|(integratn.tech/design-hash: )\"[^\"]*\"|\\1\"$hash\"|" "$deploy" > "$tmpd"
+grep -q "integratn.tech/design-hash: \"$hash\"" "$tmpd" || { echo "design-hash annotation not found in $deploy" >&2; exit 1; }
 if [[ "${1:-}" == "--check" ]]; then
-  diff -u "$out" "$tmp" && echo "design-skill.yaml is up to date"
+  diff -u "$out" "$tmp" && diff -u "$deploy" "$tmpd" && echo "design-skill.yaml and design-hash are up to date"
 else
-  cp "$tmp" "$out"; echo "wrote $out"
+  cp "$tmp" "$out"; cp "$tmpd" "$deploy"; echo "wrote $out and design-hash $hash"
 fi
