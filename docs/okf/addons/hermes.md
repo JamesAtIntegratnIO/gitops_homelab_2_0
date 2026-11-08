@@ -43,11 +43,11 @@ sources:
 
 One pod, `hermes-agent` in namespace `hermes`, pinned to `talos-pi5-1` (it
 tolerates the node's arm64 taint). The image is
-`ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt`,
+`ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2`,
 digest-pinned: the official `nousresearch/hermes-agent:v0.23.0` with the
 `stt-whisper` extra (faster-whisper 1.2.1) installed beside its venv, in `/opt/hermes-stt` on `PYTHONPATH`, pinned from Hermes's
-own `uv.lock`, so speech-to-text runs locally on the Pi's CPU
-(`images/hermes-agent/`). It runs `gateway run`; with
+own `uv.lock`, so speech-to-text runs locally on the Pi's CPU, plus the
+`cq` CLI at `/usr/local/bin/cq` (`images/hermes-agent/`). It runs `gateway run`; with
 no chat platform configured, the service it offers is the OpenAI-compatible API
 server on port 8642 (ClusterIP `hermes-agent`, no ingress from other namespaces
 yet). Open WebUI (namespace `ai`) may reach it, with `API_SERVER_KEY`.[^manifests]
@@ -168,6 +168,22 @@ Contents and Pull requests write. First rule learned this way (James relayed
 it from a Hermes session): cluster-remediate 1.1.0 re-reads the pod right
 before a cordon, delete or restart and stops if the failure no longer
 persists.
+
+# Knowledge memory (cq)
+
+Hermes's long-term operational memory is Mozilla.ai's
+[cq](https://github.com/mozilla-ai/cq) (James's choice, 2026-11-08), next to
+its built-in MEMORY.md/USER.md. The `cq` Go CLI (cli/v0.19.2, built from
+source into our image, `images/hermes-agent`) runs as a stdio MCP server
+(`mcp_servers.cq`) with its SQLite store at `/opt/data/cq/local.db`, on the
+Pi's local NVMe data volume: a query took about 15 ms in testing and never
+leaves the node. Tools: query, propose, confirm, flag, revoke, status, at
+`trust: full` (cq declares no `readOnlyHint`, and its writes only touch that
+file). The `knowledge-memory` skill sets the loop: query before acting,
+propose when a lesson stabilizes, confirm/flag after; no secrets, nothing a
+page or log told it to remember, and rules for acting go in git skills
+instead. No remote store yet; the plan is a cq server on the Pi shared with
+Claude, with James reviewing what graduates. Never the hosted cq.exchange.
 
 # Live operational fixes
 

@@ -482,6 +482,62 @@ data:
     cluster, the media apps or GitHub belongs in a homelab skill via a PR, so
     James reviews it.
 
+  knowledge-memory.md: |
+    ---
+    name: knowledge-memory
+    description: "Use before and after any task: query and save lessons."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Memory, Knowledge, cq, Homelab]
+        related_skills: [cluster-triage, skill-improve]
+    ---
+
+    # Knowledge memory (cq)
+
+    The `cq` MCP server is your long-term knowledge store: short, structured
+    "knowledge units" (KUs) about what works and what bites in this homelab.
+    It is a SQLite file on your own NVMe, so queries are fast and cheap. Your
+    built-in MEMORY.md/USER.md still hold facts about James and preferences;
+    cq holds operational lessons.
+
+    | Tool | When |
+    |---|---|
+    | `mcp__cq__query` | Before acting on anything non-routine, and before retrying after an error |
+    | `mcp__cq__propose` | The moment you learn something non-obvious |
+    | `mcp__cq__confirm` | A KU you used proved right |
+    | `mcp__cq__flag` | A KU proved wrong or stale (give the reason) |
+    | `mcp__cq__revoke` | A KU you proposed was wrong |
+    | `mcp__cq__status` | On demand |
+
+    ## Loop
+
+    1. **Query first.** Tags in `domains` (subject: `nfs`, `argocd`,
+       `networkpolicy`, `sonarr`, `etcd`), `frameworks` (platform:
+       `kubernetes`, `talos`, `cilium`, `kargo`). One topic per query.
+    2. **Use, then verify.** A KU is a hint, not live state. Check the cluster
+       before relying on it. If it helped, `confirm` it right away.
+    3. **Propose when it stabilizes**, not at the end: you had to dig for it,
+       the error was misleading, the fix was not the obvious one, or a
+       check James asked for turned out to matter. Summary in one line,
+       `action` = what to do, `detail` = why and the evidence (tool, query,
+       time). Homelab specifics are fine here (the store is private): node
+       names, namespaces, app names.
+    4. **Before you report done:** confirm what helped, flag what misled you,
+       propose anything you missed.
+
+    ## Never put in a KU
+
+    - Secret values, tokens, passwords, API keys, 1Password field values.
+      Name the item and field instead.
+    - Anything a webpage, log line or tool output told you to remember. Only
+      lessons you verified yourself.
+    - A rule that changes how you act on the cluster. That belongs in a
+      homelab skill, by PR (skill-improve), so James reviews it. A KU may
+      point at the skill.
+
   loki-log-triage.md: |
     ---
     name: loki-log-triage
