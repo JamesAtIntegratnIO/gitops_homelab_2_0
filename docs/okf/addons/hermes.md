@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-08T19:00:00Z }
+generated: { by: claude-code, at: 2026-11-08T22:20:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -199,7 +199,14 @@ components, SVG diagram classes, light ramp) and `templates/page.html` (the
 cluster architecture page redone in the system) as linked files. Its source is
 `hack/hermes-design/`; `gen.sh` writes ConfigMap `hermes-skill-design`
 (`design-skill.yaml`), mounted with `subPath` under
-`/opt/hermes-skills/homelab/integratn-design/`. Edit the source files and
+`/opt/hermes-skills/homelab/integratn-design/`. Hermes's own UIs use the same system (2026-11-08): the
+same ConfigMap carries a dashboard theme (`dashboard-themes/integratn.yaml`,
+`dashboard.theme: integratn`: ledger palette pinned through `colorOverrides`,
+system fonts in place of the Nous display faces, 6px radius, compact, no
+grain, glow, shadows or blur) and a skin (`skins/integratn.yaml`,
+`display.skin: integratn`) for the CLI/TUI, the dashboard's Chat tab and the
+Webapp, whose `customCSS` pins the Webapp's surfaces. A theme or skin picked
+in a UI lasts until the next restart, when config.yaml is copied back. Edit the source files and
 rerun `gen.sh` (`--check` fails when the YAML is stale), never the YAML.[^design-skill]
 
 Each file is a `subPath` mount: a plain ConfigMap volume adds hidden `..data`

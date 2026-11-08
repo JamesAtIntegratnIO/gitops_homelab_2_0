@@ -1,0 +1,106 @@
+# Hermes skin in the IntegratnIO design system ("The Night Shift Ledger").
+# A skin themes the CLI/TUI (`hermes chat`, the dashboard's Chat tab) and is
+# offered in the Webapp's Settings -> Appearance, which derives its palette
+# from these colours; customCSS pins the ledger's surfaces there.
+# Hermes reads it from $HERMES_HOME/skins/; config.yaml sets
+# display.skin: integratn. Schema: website/docs/user-guide/features/skins.md.
+name: integratn
+description: Night Shift Ledger. Graphite, flat, colour only for verdicts.
+
+colors:
+  background: "#0a0c10"
+  # Neutral chrome: accents are Text, never a hue.
+  ui_accent: "#f3f7fc"
+  ui_primary: "#f3f7fc"
+  banner_accent: "#f3f7fc"
+  banner_title: "#f3f7fc"
+  ui_text: "#f3f7fc"
+  banner_text: "#cfd5dc"
+  banner_dim: "#acb2b9"
+  ui_border: "#393e43"
+  banner_border: "#393e43"
+  ui_label: "#acb2b9"
+  ui_tool: "#acb2b9"
+  ui_thinking: "#8d939a"
+  # Verdicts.
+  ui_ok: "#42c161"
+  ui_warn: "#cf9a43"
+  ui_error: "#f47983"
+  diff_added: "#7dd18b"
+  diff_removed: "#ff969d"
+  syntax_keyword: "#c792ea"
+  syntax_string: "#8fbf7f"
+  syntax_number: "#82aaff"
+  syntax_comment: "#8d939a"
+  prompt: "#f3f7fc"
+  input_rule: "#393e43"
+  response_border: "#393e43"
+  shell_dollar: "#acb2b9"
+  session_label: "#acb2b9"
+  session_border: "#8d939a"
+  selection_bg: "#393e43"
+  status_bar_bg: "#14171d"
+  status_bar_text: "#cfd5dc"
+  status_bar_strong: "#f3f7fc"
+  status_bar_dim: "#8d939a"
+  status_bar_good: "#42c161"
+  status_bar_warn: "#cf9a43"
+  status_bar_bad: "#f47983"
+  status_bar_critical: "#f47983"
+  voice_status_bg: "#14171d"
+  completion_menu_bg: "#14171d"
+  completion_menu_current_bg: "#262a30"
+  completion_menu_meta_bg: "#14171d"
+  completion_menu_meta_current_bg: "#262a30"
+
+spinner:
+  waiting_faces: ["·", "··", "···"]
+  thinking_faces: ["·", "··", "···"]
+  thinking_verbs: ["working", "reading", "checking", "thinking"]
+  wings: [["", ""]]
+
+branding:
+  agent_name: "Hermes"
+  welcome: "Hermes on the-cluster. Type a message, or /help."
+  goodbye: "Done."
+  response_label: " Hermes "
+  prompt_symbol: "›"
+  help_header: "Commands"
+
+tool_prefix: "│"
+
+customCSS: |
+  /* Webapp: the skin's palette is derived by mixing; pin the ledger's steps.
+     !important beats the inline seeds the theme engine paints on :root. */
+  :root {
+    --theme-background-seed: #0a0c10 !important;
+    --theme-sidebar-seed: #14171d !important;
+    --theme-card-seed: #1d2126 !important;
+    --theme-elevated-seed: #262a30 !important;
+    --theme-bubble-seed: #262a30 !important;
+    --theme-mix-chrome: 100% !important;
+    --theme-mix-sidebar: 100% !important;
+    --theme-mix-card: 100% !important;
+    --theme-mix-elevated: 100% !important;
+    --theme-mix-bubble: 100% !important;
+    --dt-border: #393e43 !important;
+    --dt-sidebar-border: #393e43 !important;
+    --dt-user-bubble-border: #393e43 !important;
+    --dt-input: #14171d !important;
+    --dt-muted: #14171d !important;
+    --dt-ring: #f3f7fc !important;
+    --dt-composer-ring: #8d939a !important;
+    --dt-primary-solid: #262a30 !important;
+    --dt-primary-solid-foreground: #f3f7fc !important;
+    --dt-destructive: #f47983 !important;
+    --dt-destructive-foreground: #0a0c10 !important;
+    --ui-success: #42c161 !important;
+    --dt-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    --dt-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+    --noise-opacity-mul: 0 !important;
+  }
+  /* Flat: no drop shadows (focus rings ride --tw-ring-shadow and stay), no glass. */
+  *, *::before, *::after { --tw-shadow: 0 0 #0000 !important; --tw-shadow-colored: 0 0 #0000 !important; }
+  * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
+  :focus-visible { outline: 2px solid #f3f7fc !important; outline-offset: 2px; }
+  ::selection { background: #393e43; color: #f3f7fc; }

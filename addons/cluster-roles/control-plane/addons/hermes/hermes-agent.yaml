@@ -536,7 +536,13 @@ data:
       host: "0.0.0.0"
       port: 9120
       public_url: "https://hermes.cluster.integratn.tech"
+    # Hermes's own UIs in James's design system (Night Shift Ledger): the
+    # theme and skin files come from ConfigMap hermes-skill-design
+    # (hack/hermes-design/). A pick in the UI lasts until the next restart.
+    display:
+      skin: "integratn"
     dashboard:
+      theme: "integratn"
       public_url: "https://hermes-admin.cluster.integratn.tech"
       # The gateway's data-plane pods connect from the pod network; only they
       # may set X-Forwarded-* (so cookies are marked Secure behind TLS).
@@ -797,6 +803,17 @@ spec:
             - name: design-skill
               mountPath: /opt/hermes-skills/homelab/integratn-design/templates/page.html
               subPath: page.html
+              readOnly: true
+            # The same design system for Hermes's own UIs: dashboard theme and
+            # the CLI/TUI/Webapp skin, selected in config.yaml (dashboard.theme,
+            # display.skin).
+            - name: design-skill
+              mountPath: /opt/data/dashboard-themes/integratn.yaml
+              subPath: dashboard-theme.yaml
+              readOnly: true
+            - name: design-skill
+              mountPath: /opt/data/skins/integratn.yaml
+              subPath: skin.yaml
               readOnly: true
       volumes:
         - name: dshm
