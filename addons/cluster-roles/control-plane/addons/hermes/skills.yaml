@@ -352,7 +352,7 @@ data:
     ---
     name: gitops-fix
     description: "Use to propose a fix to the-cluster as a GitHub PR."
-    version: 1.0.0
+    version: 1.1.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -387,8 +387,9 @@ data:
        `hermes/fix-grafana-netpol`). Never write to `main` or to a branch you
        did not create.
     4. **Change.** Smallest change that fixes the cause. One commit with
-       `mcp__github__push_files` (several files) or
-       `mcp__github__create_or_update_file` (one), always with
+       `mcp__githubwrite__push_files` (several files) or
+       `mcp__githubwrite__create_or_update_file` (one; James approves each
+       commit), always with
        `branch: hermes/...`. Commit message: conventional and scoped like the
        history, e.g. `fix(network-policies): let grafana-mcp reach loki`.
     5. **PR.** `mcp__github__create_pull_request`, base `main`, head your
