@@ -64,7 +64,8 @@ spec:
               type: RuntimeDefault
           containers:
             - name: backup
-              image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt@sha256:21ab2657e366698eef8f07a65fb7c3e148f292011c9da28e9bdcffafc001b00a
+              # Keep equal to the Deployment's image in hermes-agent.yaml.
+              image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2-tc1.13.12@sha256:ba93ef0fda7ab0e6cbd262b9afe142804c7415a8589d500eb5b4dac9d7b35550
               command: [/bin/sh, -eu, -c]
               args:
                 - |
