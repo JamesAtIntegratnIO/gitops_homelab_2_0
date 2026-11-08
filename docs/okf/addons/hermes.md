@@ -227,10 +227,14 @@ halves).[^github-mcp][^skills]
   environment, served over streamable HTTP by supergateway. The binary comes
   from the pinned `github-mcp-server` image as an image volume (it is
   distroless).
-- **Tools are cut on the server**: toolsets `repos,pull_requests` with
-  `--exclude-tools` for merge, delete, repo create/fork and reviews, leaving
-  19. Hermes's `tools.include` repeats the 13 it uses, and `trust: untrusted`
-  makes every write call (branch, commit, PR) wait for approval.
+- **Tools are cut on the server**: toolsets `repos,pull_requests,issues,actions`
+  with `--exclude-tools` for merge, delete, repo create/fork, reviews, every
+  issue/comment write and workflow trigger, leaving 28 of which 5 write.
+  Hermes's `tools.include` names the 19 it uses (13 repo/PR tools plus, since
+  2026-11-08, `issue_read`, `list_issues`, `search_issues`, `actions_list`,
+  `actions_get`, `get_job_logs`, so it can read issues and a PR's failing CI
+  run and job logs). `trust: untrusted` makes every write call (branch,
+  commit, PR) wait for approval.
 - **Token**: 1Password item `hermes-agent`, field `GITHUB_TOKEN` (added
   2026-11-08): a fine-grained PAT on James's own account, which is an admin.
   The Hermes pod's ExternalSecret maps only the Anthropic and API-server keys
