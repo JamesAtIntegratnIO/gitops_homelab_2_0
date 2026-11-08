@@ -38,6 +38,13 @@ RUN set -eu; \
       -o /out/cq .; \
     /out/cq --version
 
+# talosctl, read-only Talos access for Hermes (2026-11-08). Hermes calls the
+# Talos API through Talos's own Kubernetes API access: a talos.dev
+# ServiceAccount in ns hermes with only the os:reader role, so Talos itself
+# refuses every write. Taken from Sidero's official static image (amd64+arm64)
+# at the cluster's Talos version; bump it with the nodes.
+FROM ghcr.io/siderolabs/talosctl:v1.13.12@sha256:9c68c786022cfa4da7672c6379e9b217c2593034ee52be1ff5bd73d6ed8e0131 AS talosctl
+
 # The base is pinned by digest; bump it together with the tag in the hermes
 # Deployment's comments (addons/cluster-roles/control-plane/addons/hermes/).
 FROM docker.io/nousresearch/hermes-agent:v0.23.0@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
@@ -67,6 +74,9 @@ ENV PYTHONPATH=/opt/hermes-stt
 
 COPY --from=cq /out/cq /usr/local/bin/cq
 RUN /usr/local/bin/cq --version
+
+COPY --from=talosctl /talosctl /usr/local/bin/talosctl
+RUN /usr/local/bin/talosctl version --client --short
 
 # Upstream's ENTRYPOINT (s6-overlay via entrypoint-dispatch.sh), CMD, USER and
 # WORKDIR are inherited unchanged.
