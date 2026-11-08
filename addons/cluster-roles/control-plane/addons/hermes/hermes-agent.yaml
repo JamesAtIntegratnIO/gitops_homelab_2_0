@@ -701,6 +701,10 @@ spec:
               mountPath: /opt/hermes-skills/homelab/skill-improve/SKILL.md
               subPath: skill-improve.md
               readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/okf-update/SKILL.md
+              subPath: okf-update.md
+              readOnly: true
       volumes:
         - name: dshm
           emptyDir:
