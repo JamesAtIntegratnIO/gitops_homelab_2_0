@@ -240,6 +240,19 @@ projects:
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/sequential-thinking-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
+      arr-mcp:
+        scope: mcp-system
+        image:
+          repoURL: ghcr.io/bardesss/arr-mcp
+          allowTags: ['^\d+\.\d+\.\d+$']   # not the 1.73 / sha256-* tags
+        verify:
+          apps:
+            - mcp-system-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/arr-mcp-deployment.yaml
+            keys:
+              - spec.template.spec.containers.0.image
+              - spec.template.spec.initContainers.0.image
 
       # ── our own images (images/, built by GitHub Actions) ────────────
       kubectl:

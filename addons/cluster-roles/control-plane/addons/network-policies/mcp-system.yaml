@@ -196,7 +196,7 @@ spec:
 ---
 # Hermes Agent (namespace hermes) calls MCP servers directly by Service DNS,
 # not through the gateway: the three read-only ones, and github-mcp-hermes
-# (8083), which only Hermes may reach (it has no HTTPRoute). github-mcp and
+# (8083) and arr-mcp (6060), which only Hermes may reach (no HTTPRoute). github-mcp and
 # sequential-thinking stay gateway-only. The other half is
 # allow-mcp-system-egress in hermes.yaml.
 apiVersion: networking.k8s.io/v1
@@ -209,7 +209,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: [kubernetes-mcp, kubernetes-mcp-ops, argocd-mcp, argocd-mcp-ops, grafana-mcp, github-mcp-hermes]
+        values: [kubernetes-mcp, kubernetes-mcp-ops, argocd-mcp, argocd-mcp-ops, grafana-mcp, github-mcp-hermes, arr-mcp]
   policyTypes:
     - Ingress
   ingress:
@@ -229,3 +229,47 @@ spec:
           port: 8000   # grafana-mcp
         - protocol: TCP
           port: 8083   # github-mcp-hermes
+        - protocol: TCP
+          port: 6060   # arr-mcp
+---
+# arr-mcp calls the media apps: Sonarr, Radarr, Bazarr and SABnzbd on the pods
+# vcluster syncs into the host namespace (ports are the pods' own, since a
+# ClusterIP is DNAT'd before policy), and Jellyfin on Tower. Nothing else; it
+# needs no internet. The ingress half is allow-arr-mcp-ingress in
+# vcluster-media.yaml (Tower has no policy).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-arr-mcp-egress
+  namespace: mcp-system
+spec:
+  podSelector:
+    matchLabels:
+      app: arr-mcp
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vcluster-media
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values: [sonarr, radarr, bazarr, sabnzbd]
+      ports:
+        - protocol: TCP
+          port: 8989
+        - protocol: TCP
+          port: 7878
+        - protocol: TCP
+          port: 6767
+        - protocol: TCP
+          port: 8080
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.12/32
+      ports:
+        - protocol: TCP
+          port: 8096   # Jellyfin
