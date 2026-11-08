@@ -210,9 +210,10 @@ Hermes only, no egress. The CLI stays the MCP surface: with `CQ_ADDR` and
 `CQ_API_KEY` set, `cq mcp` sends proposals to the server as `private` and, on
 start, drains every local unit to it (deleting the local copy); remote units
 reach agents only after James approves them in the UI's review queue. Data
-reads on the API are open by upstream design, so the route sits behind
-authentik forward-auth (provider `cq-proxy-provider`, admins only) and Hermes
-uses the ClusterIP; nothing secret goes in regardless.
+reads on the API are open by upstream design, so the gateway does not
+serve `/api/v1/knowledge` at all (404); the UI keeps cq's own login only (cq
+has no SSO, and James did not want two logins), and Hermes reads by ClusterIP.
+Nothing secret goes in regardless.
 
 # Live operational fixes
 
