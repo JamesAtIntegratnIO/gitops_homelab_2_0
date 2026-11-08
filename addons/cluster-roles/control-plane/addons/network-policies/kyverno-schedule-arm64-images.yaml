@@ -25,6 +25,12 @@
 # Mutate rules have no Audit mode: the allowlist is the dial. Remove an entry
 # and the next pod using that image is left alone.
 #
+# Allowlist entries are repositories ("repo:*"), so a new version of a listed
+# image is picked up without editing this file. If a repository ever drops its
+# arm64 build, a new tag will be placed on a Pi 4 and fail to start there (the
+# preference does not know about architecture): remove the entry, or replace it
+# with exact tags.
+#
 # The second rule is the Audit half: it reports any pod that selects arm64 (by
 # hand) while running an image that is not on the list.
 apiVersion: v1
@@ -35,67 +41,76 @@ metadata:
   labels:
     app.kubernetes.io/part-of: platform
 data:
-  # One entry per image reference exactly as it appears in a pod spec, minus any
-  # @sha256 digest. An entry means "this tag is a multi-arch index that has a
-  # linux/arm64 manifest" (checked against each registry on 2026-11-08). It does
-  # not mean the application is a good fit for a Pi: trim for that.
+  # One entry per image repository, matched against each container image in a
+  # pod spec after any @sha256 digest is dropped. "repo:*" matches every tag of
+  # that repository; an entry without * matches that exact reference only.
   #
-  # Entries are exact name:tag, so a version bump (Kargo or by hand) takes the
-  # pod off the list until the tag is updated here; the pod then just stays on
-  # the control-plane nodes. A trailing * is a wildcard (for example
-  # "ghcr.io/akuity/kargo:*") if you would rather trust a repository than a tag.
+  # A "repo:*" entry means: the newest tags of this repository were checked
+  # against its registry on 2026-11-08 and all had a linux/arm64 manifest, so a
+  # version bump (Kargo or by hand) keeps landing on the Pis. It does not mean
+  # every old tag does, and it does not mean the application suits a Pi.
+  # Remove an entry to take that repository back to the control-plane nodes.
+  #
+  # Exact entries (no *) are left that way on purpose:
+  #   - prometheus-operator: its newest tag (v0.95.1) did not show an arm64
+  #     manifest (absent or a failed lookup, not investigated);
+  #   - platform-status-reconciler: our own image, tags not sampled;
+  #   - the ecr-public redis mirror: the registry has no tag listing to sample;
+  #   - kratix-platform has no tag in its reference, so it already matches any
+  #     digest and needs no *.
+  # A reference with no tag at all (implicit :latest) matches none of the
+  # "repo:*" entries.
   images: |-
     [
-      "ghcr.io/linuxserver/bazarr:v1.6.2-ls371",
-      "mikefarah/yq:4.54.2",
-      "docker.io/linuxserver/sonarr:develop-5.0.0.2941-ls208",
-      "linuxserver/sonarr:develop-5.0.0.2941-ls208",
-      "ghcr.io/linuxserver/radarr:6.4.4.10685-ls325",
-      "ghcr.io/linuxserver/sabnzbd:5.1.3-ls280",
-      "ghcr.io/onedr0p/exportarr:v2.3.0",
-      "redimp/otterwiki:2.26.3",
-      "busybox:1.37",
-      "ghcr.io/connorgallopo/tracearr:3.1.7",
-      "mirror.gcr.io/library/alpine:3.20",
-      "timescale/timescaledb-ha:pg18.6-ts2.31.0",
-      "redis:8.10.3-alpine",
-      "ghcr.io/raydak-labs/configarr:1.39.1",
-      "ghcr.io/luigi311/jellyplex-watched:9.0.0",
-      "docker.io/cloudflare/cloudflared:2026.10.7",
-      "docker.io/glanceapp/glance:v0.8.8",
-      "docker.io/grafana/grafana:13.2.0",
-      "docker.io/grafana/mcp-grafana:2.2.0",
-      "docker.io/nginxinc/nginx-unprivileged:1.31-alpine",
-      "docker.io/prompve/prometheus-pve-exporter:3.10.2",
+      "ghcr.io/linuxserver/bazarr:*",
+      "mikefarah/yq:*",
+      "docker.io/linuxserver/sonarr:*",
+      "linuxserver/sonarr:*",
+      "ghcr.io/linuxserver/radarr:*",
+      "ghcr.io/linuxserver/sabnzbd:*",
+      "ghcr.io/onedr0p/exportarr:*",
+      "redimp/otterwiki:*",
+      "busybox:*",
+      "ghcr.io/connorgallopo/tracearr:*",
+      "mirror.gcr.io/library/alpine:*",
+      "timescale/timescaledb-ha:*",
+      "redis:*",
+      "ghcr.io/raydak-labs/configarr:*",
+      "ghcr.io/luigi311/jellyplex-watched:*",
+      "docker.io/cloudflare/cloudflared:*",
+      "docker.io/glanceapp/glance:*",
+      "docker.io/grafana/grafana:*",
+      "docker.io/grafana/mcp-grafana:*",
+      "docker.io/nginxinc/nginx-unprivileged:*",
+      "docker.io/prompve/prometheus-pve-exporter:*",
       "ecr-public.aws.com/docker/library/redis:8.6.4-alpine",
-      "ghcr.io/akuity/kargo:v1.12.5",
-      "ghcr.io/argoproj-labs/mcp-for-argocd:v0.9.0",
-      "ghcr.io/bardesss/arr-mcp:1.73.0",
-      "ghcr.io/external-secrets/external-secrets:v2.12.0",
-      "ghcr.io/github/github-mcp-server:v2.1.0",
-      "ghcr.io/goauthentik/server:2026.2.3",
+      "ghcr.io/akuity/kargo:*",
+      "ghcr.io/argoproj-labs/mcp-for-argocd:*",
+      "ghcr.io/bardesss/arr-mcp:*",
+      "ghcr.io/external-secrets/external-secrets:*",
+      "ghcr.io/github/github-mcp-server:*",
+      "ghcr.io/goauthentik/server:*",
       "ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:main-55400cb",
-      "ghcr.io/nginx/nginx-gateway-fabric/nginx:2.6.7",
-      "ghcr.io/nginx/nginx-gateway-fabric:2.6.7",
-      "ghcr.io/stefanprodan/podinfo:6.16.0",
-      "ghcr.io/supercorp-ai/supergateway:4.2.1",
-      "ghcr.io/umami-software/umami:3.4.1",
-      "ghcr.io/unpoller/unpoller:v5.8.3",
-      "metio/matrix-alertmanager-receiver:2026.9.23",
-      "quay.io/argoproj/argo-rollouts:v1.10.2",
-      "quay.io/argoproj/argocd:v3.5.1",
-      "quay.io/containers/kubernetes_mcp_server:v0.0.69",
-      "quay.io/jetstack/cert-manager-cainjector:v1.21.1",
-      "quay.io/jetstack/cert-manager-controller:v1.21.1",
-      "quay.io/jetstack/cert-manager-webhook:v1.21.1",
-      "quay.io/kiwigrid/k8s-sidecar:2.10.1",
+      "ghcr.io/nginx/nginx-gateway-fabric/nginx:*",
+      "ghcr.io/nginx/nginx-gateway-fabric:*",
+      "ghcr.io/stefanprodan/podinfo:*",
+      "ghcr.io/supercorp-ai/supergateway:*",
+      "ghcr.io/umami-software/umami:*",
+      "ghcr.io/unpoller/unpoller:*",
+      "metio/matrix-alertmanager-receiver:*",
+      "quay.io/argoproj/argo-rollouts:*",
+      "quay.io/argoproj/argocd:*",
+      "quay.io/containers/kubernetes_mcp_server:*",
+      "quay.io/jetstack/cert-manager-cainjector:*",
+      "quay.io/jetstack/cert-manager-controller:*",
+      "quay.io/jetstack/cert-manager-webhook:*",
+      "quay.io/kiwigrid/k8s-sidecar:*",
       "quay.io/prometheus-operator/prometheus-operator:v0.93.1",
-      "redis:7.4.12-alpine",
-      "registry.k8s.io/autoscaling/vpa-recommender:1.7.1",
-      "registry.k8s.io/external-dns/external-dns:v0.21.0",
-      "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0",
+      "registry.k8s.io/autoscaling/vpa-recommender:*",
+      "registry.k8s.io/external-dns/external-dns:*",
+      "registry.k8s.io/kube-state-metrics/kube-state-metrics:*",
       "syntasso-community.docker.reo.dev/syntasso/kratix-platform",
-      "us-docker.pkg.dev/fairwinds-ops/oss/goldilocks:v4.16.3"
+      "us-docker.pkg.dev/fairwinds-ops/oss/goldilocks:*"
     ]
 ---
 apiVersion: kyverno.io/v1
