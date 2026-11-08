@@ -1,0 +1,199 @@
+# cq-server: Mozilla.ai's cq knowledge store (github.com/mozilla-ai/cq) as its
+# own service. James's pick (2026-11-08): "CQ should run as its own service
+# and then hermes should be leveraging it."
+#
+# How cq splits: agents always talk MCP to the `cq` CLI over stdio (Hermes
+# runs `cq mcp`, built into its image). With CQ_ADDR and CQ_API_KEY set, the
+# CLI sends proposals here as `private` units and queries this server; with
+# them unset it stays on its local SQLite file. So Hermes's `cq mcp` is the
+# client, and this Deployment is the store. Never cq.exchange.
+#
+# - Runs on the Pi 5 with its SQLite file on local-nvme (fast, and not Tower
+#   NFS, where SQLite corrupts). One replica, Recreate: a RWO volume and one
+#   SQLite writer.
+# - Secrets (1Password item `cq-server`, homelab vault): CQ_JWT_SECRET signs
+#   UI logins; CQ_API_KEY_PEPPER is the HMAC pepper for every API key. Never
+#   rotate the pepper casually: it invalidates every key. The UI login
+#   (`UI_USERNAME` + the item's `password`) is seeded once with the image's
+#   own script:
+#     kubectl --context admin@the-cluster -n cq exec deploy/cq-server -- \
+#       /app/.venv/bin/python /app/scripts/seed-users.py --username james --password '<item password>'
+#   API keys are made in the UI (API Keys page); Hermes's is the item's
+#   HERMES_API_KEY field.
+# - UI and API at https://cq.cluster.integratn.tech (LAN only, like every
+#   *.cluster.integratn.tech host). The UI has its own login; writes need an
+#   API key; data-plane READS (GET /api/v1/knowledge) are open by upstream
+#   design, so nothing secret goes into cq (the knowledge-memory skill says
+#   so).
+# - Network: ingress from nginx-gateway and Hermes only, no egress
+#   (network-policies/cq.yaml). Semantic search (TOKEN_EMBEDDING_URL) is off.
+#
+# The image line is a Kargo pin (target cq-server): keep the Deployment the
+# first document and the line comment-free.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cq-server
+  namespace: cq
+  labels:
+    app.kubernetes.io/name: cq-server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cq-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cq-server
+    spec:
+      priorityClassName: platform-batch
+      nodeSelector:
+        node.integratn.tech/board: rpi5
+      tolerations:
+        - key: node.integratn.tech/arch
+          operator: Equal
+          value: arm64
+          effect: NoSchedule
+      # The image's USER is the name `app`, which runAsNonRoot cannot check,
+      # so the uid is set here; fsGroup makes the volume writable for it.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cq-server
+          image: ghcr.io/mozilla-ai/cq/server:v0.12.4@sha256:5424a5db01f3e427f028fdee9699d641f6dc8434b6d327f04f07a707b9a43092
+          env:
+            - name: CQ_PORT
+              value: "3000"
+            - name: CQ_DB_PATH
+              value: /data/cq.db
+            - name: TMPDIR
+              value: /tmp
+            - name: HOME
+              value: /tmp
+          envFrom:
+            - secretRef:
+                name: cq-server
+          ports:
+            - name: http
+              containerPort: 3000
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: cq-server-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cq-server-data
+  namespace: cq
+spec:
+  storageClassName: local-nvme
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cq-server
+  namespace: cq
+  labels:
+    app.kubernetes.io/name: cq-server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cq-server
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+---
+# Only the two server secrets: the UI password and API keys are not read by
+# the server. A missing field fails the whole Secret, and the pod waits.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: cq-server
+  namespace: cq
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: cq-server
+    creationPolicy: Owner
+  data:
+    - secretKey: CQ_JWT_SECRET
+      remoteRef:
+        key: cq-server
+        property: CQ_JWT_SECRET
+    - secretKey: CQ_API_KEY_PEPPER
+      remoteRef:
+        key: cq-server
+        property: CQ_API_KEY_PEPPER
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cq-server
+  namespace: cq
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - cq.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: cq-server
+          port: 3000

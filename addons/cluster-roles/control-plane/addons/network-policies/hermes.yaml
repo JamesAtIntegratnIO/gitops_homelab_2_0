@@ -208,3 +208,28 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+---
+# cq-server, the knowledge store Hermes's `cq mcp` client writes to. The
+# other half is allow-cq-ingress in cq.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cq-egress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cq
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cq-server
+      ports:
+        - protocol: TCP
+          port: 3000
