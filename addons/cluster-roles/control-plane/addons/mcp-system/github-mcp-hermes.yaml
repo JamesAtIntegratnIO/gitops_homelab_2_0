@@ -1,8 +1,7 @@
 # GitHub MCP for Hermes Agent only: lets Hermes propose GitOps fixes as
 # branch + PR on JamesAtIntegratnIO/gitops_homelab_2_0, fix PRs, and merge
 # them (James, 2026-11-08: "review kargo promotion prs and fix and merge
-# them in"). Each merge is approved by James in Hermes (githubwrite,
-# trust: untrusted).
+# them in"; merges without approval by his choice, commits still approved).
 #
 # Why a second instance instead of github-mcp:
 #   - github-mcp runs `http` mode, which authenticates each request with the

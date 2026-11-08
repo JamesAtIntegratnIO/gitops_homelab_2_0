@@ -244,10 +244,10 @@ halves).[^github-mcp][^skills]
   issue/comment write and workflow trigger. Since 2026-11-08 Hermes has two
   entries on it: `github` (`trust: full`: reads, issue/CI reads,
   create_branch, create_pull_request, update_pull_request,
-  update_pull_request_branch) needs no approval; `githubwrite`
-  (`trust: untrusted`: create_or_update_file, push_files and, when James
-  asked for Hermes to fix and merge Kargo bump PRs, merge_pull_request) asks
-  James on every call. The `gitops-fix` skill's "Merging" section sets the
+  update_pull_request_branch and, since James asked for Hermes to fix and
+  merge Kargo bump PRs without approval, merge_pull_request) needs no
+  approval; `githubwrite` (`trust: untrusted`: create_or_update_file,
+  push_files) asks James on every call. The `gitops-fix` skill's "Merging" section sets the
   rules: only when asked, gate green on the reviewed head sha, squash, one
   at a time.
 - **Token**: 1Password item `hermes-agent`, field `GITHUB_TOKEN` (added
