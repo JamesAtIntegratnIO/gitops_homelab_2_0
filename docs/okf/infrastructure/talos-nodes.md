@@ -99,5 +99,15 @@ Cilium's `devices` lists it beside `eno1`; MetalLB's L2Advertisement stays
 registry the node can reach, which does not exist yet. Full runbook:
 [rpi5-worker.md](../../../matchbox/talos-machineconfigs/rpi5-worker.md).[^pi5-runbook]
 
+Its kubelet, node-exporter and hubble targets were down from the day it
+joined (TargetDown). Nothing was wrong on the node: Prometheus's 10.0.4.0/24
+`ipBlock` never matches a node IP in Cilium, and the only rule that did reach
+nodes was `allow-kube-api`'s `kube-apiserver` entity, which covers the three
+control-plane nodes and not a worker. `cilium-dbg monitor --type drop` on
+Prometheus's node showed `Policy denied ... -> remote-node: 10.0.4.104:10250`.
+Fixed by CiliumNetworkPolicy `allow-prometheus-node-scrape` in `monitoring`
+(`toEntities: [host, remote-node]`, ports 10250, 9100, 9965); any future
+worker needs nothing more.
+
 [^pi5-node]: Raspberry Pi 5 worker join
 [^pi5-runbook]: Raspberry Pi 5 worker runbook and patch

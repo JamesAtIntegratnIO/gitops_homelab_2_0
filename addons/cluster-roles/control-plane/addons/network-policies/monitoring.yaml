@@ -143,7 +143,11 @@ spec:
     # Scrape targets via namespace selector (ipBlock unreliable with Cilium kube-proxy replacement)
     - to:
         - namespaceSelector: {}
-    # Scrape node endpoints (kubelet metrics)
+    # Scrape node endpoints (kubelet metrics). Cilium never matches ipBlock
+    # against node IPs (no policy-cidr-match-mode), so this rule admits nothing
+    # for a node: the control-plane nodes are reached through allow-kube-api's
+    # kube-apiserver entity, and a worker through allow-prometheus-node-scrape
+    # below.
     - to:
         - ipBlock:
             cidr: 10.0.4.0/24
@@ -454,3 +458,33 @@ spec:
           port: 8080
         - protocol: TCP
           port: 8081
+---
+# Prometheus -> node-level exporters on every node, by entity.
+#
+# allow-prometheus's 10.0.4.0/24 ipBlock never matches a node IP in Cilium,
+# and allow-kube-api's `kube-apiserver` entity covers only the three
+# control-plane nodes, so workers were unreachable: talos-pi5-1's kubelet,
+# node-exporter and hubble targets timed out from the day it joined
+# (cilium-dbg monitor: "Policy denied ... -> remote-node: 10.0.4.104:10250").
+# `host` is Prometheus's own node, `remote-node` every other.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-node-scrape
+  namespace: monitoring
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  egress:
+    - toEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"   # kubelet /metrics, /metrics/cadvisor, /metrics/probes
+              protocol: TCP
+            - port: "9100"    # node-exporter
+              protocol: TCP
+            - port: "9965"    # hubble metrics
+              protocol: TCP

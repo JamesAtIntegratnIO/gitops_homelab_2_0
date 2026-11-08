@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-11-08
+* **Issue → Fix**: **talos-pi5-1's kubelet, node-exporter and hubble scrapes were policy-denied since it joined.** Prometheus reached node IPs only through the `kube-apiserver` entity (control-plane nodes); its 10.0.4.0/24 ipBlock never matches a node in Cilium. New CNP `allow-prometheus-node-scrape` (host + remote-node, 10250/9100/9965). See [Talos nodes](infrastructure/talos-nodes.md).
 * **Update**: **Hermes Agent can take operational actions on the-cluster, each approved by James.** New `kubernetes-mcp-ops` in `mcp-system` (Hermes only, no HTTPRoute) exposes `pods_delete` and `resources_create_or_update`; RBAC allows pod delete, node cordon/uncordon and rollout restarts only. New skill `cluster-remediate` with the stale-NFS cordon -> delete -> verify -> uncordon playbook. Config changes still go through gitops-fix. See [Hermes Agent](addons/hermes.md).
 * **Issue → Fix**: **github-mcp-hermes had no token.** Its ExternalSecret looked for 1Password item `hermes-github-bot`, which was never created; the token went into item `hermes-agent` as field `GITHUB_TOKEN`. Repointed. It is James's own fine-grained PAT (admin), and `main` has no pull-request rule with the Admin role on the bypass list, so per-call approval is the only guard against a write to `main`. See [Hermes Agent](addons/hermes.md).
 
