@@ -701,11 +701,6 @@ data:
 
     All three Pis carry the taint `node.integratn.tech/arch=arm64:NoSchedule`.
 
-    Known state on 2026-11-08: `talos-4kg-ymz` (10.0.4.102) was cordoned
-    before the Pi 4s joined, probably left over from the Bazarr remediation
-    attempts, with no record of why. Report it if it is still cordoned, and
-    ask James before uncordoning it.
-
     There is no Talos MCP and no talosctl here. Talos services, the kernel log
     and machine config are out of your reach. Say so rather than guessing, and
     name the `talosctl` command James would run.
