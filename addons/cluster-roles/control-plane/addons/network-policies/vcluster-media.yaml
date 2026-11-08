@@ -70,3 +70,37 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+---
+# arr-mcp (mcp-system) is Hermes's tool server for the media apps: it calls
+# their APIs on the synced pods, with each app's own API key. The egress half
+# is allow-arr-mcp-egress in mcp-system.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-arr-mcp-ingress
+  namespace: vcluster-media
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [sonarr, radarr, bazarr, sabnzbd]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mcp-system
+          podSelector:
+            matchLabels:
+              app: arr-mcp
+      ports:
+        - protocol: TCP
+          port: 8989
+        - protocol: TCP
+          port: 7878
+        - protocol: TCP
+          port: 6767
+        - protocol: TCP
+          port: 8080

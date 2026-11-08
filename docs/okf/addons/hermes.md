@@ -25,6 +25,12 @@ sources:
   - id: github-mcp
     resource: ../../../addons/cluster-roles/control-plane/addons/mcp-system/github-mcp-hermes.yaml
     title: github-mcp-hermes
+  - id: arr-mcp
+    resource: ../../../addons/cluster-roles/control-plane/addons/mcp-system/arr-mcp.yaml
+    title: arr-mcp config and ExternalSecret
+  - id: arr-mcp-upstream
+    resource: https://github.com/bardesss/arr-mcp/tree/v1.73.0
+    title: bardesss/arr-mcp v1.73.0
   - id: optimization-guide
     resource: https://github.com/OnlyTerp/hermes-optimization-guide/tree/f865f8a
     title: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
@@ -213,6 +219,41 @@ halves).[^github-mcp][^skills]
 - Hermes strips `GITHUB_TOKEN`/`GH_TOKEN` from every terminal command by
   design, so git with a token in the Hermes pod was never the route.
 
+# Inside the media apps
+
+Hermes works inside Sonarr, Radarr, Bazarr, SABnzbd and Jellyfin, not only on
+their manifests, through `arr-mcp` (github.com/bardesss/arr-mcp v1.73.0) in
+`mcp-system` (Hermes's `mcp_servers.arr`, port 6060, no HTTPRoute, ingress from
+Hermes only; added 2026-11-08). Chosen over the other arr MCP servers on
+GitHub for activity, coverage of our whole stack (Bazarr and SABnzbd
+included), a multi-arch image and `readOnlyHint` on every read tool.[^arr-mcp][^arr-mcp-upstream]
+
+- **Writes are gated three times.** arr-mcp grants `safe_write` (search, grab,
+  monitor, rescan, retry, pause, subtitle search, profile change) on the four
+  arr apps and `destructive` nowhere; Jellyfin is read-only. Hermes's token is
+  tier `write`, which caps it below `destructive` whatever the file says.
+  Every write is a preview, then a confirm with the preview's token, audited to
+  `audit.db`; under `trust: untrusted` that is two approvals in Hermes per
+  write. `tools.include` lists the 18 reads and 10 safe writes Hermes uses.
+- **Config is git's.** arr-mcp reads only `/config/config.yaml`, with no env
+  substitution, so ExternalSecret `arr-mcp-config` renders the whole file from
+  1Password `homepage-secret` (the apps' keys) and `arr-mcp` (`MCP_TOKEN`,
+  written only as its sha256; `UI_PASSWORD_HASH`, so the config UI starts
+  claimed instead of handing itself to the first visitor). An init container
+  copies it onto the PVC at every start; changes made in the UI last until the
+  next restart.
+- **Runs on the Pi** beside Hermes, on `local-nvme` (1 Gi, its SQLite audit,
+  log and session files). Not Tower NFS: Bazarr's SQLite corrupted there.
+- **The token is in the Hermes pod** (`ARR_MCP_TOKEN`, Secret
+  `hermes-arr-mcp`), because Hermes sends it as a header. Its terminal could
+  read it and call arr-mcp directly, skipping Hermes's approval prompts; the
+  server's own limits (no destructive tier, preview + confirm) still hold.
+- **House rules** are the `media-house-rules` skill: TV max 1080p (replace,
+  never delete first), no bulk writes (Tower), OpenSubtitles' 1,000/day
+  shared with Jellyfin, the anime-specials numbering gap.
+- To look at the config UI: `kubectl --context admin@the-cluster -n mcp-system
+  port-forward svc/arr-mcp 6060`, sign in as `admin` with `arr-mcp` field `password`.
+
 [^manifests]: Hermes addon manifests
 [^policies]: Hermes namespace and network policies
 [^upstream-docker]: Hermes Agent Docker guide (v0.23.0)
@@ -220,6 +261,8 @@ halves).[^github-mcp][^skills]
 [^mcp-doc]: In-cluster MCP servers
 [^skills]: Hermes cluster skills
 [^github-mcp]: github-mcp-hermes
+[^arr-mcp]: arr-mcp config and ExternalSecret
+[^arr-mcp-upstream]: bardesss/arr-mcp v1.73.0
 
 # Tuning
 

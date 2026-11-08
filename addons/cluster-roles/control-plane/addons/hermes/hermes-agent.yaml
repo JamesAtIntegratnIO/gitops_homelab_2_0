@@ -53,6 +53,27 @@ spec:
         key: hermes-agent
         property: API_SERVER_KEY
 ---
+# arr-mcp's bearer token (mcp-system/arr-mcp.yaml; tier `write`, so it cannot
+# delete). Separate from hermes-agent: one bad field fails the whole Secret.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hermes-arr-mcp
+  namespace: hermes
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: hermes-arr-mcp
+    creationPolicy: Owner
+  data:
+    - secretKey: MCP_TOKEN
+      remoteRef:
+        key: arr-mcp
+        property: MCP_TOKEN
+---
 # The settings git owns. An init container copies this over
 # /opt/data/config.yaml on every start, so a change made inside the pod
 # (`hermes config set ...`) lasts only until the next restart; make it here.
@@ -304,6 +325,52 @@ data:
             - "update_pull_request"
           resources: false
           prompts: false
+      # Inside the media apps (mcp-system/arr-mcp.yaml): Sonarr, Radarr, Bazarr,
+      # SABnzbd, Jellyfin. Every read declares readOnlyHint; writes need
+      # approval (untrusted), and each is a preview then a confirm. The server
+      # grants safe_write on the four arr apps and no destructive tier at
+      # all, and the token is tier `write`; this list is the second guard
+      # (no deletes, no Seerr/Profilarr/indexer tools). Token: 1Password
+      # `arr-mcp`/MCP_TOKEN via the hermes-arr-mcp Secret. If it is missing,
+      # this server alone fails to connect.
+      arr:
+        url: "http://arr-mcp.mcp-system.svc.cluster.local:6060/mcp"
+        trust: "untrusted"
+        timeout: 120
+        headers:
+          Authorization: "Bearer ${ARR_MCP_TOKEN}"
+        tools:
+          include:
+            - "diagnose"
+            - "stack_health"
+            - "search_media"
+            - "get_media_details"
+            - "get_metadata_issues"
+            - "get_library"
+            - "get_profile_issues"
+            - "get_queue"
+            - "get_history"
+            - "get_wanted"
+            - "get_releases"
+            - "get_blocklist"
+            - "get_calendar"
+            - "get_subtitles"
+            - "get_playback"
+            - "get_indexers"
+            - "lookup_media"
+            - "discover_media"
+            - "trigger_search"
+            - "trigger_scan"
+            - "trigger_subtitle_search"
+            - "grab_release"
+            - "set_monitoring"
+            - "update_media"
+            - "add_media"
+            - "retry_download"
+            - "pause_downloads"
+            - "remove_blocklist_item"
+          resources: false
+          prompts: false
     # ---- Features, 2026-11-07. Only free ones that need no key beyond
     # Anthropic and send nothing to Nous. Already on by default in v0.23.0 and
     # left alone: memory and user profile, skills, session_search, cron (the
@@ -466,6 +533,14 @@ spec:
             # this). Keep equal to limits.cpu so it is not throttled.
             - name: OMP_NUM_THREADS
               value: "4"
+            # arr-mcp's bearer token, read by mcp_servers.arr's header. Its own
+            # Secret, so a missing field cannot blank the Anthropic key.
+            - name: ARR_MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-arr-mcp
+                  key: MCP_TOKEN
+                  optional: true
           envFrom:
             - secretRef:
                 name: hermes-agent
@@ -549,6 +624,10 @@ spec:
             - name: skills
               mountPath: /opt/hermes-skills/homelab/talos-node-health/SKILL.md
               subPath: talos-node-health.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/media-house-rules/SKILL.md
+              subPath: media-house-rules.md
               readOnly: true
             - name: skills
               mountPath: /opt/hermes-skills/homelab/skill-improve/SKILL.md
