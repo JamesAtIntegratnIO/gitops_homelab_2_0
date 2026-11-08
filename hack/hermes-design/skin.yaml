@@ -103,4 +103,7 @@ customCSS: |
   *, *::before, *::after { --tw-shadow: 0 0 #0000 !important; --tw-shadow-colored: 0 0 #0000 !important; }
   * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; text-shadow: none !important; }
   :focus-visible { outline: 2px solid #f3f7fc !important; outline-offset: 2px; }
+  /* Text fields carry their own frame (the composer has --dt-composer-ring):
+     no outline box drawn inside them. */
+  input:focus-visible, textarea:focus-visible, [contenteditable]:focus-visible { outline: none !important; }
   ::selection { background: #393e43; color: #f3f7fc; }
