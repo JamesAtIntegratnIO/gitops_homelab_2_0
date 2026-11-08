@@ -517,6 +517,18 @@ spec:
               mountPath: /opt/hermes-skills/homelab/cluster-remediate/SKILL.md
               subPath: cluster-remediate.md
               readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/loki-log-triage/SKILL.md
+              subPath: loki-log-triage.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/kargo-health/SKILL.md
+              subPath: kargo-health.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/talos-node-health/SKILL.md
+              subPath: talos-node-health.md
+              readOnly: true
       volumes:
         - name: dshm
           emptyDir:
