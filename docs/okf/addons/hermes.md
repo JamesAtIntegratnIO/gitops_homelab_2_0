@@ -162,14 +162,16 @@ halves).[^github-mcp][^skills]
   `--exclude-tools` for merge, delete, repo create/fork and reviews, leaving
   19. Hermes's `tools.include` repeats the 13 it uses, and `trust: untrusted`
   makes every write call (branch, commit, PR) wait for approval.
-- **Token**: 1Password item `hermes-github-bot`, field `token`, a fine-grained
-  PAT from a non-admin bot account with Write on this repository only. The
-  `main` ruleset (required `addons-gate`, no force-push or deletion) has no
-  pull-request rule and lets the Admin role bypass it, so an admin's token
-  could push to `main`; the bot must not be an admin or on the bypass list,
-  and a "require a pull request" rule makes the PR gate GitHub's, not the
-  skill's. Until the item exists the server runs and every GitHub call
-  returns 401.
+- **Token**: 1Password item `hermes-agent`, field `GITHUB_TOKEN` (added
+  2026-11-08): a fine-grained PAT on James's own account, which is an admin.
+  The Hermes pod's ExternalSecret maps only the Anthropic and API-server keys
+  from that item, so the token stays in `github-mcp-hermes`. The `main`
+  ruleset (required `addons-gate`, no force-push or deletion) has no
+  pull-request rule and lets the Admin role bypass it, so
+  `create_or_update_file`/`push_files` could name `main` as the branch. What
+  stops that today is per-call approval (`trust: untrusted`) and the
+  `gitops-fix` skill. A "require a pull request" rule without the Admin
+  bypass, or a non-admin bot account, would make it GitHub's guard.
 - Hermes strips `GITHUB_TOKEN`/`GH_TOKEN` from every terminal command by
   design, so git with a token in the Hermes pod was never the route.
 
