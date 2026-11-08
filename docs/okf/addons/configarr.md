@@ -4,8 +4,8 @@ title: configarr
 description: The daily CronJob in vcluster-media that reconciles Sonarr's and Radarr's custom formats and quality profiles from the TRaSH-Guides, so that config lives in git rather than only in each app's database.
 tags: [media, vcluster-media, custom-formats, trash-guides, cronjob]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-11-02T22:10:00Z }
-stale_after: 2027-02-02
+generated: { by: claude-code/claude-opus-5, at: 2026-11-08T18:20:00Z }
+stale_after: 2027-02-08
 sources:
   - id: values
     resource: ../../../workloads/vcluster-media/addons/configarr/values.yaml
@@ -18,13 +18,16 @@ sources:
     title: kargo-projects target list
   - id: dryrun
     resource: configarr 1.30.2 DRY_RUN against live sonarr/radarr via port-forward, 2026-08-28
+    title: Pre-merge dry run
   - id: cutoff-audit
     resource: live sonarr/radarr API (qualityprofile, wanted/cutoff, release) via port-forward, 2026-08-29
     title: cutoff-unmet and mediaInfo measurement behind the Bluray-1080p cutoff
   - id: tv-1080p
     resource: live sonarr API (qualityprofile item order, release?episodeId for Tracker S04E05), 2026-11-02
     title: TV made 1080p-only; 2160p tiers rank below 1080p in WEB-1080p
-    title: Pre-merge dry run
+  - id: sonarr-profiles-1108
+    resource: live sonarr API (qualityprofile, series qualityProfileId, config/mediamanagement), 2026-11-08
+    title: Sonarr profiles after the 1080p move
 ---
 
 # What it is
@@ -80,8 +83,11 @@ On 2026-11-02 that was 1,718 episode files in 75 series, about 10.5 TB. Sonarr
 only swaps a file after the new one imports, and the Media Management recycle
 bin (`/data/media/.sonarr-recycle`, 7-day cleanup) catches what it replaces,
 which was verified on Tracker S04E05.[^tv-1080p] configarr does not delete
-profiles it no longer manages, so the `WEB-2160p` profile that still exists in
-Sonarr has to be removed by hand once no series uses it.
+profiles it no longer manages, so the old `WEB-2160p` profile was deleted from
+Sonarr by hand. As of 2026-11-08 TV is 1080p-only: 267 of 277 series are on
+`WEB-1080p` and the other 10 are on `Any`, which allows nothing above 1080p.
+Sonarr's built-in `Ultra-HD` profile (id 5) still exists and still allows
+2160p, but no series uses it.[^sonarr-profiles-1108]
 
 **`until_score` is effectively disabled (`-100000`).** No file falls below it,
 so nothing is ever flagged for replacement on score alone; quality upgrades
@@ -182,3 +188,4 @@ is intended, but it is the change most likely to be felt.
 [^kargo]: kargo-projects target list
 [^dryrun]: Pre-merge dry run
 [^tv-1080p]: TV made 1080p-only; 2160p tiers rank below 1080p in WEB-1080p
+[^sonarr-profiles-1108]: Sonarr profiles after the 1080p move
