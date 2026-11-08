@@ -1,0 +1,470 @@
+# Homelab knowledge for Hermes, owned by git.
+#
+# The working knowledge a Claude Code agent built up while running this homelab
+# with James from August to November 2026: what each machine is, where it lives,
+# what breaks and how it was fixed, and how changes land. Ported from that
+# agent's project memory and from this repo's .claude/skills (addon-change,
+# gate-triage, ship-change), rewritten for the tools Hermes has.
+#
+# This repo is PUBLIC. Nothing here may carry a secret, a 1Password value or
+# item id, a serial number, a MAC address, a family member's name, a personal
+# link or the home address. Addresses already in the repo are fine.
+#
+# Mounted like skills.yaml: one subPath file per skill under
+# /opt/hermes-skills/homelab/<name>/SKILL.md (see hermes-agent.yaml). Changes
+# load when the pod restarts. Keep each description under 60 characters:
+# Hermes cuts it there in its skill index.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-skills-knowledge
+  namespace: hermes
+data:
+  hermes-capabilities.md: |
+    ---
+    name: hermes-capabilities
+    description: "Use to check what you can do, and how, in the homelab."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Homelab, Capabilities, Tools, Permissions]
+        related_skills: [homelab-map, cluster-remediate, gitops-fix, gitops-workflow]
+    ---
+
+    # What you can do here, and through what
+
+    James is moving the running of his homelab to you, which until now a
+    Claude Code agent on his Mac did. Before you tell him "I can't do that",
+    check this list and your live tool list (`hermes mcp list`, or the tools
+    you were given). Don't guess from memory: you have underestimated yourself
+    before (you said you could not cordon or restart; you can).
+
+    ## Ground rules (same as the agent you replace)
+
+    - Reads are free: look before asking James anything you can look up.
+    - Every write waits for James's approval in the webapp. Say in one line
+      what the write does and how you will check it worked.
+    - Git is the source of truth. Config changes are PRs that James merges.
+      Live changes are only operational ones (cordon, delete a stuck pod,
+      rollout restart, a sync).
+    - Tower (Unraid, 10.0.0.12) is hands-off: read only, never load it.
+    - Never print a secret. Name the 1Password item and field instead.
+    - Always write kubectl commands for James with `--context
+      admin@the-cluster` (or `admin@media-cluster` for the media vcluster).
+
+    ## By MCP server
+
+    | Server | What you can do | Approval |
+    |---|---|---|
+    | `kubernetes` | list/get any resource except Secrets, pod and node logs, top, node stats, events, Kargo objects | none |
+    | `kubeops` | delete a pod; server-side apply limited to cordon/uncordon (`spec.unschedulable`) and the pod template of a Deployment/StatefulSet/DaemonSet (rollout restart) | every call |
+    | `grafana` | PromQL, Loki (uid `loki`), alert rules and silences (read), dashboards | none |
+    | `argocd` | applications, resource trees, events, workload logs | none (read-only server) |
+    | `github` | read and PR the repos its token covers (gitops_homelab_2_0 and nix_dots_2 confirmed); branch, commit, PR, never merge | every write |
+    | `arr` (once deployed) | Sonarr, Radarr, Bazarr, SABnzbd, Jellyfin through their APIs | every write; see media-house-rules |
+
+    A second ArgoCD server with sync is being added; if a server with sync
+    tools appears in your list, a sync is an operational action like a
+    rollout restart and needs approval.
+
+    ## How a typical job goes
+
+    - Something broken: cluster-triage (diagnose) -> cluster-remediate (live
+      fix) or gitops-fix (PR) -> verify -> tell James what changed.
+    - A change James asks for: gitops-workflow + gitops-fix, then watch the
+      gate (`addons-gate`) and, after he merges, the ArgoCD sync.
+    - A question about a machine: homelab-map first.
+
+    ## Not yet (ask James before assuming a workaround)
+
+    - No Talos API (talosctl): node-level checks such as disk error counters,
+      etcd status and machine config are James's. Name the exact talosctl
+      command for him.
+    - No SSH to any host (Proxmox, Tower, datacron, pitdroid, laptops), so no
+      NixOS deploys. Prepare the nix_dots_2 PR and give James the deploy
+      command (nix-hosts).
+    - No UniFi, Home Assistant, Proxmox API or Unraid API yet; each is planned
+      as its own MCP server, read-only first.
+    - No 1Password access. Secrets reach the cluster through ExternalSecrets
+      from vault `homelab`; you can see an ExternalSecret's status and key
+      names, never values.
+
+  homelab-map.md: |
+    ---
+    name: homelab-map
+    description: "Use to find a host, address, VM or service at home."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Homelab, Network, Inventory, Proxmox, UniFi]
+        related_skills: [hermes-capabilities, tower-and-nfs, talos-operations, nix-hosts]
+    ---
+
+    # The homelab, machine by machine
+
+    Look things up here before asking James. Verified Oct-Nov 2026; check the
+    live state before acting on a detail.
+
+    ## Network
+
+    - UniFi gateway and console: `192.168.0.1` (UDM Pro Max). UniFi does the
+      routing, firewall and DHCP. unpoller (namespace `host-exporters`)
+      exports its metrics to Prometheus.
+    - VLANs: Default 192.168.0.0/24 (untagged), home 192.168.1.0/24 (10),
+      cameras 192.168.20.0/24 (20), **Homelab 10.0.0.0/9 (25)**, work
+      192.168.16.0/24 (30), guest 192.168.40.0/24 (40), IoT 192.168.8.0/23 (50).
+    - Most LAN networks share one UniFi firewall zone, so they can reach each
+      other. James knows and has accepted this for now.
+    - Tailscale: a VM on Proxmox (`ubuntu-test`, VM 104, 10.0.1.139) is the
+      tailnet's subnet router for the home networks. Tailscale SSH is off on
+      every host and must stay off. The tailnet policy lives only in the
+      Tailscale admin console.
+
+    ## Proxmox host `pve` (192.168.0.10, UI :8006)
+
+    | VM/CT | Name | Address | Role |
+    |---|---|---|---|
+    | VM 100 | Tower (Unraid) | 10.0.0.12 | NAS: all cluster NFS, media, Plex, Jellyfin. Hands-off |
+    | VM 103 | datacron (NixOS) | 10.0.3.5, .1, .24 | the one Postgres server (PG 18) |
+    | VM 104 | ubuntu-test | 10.0.1.139 | Tailscale subnet router, 1Password Connect |
+    | VM 120 | pitdroid (NixOS) | 10.0.1.31 | GitHub Actions runners |
+    | VM 201 | hassio | 10.0.1.174 | Home Assistant (:8123), Music Assistant (:8097) |
+    | CT 101/111 | old Postgres | 10.0.3.1 / .24 (addresses moved) | stopped, kept for rollback |
+
+    Proxmox VE is 8.x; there are no Proxmox backup jobs running right now
+    (the one that existed is disabled after it hung Tower, see tower-and-nfs).
+
+    ## the-cluster (Talos + Kubernetes)
+
+    - API VIP `10.0.4.100:6443`. Nodes `talos-xez-xys` 10.0.4.101,
+      `talos-4kg-ymz` 10.0.4.102, `talos-1jv-u7d` 10.0.4.103 (control plane
+      and workloads), `talos-pi5-1` 10.0.4.104 (arm64 worker, where you run).
+    - Gateway LoadBalancer `10.0.4.205` serves `*.cluster.integratn.tech`.
+    - vcluster-media: API LB `10.0.4.200`, gateway LB `10.0.4.201`, apps at
+      `*.vcluster-media.integratn.tech`. Its pods appear on the host in
+      namespace `vcluster-media` as `<name>-x-<namespace>-x-<hash>`.
+    - The `*.cluster.integratn.tech` wildcard DNS points at `10.0.4.200`, so a
+      hostname without its own record answers with a Kubernetes API 403.
+
+    ## Media
+
+    - Plex and Jellyfin run as Docker containers on Tower: Plex
+      `http://10.0.0.12:32400`, Jellyfin `http://10.0.0.12:8096`.
+    - Sonarr, Radarr, Bazarr, SABnzbd, Tracearr and JellyPlex-Watched run in
+      vcluster-media (namespace `media`). Rules: media-house-rules.
+
+    ## Machines that are not servers
+
+    - holocron: James's Mac Studio, where the previous agent ran. Not
+      reachable from the cluster.
+    - carbonite: James's NixOS laptop.
+    - The kitchen display: a Lenovo Smart Display acting as a Home Assistant
+      voice satellite and dashboard.
+
+    ## Credentials, by name only
+
+    - 1Password vault `homelab`, read by the cluster through ClusterSecretStore
+      `onepassword-store` (1Password Connect on VM 104).
+    - Item `homepage-secret`: API keys for the media apps, Unraid, Proxmox,
+      Home Assistant (fields `HOMEPAGE_VAR_*`). The cluster syncs it to
+      `homepage/homepage-env`.
+    - Item `hermes-agent`: your own keys.
+
+  tower-and-nfs.md: |
+    ---
+    name: tower-and-nfs
+    description: "Use for Tower (Unraid), NFS volumes and stale handles."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Unraid, NFS, Storage, Plex, Jellyfin, Homelab]
+        related_skills: [cluster-triage, cluster-remediate, homelab-map]
+    ---
+
+    # Tower and the NFS it serves
+
+    Tower is Unraid 7, running as Proxmox VM 100 at 10.0.0.12. It holds the
+    media, every cluster PersistentVolume (storage class `config-nfs-client`,
+    export `/mnt/user/kube_storage`), app data, and runs Plex and Jellyfin.
+    It boots from a USB flash drive passed through from Proxmox.
+
+    ## Hands-off. This is a hard rule from James.
+
+    Never do anything that loads, resets, restarts or reconfigures Tower
+    unless James says so for that exact action. No backups to it, no bulk
+    writes, no library-wide scans, no `qm reset 100`. Diagnose read-only and
+    propose; wait for his yes.
+
+    Why: on 2026-11-05 a Proxmox backup writing to Tower's NFS coincided with
+    its USB boot flash resetting; NFS stopped answering, the VM froze, and
+    the media vcluster's etcd and authentik's Redis broke with it. Recovery
+    needed a VM reset and a full parity check.
+
+    ## Stale NFS file handles after Tower restarts
+
+    After a Tower reset, every pod that had mounted Tower NFS stays
+    Running/Ready while its volume returns `Stale file handle`. Data on Tower
+    is fine.
+
+    - Detect: the `PodLoggingStaleFileHandle` alert (it fires only for pods
+      that log the error), `CreateContainerError` on new pods, or a pod whose
+      app errors on its data path. Loki:
+      `{namespace="<ns>"} |= "stale file handle"`.
+    - Fix 1: delete the pod (cluster-remediate). Usually enough.
+    - Fix 2: if the new pod on the same node gets the stale error again, that
+      node's kernel NFS client still holds stale state for that path. Move
+      the pod: cordon the node, delete the pod, confirm it mounted cleanly
+      elsewhere, uncordon. One node at a time. A node reboot also clears it
+      (James only).
+    - Kyverno's `cleanup-pods-stuck-creating-container` only matches
+      ContainerCreating, so it never catches these.
+    - Never "fix" stale NFS by moving a workload to local storage
+      (local-path, emptyDir). James rejected that: the nodes' disks are
+      shared with an already I/O-starved etcd.
+
+    ## Plex and Jellyfin on Tower
+
+    - Plex: container `Plex-Media-Server` (hotio image). It installs the
+      newest Plex Pass build at container start, and a cron restarts it daily
+      at 04:00, so updating is a restart. Real version:
+      `GET http://10.0.0.12:32400/identity` (no token).
+    - Unraid's Community Applications plugin auto-updates all containers
+      hourly at :15. Unraid OS itself is not auto-updated.
+    - Jellyfin: container `Jellyfin`, `http://10.0.0.12:8096`. It sets "Date
+      added" from the file's mtime, so a download unpacked with old archive
+      dates never shows in Recently Added. Main client: Wholphin on the Living
+      Room TV; playback that restarts near the end of an episode is that
+      client falling back to a transcode, not the server.
+    - Plex mounts the library at `/data/tv` and `/data/movies`; Jellyfin at
+      `/data/tvshows` and `/data/movies`. JellyPlex-Watched syncs watch state
+      hourly between them and matches by GUID and filename, so the different
+      paths are fine.
+    - Any short-lived container using python-plexapi must pin
+      `PLEXAPI_HEADER_IDENTIFIER` and `PLEXAPI_HEADER_DEVICE_NAME`, or every
+      run alerts James about a "new device".
+
+  talos-operations.md: |
+    ---
+    name: talos-operations
+    description: "Use for Talos nodes, etcd, disks and node-level changes."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Talos, etcd, Kubernetes, Nodes, Homelab]
+        related_skills: [talos-node-health, cluster-triage, homelab-map]
+    ---
+
+    # Talos and the nodes
+
+    the-cluster runs Talos Linux 1.13 with Kubernetes 1.36. Three Lenovo
+    ThinkCentre M900 Tiny (one SATA SSD each, holding OS, containerd and
+    etcd together) plus a Raspberry Pi 5 worker. Machine configs and runbooks
+    are in `matchbox/talos-machineconfigs/` (commands.md, rpi5-worker.md,
+    replace-disk.md, all.yaml/cp.yaml/work.yaml patches).
+
+    ## Who does what
+
+    Every Talos change (machine config, upgrade, reboot, etcd defrag, disk
+    swap) is James's, run with talosctl from his Mac. You have no Talos API.
+    Your job: diagnose with the Kubernetes and Prometheus tools, then hand him
+    the exact command and the runbook section. Machine config changes bypass
+    GitOps; say so.
+
+    ## Lessons that cost real time
+
+    - **etcd is I/O-starved.** Shared disk. Leader-elected controllers lose
+      their leases (`leaderelection lost`) for no local reason. Check etcd
+      fsync p99 and leader changes before blaming a controller.
+    - **A node writing hard is usually a workload, not a failing disk.** In
+      Oct 2026 node .102 hit ~140 ms write latency; the cause was
+      trivy-operator scan jobs downloading a 1.7 GB database each, in a retry
+      loop (~880 scans a day). cAdvisor's per-container write metrics miss
+      emptyDir writes, so compare `node_disk_written_bytes_total` with what
+      is scheduled there (e.g. `kube_pod_info{namespace="trivy-system"}`).
+      Fixed by Trivy client-server mode (#499).
+    - **But a gap between identical drives is wear.** .102's SSD later failed
+      for real (medium errors, Oct 29) after showing ~4x the write latency of
+      .101's identical model for two weeks. The decisive check is
+      `talosctl -n <ip> read /sys/block/sda/device/iotmo_cnt` (0 = healthy):
+      James runs it.
+    - **etcd flags need a reboot.** `talosctl patch mc --mode no-reboot`
+      updates the config but the running etcd keeps its old flags, and Talos
+      refuses `service etcd restart`. Plan a one-node-at-a-time reboot.
+    - **Never take a second control-plane node down while one is unhealthy.**
+      Two down is an etcd quorum loss (happened for 3 minutes on 2026-10-29).
+    - **A dead node that still answers ping** leaves its pods Terminating for
+      hours: Deployments replace theirs, StatefulSets (Prometheus, Loki, the
+      vcluster's etcd) cannot until the node is gone or rebooted.
+    - **etcd defrag**: `talosctl etcd defrag` one node at a time, leader last.
+
+    ## The Pi 5 worker (talos-pi5-1, 10.0.4.104)
+
+    - A community Talos build (yama6a/talos-raspberry-pi5) booted from NVMe;
+      the official Pi 5 image cannot boot NVMe or USB. Upgrades need its
+      installer image pushed somewhere the node can pull from, which isn't
+      set up yet.
+    - Tainted `node.integratn.tech/arch=arm64:NoSchedule`; only tolerating
+      pods land there. Worker taints must be set through kubelet
+      `registerWithTaints`, not `machine.nodeTaints`.
+    - Its NIC is `end0` (Cilium `devices` lists it). MetalLB stays on `eno1`
+      only, so the Pi never announces a service IP.
+    - Its NVMe beyond the system partition is the `local-nvme` storage class,
+      where your own `/opt/data` lives.
+    - Node-level scrapes of a worker need a CiliumNetworkPolicy with
+      `toEntities: [remote-node]`; an ipBlock of node IPs never matches.
+
+  nix-hosts.md: |
+    ---
+    name: nix-hosts
+    description: "Use for NixOS hosts, nix_dots_2 changes and deploys."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [NixOS, nix_dots_2, Postgres, Deploy, Homelab]
+        related_skills: [homelab-map, gitops-fix]
+    ---
+
+    # NixOS machines (repo JamesAtIntegratnIO/nix_dots_2)
+
+    Every NixOS host is declared in nix_dots_2 (`hosts/<name>/`, shared
+    modules in `modules/`). The repo is public: no secrets in it. You can
+    read it and open PRs on it through the github server; you cannot deploy
+    (no SSH). Give James the deploy command with the PR, and say which host
+    it touches and what restarts.
+
+    ## Rules
+
+    - Deploy from `main` only, never from a branch: commit, merge, then
+      deploy.
+    - After a deploy that changes `logind` settings, the running logind keeps
+      the old ones until a reboot or logind restart; say so.
+    - Tailscale comes from the `tailscale-nixpkgs` flake input on every host;
+      a Tailscale security fix is `nix flake update tailscale-nixpkgs`.
+      Tailscale SSH stays off (`tailscale set --ssh=false` is enforced).
+
+    ## datacron (VM 103): the one Postgres server
+
+    - PostgreSQL 18, `hosts/datacron/`. It answers on 10.0.3.5 (admin) and on
+      10.0.3.1 and 10.0.3.24, the addresses of the two old Postgres
+      containers it replaced on 2026-11-05, so no client was repointed.
+    - Who may connect is one list, `homelab.postgres.allowedClients` in
+      `hosts/datacron/default.nix`: each entry becomes a pg_hba line and a
+      firewall rule on 5432. The k8s nodes connect as 10.0.4.0/24.
+    - Auth is md5 for every client until the migrated roles are re-hashed to
+      scram. max_connections is 200 (authentik's reconnect storms).
+    - Backups: nightly pg_dump per database at 02:15 to
+      `/var/backup/postgresql` on the VM itself. The copy to Tower is switched
+      off (Tower is hands-off). Planned (nix_dots_2 #6): an NFSv4 export
+      `/srv/backups/hermes` for talos-pi5-1 only, for your own nightly backup.
+    - Deploy: `nix run nixpkgs#nixos-rebuild -- switch --flake .#datacron
+      --target-host root@10.0.3.5`. Runbook: `docs/datacron/RUNBOOK.md`.
+
+    ## pitdroid (VM 120, 10.0.1.31): GitHub Actions runners
+
+    - Runners for James's repos (`modules/nixos/github-runner.nix`). Deploy:
+      `nix run nixpkgs#nixos-rebuild -- switch --flake .#pitdroid
+      --target-host root@10.0.1.31 --build-host root@10.0.1.31`.
+    - A switch that touches the runner module restarts every runner and
+      Docker, killing jobs in flight. Check that no runner is busy right
+      before switching.
+    - CPU pinning: two gate runners on cores 0-3 and 4-7, everything else
+      (other runners, Docker) on 8-11.
+
+    ## carbonite (James's laptop)
+
+    - Deployed by James at the keyboard: `cd ~/projects/nix_dots && git pull
+      && sudo nixos-rebuild boot --flake .#carbonite && sudo reboot` (its
+      checkout folder is `nix_dots`, not `nix_dots_2`). Never suggest `sudo`
+      for git there.
+    - It cannot be built on the Mac; build on pitdroid.
+
+  gitops-workflow.md: |
+    ---
+    name: gitops-workflow
+    description: "Use before changing addons/ or landing a PR in gitops."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [GitOps, ArgoCD, Kargo, Bosun, PR, Homelab]
+        related_skills: [gitops-fix, kargo-health, cluster-triage]
+    ---
+
+    # Landing a change in gitops_homelab_2_0
+
+    The repo's own agent skills (`.claude/skills/addon-change`,
+    `gate-triage`, `ship-change`, `kargo-pins`) are the full versions; read
+    them with `mcp__github__get_file_contents` when a change is non-trivial.
+    This is what matters most, for your tools. gitops-fix has the hard
+    rules (never main, no secrets, pinned images).
+
+    ## How an addon reaches a cluster
+
+    - `addons/` value files resolve `environments/{env}` ->
+      `cluster-roles/{role}` -> `clusters/{name}`, later wins, **by chart
+      name, not addon key**. `cert-manager-vcluster` reads the host
+      `cert-manager` values unless it sets `valuesFolderName`.
+    - Some production addons (`external-secrets`, `kyverno`,
+      `argocd-projects`, `gateway-api-crds`, `platform-scheduling`) have no
+      `cluster_role` exclusion, so they also target vcluster-media. A host
+      setting added there (e.g. a PriorityClass that exists only on the host)
+      breaks the vcluster: that froze nine Deployments once.
+    - You cannot render the ApplicationSets yourself (no helm). Say in the PR
+      which clusters you expect the change to reach, and read the gate's
+      targeting section to confirm.
+
+    ## Before opening the PR
+
+    - A chart bump can silently drop settings: Helm ignores values a chart no
+      longer declares. The gate checks this; read its "settings this bump
+      stops reading" section.
+    - A partial `podSecurityContext` override replaces the chart default in
+      the loki/grafana chart family; restate the whole block.
+    - A new service behind the gateway needs both NetworkPolicy halves (see
+      gitops-fix). A worker or node target needs a CiliumNetworkPolicy
+      entity rule, not an ipBlock.
+    - A Kargo-tracked pin stays in the first YAML document, scalar, no
+      trailing comment; a new pin goes into `kargo-projects/values.yaml`.
+
+    ## The gate: `addons-gate`, posted by Bosun
+
+    - Not CI. Bosun runs in-cluster (namespace `bosun`), polls open PRs every
+      30 s, renders base and head against the live ArgoCD inventory and
+      posts the `addons-gate` status and one report comment, rewritten in
+      place. A clean no-op gets a status and no comment.
+    - Read it with `mcp__github__pull_request_read` (status checks and
+      comments). Bosun's own log: `mcp__kubernetes__pods_log` on
+      `deploy/bosun` in `bosun`.
+    - "Not covered: matched no cluster" is benign. "Not covered" naming the
+      filesystem, the network or a missing binary means the gate itself is
+      degraded: a green verdict then proves less. Say so.
+    - A green gate proves only what it could render. It says nothing about
+      ApplicationSet template changes beyond targeting.
+    - A PR with no verdict at all usually has a stale check-run on its head
+      commit; only a new commit clears it.
+
+    ## After James merges
+
+    - ArgoCD reconciles from `main`. Nothing is done until the app is
+      Synced/Healthy and the symptom stopped. Check with
+      `mcp__argocd__get_application`.
+    - A sync already retrying keeps the revision it started with (up to ~41
+      minutes) and does not pick up the fix. Compare the operation's revision
+      with the latest; if stuck, ask James to terminate it (or sync, once you
+      have the tool).
+    - Config files mounted from ConfigMaps at pod start (yours included) need
+      a rollout restart to take effect.
+    - Update the OKF bundle (`docs/okf/`) in the same PR when the change
+      alters what is running: the concept file plus a line in
+      `docs/okf/log.md` under today's date.

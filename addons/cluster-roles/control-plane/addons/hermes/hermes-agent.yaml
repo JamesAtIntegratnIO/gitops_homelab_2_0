@@ -517,7 +517,32 @@ spec:
             - name: dshm
               mountPath: /dev/shm
             # Cluster skills from git, one subPath per file (see skills.yaml
-            # for why not a plain ConfigMap mount).
+            # for why not a plain ConfigMap mount). Knowledge skills
+            # (skills-knowledge.yaml) first, then the task skills.
+            - name: skills-knowledge
+              mountPath: /opt/hermes-skills/homelab/hermes-capabilities/SKILL.md
+              subPath: hermes-capabilities.md
+              readOnly: true
+            - name: skills-knowledge
+              mountPath: /opt/hermes-skills/homelab/homelab-map/SKILL.md
+              subPath: homelab-map.md
+              readOnly: true
+            - name: skills-knowledge
+              mountPath: /opt/hermes-skills/homelab/tower-and-nfs/SKILL.md
+              subPath: tower-and-nfs.md
+              readOnly: true
+            - name: skills-knowledge
+              mountPath: /opt/hermes-skills/homelab/talos-operations/SKILL.md
+              subPath: talos-operations.md
+              readOnly: true
+            - name: skills-knowledge
+              mountPath: /opt/hermes-skills/homelab/nix-hosts/SKILL.md
+              subPath: nix-hosts.md
+              readOnly: true
+            - name: skills-knowledge
+              mountPath: /opt/hermes-skills/homelab/gitops-workflow/SKILL.md
+              subPath: gitops-workflow.md
+              readOnly: true
             - name: skills
               mountPath: /opt/hermes-skills/homelab/DESCRIPTION.md
               subPath: DESCRIPTION.md
@@ -555,6 +580,9 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 1Gi
+        - name: skills-knowledge
+          configMap:
+            name: hermes-skills-knowledge
         - name: data
           persistentVolumeClaim:
             claimName: hermes-data

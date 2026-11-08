@@ -22,6 +22,9 @@ sources:
   - id: skills
     resource: ../../../addons/cluster-roles/control-plane/addons/hermes/skills.yaml
     title: Hermes cluster skills
+  - id: skills-knowledge
+    resource: ../../../addons/cluster-roles/control-plane/addons/hermes/skills-knowledge.yaml
+    title: Hermes homelab knowledge skills
   - id: github-mcp
     resource: ../../../addons/cluster-roles/control-plane/addons/mcp-system/github-mcp-hermes.yaml
     title: github-mcp-hermes
@@ -144,6 +147,18 @@ James). For kargo-health the `kubernetes-mcp-viewer` ClusterRole reads
 `kargo.akuity.io` projects, projectconfigs, warehouses, stages, freights and
 promotions. They are adapted from the
 repo's `.claude/skills/cluster-triage` and [known issues](../cluster/known-issues.md).[^skills]
+
+Knowledge skills, from ConfigMap `hermes-skills-knowledge`
+(`skills-knowledge.yaml`, 2026-11-08), carry what the Claude Code agent on
+holocron learned running the homelab, ported from its project memory and the
+repo's `.claude/skills`: `hermes-capabilities` (what Hermes can do through
+which MCP server, what still needs James), `homelab-map` (hosts, VMs,
+addresses, VLANs), `tower-and-nfs` (the hands-off rule, stale-handle
+playbook, Plex/Jellyfin), `talos-operations`, `nix-hosts` (nix_dots_2,
+datacron, pitdroid, deploy commands) and `gitops-workflow` (value layers,
+addon targeting, the Bosun gate, after-merge checks). The repo is public, so
+they hold no secrets, item ids, serials, MACs or family details; the
+security-scan findings stay out.
 
 Each file is a `subPath` mount: a plain ConfigMap volume adds hidden `..data`
 symlink directories, and Hermes walks skill directories following symlinks, so
