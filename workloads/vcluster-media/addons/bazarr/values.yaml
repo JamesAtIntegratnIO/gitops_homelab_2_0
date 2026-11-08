@@ -29,10 +29,15 @@ extraObjects:
   # Static, like the other apps' config volumes. The folder is the config of
   # the earlier Bazarr install (January 2026: settings + SQLite db), so this
   # one resumes from it rather than starting empty.
+  # v2 (2026-11-08): after the Tower NFS outage, bazarr-config-pvc returned
+  # "stale file handle" on a fresh mount on every node (xez, 4kg, 1jv) while
+  # every other kube_storage export mounted fine. The data was copied on Tower
+  # to bazarr-config-v2, which gets a new handle. New PV/PVC names because a
+  # PV's nfs.path is immutable.
   - apiVersion: v1
     kind: PersistentVolume
     metadata:
-      name: bazarr-config-pv
+      name: bazarr-config-v2-pv
       labels:
         app: bazarr
       annotations:
@@ -43,7 +48,7 @@ extraObjects:
       capacity:
         storage: 1Gi
       nfs:
-        path: /mnt/user/kube_storage/bazarr-config-pvc
+        path: /mnt/user/kube_storage/bazarr-config-v2
         server: 10.0.0.12
       persistentVolumeReclaimPolicy: Retain
       storageClassName: config-nfs-client
@@ -51,7 +56,7 @@ extraObjects:
   - apiVersion: v1
     kind: PersistentVolumeClaim
     metadata:
-      name: bazarr-config-pvc
+      name: bazarr-config-v2-pvc
       namespace: media
       labels:
         app: bazarr
@@ -62,7 +67,7 @@ extraObjects:
       resources:
         requests:
           storage: 1Gi
-      volumeName: bazarr-config-pv
+      volumeName: bazarr-config-v2-pv
   # Same share Sonarr and Radarr mount at /data, mounted at the same path,
   # so Bazarr needs no path mappings.
   - apiVersion: v1
@@ -238,7 +243,7 @@ deployment:
   volumes:
     config:
       persistentVolumeClaim:
-        claimName: bazarr-config-pvc
+        claimName: bazarr-config-v2-pvc
     media:
       persistentVolumeClaim:
         claimName: bazarr-media-pvc
