@@ -22,6 +22,9 @@ sources:
   - id: skills
     resource: ../../../addons/cluster-roles/control-plane/addons/hermes/skills.yaml
     title: Hermes cluster skills
+  - id: backup
+    resource: ../../../addons/cluster-roles/control-plane/addons/hermes/hermes-backup.yaml
+    title: Hermes nightly backup CronJob
   - id: design-skill
     resource: ../../../hack/hermes-design/SKILL.md
     title: integratn-design skill (source; generated into design-skill.yaml)
@@ -129,6 +132,29 @@ MCP connections.
 
 Config reaches the pod only at start (the init container copies the ConfigMap),
 so a merged config change takes effect after the pod restarts.
+
+# Backup
+
+`hermes-backup`, a CronJob in `hermes` at 04:30 UTC, runs `hermes backup`
+against the `hermes-data` claim on talos-pi5-1 and writes
+`hermes-backup-<time>.zip` to datacron (10.0.3.5, VM 103) over NFSv4 at
+`/srv/backups/hermes`, keeping the newest 14 (`-k 14`). It then tests the zip,
+and renames a bad one to `.bad`. `hermes backup` snapshots each SQLite db with
+`sqlite3.backup()`, so the gateway keeps running, and it skips caches and
+installs: about 32 MB on 2026-11-08. The zip includes `.env` and
+`auth.json`. The export is declared in nix_dots_2
+`hosts/datacron/hermes-backup.nix`: it admits only 10.0.4.104, squashes every
+uid to `hermes-backup` (10000), and the directory is 0700. Never Tower. The copy
+is off the Pi, but it sits on the same Proxmox host as datacron's Postgres
+dumps.[^backup]
+
+Watched by `HermesBackupStale` (no success in 36h) and
+`HermesBackupNeverSucceeded` in `platform.hermes`.
+
+Restore: scale `hermes-agent` to 0 (ArgoCD self-heal will fight this; pause
+auto-sync on `hermes-the-cluster` first), run a pod on talos-pi5-1 with the
+claim and the export mounted as uid 10000, `hermes import <zip>`, then
+re-enable sync.
 
 # Speech-to-text
 
@@ -341,6 +367,7 @@ included), a multi-arch image and `readOnlyHint` on every read tool.[^arr-mcp][^
 [^mcp-doc]: In-cluster MCP servers
 [^skills]: Hermes cluster skills
 [^github-mcp]: github-mcp-hermes
+[^backup]: Hermes nightly backup CronJob
 [^arr-mcp]: arr-mcp config and ExternalSecret
 [^arr-mcp-upstream]: bardesss/arr-mcp v1.73.0
 
