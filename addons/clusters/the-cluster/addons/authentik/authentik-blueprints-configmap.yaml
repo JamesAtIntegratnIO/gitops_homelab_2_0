@@ -689,59 +689,6 @@ data:
             Landing page for the cluster: health, every service, pod status.
           policy_engine_mode: all
 
-  08d-cq-proxy-provider.yaml: |
-    # Authentik Blueprint: cq Knowledge Store Proxy Provider
-    # Forward-auth for cq.cluster.integratn.tech, the same shape as bosun's
-    # above. Numbered 08d so it sorts before 09-embedded-outpost, whose
-    # provider list `!Find`s it.
-    #
-    # cq serves knowledge READS without an API key by upstream design, and the
-    # units describe this homelab, so this provider is the door; the cq UI's
-    # own login sits behind it. Admins only, like Hermes. Hermes itself talks
-    # to cq-server by ClusterIP and never passes here. The nginx half is the
-    # SnippetsFilter in addons/cluster-roles/control-plane/addons/cq/.
-    version: 1
-    metadata:
-      name: cq-proxy-provider
-      labels:
-        blueprints.goauthentik.io/instantiate: "true"
-    entries:
-      - model: authentik_providers_proxy.proxyprovider
-        identifiers:
-          name: cq-proxy-provider
-        id: cq-proxy-provider
-        attrs:
-          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-          mode: forward_single
-          # Must match the HTTPRoute's hostname exactly, scheme included.
-          external_host: https://cq.cluster.integratn.tech
-          access_token_validity: minutes=60
-
-      - model: authentik_core.application
-        identifiers:
-          slug: cq
-        id: cq-app
-        attrs:
-          name: cq
-          provider: !KeyOf cq-proxy-provider
-          open_in_new_tab: true
-          launch_url: https://cq.cluster.integratn.tech
-          group: AI
-          meta_description: Mozilla.ai cq, Hermes's shared knowledge store (review queue)
-          policy_engine_mode: all
-
-      # Only members of `authentik Admins` may sign in.
-      - model: authentik_policies.policybinding
-        identifiers:
-          target: !KeyOf cq-app
-          group: !Find [authentik_core.group, [name, "authentik Admins"]]
-        attrs:
-          order: 0
-          enabled: true
-          negate: false
-          timeout: 30
-
   09-embedded-outpost.yaml: |
     # Authentik Blueprint: the embedded outpost's provider list
     #
@@ -777,7 +724,6 @@ data:
             - !Find [authentik_providers_proxy.proxyprovider, [name, specmarshal-proxy-provider]]
             - !Find [authentik_providers_proxy.proxyprovider, [name, umami-proxy-provider]]
             - !Find [authentik_providers_proxy.proxyprovider, [name, homepage-proxy-provider]]
-            - !Find [authentik_providers_proxy.proxyprovider, [name, cq-proxy-provider]]
 
   10-hermes-provider.yaml: |
     # Authentik Blueprint: Hermes Agent OAuth2 Provider (public client, PKCE)
