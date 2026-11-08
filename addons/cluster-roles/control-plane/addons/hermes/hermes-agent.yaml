@@ -74,6 +74,34 @@ spec:
         key: arr-mcp
         property: MCP_TOKEN
 ---
+# cq-server's address and Hermes's API key for it, read by mcp_servers.cq's
+# env. Its own Secret (optional in the pod): until the item has
+# HERMES_API_KEY, this Secret does not exist, both env entries render empty,
+# and cq stays on its local file.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hermes-cq
+  namespace: hermes
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: hermes-cq
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        CQ_ADDR: "http://cq-server.cq.svc.cluster.local:3000"
+        CQ_API_KEY: "{{ .apiKey }}"
+  data:
+    - secretKey: apiKey
+      remoteRef:
+        key: cq-server
+        property: HERMES_API_KEY
+---
 # The settings git owns. An init container copies this over
 # /opt/data/config.yaml on every start, so a change made inside the pod
 # (`hermes config set ...`) lasts only until the next restart; make it here.
@@ -341,8 +369,8 @@ data:
       # Knowledge memory: Mozilla.ai's cq (James's pick, 2026-11-08), the
       # `cq` CLI built into our image (images/hermes-agent) and run as a stdio
       # MCP server. Its SQLite store sits on the data volume, the Pi's local
-      # NVMe, so a query never leaves the node. No remote store yet: proposals
-      # stay local. trust: full because cq declares no readOnlyHint and its
+      # NVMe. The store of record is cq-server (addon cq) via CQ_ADDR and
+      # CQ_API_KEY (Secret hermes-cq); the local file is the fallback. trust: full because cq declares no readOnlyHint and its
       # writes only touch that local file; an approval per query would make
       # it useless. Skill: knowledge-memory.
       cq:
@@ -351,6 +379,10 @@ data:
         env:
           CQ_LOCAL_DB_PATH: "/opt/data/cq/local.db"
           CQ_CONFIG_DIR: "/opt/data/cq"
+          # cq-server (addon cq). Unset -> local only. Set -> proposals go to
+          # the server as `private`, and local units drain to it on start.
+          CQ_ADDR: "${CQ_ADDR}"
+          CQ_API_KEY: "${CQ_API_KEY}"
         trust: "full"
         timeout: 60
         tools:
@@ -624,6 +656,19 @@ spec:
                 secretKeyRef:
                   name: hermes-arr-mcp
                   key: MCP_TOKEN
+                  optional: true
+            # cq-server address + API key for mcp_servers.cq (Secret hermes-cq).
+            - name: CQ_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-cq
+                  key: CQ_ADDR
+                  optional: true
+            - name: CQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-cq
+                  key: CQ_API_KEY
                   optional: true
           envFrom:
             - secretRef:
