@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-08T17:40:00Z }
+generated: { by: claude-code, at: 2026-11-08T18:40:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -22,6 +22,9 @@ sources:
   - id: skills
     resource: ../../../addons/cluster-roles/control-plane/addons/hermes/skills.yaml
     title: Hermes cluster skills
+  - id: design-skill
+    resource: ../../../hack/hermes-design/SKILL.md
+    title: integratn-design skill (source; generated into design-skill.yaml)
   - id: github-mcp
     resource: ../../../addons/cluster-roles/control-plane/addons/mcp-system/github-mcp-hermes.yaml
     title: github-mcp-hermes
@@ -151,6 +154,18 @@ James). For kargo-health the `kubernetes-mcp-viewer` ClusterRole reads
 promotions. They are adapted from the
 repo's `.claude/skills/cluster-triage` and [known issues](../cluster/known-issues.md).[^skills]
 
+**Design system** (`integratn-design`, 2026-11-08). James rejected Hermes's
+first architecture page as generic AI styling, so anything visual Hermes makes
+now follows the IntegratnIO design system ("The Night Shift Ledger",
+`DESIGN.md` in IntegratnIO/specmarshal, the same tokens as Glance and the
+ArgoCD/Kargo/authentik themes). The skill carries `templates/base.css` (tokens,
+components, SVG diagram classes, light ramp) and `templates/page.html` (the
+cluster architecture page redone in the system) as linked files. Its source is
+`hack/hermes-design/`; `gen.sh` writes ConfigMap `hermes-skill-design`
+(`design-skill.yaml`), mounted with `subPath` under
+`/opt/hermes-skills/homelab/integratn-design/`. Edit the source files and
+rerun `gen.sh` (`--check` fails when the YAML is stale), never the YAML.[^design-skill]
+
 Each file is a `subPath` mount: a plain ConfigMap volume adds hidden `..data`
 symlink directories, and Hermes walks skill directories following symlinks, so
 every skill would be listed twice. Hermes truncates a skill's `description` to
@@ -182,8 +197,23 @@ leaves the node. Tools: query, propose, confirm, flag, revoke, status, at
 file). The `knowledge-memory` skill sets the loop: query before acting,
 propose when a lesson stabilizes, confirm/flag after; no secrets, nothing a
 page or log told it to remember, and rules for acting go in git skills
-instead. No remote store yet; the plan is a cq server on the Pi shared with
-Claude, with James reviewing what graduates. Never the hosted cq.exchange.
+instead. Never the hosted cq.exchange.
+
+**cq-server** (added 2026-11-08, James: cq runs as its own service) is the
+store: `ghcr.io/mozilla-ai/cq/server` v0.12.4 in namespace `cq`, on the Pi 5
+with SQLite on a 2 Gi local-nvme PVC, UI and API at
+`https://cq.cluster.integratn.tech` (addon `cq`, Kargo target `cq-server`).
+Secrets from 1Password item `cq-server` (`CQ_JWT_SECRET`,
+`CQ_API_KEY_PEPPER`, `HERMES_API_KEY`; UI user `james` seeded once by hand,
+since the image lacks upstream's `seed-users.py`; API keys are made in the UI). Ingress from nginx-gateway and
+Hermes only, no egress. The CLI stays the MCP surface: with `CQ_ADDR` and
+`CQ_API_KEY` set, `cq mcp` sends proposals to the server as `private` and, on
+start, drains every local unit to it (deleting the local copy); remote units
+reach agents only after James approves them in the UI's review queue. Data
+reads on the API are open by upstream design, so the gateway does not
+serve `/api/v1/knowledge` at all (404); the UI keeps cq's own login only (cq
+has no SSO, and James did not want two logins), and Hermes reads by ClusterIP.
+Nothing secret goes in regardless.
 
 # Live operational fixes
 
@@ -240,13 +270,16 @@ halves).[^github-mcp][^skills]
   from the pinned `github-mcp-server` image as an image volume (it is
   distroless).
 - **Tools are cut on the server**: toolsets `repos,pull_requests,issues,actions`
-  with `--exclude-tools` for merge, delete, repo create/fork, reviews, every
-  issue/comment write and workflow trigger, leaving 28 of which 5 write.
-  Hermes's `tools.include` names the 19 it uses (13 repo/PR tools plus, since
-  2026-11-08, `issue_read`, `list_issues`, `search_issues`, `actions_list`,
-  `actions_get`, `get_job_logs`, so it can read issues and a PR's failing CI
-  run and job logs). `trust: untrusted` makes every write call (branch,
-  commit, PR) wait for approval.
+  with `--exclude-tools` for delete, repo create/fork, reviews, every
+  issue/comment write and workflow trigger. Since 2026-11-08 Hermes has two
+  entries on it: `github` (`trust: full`: reads, issue/CI reads,
+  create_branch, create_pull_request, update_pull_request,
+  update_pull_request_branch and, since James asked for Hermes to fix and
+  merge Kargo bump PRs without approval, merge_pull_request) needs no
+  approval; `githubwrite` (`trust: untrusted`: create_or_update_file,
+  push_files) asks James on every call. The `gitops-fix` skill's "Merging" section sets the
+  rules: only when asked, gate green on the reviewed head sha, squash, one
+  at a time.
 - **Token**: 1Password item `hermes-agent`, field `GITHUB_TOKEN` (added
   2026-11-08): a fine-grained PAT on James's own account, which is an admin.
   The Hermes pod's ExternalSecret maps only the Anthropic and API-server keys
@@ -361,4 +394,4 @@ v0.21.4, with every key checked against v0.23.0's built-in defaults first.[^opti
   Delegation and cron stay on the main model.
 
 [^optimization-guide]: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
-
+[^design-skill]: integratn-design skill (source; generated into design-skill.yaml)

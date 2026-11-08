@@ -1,0 +1,136 @@
+/* IntegratnIO design system ("The Night Shift Ledger") for Hermes artifacts.
+   Source of truth: IntegratnIO/specmarshal DESIGN.md + branding/specmarshal/palette.json.
+   Paste this whole block into the page's <style>. Spend the roles below; add no
+   other colour literals. Dark is home; light follows the viewer's system. */
+:root {
+  --ground:#0a0c10; --well:#14171d; --panel:#1d2126; --raise:#262a30; --line:#393e43;
+  --text:#f3f7fc; --said:#cfd5dc; --dim:#acb2b9; --faint:#8d939a;
+  --ok:#42c161;   --ok-surface:#0c2b13;   --ok-border:#024e1c;
+  --warn:#cf9a43; --warn-surface:#2f210c; --warn-border:#553a08;
+  --bad:#f47983;  --bad-surface:#39191b;  --bad-border:#67282e;
+  --act-ink:#0a0c10;
+  --signal:#f26a35; /* the mark only: never a link, button, status or line */
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --radius:6px; --pill:999px;
+  --s1:4px; --s2:6px; --s3:8px; --s4:12px; --s5:18px;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --ground:#dee2e7; --well:#dee2e7; --panel:#e8ebf1; --raise:#f3f7fc; --line:#acb2b9;
+    --text:#0a0c10; --said:#262a30; --dim:#393e43; --faint:#51565c;
+    --ok:#006c24;   --ok-surface:#eafaec;   --ok-border:#ace5b3;
+    --warn:#764f00; --warn-surface:#fff3e3; --warn-border:#f6cd91;
+    --bad:#8f3640;  --bad-surface:#ffefef;  --bad-border:#ffbdc0;
+    --act-ink:#f3f7fc;
+    color-scheme:light;
+  }
+}
+
+*,*::before,*::after { box-sizing:border-box; }
+html,body { margin:0; }
+body { background:var(--ground); color:var(--text); font:400 14px/1.5 var(--sans); }
+.page { max-width:80rem; margin:0 auto; padding:var(--s5) 16px 48px; }
+
+/* Type. Nothing below 12px. */
+h1 { font-size:1.2rem; font-weight:600; margin:0 0 var(--s1); }
+h2 { font-size:1rem; font-weight:600; margin:0 0 var(--s3); }
+h3, .label { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:var(--dim); margin:0 0 var(--s3); }
+p { margin:0 0 var(--s3); color:var(--said); }
+.lede { color:var(--dim); max-width:60rem; }
+.dim { color:var(--dim); } .faint { color:var(--faint); }
+.data, code, .mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+code { font-size:12px; background:var(--raise); padding:0 4px; border-radius:var(--radius); color:var(--text); }
+.figure { font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:1.1rem; color:var(--text); }
+.none { color:var(--dim); } /* "not recorded", never 0 */
+a { color:var(--text); text-decoration:underline; text-decoration-color:var(--line); text-underline-offset:3px; }
+a:hover { text-decoration-color:var(--text); }
+:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+
+/* Header: mark + title + one summary line. */
+.head { display:flex; align-items:flex-start; gap:var(--s4); margin-bottom:var(--s5); }
+.mark { width:20px; height:20px; flex:none; margin-top:2px; }
+.summary { color:var(--dim); }
+.summary .ok { color:var(--ok); font-weight:600; }
+.summary .warn { color:var(--warn); font-weight:600; }
+.summary .bad { color:var(--bad); font-weight:600; }
+.sep { color:var(--faint); padding:0 var(--s2); }
+
+/* Board: work column + 21rem reference rail; rail drops below under 68rem. */
+.board { display:grid; grid-template-columns:minmax(0,1fr) 21rem; gap:var(--s5); align-items:start; }
+@media (max-width:68rem) { .board { grid-template-columns:minmax(0,1fr); } }
+.stack > * + * { margin-top:var(--s5); }
+.stack.tight > * + * { margin-top:var(--s3); }
+
+/* Surfaces: flat, one neutral step + a 1px hairline, never a shadow. */
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s4); min-width:0; }
+.well { background:var(--well); border:1px solid var(--line); border-radius:var(--radius); padding:10px var(--s4); }
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr)); gap:var(--s4); }
+.tile { background:var(--well); border:1px solid var(--line); border-radius:var(--radius); padding:10px var(--s4); }
+.tile .figure { display:block; margin-top:2px; }
+.tile .note { color:var(--dim); font-size:12px; }
+
+/* Chips: neutral by default; verdict chips carry the word. */
+.chip { display:inline-flex; align-items:center; gap:var(--s2); padding:2px 10px; border-radius:var(--pill);
+        border:1px solid var(--line); background:var(--well); color:var(--dim);
+        font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
+.chip.ok   { color:var(--ok);   background:var(--ok-surface);   border-color:var(--ok-border); }
+.chip.warn { color:var(--warn); background:var(--warn-surface); border-color:var(--warn-border); }
+.chip.bad  { color:var(--bad);  background:var(--bad-surface);  border-color:var(--bad-border); }
+
+/* Callouts: 3px verdict rule on the left. */
+.callout { background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--dim);
+           border-radius:var(--radius); padding:var(--s4) 14px; }
+.callout.warn { background:var(--warn-surface); border-color:var(--warn-border); border-left-color:var(--warn); }
+.callout.bad  { background:var(--bad-surface);  border-color:var(--bad-border);  border-left-color:var(--bad); }
+.callout.ok   { background:var(--ok-surface);   border-color:var(--ok-border);   border-left-color:var(--ok); }
+.callout p { color:var(--text); margin:var(--s1) 0 0; }
+
+/* Lists of facts: key in sans, value in mono. */
+.kv { display:grid; grid-template-columns:auto minmax(0,1fr); gap:var(--s1) var(--s4); margin:0; }
+.kv dt { color:var(--dim); } .kv dd { margin:0; font-family:var(--mono); color:var(--text); overflow-wrap:anywhere; }
+ul.plain { margin:0; padding-left:1.1em; color:var(--said); } ul.plain li + li { margin-top:var(--s1); }
+
+/* Ledger: label heads, hairline rules, figures right-aligned. */
+.scroll { overflow-x:auto; }
+table.ledger { width:100%; border-collapse:collapse; }
+.ledger th { text-align:left; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.07em;
+             color:var(--dim); padding:var(--s2) var(--s3); border-bottom:1px solid var(--line); }
+.ledger td { padding:var(--s2) var(--s3); border-bottom:1px solid var(--line); color:var(--said); vertical-align:top; }
+.ledger tr:last-child td { border-bottom:0; }
+.ledger .num { text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums; }
+
+/* Buttons: neutral; at most one primary per section. */
+.btn { display:inline-block; font:600 12px/1.5 var(--sans); text-transform:uppercase; letter-spacing:.06em;
+       padding:6px 12px; border-radius:var(--radius); border:1px solid var(--line); background:var(--raise);
+       color:var(--text); text-decoration:none; cursor:pointer; }
+.btn:hover { border-color:var(--dim); }
+.btn.primary { background:var(--text); color:var(--act-ink); border-color:var(--faint); }
+
+/* Diagrams (inline SVG). Boxes are neutral; a group is a hairline frame with
+   a label, not a colour. Only a verdict (degraded, down, held) gets a hue. */
+.diagram { background:var(--well); border:1px solid var(--line); border-radius:var(--radius); padding:var(--s4); overflow-x:auto; }
+/* Draw at 1:1: give the <svg> width/height equal to its viewBox (at most 1200
+   wide) so 12px text stays 12px; narrower screens scroll the box. */
+.diagram svg { display:block; max-width:none; font-family:var(--sans); }
+.diagram .node rect      { fill:var(--panel); stroke:var(--line); stroke-width:1; }
+.diagram .node.raise rect{ fill:var(--raise); }
+.diagram .node.ext rect  { fill:var(--well); stroke-dasharray:4 3; }
+.diagram .node.warn rect { fill:var(--warn-surface); stroke:var(--warn-border); }
+.diagram .node.bad rect  { fill:var(--bad-surface);  stroke:var(--bad-border); }
+.diagram .group rect     { fill:none; stroke:var(--line); stroke-width:1; }
+.diagram .group.zone rect{ stroke-dasharray:4 3; }
+.diagram .t   { fill:var(--text); font-size:13px; font-weight:600; }
+.diagram .s   { fill:var(--dim);  font-size:12px; font-family:var(--mono); }
+.diagram .gl  { fill:var(--dim);  font-size:12px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; }
+.diagram .v-ok   { fill:var(--ok);   font-size:12px; font-weight:600; }
+.diagram .v-warn { fill:var(--warn); font-size:12px; font-weight:600; }
+.diagram .v-bad  { fill:var(--bad);  font-size:12px; font-weight:600; }
+.diagram .edge      { fill:none; stroke:var(--faint); stroke-width:1.25; }
+.diagram .edge.soft { stroke-dasharray:4 3; }
+.diagram .edge.bad  { stroke:var(--bad); }
+.diagram .el  { fill:var(--faint); font-size:12px; }
+.diagram .arrow { fill:var(--faint); }
+
+.foot { margin-top:var(--s5); color:var(--faint); font-size:12px; }
