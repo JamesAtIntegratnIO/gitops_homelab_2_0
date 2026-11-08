@@ -362,6 +362,14 @@ data:
             - "push_files"
             - "create_pull_request"
             - "update_pull_request"
+            # Read-only: issues and CI (workflow runs, job logs), so a PR's
+            # failing check can be read without James (2026-11-08).
+            - "issue_read"
+            - "list_issues"
+            - "search_issues"
+            - "actions_list"
+            - "actions_get"
+            - "get_job_logs"
           resources: false
           prompts: false
       # Inside the media apps (mcp-system/arr-mcp.yaml): Sonarr, Radarr, Bazarr,
