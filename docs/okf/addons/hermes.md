@@ -133,7 +133,16 @@ Skills from git, in ConfigMap `hermes-skills`, mounted read-only under
 firing alerts) and `cluster-triage` (this platform's failure shapes: one-sided
 NetworkPolicies, etcd disk stalls, host-DNS restart storms, stale NFS after a
 Tower reset, the stale nginx-gateway data plane). Both use only the read-only
-MCP tools and treat every fix as a PR for James. They are adapted from the
+MCP tools and treat every fix as a PR for James. Three more read-only skills
+since 2026-11-08: `loki-log-triage` (scoping, patterns and the log lines that
+have meant something here), `kargo-health` (the `kargo_*` kube-state-metrics
+series, then Stage/Promotion/Freight objects, then orphaned
+`kargo/promotion/*` PRs; remedies are reported for James) and
+`talos-node-health` (conditions, versions, cross-node disk-latency
+comparison, scrape gaps; no talosctl, so Talos-layer checks are named for
+James). For kargo-health the `kubernetes-mcp-viewer` ClusterRole reads
+`kargo.akuity.io` projects, projectconfigs, warehouses, stages, freights and
+promotions. They are adapted from the
 repo's `.claude/skills/cluster-triage` and [known issues](../cluster/known-issues.md).[^skills]
 
 Each file is a `subPath` mount: a plain ConfigMap volume adds hidden `..data`
