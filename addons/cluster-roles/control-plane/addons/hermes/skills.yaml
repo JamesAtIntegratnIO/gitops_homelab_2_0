@@ -231,7 +231,7 @@ data:
     ---
     name: cluster-remediate
     description: "Use to fix the-cluster live: cordon, delete, restart."
-    version: 1.0.0
+    version: 1.1.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -260,6 +260,11 @@ data:
       manifest. ArgoCD self-heal reverts live edits anyway.
     - Diagnose first (cluster-triage). Before each write, say in one line what
       you will change, why, and how you will know it worked.
+    - **Re-check right before you act.** Re-read the pod (and node) state
+      immediately before a cordon, delete or restart, and confirm the failure
+      still persists: same symptom, a current pod name, not already recovering
+      or replaced. Diagnosis can be minutes old and things self-heal. If it no
+      longer fails, stop and report instead of acting.
     - One change at a time, verify, then the next. One node cordoned at a time.
     - Always undo what is temporary: a cordon ends with an uncordon in the
       same task, even if the fix failed. Report the node state at the end.
@@ -309,14 +314,16 @@ data:
 
     1. Get the current pod name and node (`pods_list_in_namespace`). Names
        change; never reuse one from an earlier message.
-    2. Cordon that node.
-    3. Delete the pod. For vcluster-media apps, delete the host copy in ns
+    2. Re-read that pod (`pods_get`) and confirm it is still failing with the
+       stale-handle error. If it is Running or already replaced, stop.
+    3. Cordon that node.
+    4. Delete the pod. For vcluster-media apps, delete the host copy in ns
        `vcluster-media` (`<pod>-x-<ns>-x-vcluster-media`); the vcluster
        recreates it.
-    4. Wait until the replacement is Running on a different node (poll every
+    5. Wait until the replacement is Running on a different node (poll every
        ~15 s, up to ~3 min).
-    5. Uncordon the node.
-    6. If the replacement also fails on another node, the stale handle is on
+    6. Uncordon the node.
+    7. If the replacement also fails on another node, the stale handle is on
        Tower's side. Stop and tell James; that is his call.
 
     Do two stuck apps one after the other, each with its own
@@ -337,7 +344,7 @@ data:
     metadata:
       hermes:
         tags: [GitOps, GitHub, ArgoCD, Kubernetes, Homelab]
-        related_skills: [cluster-triage, cluster-health-check]
+        related_skills: [cluster-triage, cluster-health-check, skill-improve]
     ---
 
     # Fixing the cluster the GitOps way
@@ -403,6 +410,64 @@ data:
       a PR: report it for James.
     - If the change would touch more than a handful of files or you are not
       sure of the cause, report instead and ask.
+
+  skill-improve.md: |
+    ---
+    name: skill-improve
+    description: "Use to change, fix or add one of your own skills."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Skills, GitOps, GitHub, Homelab]
+        related_skills: [gitops-fix]
+    ---
+
+    # Improving your skills
+
+    You have two kinds of skill, and they change in different ways.
+
+    ## Homelab skills (from git, read-only)
+
+    Every skill under `/opt/hermes-skills/homelab/` (cluster-health-check,
+    cluster-triage, cluster-remediate, gitops-fix, loki-log-triage,
+    kargo-health, talos-node-health, skill-improve, and any added later) is
+    read-only on purpose: git owns them, so a prompt injection cannot rewrite
+    your own rules. `skill_manage` edits on them fail. Change them with a PR,
+    following gitops-fix:
+
+    1. Read `addons/cluster-roles/control-plane/addons/hermes/skills.yaml`
+       from `main` in full. Each skill is one key, `<name>.md: |`, holding the
+       whole SKILL.md indented four spaces.
+    2. Edit only the skill you mean. Keep the frontmatter valid, bump its
+       `version` (minor for a new rule, patch for a wording fix), and keep
+       `description` under 60 characters (longer is truncated in your index).
+    3. A NEW homelab skill also needs its mount in
+       `addons/cluster-roles/control-plane/addons/hermes/hermes-agent.yaml`:
+       copy one `- name: skills` volumeMount, with
+       `mountPath: /opt/hermes-skills/homelab/<name>/SKILL.md` and
+       `subPath: <name>.md`. Without it the skill never appears.
+    4. Branch `hermes/skill-<name>-<slug>`, one commit
+       (`feat(hermes): <what the rule does>` or `fix(hermes): ...`), PR. In the
+       body quote the rule, and the incident or session that taught it.
+    5. Tell James it applies after he merges and Hermes restarts. A new mount
+       rolls the pod by itself; a text-only change needs a rollout restart of
+       `hermes/hermes-agent`, which you can offer through cluster-remediate.
+
+    Never copy a homelab skill into `/opt/data/skills` under the same name to
+    get around the read-only mount: your local skills are found first, so the
+    copy would shadow the git one and later fixes from git would silently
+    stop applying.
+
+    ## Your own skills (writable)
+
+    Skills you create with `skill_manage` go to `/opt/data/skills`, on your
+    persistent volume, and survive restarts. They are scanned for injection
+    and exfiltration (`skills.guard_agent_created`). Use them for your own
+    working notes and procedures. Anything that changes how you act on the
+    cluster, the media apps or GitHub belongs in a homelab skill via a PR, so
+    James reviews it.
 
   loki-log-triage.md: |
     ---

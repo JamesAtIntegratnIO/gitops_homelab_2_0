@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-07T21:50:00Z }
+generated: { by: claude-code, at: 2026-11-08T17:00:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -149,7 +149,19 @@ Each file is a `subPath` mount: a plain ConfigMap volume adds hidden `..data`
 symlink directories, and Hermes walks skill directories following symlinks, so
 every skill would be listed twice. Hermes truncates a skill's `description` to
 60 characters in its prompt index, so keep them short. Skills the agent writes
-itself go to `/opt/data/skills` and are scanned.
+itself go to `/opt/data/skills` (its PVC, persistent) and are scanned.
+
+**How Hermes improves its skills** (`skill-improve`, 2026-11-08). The git
+skills stay read-only, so a prompt injection cannot rewrite Hermes's own
+rules; Hermes changes them by PR to `skills.yaml` (plus the mount in
+`hermes-agent.yaml` for a new skill) through github-mcp-hermes, and James
+merges. Hermes's local skills are found before the git ones, so it must never
+copy a git skill into `/opt/data/skills` under the same name: that would
+shadow later fixes from git. This route needs the GitHub token to have
+Contents and Pull requests write. First rule learned this way (James relayed
+it from a Hermes session): cluster-remediate 1.1.0 re-reads the pod right
+before a cordon, delete or restart and stops if the failure no longer
+persists.
 
 # Live operational fixes
 
