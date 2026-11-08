@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-08T18:40:00Z }
+generated: { by: claude-code, at: 2026-11-08T19:00:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -25,6 +25,9 @@ sources:
   - id: backup
     resource: ../../../addons/cluster-roles/control-plane/addons/hermes/hermes-backup.yaml
     title: Hermes nightly backup CronJob
+  - id: cq-backup
+    resource: ../../../addons/cluster-roles/control-plane/addons/cq/cq-backup.yaml
+    title: cq-server nightly backup CronJob
   - id: design-skill
     resource: ../../../hack/hermes-design/SKILL.md
     title: integratn-design skill (source; generated into design-skill.yaml)
@@ -154,7 +157,14 @@ Watched by `HermesBackupStale` (no success in 36h) and
 Restore: scale `hermes-agent` to 0 (ArgoCD self-heal will fight this; pause
 auto-sync on `hermes-the-cluster` first), run a pod on talos-pi5-1 with the
 claim and the export mounted as uid 10000, `hermes import <zip>`, then
-re-enable sync.
+re-enable sync. First run verified 2026-11-08 18:44Z (36 MB zip).
+
+cq-server's knowledge lives in its own SQLite file (`/data/cq.db` on claim
+`cq-server-data`), which `hermes backup` never sees. `cq-backup`, a CronJob in
+`cq` at 04:40 UTC, copies it with the sqlite3 backup API, runs
+`PRAGMA integrity_check`, and writes `cq-<time>.db` to the same export's `cq/`
+subdirectory, keeping 14. The same two alerts watch both jobs. Restore: scale
+`cq-server` to 0, copy a `cq-*.db` over `/data/cq.db`, scale back.[^cq-backup]
 
 # Speech-to-text
 
@@ -380,6 +390,7 @@ included), a multi-arch image and `readOnlyHint` on every read tool.[^arr-mcp][^
 [^skills]: Hermes cluster skills
 [^github-mcp]: github-mcp-hermes
 [^backup]: Hermes nightly backup CronJob
+[^cq-backup]: cq-server nightly backup CronJob
 [^arr-mcp]: arr-mcp config and ExternalSecret
 [^arr-mcp-upstream]: bardesss/arr-mcp v1.73.0
 
