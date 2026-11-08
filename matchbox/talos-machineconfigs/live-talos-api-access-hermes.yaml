@@ -1,0 +1,27 @@
+# LIVE patch: lets Hermes Agent (namespace hermes) read the Talos API.
+#
+# Adds ONLY the new list items. `talosctl patch mc` appends list items, so on a
+# node that already has live-talos-api-access.yaml this yields
+#   allowedRoles: [os:etcd:backup, os:reader]
+#   allowedKubernetesNamespaces: [talos-backup, hermes]
+# Restating the existing items here would duplicate them.
+#
+# os:reader is Talos's read-only role: services, logs, dmesg, disks, etcd
+# status/members, resources, `read` of /proc and /sys. It refuses every write
+# (apply-config, reboot, upgrade, etcd defrag/snapshot, reset). The Hermes
+# ServiceAccount (addons/.../hermes/talos-serviceaccount.yaml) asks for
+# os:reader and nothing else.
+#
+# Apply to the three CONTROL-PLANE nodes only (commands.md step 2b): they run
+# the Talos ServiceAccount controller and back the `talos.default` endpoint
+# the minted talosconfig uses; Hermes reaches the workers by proxy (`-n`).
+# The Pi workers have no kubernetesTalosAPIAccess block at all, and this
+# patch would create one there without `enabled: true`. Dry-run 2026-11-08 on
+# all six nodes: control plane appends exactly the two items, no reboot.
+machine:
+  features:
+    kubernetesTalosAPIAccess:
+      allowedRoles:
+        - os:reader
+      allowedKubernetesNamespaces:
+        - hermes

@@ -211,6 +211,18 @@ includes only `sync_application`, `trust: untrusted`, and cluster-remediate
 says when a sync is appropriate. Token: 1Password `argocd-hermes-ops`/`token`
 (`argocd account generate-token --account hermes-ops`).
 
+# Talos (read-only)
+
+Hermes runs `talosctl` (built into the image, v1.13.12) with a talosconfig
+that Talos mints for the `talos.dev` ServiceAccount `hermes-talos`
+(`talos-serviceaccount.yaml`): role `os:reader` only, so Talos refuses every
+write. The Secret is mounted `optional` at `/var/run/secrets/talos.dev` with
+`TALOSCONFIG` set. The endpoint is `talos.default:50000` (control-plane apid);
+CiliumNetworkPolicy `allow-talos-api-egress` allows it by entity. It needs
+`live-talos-api-access-hermes.yaml` applied to the three control-plane nodes
+by James (`matchbox/talos-machineconfigs/commands.md` step 2b); until then
+the Secret doesn't exist and talosctl has no config.
+
 # GitOps fixes
 
 Hermes proposes manifest fixes as branch + PR on

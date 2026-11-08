@@ -615,6 +615,8 @@ spec:
               value: "1"
             # faster-whisper's ctranslate2 threads (cpu_threads=0 defers to
             # this). Keep equal to limits.cpu so it is not throttled.
+            - name: TALOSCONFIG
+              value: /var/run/secrets/talos.dev/config
             - name: OMP_NUM_THREADS
               value: "4"
             # arr-mcp's bearer token, read by mcp_servers.arr's header. Its own
@@ -675,6 +677,12 @@ spec:
             # 4Gi limit.
             - name: dshm
               mountPath: /dev/shm
+            # Read-only Talos API (talos-serviceaccount.yaml). Optional: the
+            # Secret only exists once the control-plane nodes allow os:reader
+            # for this namespace.
+            - name: talos
+              mountPath: /var/run/secrets/talos.dev
+              readOnly: true
             # Cluster skills from git, one subPath per file (see skills.yaml
             # for why not a plain ConfigMap mount).
             - name: skills
@@ -730,6 +738,11 @@ spec:
           emptyDir:
             medium: Memory
             sizeLimit: 1Gi
+        - name: talos
+          secret:
+            secretName: hermes-talos
+            optional: true
+            defaultMode: 0444
         - name: data
           persistentVolumeClaim:
             claimName: hermes-data

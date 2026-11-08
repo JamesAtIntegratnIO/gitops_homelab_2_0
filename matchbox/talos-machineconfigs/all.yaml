@@ -17,5 +17,7 @@ machine:
       enabled: true
       allowedRoles:
         - os:etcd:backup
+        - os:reader          # Hermes Agent, read-only (live-talos-api-access-hermes.yaml)
       allowedKubernetesNamespaces:
         - talos-backup
+        - hermes
