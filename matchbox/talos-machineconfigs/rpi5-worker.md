@@ -8,7 +8,7 @@ NVMe, so Matchbox has no group or profile for it.
 |---|---|
 | Board | Raspberry Pi 5 Model B Rev 1.1, 16 GB (15,928 MiB) |
 | MAC / IP | `2c:cf:67:ed:44:0e`, fixed DHCP lease `10.0.4.104` in UniFi (client name `talos-pi5-1`) |
-| Switch | SwitchyMcSwitchFace-POE port 6, Homelab VLAN, same L2 as the control plane |
+| Switch | SwitchyMcSwitchFace-POE port 8 (corrected 2026-11-08), Homelab VLAN, same L2 as the control plane |
 | Disk | Samsung SSD 990 PRO 1 TB on the M.2 HAT: boot, STATE, EPHEMERAL (100 GiB), user volume `local-nvme` (rest, `/var/mnt/local-nvme`) |
 | Talos | v1.13.12, kernel 6.18.57-talos (raspberrypi/linux fork), U-Boot 2026.10 (talos-rpi5/sbc-raspberrypi5) |
 | Patch | [rpi5-worker.yaml](rpi5-worker.yaml) |
