@@ -356,8 +356,8 @@ data:
   gitops-fix.md: |
     ---
     name: gitops-fix
-    description: "Use to propose a fix to the-cluster as a GitHub PR."
-    version: 1.1.0
+    description: "Use to propose a fix as a GitHub PR, or fix and merge PRs."
+    version: 1.2.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -371,13 +371,17 @@ data:
     For: you have diagnosed something on the-cluster (see cluster-triage) and
     the fix is a change to the manifests. The cluster is reconciled by ArgoCD
     from `main` of `JamesAtIntegratnIO/gitops_homelab_2_0`, so a fix is a
-    branch and a pull request. **James merges. You never merge, and you never
-    write to `main`.** You have no tool that merges or deletes, by design.
+    branch and a pull request. **You never write to `main`.** You may merge a
+    PR only when James asks you to (for example "merge the Kargo PRs") and
+    only under "Merging" below; your own fix PRs wait for him unless he says
+    otherwise. You have no tool that deletes, by design.
 
-    Tools: `mcp__github__*` for reads, branches and PRs (no approval needed)
-    and `mcp__githubwrite__*` for commits (James approves each one); owner
-    `JamesAtIntegratnIO`, repo `gitops_homelab_2_0`. Before a commit, say in
-    one line what it changes.
+    Tools: `mcp__github__*` for reads, branches, PRs,
+    `update_pull_request_branch` and `merge_pull_request` (no approval
+    needed, so the rules below are the only check) and
+    `mcp__githubwrite__*` for commits (James approves each one); owner `JamesAtIntegratnIO`, repo
+    `gitops_homelab_2_0`. Before a commit or merge, say in one line what it
+    does.
 
     ## Steps
 
@@ -390,8 +394,9 @@ data:
        instead of opening a duplicate.
     3. **Branch.** `mcp__github__create_branch` from `main`, named
        `hermes/<type>-<short-slug>` (for example
-       `hermes/fix-grafana-netpol`). Never write to `main` or to a branch you
-       did not create.
+       `hermes/fix-grafana-netpol`). Never write to `main`. The only branches
+       you did not create that you may commit to are Kargo's
+       `kargo/promotion/*` bump branches, to fix a bump (see Merging).
     4. **Change.** Smallest change that fixes the cause. One commit with
        `mcp__githubwrite__push_files` (several files) or
        `mcp__githubwrite__create_or_update_file` (one; James approves each
@@ -406,9 +411,46 @@ data:
        "Opened by Hermes Agent".
     6. **Report** the PR link and a two-line summary. Then stop.
 
+    ## Merging (only when James asks)
+
+    Typical ask: "review the Kargo promotion PRs, fix and merge them".
+
+    1. **List**: `mcp__github__list_pull_requests` (state open), heads
+       starting `kargo/promotion/` for Kargo bumps, or the PRs James named.
+    2. **Review each** with `mcp__github__pull_request_read`: the diff (a
+       bump should change one pinned line per file, image tag + digest or
+       chart version, nothing else), the `addons-gate` commit status on the
+       CURRENT head (must be `success`), and bosun-mate's gate comment
+       (`No blocking findings`, and what it says changed). Read the upstream
+       release notes for a major bump or a 0.x minor bump and say what
+       breaks, if anything.
+    3. **Fix what is broken**, smallest change:
+       - Behind main or conflicted on an unrelated file:
+         `mcp__github__update_pull_request_branch`, then wait for the gate
+         to run again on the new head.
+       - A real fix (a values key the new version renamed, a pin layout):
+         commit to the PR's own branch with `mcp__githubwrite__push_files`,
+         with the OKF change if reality changes (okf-update).
+       - Anything you cannot fix in a few lines, or that needs a decision
+         (a breaking major, a data migration): leave it open and report it.
+    4. **Merge**: `mcp__github__merge_pull_request`, `merge_method:
+       squash`, `sha` = the head you reviewed (so a newer push is not
+       merged unseen). Only with `addons-gate` `success` on that sha. No
+       one approves the merge for you, so check twice. One at a time: after each merge the others may
+       need `update_pull_request_branch` and a fresh gate.
+    5. **After**: Kargo's Promotion for that stage finishes on its own once
+       its PR merges; check it with the kargo-health skill, and that the app
+       is Synced/Healthy in ArgoCD.
+    6. **Report** a table: PR, what it bumps, what you fixed, merged or why
+       not.
+
+    Never merge: a PR whose gate is not green on its current head, a draft,
+    a PR with a human review asking for changes, anything touching
+    `promises/` with a `kind: Secret`, or a PR you were not asked to merge.
+
     ## Hard rules (from CLAUDE.md)
 
-    - Never touch `main` directly. Never merge. Never force anything.
+    - Never touch `main` directly. Merge only as above. Never force anything.
     - Never read, print or edit `secrets.env`. Never put a secret value in any
       file or PR: no `kind: Secret` anywhere, and especially not near
       `promises/` (the Kratix state repo is public). Credentials are
@@ -680,7 +722,7 @@ data:
     ---
     name: kargo-health
     description: "Use for Kargo promotion and version-pin health."
-    version: 1.1.0
+    version: 1.2.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -726,7 +768,8 @@ data:
        `JamesAtIntegratnIO/gitops_homelab_2_0`, keeping heads that start with
        `kargo/promotion/` (Kargo's branches are `kargo/promotion/<stage>.<freight>.<sha>`, opened
        under James's account). An open green PR that no Running Promotion
-       watches is an orphaned human-gated wait.
+       watches is an orphaned human-gated wait. When James asks you to fix
+       and merge them, follow "Merging" in gitops-fix.
 
     ## Semantics that make silence permanent
 

@@ -1,5 +1,7 @@
 # GitHub MCP for Hermes Agent only: lets Hermes propose GitOps fixes as
-# branch + PR on JamesAtIntegratnIO/gitops_homelab_2_0. James merges.
+# branch + PR on JamesAtIntegratnIO/gitops_homelab_2_0, fix PRs, and merge
+# them (James, 2026-11-08: "review kargo promotion prs and fix and merge
+# them in"; merges without approval by his choice, commits still approved).
 #
 # Why a second instance instead of github-mcp:
 #   - github-mcp runs `http` mode, which authenticates each request with the
@@ -19,8 +21,8 @@
 # so there is no shell to copy it out with an init container.
 #
 # Tools: toolsets repos + pull_requests + issues + actions, minus everything
-# that merges, deletes, creates or forks repos, reviews, writes issues or
-# comments, or triggers/cancels/reruns workflows. Enforced here with
+# that deletes, creates or forks repos, reviews, writes issues or comments,
+# or triggers/cancels/reruns workflows. Enforced here with
 # --exclude-tools, not only in Hermes's config. What remains: read files,
 # branches, commits, PRs, code search, releases/tags, issues, workflow runs
 # and job logs; create_branch, create_or_update_file, push_files,
@@ -92,7 +94,7 @@ spec:
           image: ghcr.io/supercorp-ai/supergateway:4.2.1@sha256:ba077866d6daae4c5157bce792dd87468e29d3bcac98153d8029ed772d743ea6
           args:
             - --stdio
-            - "/opt/github/server/github-mcp-server stdio --toolsets=repos,pull_requests,issues,actions --exclude-tools=issue_write,sub_issue_write,add_issue_comment,update_issue_comment,actions_run_trigger,merge_pull_request,delete_file,create_repository,fork_repository,update_pull_request_branch,pull_request_review_write,add_comment_to_pending_review,add_reply_to_pull_request_comment,search_repositories,list_repository_collaborators"
+            - "/opt/github/server/github-mcp-server stdio --toolsets=repos,pull_requests,issues,actions --exclude-tools=issue_write,sub_issue_write,add_issue_comment,update_issue_comment,actions_run_trigger,delete_file,create_repository,fork_repository,pull_request_review_write,add_comment_to_pending_review,add_reply_to_pull_request_comment,search_repositories,list_repository_collaborators"
             - --port
             - "8083"
             - --outputTransport
