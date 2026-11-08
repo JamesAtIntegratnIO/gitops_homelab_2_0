@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-11-08
+* **Update**: **Hermes cost caps and a closed approval bypass.** `agent.max_turns: 60`, `budget_warning_ratio: 0.8`, `prompt_caching.cache_ttl: auto`. Found that `hermes -z` runs with yolo, which also skips the `trust: untrusted` MCP gate; the terminal's deny list now blocks nested one-shot/yolo runs and self-edits of approval config. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes Agent can take operational actions on the-cluster, each approved by James.** New `kubernetes-mcp-ops` in `mcp-system` (Hermes only, no HTTPRoute) exposes `pods_delete` and `resources_create_or_update`; RBAC allows pod delete, node cordon/uncordon and rollout restarts only. New skill `cluster-remediate` with the stale-NFS cordon -> delete -> verify -> uncordon playbook. Config changes still go through gitops-fix. See [Hermes Agent](addons/hermes.md).
 * **Issue → Fix**: **github-mcp-hermes had no token.** Its ExternalSecret looked for 1Password item `hermes-github-bot`, which was never created; the token went into item `hermes-agent` as field `GITHUB_TOKEN`. Repointed. It is James's own fine-grained PAT (admin), and `main` has no pull-request rule with the Admin role on the bypass list, so per-call approval is the only guard against a write to `main`. See [Hermes Agent](addons/hermes.md).
 

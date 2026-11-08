@@ -208,7 +208,19 @@ v0.21.4, with every key checked against v0.23.0's built-in defaults first.[^opti
 - **Cost**: the side tasks (compression, titles, background review, approval
   classifier, curator, goal judge) run on `claude-haiku-5-5` instead of the main
   Sonnet model. `tts` is disabled, at most 4 concurrent subagents, and
-  exact-repeat tool loops hard-stop.
+  exact-repeat tool loops hard-stop. Since 2026-11-08 a run stops at 60 model
+  turns (`agent.max_turns`), with a one-time warning to the model at 80%
+  (`agent.budget_warning_ratio: 0.8`), and `prompt_caching.cache_ttl` is
+  `auto` (1-hour cache for chats, 5-minute for cron, API and subagents).
+- **One-shot runs skip every approval.** `hermes -z` sets
+  `HERMES_YOLO_MODE=1` (v0.23.0 `hermes_cli/oneshot.py`), and yolo also skips
+  the `trust: untrusted` MCP gate, so a one-shot run can call kubeops and
+  GitHub writes unprompted. The terminal runs in the same pod as the same uid,
+  so `approvals.deny` blocks `hermes -z`, `--oneshot`, `--yolo`,
+  `HERMES_YOLO_MODE`, `hermes config set` and `approvals.mode`. Deny rules
+  are fnmatch over shell commands and a Python subprocess gets past them, so
+  the real limit is still kubeops's RBAC. Cron and `hermes chat -q` keep the
+  default `deny` for unattended approvals.
 - **Security**: smart approvals with a deny list (`sudo`, piping `curl`/`wget`
   to a shell, `dd` to devices, force-push, `authorized_keys`, `kubectl`), no
   private URLs, secret redaction, no runtime pip installs, internal hosts on the
