@@ -240,13 +240,16 @@ halves).[^github-mcp][^skills]
   from the pinned `github-mcp-server` image as an image volume (it is
   distroless).
 - **Tools are cut on the server**: toolsets `repos,pull_requests,issues,actions`
-  with `--exclude-tools` for merge, delete, repo create/fork, reviews, every
-  issue/comment write and workflow trigger, leaving 28 of which 5 write.
-  Hermes's `tools.include` names the 19 it uses (13 repo/PR tools plus, since
-  2026-11-08, `issue_read`, `list_issues`, `search_issues`, `actions_list`,
-  `actions_get`, `get_job_logs`, so it can read issues and a PR's failing CI
-  run and job logs). `trust: untrusted` makes every write call (branch,
-  commit, PR) wait for approval.
+  with `--exclude-tools` for delete, repo create/fork, reviews, every
+  issue/comment write and workflow trigger. Since 2026-11-08 Hermes has two
+  entries on it: `github` (`trust: full`: reads, issue/CI reads,
+  create_branch, create_pull_request, update_pull_request,
+  update_pull_request_branch and, since James asked for Hermes to fix and
+  merge Kargo bump PRs without approval, merge_pull_request) needs no
+  approval; `githubwrite` (`trust: untrusted`: create_or_update_file,
+  push_files) asks James on every call. The `gitops-fix` skill's "Merging" section sets the
+  rules: only when asked, gate green on the reviewed head sha, squash, one
+  at a time.
 - **Token**: 1Password item `hermes-agent`, field `GITHUB_TOKEN` (added
   2026-11-08): a fine-grained PAT on James's own account, which is an admin.
   The Hermes pod's ExternalSecret maps only the Anthropic and API-server keys
