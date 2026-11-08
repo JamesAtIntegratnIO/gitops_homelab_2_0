@@ -1,5 +1,8 @@
 # Update Log
 
+## 2026-11-08
+* **Issue → Fix**: **github-mcp-hermes had no token.** Its ExternalSecret looked for 1Password item `hermes-github-bot`, which was never created; the token went into item `hermes-agent` as field `GITHUB_TOKEN`. Repointed. It is James's own fine-grained PAT (admin), and `main` has no pull-request rule with the Admin role on the bypass list, so per-call approval is the only guard against a write to `main`. See [Hermes Agent](addons/hermes.md).
+
 ## 2026-11-07
 * **Update**: **Hermes calls the argocd MCP tools without asking (`trust: full`).** No argocd-mcp tool declares readOnlyHint, so `trust: untrusted` prompted on every call and blocked scheduled health checks; the server itself is read-only (MCP_READ_ONLY, mcp-readonly account). kubernetes, grafana and github-mcp-hermes stay untrusted.
 * **Issue → Fix**: **Hermes Agent was down ~10 minutes (about 21:55–22:05 UTC) after its first derived `-stt` image deployed (#675).** Rebuilding the venv for faster-whisper dropped Hermes's source binding (`.venv/bin/hermes`, `hermes-agent.pth`) and put PM's install records out of sync, and running Hermes code at build time (`HERMES_HOME=/opt/data`) seeded root-owned directories into `/opt/data`. Reverted (#676). The image now leaves upstream's tree untouched and adds the faster-whisper closure (pinned from Hermes's `uv.lock`) in `/opt/hermes-stt` on `PYTHONPATH` (#677, deployed by #678). Checks before shipping an image change: a full filesystem diff against upstream, and a real-entrypoint boot on a fresh volume, not only imports. See [Hermes Agent](addons/hermes.md).

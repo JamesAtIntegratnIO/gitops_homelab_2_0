@@ -24,12 +24,17 @@
 # PRs, code search, releases/tags; create_branch, create_or_update_file,
 # push_files, create_pull_request, update_pull_request.
 #
-# Token: 1Password item `hermes-github-bot` (vault homelab), field `token`.
-# Intended: a fine-grained PAT from a NON-ADMIN bot account that has Write on
-# gitops_homelab_2_0 only (Contents RW, Pull requests RW, Metadata R). The
-# main-branch ruleset lets the Admin role bypass it, so an admin's token could
-# push to main. Until the item exists the ExternalSecret fails, the env var is
-# empty (optional), and every GitHub call returns 401; the pod still runs.
+# Token: 1Password item `hermes-agent` (vault homelab), field `GITHUB_TOKEN`
+# (added 2026-11-08). The Hermes pod's own ExternalSecret (hermes/
+# hermes-agent.yaml) maps only ANTHROPIC_API_KEY and API_SERVER_KEY from that
+# item, so the token still never enters the Hermes pod.
+# It is a fine-grained PAT on James's own account, which is an admin, and the
+# main-branch ruleset has no pull-request rule and lets the Admin role bypass
+# it: create_or_update_file / push_files could name `main` as the branch. The
+# guards are per-call approval in Hermes (trust: untrusted) and the gitops-fix
+# skill. A non-admin bot account, or a "require a pull request" rule without
+# that bypass, would close it. If the field is missing, the ExternalSecret
+# fails, the env var is empty (optional) and every GitHub call returns 401.
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -47,8 +52,8 @@ spec:
   data:
     - secretKey: GITHUB_TOKEN
       remoteRef:
-        key: hermes-github-bot
-        property: token
+        key: hermes-agent
+        property: GITHUB_TOKEN
 ---
 apiVersion: apps/v1
 kind: Deployment
