@@ -1,0 +1,153 @@
+# arr-mcp Deployment + Service + PVC. Config and the why are in arr-mcp.yaml.
+# The two image lines are a Kargo pin (arr-mcp target): keep the Deployment the
+# first document and both lines comment-free.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: arr-mcp
+  namespace: mcp-system
+  labels:
+    app: arr-mcp
+spec:
+  replicas: 1
+  # SQLite files (audit, logs, sessions) on a RWO volume: never two pods.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: arr-mcp
+  template:
+    metadata:
+      labels:
+        app: arr-mcp
+      annotations:
+        # Bump to roll the pod after the rendered config changes (an
+        # ExternalSecret refresh does not restart it; the file is seeded at
+        # start).
+        config-revision: "1"
+    spec:
+      priorityClassName: platform-batch
+      # Beside Hermes on the Pi 5: local-nvme exists only there, and SQLite
+      # must not sit on Tower NFS (Bazarr's corrupted there, 2026-11-05).
+      # The image is multi-arch.
+      nodeSelector:
+        node.integratn.tech/board: rpi5
+      tolerations:
+        - key: node.integratn.tech/arch
+          operator: Equal
+          value: arm64
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Git (through the ExternalSecret) owns config.yaml: overwrite the
+        # copy on the volume at every start, so anything changed in the
+        # config UI lasts only until the next restart.
+        - name: seed-config
+          image: ghcr.io/bardesss/arr-mcp:1.73.0@sha256:449420f05a204b6d2a2005fc663b3a584f13469ff3152009155d232b1928877f
+          command: ["sh", "-c", "cp /seed/config.yaml /config/config.yaml && chmod 600 /config/config.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: seed
+              mountPath: /seed
+              readOnly: true
+            - name: config
+              mountPath: /config
+      containers:
+        - name: arr-mcp
+          image: ghcr.io/bardesss/arr-mcp:1.73.0@sha256:449420f05a204b6d2a2005fc663b3a584f13469ff3152009155d232b1928877f
+          env:
+            - name: ARR_MCP_PORT
+              value: "6060"
+          ports:
+            - containerPort: 6060
+              name: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 6060
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          # Liveness is "is the process wedged", never "are the apps up".
+          livenessProbe:
+            tcpSocket:
+              port: 6060
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      volumes:
+        - name: seed
+          secret:
+            secretName: arr-mcp-config
+            defaultMode: 0440   # root:fsGroup, so uid 1000 reads it through the group
+        - name: config
+          persistentVolumeClaim:
+            claimName: arr-mcp-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: arr-mcp-config
+  namespace: mcp-system
+spec:
+  storageClassName: local-nvme
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: arr-mcp
+  namespace: mcp-system
+  labels:
+    app: arr-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: arr-mcp
+  ports:
+    - name: http
+      port: 6060
+      targetPort: 6060
+      protocol: TCP

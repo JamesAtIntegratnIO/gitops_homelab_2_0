@@ -1,0 +1,127 @@
+# arr-mcp (github.com/bardesss/arr-mcp) for Hermes Agent only: lets Hermes
+# read and act inside the media apps (Sonarr, Radarr, Bazarr, SABnzbd in
+# vcluster-media; Jellyfin on Tower) instead of only through GitOps.
+#
+# Why this server: most active arr MCP server on GitHub (survey 2026-11-08),
+# covers our whole stack, multi-arch image, every read tool declares
+# readOnlyHint (so Hermes's trust: untrusted gate only prompts on writes), and
+# writes are off unless granted per instance:
+#   safe_write   search, grab, monitor, pause/retry, subtitle search
+#   destructive  delete media/files, remove queue items, clean queue
+# Every write is previewed first, then confirmed with a dry-run token, and
+# audited to audit.db. In Hermes that is two approvals per write.
+#
+# Grants here: safe_write on Sonarr, Radarr, Bazarr and SABnzbd; Jellyfin
+# read-only; destructive NOWHERE (house rule: never delete before the
+# replacement has imported). The 1080p TV cap is not enforceable here; it
+# lives in Hermes's media-house-rules skill and James's approvals.
+#
+# Config: arr-mcp reads only /config/config.yaml (no env substitution), so this
+# ExternalSecret renders the whole file and the Deployment's init container
+# copies it onto the PVC at every start (arr-mcp-deployment.yaml). Sources:
+#   - 1Password `homepage-secret`: the apps' API keys (same item homepage and
+#     the media vcluster already read).
+#   - 1Password `arr-mcp` (homelab vault, created 2026-11-08):
+#       MCP_TOKEN         Hermes's bearer token; only its sha256 is written
+#                         here. Tier `write`, so even a leaked token cannot
+#                         delete, whatever the permissions say.
+#       UI_PASSWORD_HASH  scrypt hash of the item's `password` field, so the
+#                         config UI starts CLAIMED (an unclaimed
+#                         instance hands itself to the first visitor).
+# The config UI is not routed. To look at it:
+#   kubectl --context admin@the-cluster -n mcp-system port-forward svc/arr-mcp 6060
+# and sign in as admin with the item's `password` field. Changes made there are
+# overwritten on the next restart: change this file instead.
+#
+# No HTTPRoute; ingress from Hermes only (network-policies/mcp-system.yaml,
+# allow-hermes-ingress). Egress to the four apps' pods and Tower:8096 only
+# (allow-arr-mcp-egress); ingress halves in network-policies/vcluster-media.yaml.
+#
+# Adding a key to the template that the item lacks fails the whole Secret, so
+# the pod keeps the last good one (or never starts on a fresh install).
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: arr-mcp-config
+  namespace: mcp-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: arr-mcp-config
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        config.yaml: |
+          services:
+            sonarr:
+              url: http://sonarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8989
+              api_key: "{{ .sonarr }}"
+              permissions:
+                safe_write: true
+                destructive: false
+            radarr:
+              url: http://radarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:7878
+              api_key: "{{ .radarr }}"
+              permissions:
+                safe_write: true
+                destructive: false
+            bazarr:
+              url: http://bazarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:6767
+              api_key: "{{ .bazarr }}"
+              permissions:
+                safe_write: true
+                destructive: false
+            sabnzbd:
+              url: http://sabnzbd-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8080
+              api_key: "{{ .sabnzbd }}"
+              permissions:
+                safe_write: true
+                destructive: false
+            jellyfin:
+              url: http://10.0.0.12:8096
+              api_key: "{{ .jellyfin }}"
+              permissions:
+                safe_write: false
+                destructive: false
+          auth:
+            username: admin
+            password_hash: "{{ .uiPasswordHash }}"
+            allow_token_in_url: false
+            tokens:
+              - name: hermes
+                tier: write
+                hash: "sha256:{{ .mcpToken | sha256sum }}"
+  data:
+    - secretKey: sonarr
+      remoteRef:
+        key: homepage-secret
+        property: HOMEPAGE_VAR_SONARR_KEY
+    - secretKey: radarr
+      remoteRef:
+        key: homepage-secret
+        property: HOMEPAGE_VAR_RADARR_KEY
+    - secretKey: bazarr
+      remoteRef:
+        key: homepage-secret
+        property: HOMEPAGE_VAR_BAZARR_KEY
+    - secretKey: sabnzbd
+      remoteRef:
+        key: homepage-secret
+        property: HOMEPAGE_VAR_SABNZBD_KEY
+    - secretKey: jellyfin
+      remoteRef:
+        key: homepage-secret
+        property: HOMEPAGE_VAR_JELLYFIN_KEY
+    - secretKey: mcpToken
+      remoteRef:
+        key: arr-mcp
+        property: MCP_TOKEN
+    - secretKey: uiPasswordHash
+      remoteRef:
+        key: arr-mcp
+        property: UI_PASSWORD_HASH

@@ -16,7 +16,8 @@
 # docs/okf/cluster/known-issues.md, rewritten for the tools Hermes actually has:
 # the MCP servers (read-only mcp__kubernetes__*, mcp__grafana__*,
 # mcp__argocd__*; approval-gated mcp__kubeops__* for cluster-remediate) and,
-# for gitops-fix, github-mcp-hermes (mcp__github__*).
+# for gitops-fix, github-mcp-hermes (mcp__github__*); media-house-rules uses
+# arr-mcp (mcp__arr__*), approval-gated for writes.
 # Hermes has no repo checkout and no kubectl. gitops-fix restates the rules in
 # the repo's CLAUDE.md. When those sources change, update these.
 apiVersion: v1
@@ -724,3 +725,74 @@ data:
     - Never suggest rebooting a control-plane node while another one is
       unhealthy: two down is an etcd quorum loss.
     - Cordon/uncordon goes through cluster-remediate, with approval.
+
+  media-house-rules.md: |
+    ---
+    name: media-house-rules
+    description: "Use for anything inside Sonarr/Radarr/Bazarr/SAB/Jellyfin."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Media, Sonarr, Radarr, Bazarr, SABnzbd, Jellyfin, Homelab]
+        related_skills: [cluster-triage, cluster-remediate, gitops-fix]
+    ---
+
+    # Working inside the media apps
+
+    The `arr` MCP server (arr-mcp in mcp-system) talks to the apps' own APIs:
+    Sonarr, Radarr, Bazarr and SABnzbd in the media vcluster, Jellyfin on
+    Tower (10.0.0.12:8096). Tracearr and Plex are not connected.
+
+    ## What you can do
+
+    - Read anything: start with `stack_health` or `diagnose`, then
+      `get_queue`, `get_history`, `get_wanted`, `get_releases`,
+      `get_subtitles`, `get_library`, `get_media_details`, `get_playback`.
+      Reads need no approval.
+    - Safe writes on Sonarr, Radarr, Bazarr and SABnzbd only:
+      `trigger_search`, `trigger_scan`, `trigger_subtitle_search`,
+      `grab_release`, `set_monitoring`, `update_media`, `add_media`,
+      `retry_download`, `pause_downloads`, `remove_blocklist_item`.
+      Every write is a preview first, then a confirm with the token the
+      preview returned. James approves each call, so two prompts per write.
+      Show him what the preview said before you confirm.
+    - Jellyfin is read-only. Nothing can delete: no `delete_media`,
+      `delete_episode_files`, `remove_queue_item` or `clean_queue`. The
+      server refuses them (its token is tier `write`). If a fix needs a
+      delete, say exactly what and why, and let James do it.
+
+    ## House rules
+
+    - **TV is 1080p at most.** The Living Room TV cannot keep sync on 4K.
+      Anything above 1080p gets replaced with a 1080p release when one exists:
+      move the series to the WEB-1080p profile with `update_media` and search.
+      Sonarr only removes the old file when the new one imports, into its
+      recycle bin `/data/media/.sonarr-recycle`. Never ask for the old file to
+      be deleted first.
+    - **No bulk writes.** Tower holds the media, the NFS volumes and Jellyfin,
+      and has little RAM; a burst of searches, scans or imports has taken it
+      down before. One series or film per action, never a library-wide
+      search or rescan without James asking for exactly that. A bulk 4K to
+      1080p run may already be going from James's Mac; check the queue
+      before adding to it.
+    - **Subtitles:** the OpenSubtitles.com account allows 1,000 a day,
+      shared with Jellyfin's own task. Search one series or film at a time.
+      Anime specials are numbered S01E00 on OpenSubtitles and S00E01 in
+      Sonarr, so Bazarr misses them. Report it; do not retry in a loop.
+    - **Stuck in the queue:** `diagnose` first. Usenet "cannot be completed"
+      means the release is incomplete; grab another with `get_releases` and
+      `grab_release`, or `retry_download` once. An import pending on a
+      finished download: `trigger_scan` with `action: "import"`.
+    - **Jellyfin playback restarting at the end of an episode** is the
+      Wholphin client on the Living Room TV, not the server.
+
+    ## When it is not the app
+
+    - An app not answering at all, or a pod stuck on stale NFS: that is the
+      cluster. Use cluster-triage, then cluster-remediate.
+    - App settings that live in git (image, resources, env, configarr
+      quality profiles in `workloads/vcluster-media/addons/<app>/values.yaml`):
+      gitops-fix. Settings changed in an app's UI that git also writes are
+      overwritten on the next sync.
