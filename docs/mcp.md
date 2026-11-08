@@ -41,6 +41,7 @@ an `URLRewrite` filter so each backend sees its native `/mcp` path.
 | `/grafana` | `grafana-mcp` | `docker.io/grafana/mcp-grafana` | 8000 | Token minted by a PostSync Job |
 | `/sequential-thinking` | `sequential-thinking` | `ghcr.io/supercorp-ai/supergateway` | 8000 | Wraps the stdio server; npm pre-install initContainer |
 | (none: Hermes only) | `github-mcp-hermes` | `ghcr.io/supercorp-ai/supergateway` + `github-mcp-server` image volume | 8083 | Writable (branches, commits, PRs; no merge/delete) for Hermes Agent's GitOps fixes. Token server-side from 1Password `hermes-agent`/`GITHUB_TOKEN`. No HTTPRoute; only namespace `hermes` may connect. See [Hermes Agent](okf/addons/hermes.md) |
+| (none: Hermes only) | `arr-mcp` | `ghcr.io/bardesss/arr-mcp` | 6060 | Hermes Agent inside the media apps: Sonarr, Radarr, Bazarr, SABnzbd (safe writes, previewed and confirmed) and Jellyfin (read-only); nothing can delete. Config rendered by ExternalSecret `arr-mcp-config` from 1Password `homepage-secret` + `arr-mcp`. Runs on the Pi 5 (local-nvme PVC). No HTTPRoute; only namespace `hermes` may connect. See [Hermes Agent](okf/addons/hermes.md) |
 | (none: Hermes only) | `kubernetes-mcp-ops` | `quay.io/containers/kubernetes_mcp_server` (same pin as kubernetes-mcp) | 8080 | Hermes Agent's operational actions, each approved by James: exposes only `pods_delete` and `resources_create_or_update`; ClusterRole `kubernetes-mcp-ops` allows pod delete, node patch (cordon/uncordon) and Deployment/StatefulSet/DaemonSet patch (rollout restart), plus the viewer role; Secrets denied. No HTTPRoute; only namespace `hermes` may connect |
 | `/umami` | `umami` (namespace `umami`) | `ghcr.io/umami-software/umami` | 3000 | Read-only web analytics; Umami's own `/mcp` (>= 3.4.0, `MCP_ENABLED=1`). Needs an Umami API key. Not part of this addon: see below |
 
@@ -108,9 +109,13 @@ Everything is deny-by-default plus narrow allows:
   `sequential-thinking` (npm)
 - ingress from `nginx-gateway` on 8080/8082/8000/3000
 - ingress from Hermes Agent (namespace `hermes`) to kubernetes-mcp,
-  kubernetes-mcp-ops, argocd-mcp, grafana-mcp and github-mcp-hermes only, on
-  8080/3000/8000/8083 (`allow-hermes-ingress`); Hermes calls them by
+  kubernetes-mcp-ops, argocd-mcp, grafana-mcp, github-mcp-hermes and arr-mcp
+  only, on 8080/3000/8000/8083/6060 (`allow-hermes-ingress`); Hermes calls them by
   Service DNS, see [Hermes Agent](okf/addons/hermes.md)
+- arr-mcp to the Sonarr/Radarr/Bazarr/SABnzbd pods in `vcluster-media`
+  (8989/7878/6767/8080) and Jellyfin on Tower 10.0.0.12:8096
+  (`allow-arr-mcp-egress`; ingress half `allow-arr-mcp-ingress` in
+  [network-policies/vcluster-media.yaml](../addons/cluster-roles/control-plane/addons/network-policies/vcluster-media.yaml))
 - intra-namespace both ways
 - the gateway's admission for `/umami` is in
   [network-policies/umami.yaml](../addons/cluster-roles/control-plane/addons/network-policies/umami.yaml),

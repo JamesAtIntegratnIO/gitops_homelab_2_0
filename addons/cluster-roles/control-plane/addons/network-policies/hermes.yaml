@@ -170,7 +170,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [kubernetes-mcp, kubernetes-mcp-ops, argocd-mcp, grafana-mcp, github-mcp-hermes]
+                values: [kubernetes-mcp, kubernetes-mcp-ops, argocd-mcp, grafana-mcp, github-mcp-hermes, arr-mcp]
       ports:
         - protocol: TCP
           port: 8080
@@ -180,3 +180,5 @@ spec:
           port: 8000
         - protocol: TCP
           port: 8083   # github-mcp-hermes
+        - protocol: TCP
+          port: 6060   # arr-mcp
