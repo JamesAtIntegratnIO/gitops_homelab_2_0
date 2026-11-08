@@ -1,0 +1,170 @@
+# Read-only kubernetes-mcp-server INSIDE vcluster-media, for Hermes Agent
+# only. The host's kubernetes-mcp sees just the synced pods
+# (<pod>-x-media-x-vcluster-media); this one sees the vcluster's own API:
+# Deployments, PVCs, ConfigMaps, events and its ArgoCD Applications in ns
+# media and argocd.
+#
+# Why inside the vcluster rather than a host pod with a kubeconfig: the only
+# kubeconfig the host has (vc-vcluster-media) is cluster-admin. Here the pod's
+# in-cluster ServiceAccount token is a vcluster token, bound to the built-in
+# `view` ClusterRole (no Secrets) plus read on ArgoCD's CRDs, and nothing
+# carries a credential across the boundary.
+#
+# Read-only three times: RBAC below, `read_only = true`, and Secrets denied in
+# the server config. Hermes reaches it on the synced Service
+# kubernetes-mcp-x-media-x-vcluster-media.vcluster-media.svc:8080 (ingress
+# allow-hermes-kubernetes-mcp-ingress in network-policies/vcluster-media.yaml,
+# egress allow-vcluster-media-mcp-egress in network-policies/hermes.yaml). No
+# HTTPRoute.
+#
+# The image line is a Kargo pin (target kubernetes-mcp, key
+# extraObjects.0.spec.template.spec.containers.0.image): keep the Deployment
+# the FIRST extraObject and the line comment-free.
+applicationName: kubernetes-mcp
+deployment:
+  enabled: false
+service:
+  enabled: false
+extraObjects:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: kubernetes-mcp
+      namespace: media
+      labels:
+        app.kubernetes.io/name: kubernetes-mcp
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: kubernetes-mcp
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: kubernetes-mcp
+        spec:
+          serviceAccountName: kubernetes-mcp-viewer
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: kubernetes-mcp
+              image: quay.io/containers/kubernetes_mcp_server:v0.0.69@sha256:1da9d62ad0c008a6cadcf2718c86c2e2d18753ca1d9f1f3313068980794b24f2
+              args: ["--config", "/etc/kubernetes-mcp-server/config.toml"]
+              ports:
+                - name: http
+                  containerPort: 8080
+                  protocol: TCP
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+                initialDelaySeconds: 10
+                periodSeconds: 30
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/kubernetes-mcp-server
+                  readOnly: true
+          volumes:
+            - name: config
+              configMap:
+                name: kubernetes-mcp-config
+  # Same settings as the host's read-only kubernetes-mcp
+  # (addons/cluster-roles/control-plane/addons/mcp-system/kubernetes-mcp-configmap.yaml).
+  # An unknown key exits 1; roll the Deployment after an edit.
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: kubernetes-mcp-config
+      namespace: media
+    data:
+      config.toml: |
+        port = "8080"
+        read_only = true
+        stateless = true
+        cluster_provider_strategy = "disabled"
+        toolsets = ["core", "config"]
+
+        [[denied_resources]]
+        group = ""
+        version = "v1"
+        kind = "Secret"
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: kubernetes-mcp
+      namespace: media
+      labels:
+        app.kubernetes.io/name: kubernetes-mcp
+    spec:
+      type: ClusterIP
+      selector:
+        app.kubernetes.io/name: kubernetes-mcp
+      ports:
+        - name: http
+          port: 8080
+          targetPort: 8080
+          protocol: TCP
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: kubernetes-mcp-viewer
+      namespace: media
+  # `view` has no Secrets and no RBAC objects. Nodes in a vcluster are
+  # placeholders, so they are not worth a grant.
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: kubernetes-mcp-viewer
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: view
+    subjects:
+      - kind: ServiceAccount
+        name: kubernetes-mcp-viewer
+        namespace: media
+  # ArgoCD's CRDs carry no aggregate-to-view label, so `view` cannot see the
+  # vcluster's Applications.
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: kubernetes-mcp-argocd-viewer
+    rules:
+      - apiGroups: ["argoproj.io"]
+        resources: ["applications", "applicationsets", "appprojects"]
+        verbs: ["get", "list", "watch"]
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: kubernetes-mcp-argocd-viewer
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: kubernetes-mcp-argocd-viewer
+    subjects:
+      - kind: ServiceAccount
+        name: kubernetes-mcp-viewer
+        namespace: media

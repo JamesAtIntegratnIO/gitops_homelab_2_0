@@ -244,6 +244,26 @@ data:
             - "resources_list"
           resources: false
           prompts: false
+      # The same read-only server, running INSIDE vcluster-media and reading
+      # the vcluster's own API (its Deployments, PVCs, events, ArgoCD
+      # Applications) with a vcluster `view` token. No Secrets.
+      # workloads/vcluster-media/addons/kubernetes-mcp.
+      kubemedia:
+        url: "http://kubernetes-mcp-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8080/mcp"
+        trust: "untrusted"
+        timeout: 60
+        tools:
+          include:
+            - "events_list"
+            - "namespaces_list"
+            - "pods_get"
+            - "pods_list"
+            - "pods_list_in_namespace"
+            - "pods_log"
+            - "resources_get"
+            - "resources_list"
+          resources: false
+          prompts: false
       # Operational actions, each approved by James (trust: untrusted; neither
       # tool declares readOnlyHint): kubernetes-mcp-ops in mcp-system, which
       # exposes only these two tools and whose RBAC allows only pod delete,

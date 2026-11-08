@@ -35,7 +35,7 @@ data:
     ---
     name: cluster-health-check
     description: "Use for a health check or status report on the-cluster."
-    version: 1.1.0
+    version: 1.2.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -94,6 +94,11 @@ data:
        `ALERTS{alertstate="firing"}`, and `mcp__grafana__alerting_rules_read`
        for anything Grafana-managed. Name each firing alert and how long it has
        fired.
+    7. **Inside vcluster-media**: the host ArgoCD and `mcp__kubernetes__*`
+       see only the synced pods. `mcp__kubemedia__resources_list` reads the
+       vcluster's own API: `argoproj.io/v1alpha1` `Application` in ns
+       `argocd` (the media apps' sync state), Deployments, PVCs and events in
+       ns `media`. Read-only, no Secrets.
 
     ## Report shape
 

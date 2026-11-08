@@ -42,6 +42,7 @@ an `URLRewrite` filter so each backend sees its native `/mcp` path.
 | `/sequential-thinking` | `sequential-thinking` | `ghcr.io/supercorp-ai/supergateway` | 8000 | Wraps the stdio server; npm pre-install initContainer |
 | (none: Hermes only) | `github-mcp-hermes` | `ghcr.io/supercorp-ai/supergateway` + `github-mcp-server` image volume | 8083 | Writable (branches, commits, PRs; no merge/delete) for Hermes Agent's GitOps fixes. Token server-side from 1Password `hermes-agent`/`GITHUB_TOKEN`. No HTTPRoute; only namespace `hermes` may connect. See [Hermes Agent](okf/addons/hermes.md) |
 | (none: Hermes only) | `argocd-mcp-ops` | `ghcr.io/argoproj-labs/mcp-for-argocd` (same pin as argocd-mcp) | 3000 | Hermes Agent's ArgoCD syncs, each approved by James: writes on, but ArgoCD account `hermes-ops` may only get and sync (token 1Password `argocd-hermes-ops`/`token`); Hermes includes only `sync_application`. No HTTPRoute; only namespace `hermes` may connect |
+| (none: Hermes only) | `kubernetes-mcp` in vcluster-media (ns `media`) | `quay.io/containers/kubernetes_mcp_server` (same pin as kubernetes-mcp) | 8080 | Hermes Agent's read-only view of the media vcluster's own API (Deployments, PVCs, events, its ArgoCD Applications), with a vcluster ServiceAccount bound to `view` plus ArgoCD CRD reads; Secrets denied. Deployed by the vcluster's ArgoCD from `workloads/vcluster-media/addons/kubernetes-mcp`. Reached on the synced Service `kubernetes-mcp-x-media-x-vcluster-media.vcluster-media`; only Hermes may connect |
 | (none: Hermes only) | `arr-mcp` | `ghcr.io/bardesss/arr-mcp` | 6060 | Hermes Agent inside the media apps: Sonarr, Radarr, Bazarr, SABnzbd (safe writes, previewed and confirmed) and Jellyfin (read-only); nothing can delete. Config rendered by ExternalSecret `arr-mcp-config` from 1Password `homepage-secret` + `arr-mcp`. Runs on the Pi 5 (local-nvme PVC). No HTTPRoute; only namespace `hermes` may connect. See [Hermes Agent](okf/addons/hermes.md) |
 | (none: Hermes only) | `kubernetes-mcp-ops` | `quay.io/containers/kubernetes_mcp_server` (same pin as kubernetes-mcp) | 8080 | Hermes Agent's operational actions, each approved by James: exposes only `pods_delete` and `resources_create_or_update`; ClusterRole `kubernetes-mcp-ops` allows pod delete, node patch (cordon/uncordon) and Deployment/StatefulSet/DaemonSet patch (rollout restart), plus the viewer role; Secrets denied. No HTTPRoute; only namespace `hermes` may connect |
 | `/umami` | `umami` (namespace `umami`) | `ghcr.io/umami-software/umami` | 3000 | Read-only web analytics; Umami's own `/mcp` (>= 3.4.0, `MCP_ENABLED=1`). Needs an Umami API key. Not part of this addon: see below |
@@ -113,6 +114,9 @@ Everything is deny-by-default plus narrow allows:
   kubernetes-mcp-ops, argocd-mcp, argocd-mcp-ops, grafana-mcp, github-mcp-hermes
   and arr-mcp only, on 8080/3000/8000/8083/6060 (`allow-hermes-ingress`); Hermes calls them by
   Service DNS, see [Hermes Agent](okf/addons/hermes.md)
+- Hermes to the read-only kubernetes-mcp inside vcluster-media on 8080
+  (`allow-vcluster-media-mcp-egress` in hermes.yaml; ingress half
+  `allow-hermes-kubernetes-mcp-ingress` in vcluster-media.yaml)
 - arr-mcp to the Sonarr/Radarr/Bazarr/SABnzbd pods in `vcluster-media`
   (8989/7878/6767/8080) and Jellyfin on Tower 10.0.0.12:8096
   (`allow-arr-mcp-egress`; ingress half `allow-arr-mcp-ingress` in

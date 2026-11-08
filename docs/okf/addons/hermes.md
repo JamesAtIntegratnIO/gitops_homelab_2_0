@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-08T17:00:00Z }
+generated: { by: claude-code, at: 2026-11-08T17:40:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -247,6 +247,24 @@ halves).[^github-mcp][^skills]
   bypass, or a non-admin bot account, would make it GitHub's guard.
 - Hermes strips `GITHUB_TOKEN`/`GH_TOKEN` from every terminal command by
   design, so git with a token in the Hermes pod was never the route.
+
+# Inside the media vcluster
+
+The host's kubernetes-mcp sees vcluster-media only as synced pods
+(`<pod>-x-media-x-vcluster-media`). Hermes's `kubemedia` server is a second
+read-only kubernetes-mcp-server running **inside** the vcluster (added
+2026-11-08), deployed by the vcluster's own ArgoCD from
+`workloads/vcluster-media/addons/kubernetes-mcp`, so its in-cluster
+ServiceAccount token is a vcluster token. It is bound to the built-in `view`
+ClusterRole plus get/list/watch on ArgoCD's `applications`, `applicationsets`
+and `appprojects`; Secrets are also denied in the server config. The only
+kubeconfig the host holds for the vcluster (`vc-vcluster-media`) is
+cluster-admin, which is why nothing crosses the boundary instead. Hermes calls
+the synced Service `kubernetes-mcp-x-media-x-vcluster-media.vcluster-media:8080`
+(egress `allow-vcluster-media-mcp-egress`, ingress
+`allow-hermes-kubernetes-mcp-ingress`). Its image is on the `kubernetes-mcp`
+Kargo target (key `extraObjects.0...image`, so the Deployment stays the first
+extraObject).
 
 # Inside the media apps
 
