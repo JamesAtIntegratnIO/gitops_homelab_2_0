@@ -51,3 +51,8 @@ tracearr:
 jellyplex-watched:
   <<: *mediaAppDefaults
   enabled: true
+
+# Read-only Kubernetes MCP for Hermes Agent (see its values.yaml).
+kubernetes-mcp:
+  <<: *mediaAppDefaults
+  enabled: true

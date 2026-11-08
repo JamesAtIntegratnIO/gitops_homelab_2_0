@@ -229,6 +229,10 @@ projects:
             keys: [spec.template.spec.containers.0.image]
           - file: addons/cluster-roles/control-plane/addons/mcp-system/kubernetes-mcp-ops-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
+          # Hermes's read-only server inside vcluster-media. The Deployment
+          # must stay the FIRST extraObject.
+          - file: workloads/vcluster-media/addons/kubernetes-mcp/values.yaml
+            keys: [extraObjects.0.spec.template.spec.containers.0.image]
       sequential-thinking:
         scope: mcp-system
         image:

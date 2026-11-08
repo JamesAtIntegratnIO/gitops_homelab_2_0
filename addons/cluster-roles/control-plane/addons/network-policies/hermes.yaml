@@ -182,3 +182,29 @@ spec:
           port: 8083   # github-mcp-hermes
         - protocol: TCP
           port: 6060   # arr-mcp
+---
+# The read-only kubernetes-mcp inside vcluster-media, on its synced Service
+# (kubernetes-mcp-x-media-x-vcluster-media). The other half is
+# allow-hermes-kubernetes-mcp-ingress in vcluster-media.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vcluster-media-mcp-egress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vcluster-media
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kubernetes-mcp
+      ports:
+        - protocol: TCP
+          port: 8080
