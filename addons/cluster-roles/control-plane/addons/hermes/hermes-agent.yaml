@@ -278,6 +278,20 @@ data:
             - "get_application_workload_logs"
           resources: false
           prompts: false
+      # ArgoCD sync, each approved by James (trust: untrusted). argocd-mcp-ops
+      # runs with writes on, but its ArgoCD account `hermes-ops` may only get
+      # and sync (mcp-system/argocd-mcp-ops-deployment.yaml); the reads stay on
+      # the read-only `argocd` server above. Use for an app stuck OutOfSync
+      # that self-heal does not retry, or to re-sync after a fix merges.
+      argocdops:
+        url: "http://argocd-mcp-ops.mcp-system.svc.cluster.local:3000/mcp"
+        trust: "untrusted"
+        timeout: 120
+        tools:
+          include:
+            - "sync_application"
+          resources: false
+          prompts: false
       # GitOps fixes: branch + PR on JamesAtIntegratnIO/gitops_homelab_2_0,
       # through github-mcp-hermes (mcp-system/github-mcp-hermes.yaml), which
       # holds the bot token so it never enters this pod. The server already

@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-07T21:50:00Z }
+generated: { by: claude-code, at: 2026-11-08T17:00:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -167,6 +167,15 @@ uncordon, never Tower) and the stale-NFS playbook (cordon -> delete ->
 verify on another node -> uncordon). Node patch also permits labels and
 taints and workload patch permits any template change: the approval prompt
 and ArgoCD self-heal are the guards there.
+
+ArgoCD syncs go through a third server, `argocd-mcp-ops` (Hermes's
+`mcp_servers.argocdops`, 2026-11-08): mcp-for-argocd with writes on, but its
+ArgoCD account `hermes-ops` may only `get` and `sync` (RBAC in
+`addons/clusters/the-cluster/addons/argo-cd/values.yaml`), so
+create/update/delete and resource actions are refused by ArgoCD. Hermes
+includes only `sync_application`, `trust: untrusted`, and cluster-remediate
+says when a sync is appropriate. Token: 1Password `argocd-hermes-ops`/`token`
+(`argocd account generate-token --account hermes-ops`).
 
 # GitOps fixes
 
