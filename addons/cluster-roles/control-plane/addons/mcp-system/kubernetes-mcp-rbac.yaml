@@ -75,6 +75,11 @@ rules:
   - apiGroups: ["argoproj.io"]
     resources: ["applications", "applicationsets", "appprojects"]
     verbs: ["get", "list", "watch"]
+  # Kargo (read-only: why a Stage is stuck, a Promotion's error, Freight
+  # history). Used by Hermes's kargo-health skill.
+  - apiGroups: ["kargo.akuity.io"]
+    resources: ["projects", "projectconfigs", "warehouses", "stages", "freights", "promotions"]
+    verbs: ["get", "list", "watch"]
   # Cilium network policies
   - apiGroups: ["cilium.io"]
     resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies"]

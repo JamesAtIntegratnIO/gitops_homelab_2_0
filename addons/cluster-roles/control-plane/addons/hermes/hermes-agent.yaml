@@ -106,6 +106,15 @@ data:
     agent:
       disabled_toolsets:
         - "tts"          # no voice provider; browser stays (see /dev/shm below)
+      # Cost caps (keys checked against v0.23.0 config_defaults.py). A run
+      # stops after 60 model turns; at 80% the model gets a one-time warning so
+      # it can wrap up rather than being cut off mid-task. Default is unlimited.
+      max_turns: 60
+      budget_warning_ratio: 0.8
+    # "auto": 1-hour Anthropic cache for human-paced chats (pauses longer than
+    # 5 minutes), 5-minute for cron, API and subagents. Default is "5m".
+    prompt_caching:
+      cache_ttl: "auto"
     delegation:
       max_concurrent_children: 4   # default 10; a Pi 5 has 4 cores and tools run in-pod
     tool_loop_guardrails:
@@ -122,6 +131,18 @@ data:
         - "git push --force*"
         - "*authorized_keys*"
         - "kubectl *"              # the pod has no kube credentials; be explicit anyway
+        # A nested `hermes -z` sets HERMES_YOLO_MODE=1, and yolo also skips the
+        # trust: untrusted MCP gate (kubeops, github). These keep the terminal
+        # from starting an unapproved run of itself, or rewriting its own
+        # approval settings. fnmatch over the lowercased command. Not airtight
+        # (a python subprocess is not a shell command): kubeops RBAC is the
+        # real limit.
+        - "*hermes* -z*"
+        - "*hermes*--oneshot*"
+        - "*--yolo*"
+        - "*hermes_yolo_mode*"
+        - "*hermes*config set*"
+        - "*approvals.mode*"
     security:
       allow_private_urls: false    # also enforced by network-policies/hermes.yaml
       redact_secrets: true
@@ -516,6 +537,18 @@ spec:
             - name: skills
               mountPath: /opt/hermes-skills/homelab/cluster-remediate/SKILL.md
               subPath: cluster-remediate.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/loki-log-triage/SKILL.md
+              subPath: loki-log-triage.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/kargo-health/SKILL.md
+              subPath: kargo-health.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/talos-node-health/SKILL.md
+              subPath: talos-node-health.md
               readOnly: true
       volumes:
         - name: dshm

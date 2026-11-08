@@ -133,7 +133,16 @@ Skills from git, in ConfigMap `hermes-skills`, mounted read-only under
 firing alerts) and `cluster-triage` (this platform's failure shapes: one-sided
 NetworkPolicies, etcd disk stalls, host-DNS restart storms, stale NFS after a
 Tower reset, the stale nginx-gateway data plane). Both use only the read-only
-MCP tools and treat every fix as a PR for James. They are adapted from the
+MCP tools and treat every fix as a PR for James. Three more read-only skills
+since 2026-11-08: `loki-log-triage` (scoping, patterns and the log lines that
+have meant something here), `kargo-health` (the `kargo_*` kube-state-metrics
+series, then Stage/Promotion/Freight objects, then orphaned
+`kargo/promotion/*` PRs; remedies are reported for James) and
+`talos-node-health` (conditions, versions, cross-node disk-latency
+comparison, scrape gaps; no talosctl, so Talos-layer checks are named for
+James). For kargo-health the `kubernetes-mcp-viewer` ClusterRole reads
+`kargo.akuity.io` projects, projectconfigs, warehouses, stages, freights and
+promotions. They are adapted from the
 repo's `.claude/skills/cluster-triage` and [known issues](../cluster/known-issues.md).[^skills]
 
 Each file is a `subPath` mount: a plain ConfigMap volume adds hidden `..data`
@@ -208,7 +217,19 @@ v0.21.4, with every key checked against v0.23.0's built-in defaults first.[^opti
 - **Cost**: the side tasks (compression, titles, background review, approval
   classifier, curator, goal judge) run on `claude-haiku-5-5` instead of the main
   Sonnet model. `tts` is disabled, at most 4 concurrent subagents, and
-  exact-repeat tool loops hard-stop.
+  exact-repeat tool loops hard-stop. Since 2026-11-08 a run stops at 60 model
+  turns (`agent.max_turns`), with a one-time warning to the model at 80%
+  (`agent.budget_warning_ratio: 0.8`), and `prompt_caching.cache_ttl` is
+  `auto` (1-hour cache for chats, 5-minute for cron, API and subagents).
+- **One-shot runs skip every approval.** `hermes -z` sets
+  `HERMES_YOLO_MODE=1` (v0.23.0 `hermes_cli/oneshot.py`), and yolo also skips
+  the `trust: untrusted` MCP gate, so a one-shot run can call kubeops and
+  GitHub writes unprompted. The terminal runs in the same pod as the same uid,
+  so `approvals.deny` blocks `hermes -z`, `--oneshot`, `--yolo`,
+  `HERMES_YOLO_MODE`, `hermes config set` and `approvals.mode`. Deny rules
+  are fnmatch over shell commands and a Python subprocess gets past them, so
+  the real limit is still kubeops's RBAC. Cron and `hermes chat -q` keep the
+  default `deny` for unattended approvals.
 - **Security**: smart approvals with a deny list (`sudo`, piping `curl`/`wget`
   to a shell, `dd` to devices, force-push, `authorized_keys`, `kubectl`), no
   private URLs, secret redaction, no runtime pip installs, internal hosts on the
