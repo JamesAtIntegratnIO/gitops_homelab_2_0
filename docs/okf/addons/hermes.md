@@ -142,6 +142,23 @@ every skill would be listed twice. Hermes truncates a skill's `description` to
 60 characters in its prompt index, so keep them short. Skills the agent writes
 itself go to `/opt/data/skills` and are scanned.
 
+# Live operational fixes
+
+Hermes can act on the cluster, not only diagnose it, through a second
+kubernetes-mcp-server, `kubernetes-mcp-ops` in `mcp-system` (Hermes's
+`mcp_servers.kubeops`, added 2026-11-08). It exposes only `pods_delete` and
+`resources_create_or_update` (server-side apply), and its ClusterRole
+`kubernetes-mcp-ops` allows only pod delete, node patch (cordon/uncordon) and
+Deployment/StatefulSet/DaemonSet patch (rollout restart); Secrets are denied
+in the server config. Hermes calls it `trust: untrusted` and neither tool
+declares `readOnlyHint`, so every write waits for James's approval in the
+webapp. The `cluster-remediate` skill holds the rules (operational actions
+only, config goes through gitops-fix, one node cordoned at a time, always
+uncordon, never Tower) and the stale-NFS playbook (cordon -> delete ->
+verify on another node -> uncordon). Node patch also permits labels and
+taints and workload patch permits any template change: the approval prompt
+and ArgoCD self-heal are the guards there.
+
 # GitOps fixes
 
 Hermes proposes manifest fixes as branch + PR on

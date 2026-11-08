@@ -225,6 +225,8 @@ projects:
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/kubernetes-mcp-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/kubernetes-mcp-ops-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
       sequential-thinking:
         scope: mcp-system
         image:

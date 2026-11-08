@@ -1,0 +1,108 @@
+# kubernetes-mcp-ops: a second kubernetes-mcp-server, used only by Hermes
+# (ns hermes), that can take a few operational actions on the-cluster.
+#
+# Why a second instance: kubernetes-mcp stays read-only for every other client
+# (it sits behind the gateway). This one has no HTTPRoute; the only ingress is
+# allow-hermes-ingress (network-policies/mcp-system.yaml).
+#
+# What it can do is bounded three times:
+#   1. RBAC (below): read like kubernetes-mcp-viewer, plus delete pods, patch
+#      nodes (cordon/uncordon) and patch Deployments/StatefulSets/DaemonSets
+#      (rollout restart). No Secrets, no RBAC, no create/delete of workloads,
+#      no namespaces.
+#   2. enabled_tools: only pods_delete and resources_create_or_update are
+#      exposed. No exec, no pods_run, no resources_delete, no helm.
+#   3. Hermes calls it with trust: untrusted, and neither tool declares
+#      readOnlyHint, so every call waits for James's approval.
+#
+# resources_create_or_update is server-side apply (field manager
+# kubernetes-mcp-server, force), so a partial manifest is enough:
+#   cordon    {apiVersion: v1, kind: Node, metadata: {name}, spec: {unschedulable: true}}
+#   uncordon  same with unschedulable: false
+#   restart   {apiVersion: apps/v1, kind: Deployment, metadata: {name, namespace},
+#              spec: {template: {metadata: {annotations:
+#              {kubectl.kubernetes.io/restartedAt: <RFC3339>}}}}}
+# Config changes still go through git (gitops-fix); ArgoCD self-heal reverts
+# anything else.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubernetes-mcp-ops-config
+  namespace: mcp-system
+  labels:
+    app: kubernetes-mcp-ops
+data:
+  config.toml: |
+    port = "8080"
+    read_only = false
+    stateless = true
+    cluster_provider_strategy = "disabled"
+    toolsets = ["core"]
+    enabled_tools = ["pods_delete", "resources_create_or_update"]
+
+    [[denied_resources]]
+    group = ""
+    version = "v1"
+    kind = "Secret"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubernetes-mcp-ops
+  namespace: mcp-system
+  labels:
+    app: kubernetes-mcp-ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubernetes-mcp-ops
+  labels:
+    app: kubernetes-mcp-ops
+rules:
+  # Delete a stuck pod (its controller recreates it). Synced vcluster-media
+  # pods live on the host as <pod>-x-<ns>-x-vcluster-media in ns vcluster-media.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  # Cordon / uncordon (spec.unschedulable) through server-side apply.
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["patch"]
+  # Rollout restart (pod template annotation) through server-side apply.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["patch"]
+---
+# Read access, same as the read-only server, so the server can resolve and
+# return what it changed.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-mcp-ops-viewer
+  labels:
+    app: kubernetes-mcp-ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-mcp-viewer
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-ops
+    namespace: mcp-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-mcp-ops
+  labels:
+    app: kubernetes-mcp-ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-mcp-ops
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-ops
+    namespace: mcp-system
