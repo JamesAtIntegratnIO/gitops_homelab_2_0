@@ -202,6 +202,21 @@ data:
             - "resources_list"
           resources: false
           prompts: false
+      # Operational actions, each approved by James (trust: untrusted; neither
+      # tool declares readOnlyHint): kubernetes-mcp-ops in mcp-system, which
+      # exposes only these two tools and whose RBAC allows only pod delete,
+      # node patch (cordon/uncordon) and Deployment/StatefulSet/DaemonSet
+      # patch (rollout restart). See the cluster-remediate skill.
+      kubeops:
+        url: "http://kubernetes-mcp-ops.mcp-system.svc.cluster.local:8080/mcp"
+        trust: "untrusted"
+        timeout: 60
+        tools:
+          include:
+            - "pods_delete"
+            - "resources_create_or_update"
+          resources: false
+          prompts: false
       grafana:
         url: "http://grafana-mcp.mcp-system.svc.cluster.local:8000/mcp"
         trust: "untrusted"
@@ -497,6 +512,10 @@ spec:
             - name: skills
               mountPath: /opt/hermes-skills/homelab/gitops-fix/SKILL.md
               subPath: gitops-fix.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/cluster-remediate/SKILL.md
+              subPath: cluster-remediate.md
               readOnly: true
       volumes:
         - name: dshm

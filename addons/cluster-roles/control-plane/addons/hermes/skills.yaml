@@ -14,8 +14,9 @@
 #
 # Derived from .claude/skills/cluster-triage/SKILL.md and
 # docs/okf/cluster/known-issues.md, rewritten for the tools Hermes actually has:
-# the read-only MCP servers (mcp__kubernetes__*, mcp__grafana__*,
-# mcp__argocd__*) and, for gitops-fix, github-mcp-hermes (mcp__github__*).
+# the MCP servers (read-only mcp__kubernetes__*, mcp__grafana__*,
+# mcp__argocd__*; approval-gated mcp__kubeops__* for cluster-remediate) and,
+# for gitops-fix, github-mcp-hermes (mcp__github__*).
 # Hermes has no repo checkout and no kubectl. gitops-fix restates the rules in
 # the repo's CLAUDE.md. When those sources change, update these.
 apiVersion: v1
@@ -26,7 +27,7 @@ metadata:
 data:
   DESCRIPTION.md: |
     ---
-    description: Looking after James's homelab cluster (the-cluster) that Hermes runs on, read-only, through the in-cluster MCP servers.
+    description: Looking after James's homelab cluster (the-cluster) that Hermes runs on, through the in-cluster MCP servers; writes need James's approval.
     ---
 
   cluster-health-check.md: |
@@ -187,7 +188,8 @@ data:
     Tower (Unraid VM 100) serves NFS. After it resets, running pods keep stale
     handles. Deleting the pod fixes most; some node + path combinations stay
     stale until the pod moves to another node. Moving it means cordoning a
-    node, which needs James's OK. **Never propose resetting, loading or backing
+    node; use the cluster-remediate playbook (every write needs James's
+    approval). **Never propose resetting, loading or backing
     up to Tower**: it is hands-off without James's explicit go-ahead. Local
     storage (local-path, emptyDir) is not an acceptable fix either.
 
@@ -220,8 +222,110 @@ data:
 
     - Name the evidence: tool, query, what came back, and when.
     - Prefer the git change (which file, roughly what) over any live action.
-    - Say plainly when something needs James: hardware, Talos machine config,
-      cordoning, Tower, terminating an ArgoCD operation, anything destructive.
+    - Live operational fixes (cordon, delete a stuck pod, rollout restart) go
+      through cluster-remediate; each write waits for James's approval.
+    - Say plainly when something needs James himself: hardware, Talos machine
+      config, Tower, terminating an ArgoCD operation.
+
+  cluster-remediate.md: |
+    ---
+    name: cluster-remediate
+    description: "Use to fix the-cluster live: cordon, delete, restart."
+    version: 1.0.0
+    author: James (gitops_homelab_2_0)
+    platforms: [linux]
+    metadata:
+      hermes:
+        tags: [Kubernetes, Homelab, Remediation, NFS]
+        related_skills: [cluster-triage, gitops-fix, cluster-health-check]
+    ---
+
+    # Fixing the-cluster live
+
+    You have two write tools, both on the `kubeops` MCP server, and every call
+    waits for James's approval:
+
+    - `mcp__kubeops__pods_delete`: delete one pod. Its controller recreates it.
+    - `mcp__kubeops__resources_create_or_update`: server-side apply. RBAC
+      lets it change only `spec.unschedulable` on a Node and the pod template
+      of a Deployment, StatefulSet or DaemonSet. Anything else is refused.
+
+    Read with the read-only `kubernetes` server as usual.
+
+    ## Rules
+
+    - Only operational actions live: cordon/uncordon, delete a stuck pod,
+      rollout restart. **Every config change goes through git** (gitops-fix):
+      images, resources, env, replicas, NetworkPolicies, anything in a
+      manifest. ArgoCD self-heal reverts live edits anyway.
+    - Diagnose first (cluster-triage). Before each write, say in one line what
+      you will change, why, and how you will know it worked.
+    - One change at a time, verify, then the next. One node cordoned at a time.
+    - Always undo what is temporary: a cordon ends with an uncordon in the
+      same task, even if the fix failed. Report the node state at the end.
+    - Never touch Tower (Unraid VM 100, 10.0.0.12): no reset, restart, or bulk
+      I/O. Never delete pods in `kube-system`, `argocd`, `cilium` or etcd-related
+      workloads unless James names the pod.
+    - Never delete a vcluster's own pods (`vcluster-media-0` and friends) or
+      control-plane components to "unstick" something.
+    - Stop and report if the result is not what you expected. Don't escalate
+      to a bigger action without James.
+
+    ## Cordon / uncordon
+
+    ```yaml
+    apiVersion: v1
+    kind: Node
+    metadata: {name: talos-4kg-ymz}
+    spec: {unschedulable: true}     # false to uncordon
+    ```
+
+    Never cordon a second node while one is cordoned. The cluster has three
+    control-plane nodes doing all the work plus `talos-pi5-1` (arm64, tainted,
+    takes only tolerating pods), so a cordoned Lenovo removes a third of the
+    capacity.
+
+    ## Rollout restart
+
+    ```yaml
+    apiVersion: apps/v1
+    kind: Deployment               # or StatefulSet / DaemonSet
+    metadata: {name: hermes-agent, namespace: hermes}
+    spec:
+      template:
+        metadata:
+          annotations:
+            kubectl.kubernetes.io/restartedAt: "2026-11-08T15:30:00Z"   # now, RFC3339
+    ```
+
+    Then watch the new pods reach Ready with `mcp__kubernetes__pods_list_in_namespace`.
+
+    ## Playbook: pod stuck on a stale NFS handle (after a Tower reset)
+
+    Symptom: `CreateContainerError` / `CreateContainerConfigError` with
+    `stale file handle` or `failed to prepare subPath`, and replacements keep
+    landing on the same node and failing (the Kyverno cleanup policy recreates
+    them about every 30 minutes).
+
+    1. Get the current pod name and node (`pods_list_in_namespace`). Names
+       change; never reuse one from an earlier message.
+    2. Cordon that node.
+    3. Delete the pod. For vcluster-media apps, delete the host copy in ns
+       `vcluster-media` (`<pod>-x-<ns>-x-vcluster-media`); the vcluster
+       recreates it.
+    4. Wait until the replacement is Running on a different node (poll every
+       ~15 s, up to ~3 min).
+    5. Uncordon the node.
+    6. If the replacement also fails on another node, the stale handle is on
+       Tower's side. Stop and tell James; that is his call.
+
+    Do two stuck apps one after the other, each with its own
+    cordon -> delete -> verify -> uncordon cycle.
+
+    ## Report
+
+    What you changed (tool, object), what you saw afterwards, the final state
+    of every node you touched, and anything left for James.
 
   gitops-fix.md: |
     ---
