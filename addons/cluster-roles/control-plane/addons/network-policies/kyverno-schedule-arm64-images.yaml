@@ -1,19 +1,32 @@
-# Kyverno ClusterPolicy: let multi-arch vcluster pods run on the arm64 Pi workers
+# Kyverno ClusterPolicy: let multi-arch pods run on the Raspberry Pi 4 workers
 #
 # The Pi workers carry node.integratn.tech/arch=arm64:NoSchedule because the
-# scheduler does not check image architecture. vcluster-synced pods tolerate
-# nothing, so none of them can land there. This policy adds the toleration and
-# pins to arm64 -- but ONLY for a pod in which every container image is on the
-# arm64-image-allowlist ConfigMap below.
-# One image that is not listed leaves the whole pod untouched, on amd64.
+# scheduler does not check image architecture, so nothing lands there unless it
+# tolerates the taint. This policy gives that toleration -- and a preference for
+# the Pi 4s -- to a pod in which EVERY container image is on the
+# arm64-image-allowlist ConfigMap below. One image that is not listed leaves the
+# whole pod untouched.
+#
+# Placement is soft. The pod gets (1) the arch toleration, (2) a REQUIRED
+# nodeAffinity that excludes board=rpi5, so the Pi 5 stays reserved for hermes
+# and cq, and (3) a PREFERRED nodeAffinity (weight 100) for board=rpi4. If the
+# Pi 4s are full or down the pod runs on the control-plane nodes as before.
+# This keeps mutated pods off the Pi 5 but is not a hard guarantee: only a taint
+# on the Pi 5 itself (a Talos machine-config change) would be.
+#
+# A pod is skipped if it already sets nodeName, a control-plane or board
+# nodeSelector, a nodeAffinity (a DaemonSet pod always has one), or a
+# kubernetes.io/arch selector other than arm64. Protected namespaces are
+# excluded: kube-system, kyverno, cilium-secrets, metallb-system,
+# nfs-provisioner, local-path-storage, trivy-system, hermes, cq (and the
+# kube-public and kube-node-lease namespaces).
 #
 # Mutation runs on CREATE only, so nothing moves until a pod is recreated.
 # Mutate rules have no Audit mode: the allowlist is the dial. Remove an entry
-# and the next pod using that image stays on the control-plane nodes.
+# and the next pod using that image is left alone.
 #
-# The second rule is the Audit half: it reports any vcluster-media pod that
-# selects arm64 (by hand, or by an earlier version of this policy) while
-# running an image that is not on the list.
+# The second rule is the Audit half: it reports any pod that selects arm64 (by
+# hand) while running an image that is not on the list.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -26,6 +39,11 @@ data:
   # @sha256 digest. An entry means "this tag is a multi-arch index that has a
   # linux/arm64 manifest" (checked against each registry on 2026-11-08). It does
   # not mean the application is a good fit for a Pi: trim for that.
+  #
+  # Entries are exact name:tag, so a version bump (Kargo or by hand) takes the
+  # pod off the list until the tag is updated here; the pod then just stays on
+  # the control-plane nodes. A trailing * is a wildcard (for example
+  # "ghcr.io/akuity/kargo:*") if you would rather trust a repository than a tag.
   images: |-
     [
       "ghcr.io/linuxserver/bazarr:v1.6.2-ls371",
@@ -42,7 +60,42 @@ data:
       "timescale/timescaledb-ha:pg18.6-ts2.31.0",
       "redis:8.10.3-alpine",
       "ghcr.io/raydak-labs/configarr:1.39.1",
-      "ghcr.io/luigi311/jellyplex-watched:9.0.0"
+      "ghcr.io/luigi311/jellyplex-watched:9.0.0",
+      "docker.io/cloudflare/cloudflared:2026.10.7",
+      "docker.io/glanceapp/glance:v0.8.8",
+      "docker.io/grafana/grafana:13.2.0",
+      "docker.io/grafana/mcp-grafana:2.2.0",
+      "docker.io/nginxinc/nginx-unprivileged:1.31-alpine",
+      "docker.io/prompve/prometheus-pve-exporter:3.10.2",
+      "ecr-public.aws.com/docker/library/redis:8.6.4-alpine",
+      "ghcr.io/akuity/kargo:v1.12.5",
+      "ghcr.io/argoproj-labs/mcp-for-argocd:v0.9.0",
+      "ghcr.io/bardesss/arr-mcp:1.73.0",
+      "ghcr.io/external-secrets/external-secrets:v2.12.0",
+      "ghcr.io/github/github-mcp-server:v2.1.0",
+      "ghcr.io/goauthentik/server:2026.2.3",
+      "ghcr.io/jamesatintegratnio/gitops_homelab_2_0/platform-status-reconciler:main-55400cb",
+      "ghcr.io/nginx/nginx-gateway-fabric/nginx:2.6.7",
+      "ghcr.io/nginx/nginx-gateway-fabric:2.6.7",
+      "ghcr.io/stefanprodan/podinfo:6.16.0",
+      "ghcr.io/supercorp-ai/supergateway:4.2.1",
+      "ghcr.io/umami-software/umami:3.4.1",
+      "ghcr.io/unpoller/unpoller:v5.8.3",
+      "metio/matrix-alertmanager-receiver:2026.9.23",
+      "quay.io/argoproj/argo-rollouts:v1.10.2",
+      "quay.io/argoproj/argocd:v3.5.1",
+      "quay.io/containers/kubernetes_mcp_server:v0.0.69",
+      "quay.io/jetstack/cert-manager-cainjector:v1.21.1",
+      "quay.io/jetstack/cert-manager-controller:v1.21.1",
+      "quay.io/jetstack/cert-manager-webhook:v1.21.1",
+      "quay.io/kiwigrid/k8s-sidecar:2.10.1",
+      "quay.io/prometheus-operator/prometheus-operator:v0.93.1",
+      "redis:7.4.12-alpine",
+      "registry.k8s.io/autoscaling/vpa-recommender:1.7.1",
+      "registry.k8s.io/external-dns/external-dns:v0.21.0",
+      "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.20.0",
+      "syntasso-community.docker.reo.dev/syntasso/kratix-platform",
+      "us-docker.pkg.dev/fairwinds-ops/oss/goldilocks:v4.16.3"
     ]
 ---
 apiVersion: kyverno.io/v1
@@ -50,31 +103,45 @@ kind: ClusterPolicy
 metadata:
   name: schedule-arm64-images
   annotations:
-    policies.kyverno.io/title: Schedule Allowlisted Images On arm64 Workers
+    policies.kyverno.io/title: Schedule Allowlisted Images On The Pi 4 Workers
     policies.kyverno.io/category: Scheduling
     policies.kyverno.io/severity: low
     policies.kyverno.io/subject: Pod
     policies.kyverno.io/description: >-
-      Pods in vcluster-media whose images are all on the arm64-image-allowlist
-      ConfigMap in the kyverno namespace get the node.integratn.tech/arch
-      toleration and a kubernetes.io/arch=arm64 nodeSelector, so they can run on
-      the Raspberry Pi workers. Any other pod is left alone.
+      Pods whose images are all on the arm64-image-allowlist ConfigMap in the
+      kyverno namespace get the node.integratn.tech/arch toleration, a required
+      nodeAffinity that excludes board=rpi5, and a preferred nodeAffinity for
+      board=rpi4. Any other pod, and any pod in a protected namespace, is left
+      alone.
 spec:
   admission: true
   validationFailureAction: Audit
   background: false
   rules:
-    - name: mutate-allowlisted-images-to-arm64
+    - name: mutate-allowlisted-images-to-pi4
       skipBackgroundRequests: true
       match:
         any:
           - resources:
               kinds:
                 - Pod
-              namespaces:
-                - vcluster-media
               operations:
                 - CREATE
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - kyverno
+                - cilium-secrets
+                - metallb-system
+                - nfs-provisioner
+                - local-path-storage
+                - trivy-system
+                - hermes
+                - cq
       context:
         - name: arm64Images
           configMap:
@@ -89,17 +156,51 @@ spec:
           - key: "{{ request.object.spec.[initContainers[].image || `[]`, containers[].image || `[]`][] | [*].split(@, '@')[0] }}"
             operator: AllIn
             value: "{{ parse_json(arm64Images.data.images) }}"
-          # A pod already pinned to another architecture is left alone.
+          # Already placed, or constrained by something else: leave it alone.
+          - key: "{{ request.object.spec.nodeName || '' }}"
+            operator: Equals
+            value: ""
+          # Key presence, not value: the control-plane label's value is empty.
+          - key: "{{ keys(request.object.spec.nodeSelector || `{}`) }}"
+            operator: AllNotIn
+            value:
+              - node-role.kubernetes.io/control-plane
+              - node.integratn.tech/board
           - key: "{{ request.object.spec.nodeSelector.\"kubernetes.io/arch\" || 'arm64' }}"
             operator: Equals
             value: arm64
+          - key: "{{ length(request.object.spec.affinity.nodeAffinity || `{}`) }}"
+            operator: Equals
+            value: 0
       mutate:
-        # Other nodeSelector keys are kept (merge's second argument wins). The
-        # toleration list keeps what the pod already has.
+        # Existing affinity keys (podAntiAffinity...) and tolerations are kept:
+        # the first op writes the pod's own affinity back (or {}), the second
+        # adds nodeAffinity under it (the preconditions guarantee there was none),
+        # the third appends ours to the toleration list. The nodeAffinity value is
+        # static on purpose: Kyverno's variable syntax cannot hold a JSON literal
+        # nested more than one brace deep.
         patchesJson6902: |-
           - op: add
-            path: /spec/nodeSelector
-            value: {{ merge(`{"kubernetes.io/arch":"arm64"}`, request.object.spec.nodeSelector || `{}`) }}
+            path: /spec/affinity
+            value: {{ request.object.spec.affinity || `{}` }}
+          - op: add
+            path: /spec/affinity/nodeAffinity
+            value:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: node.integratn.tech/board
+                        operator: NotIn
+                        values:
+                          - rpi5
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  preference:
+                    matchExpressions:
+                      - key: node.integratn.tech/board
+                        operator: In
+                        values:
+                          - rpi4
           - op: add
             path: /spec/tolerations
             value: {{ [request.object.spec.tolerations || `[]`, `[{"key":"node.integratn.tech/arch","operator":"Equal","value":"arm64","effect":"NoSchedule"}]`][] }}
@@ -110,10 +211,23 @@ spec:
           - resources:
               kinds:
                 - Pod
-              namespaces:
-                - vcluster-media
               operations:
                 - CREATE
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - kyverno
+                - cilium-secrets
+                - metallb-system
+                - nfs-provisioner
+                - local-path-storage
+                - trivy-system
+                - hermes
+                - cq
       context:
         - name: arm64Images
           configMap:

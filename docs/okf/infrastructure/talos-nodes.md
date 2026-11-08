@@ -1,12 +1,18 @@
 ---
 type: Infrastructure
 title: Talos nodes
-description: The three bare-metal Talos control-plane nodes and the Raspberry Pi 5 and Pi 4 arm64 workers that form the-cluster, their machine-config patches, and how they are managed.
+description: The three bare-metal Talos control-plane nodes and the Raspberry Pi 5 and Pi 4 arm64 workers that form the-cluster, their machine-config patches, how they are managed, and what is scheduled onto the Pis.
 tags: [talos, bare-metal, nodes, control-plane, worker, arm64, raspberry-pi]
 status: stable
-generated: { by: claude-code, at: 2026-11-08T17:30:00Z }
-stale_after: 2027-02-20
+generated: { by: hermes-agent, at: 2026-11-08T18:20:00Z }
+stale_after: 2027-02-08
 sources:
+  - id: arm64-scheduling
+    resource: ../../../addons/cluster-roles/control-plane/addons/network-policies/kyverno-schedule-arm64-images.yaml
+    title: The schedule-arm64-images Kyverno policy and its image allowlist
+  - id: arm64-image-check
+    resource: registry manifest lookups for the 55 images on the host cluster's Deployments, and kubectl get pods in hermes, cq, mcp-system and vcluster-media, 2026-11-08
+    title: arm64 image check and Pi occupants
   - id: pi4-nodes
     resource: kubectl get nodes -o wide, Prometheus up{} for 10.0.4.105/106, talosctl get disks on both Pi 4s, 2026-11-08
     title: Raspberry Pi 4 workers join
@@ -38,7 +44,9 @@ Since 2026-11-07 a Raspberry Pi 5 is the first dedicated worker and the first
 arm64 node. It is tainted `node.integratn.tech/arch=arm64:NoSchedule`, so only
 workloads that tolerate it run there (cilium, cilium-envoy, node-exporter,
 promtail, loki-canary).[^pi5-node] Since 2026-11-08 two Raspberry Pi 4s
-(8 GB) are arm64 workers too, with the same taint.[^pi4-nodes]
+(8 GB) are arm64 workers too, with the same taint.[^pi4-nodes] What else gets
+onto them is covered under
+[Scheduling onto the Pi workers](#scheduling-onto-the-pi-workers).
 
 | Node name       | IP         | CPU | Memory | Max pods | Role          |
 |-----------------|------------|-----|--------|----------|---------------|
@@ -135,3 +143,58 @@ hubble on both from the start (the node-scrape policy covers any worker). Runboo
 
 [^pi4-nodes]: Raspberry Pi 4 workers join
 [^pi4-runbook]: Raspberry Pi 4 worker runbook and patch
+
+# Scheduling onto the Pi workers
+
+All three Pis carry `node.integratn.tech/arch=arm64:NoSchedule`, so a pod needs
+the toleration to land on one. Two things supply it.
+
+**By hand, in the manifest.** hermes, cq-server and arr-mcp each set
+`nodeSelector: node.integratn.tech/board: rpi5` and tolerate the taint; promtail
+and loki-canary tolerate it too. On 2026-11-08 `talos-pi5-1` was running
+hermes (namespace `hermes`), cq-server (`cq`) and arr-mcp (`mcp-system`).[^arm64-image-check]
+James's intent is that the Pi 5 is for hermes and cq.
+
+**By a Kyverno ClusterPolicy, `schedule-arm64-images`.** For a pod in any
+namespace except a protected set (kube-system, kube-public, kube-node-lease,
+kyverno, cilium-secrets, metallb-system, nfs-provisioner, local-path-storage,
+trivy-system, hermes, cq), if every init and regular container image (digest
+stripped) is on the `arm64-image-allowlist` ConfigMap in the `kyverno`
+namespace, the policy adds, at pod CREATE:
+
+- the `node.integratn.tech/arch=arm64:NoSchedule` toleration;
+- a required nodeAffinity excluding `node.integratn.tech/board=rpi5`, so the Pi 5
+  stays free for hermes and cq;
+- a preferred nodeAffinity (weight 100) for `board=rpi4`.
+
+Placement is soft: if the Pi 4s are full or down, the pod runs on the
+control-plane nodes. One unlisted image leaves the whole pod untouched. A pod
+is also skipped if it already sets `nodeName`, a control-plane or board
+nodeSelector, any nodeAffinity (every DaemonSet pod has one), or an arch
+selector other than arm64. A second, Audit-only rule reports a pod that selects
+arm64 by hand while running an unlisted image.[^arm64-scheduling]
+
+The allowlist holds exact `name:tag` entries, one per image reference as it
+appears in a pod spec. Each was checked against its registry on 2026-11-08 for a
+`linux/arm64` manifest. Of the 55 distinct images on the host cluster's
+Deployments, 52 had one; `bosun` and `delivery-agent` are amd64-only and
+`specmarshal` could not be checked (registry returned 403), so none of the three
+is listed.[^arm64-image-check] Because entries are exact tags, a version bump
+(Kargo or by hand) takes that pod off the list until the tag is updated: it then
+stays on the control-plane nodes. A trailing `*` makes an entry a wildcard.
+
+Limits, stated plainly:
+
+- The Pi 5 reservation covers pods this policy mutates. It is not a taint: a pod
+  that tolerates the arch taint and sets no node constraint could still schedule
+  there. A hard reservation needs a second taint on the Pi 5, which is a Talos
+  machine-config change.
+- Mutation is CREATE-only, so existing pods move only when recreated.
+- Mutate rules have no Audit mode; the allowlist is the control.
+- Not verified: the total resource requests of the allowlisted workloads against
+  the Pi 4s' allocatable (about 3.95 CPU and 7.1 GiB each), and whether every
+  PVC the allowlisted workloads use is reachable from a Pi. `bazarr` mounted an
+  NFS PVC on `talos-pi4-1` on 2026-11-08.
+
+[^arm64-scheduling]: The schedule-arm64-images Kyverno policy and its image allowlist
+[^arm64-image-check]: arm64 image check and Pi occupants
