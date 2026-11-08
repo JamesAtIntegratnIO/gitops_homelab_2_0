@@ -233,17 +233,22 @@ halves).[^github-mcp][^skills]
   Hermes's `tools.include` names the 19 it uses (13 repo/PR tools plus, since
   2026-11-08, `issue_read`, `list_issues`, `search_issues`, `actions_list`,
   `actions_get`, `get_job_logs`, so it can read issues and a PR's failing CI
-  run and job logs). `trust: untrusted` makes every write call (branch,
-  commit, PR) wait for approval.
+  run and job logs). The server stays `trust: untrusted`, but since
+  2026-11-08 its five writes (`create_branch`, `create_or_update_file`,
+  `push_files`, `create_pull_request`, `update_pull_request`) are in
+  `command_allowlist` in the ConfigMap, so they run without a prompt; James
+  asked. An "Always" clicked in the webapp is written to `config.yaml`, which
+  is replaced from the ConfigMap at every start, so it never survived a
+  restart.
 - **Token**: 1Password item `hermes-agent`, field `GITHUB_TOKEN` (added
   2026-11-08): a fine-grained PAT on James's own account, which is an admin.
   The Hermes pod's ExternalSecret maps only the Anthropic and API-server keys
   from that item, so the token stays in `github-mcp-hermes`. The `main`
   ruleset (required `addons-gate`, no force-push or deletion) has no
   pull-request rule and lets the Admin role bypass it, so
-  `create_or_update_file`/`push_files` could name `main` as the branch. What
-  stops that today is per-call approval (`trust: untrusted`) and the
-  `gitops-fix` skill. A "require a pull request" rule without the Admin
+  `create_or_update_file`/`push_files` could name `main` as the branch. With
+  those writes pre-approved, only the `gitops-fix` skill stops that (nix_dots_2
+  has no ruleset at all). A "require a pull request" rule without the Admin
   bypass, or a non-admin bot account, would make it GitHub's guard.
 - Hermes strips `GITHUB_TOKEN`/`GH_TOKEN` from every terminal command by
   design, so git with a token in the Hermes pod was never the route.

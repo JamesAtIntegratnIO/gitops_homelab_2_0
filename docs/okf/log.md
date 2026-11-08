@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-11-08
+* **Update**: **Hermes opens branches and PRs without asking.** The five github-mcp-hermes writes are in `command_allowlist` in the ConfigMap; webapp "Always" answers were lost at every restart because config.yaml is re-copied from the ConfigMap. kubeops, argocdops and arr writes still ask. The admin-token push-to-main gap now rests on the gitops-fix skill alone. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes can read GitHub issues and CI.** github-mcp-hermes adds the `issues` and `actions` toolsets with every write excluded on the server (issue_write, sub_issue_write, add_issue_comment, update_issue_comment, actions_run_trigger); Hermes includes issue_read, list_issues, search_issues, actions_list, actions_get and get_job_logs. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Two Raspberry Pi 4s (8 GB) joined the-cluster as arm64 workers, `talos-pi4-1` (10.0.4.105) and `talos-pi4-2` (10.0.4.106), fixed leases in UniFi.** Official Image Factory Talos v1.13.12 (`rpi_generic` overlay, schematic `ee21ef4a...`) on USB sticks, so upgrades are ordinary `talosctl upgrade`. Same arm64 taint and `end0` NIC as the Pi 5; no cluster changes were needed. See [Talos nodes](infrastructure/talos-nodes.md).
 * **Update**: **Hermes knows about the Pi 4 workers.** `talos-node-health` and `cluster-health-check` 1.1.0 list `talos-pi4-1`/`talos-pi4-2` (10.0.4.105-106, `board=rpi4`, USB storage, nothing stateful), and widen the scrape check to .101-.106. See [Hermes Agent](addons/hermes.md).

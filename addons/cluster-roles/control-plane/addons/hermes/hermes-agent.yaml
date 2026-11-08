@@ -142,6 +142,23 @@ data:
       hard_stop_enabled: true      # stop exact-repeat failure loops (default false)
 
     # Security: it reads web pages, so assume prompt injection.
+    # Pre-approved MCP tool calls, per (server, tool): the same keys the
+    # webapp's "Always" answer writes. They must live here: config.yaml is
+    # copied from this ConfigMap at every pod start, so an "Always" clicked in
+    # the webapp was lost on each restart (James kept re-approving branches
+    # and PRs, 2026-11-08). GitHub branch/commit/PR writes run without asking;
+    # merge and delete are not on github-mcp-hermes at all. kubeops,
+    # argocdops and arr writes still ask every time.
+    # Risk accepted by James: the token is his admin PAT, and the main
+    # ruleset lets the Admin role bypass it, so a push_files naming `main`
+    # would land. gitops-fix forbids it; a ruleset without the Admin bypass
+    # (or a non-admin bot token) would make GitHub refuse it.
+    command_allowlist:
+      - "mcp:github/create_branch"
+      - "mcp:github/create_or_update_file"
+      - "mcp:github/push_files"
+      - "mcp:github/create_pull_request"
+      - "mcp:github/update_pull_request"
     approvals:
       mode: "smart"
       deny:                        # blocked even under /yolo
