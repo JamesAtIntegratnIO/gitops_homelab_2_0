@@ -257,6 +257,17 @@ projects:
             keys:
               - spec.template.spec.containers.0.image
               - spec.template.spec.initContainers.0.image
+      cq-server:
+        scope: cq
+        image:
+          repoURL: ghcr.io/mozilla-ai/cq/server
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        verify:
+          apps:
+            - cq-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/cq/cq-server.yaml
+            keys: [spec.template.spec.containers.0.image]
 
       # ── our own images (images/, built by GitHub Actions) ────────────
       kubectl:

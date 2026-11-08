@@ -437,6 +437,23 @@ hermes:
     syncOptions:
       - CreateNamespace=false
 
+cq:
+  # Mozilla.ai's cq knowledge store (cq-server) on the Raspberry Pi 5,
+  # SQLite on local-nvme; Hermes's `cq mcp` is its client. UI at
+  # cq.cluster.integratn.tech. Namespace and network policies are in
+  # network-policies/cq.yaml. Secrets: 1Password item `cq-server`.
+  enabled: true
+  type: manifest
+  namespace: cq
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/cq
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+
 platform-backups-talos:
   enabled: true
   type: manifest

@@ -294,6 +294,18 @@ spec:
           port: 9119
         - protocol: TCP
           port: 9120
+    # cq knowledge store UI and API (cq.cluster.integratn.tech, 3000). The
+    # other half is allow-cq-ingress in cq.yaml.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cq
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cq-server
+      ports:
+        - protocol: TCP
+          port: 3000
     # LLMKube inference backends (bare-metal/metal agent on LAN).
     # Cilium DNATs service ClusterIP → Mac endpoint before policy evaluation,
     # so the post-DNAT destination is 10.0.x.x:ephemeral — ipBlock is required.
