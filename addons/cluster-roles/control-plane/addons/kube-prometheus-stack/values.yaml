@@ -319,6 +319,23 @@ kube-state-metrics:
     successThreshold: 1
     timeoutSeconds: 10
 
+# node-exporter: add the mountstats collector so each node reports its own NFS
+# client mounts (node_mountstats_nfs_*: per export, with age, events and I/O).
+# Without it Prometheus has only node_nfs_* RPC totals, which cannot say whether
+# a node holds a stale mount for one export while the server is serving others
+# fine -- the question behind the stale-handle incidents of 2026-10-08 and
+# 2026-11-08. The filesystem collector cannot answer it either: the chart's
+# default excludes /var/lib/kubelet, where every pod's NFS volume is mounted.
+#
+# Setting extraArgs REPLACES the chart's list, so the first two entries are the
+# chart defaults copied verbatim (kube-prometheus-stack 88.5.3); the third is the
+# addition. Re-check the first two when the chart is bumped.
+prometheus-node-exporter:
+  extraArgs:
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
+    - --collector.mountstats
+
 # kube-proxy is replaced by Cilium eBPF — nothing to monitor
 kubeProxy:
   enabled: false
