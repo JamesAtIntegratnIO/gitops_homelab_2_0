@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T02:20:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-03T00:20:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -34,6 +34,9 @@ sources:
   - id: mcpo-wedge-1102
     resource: mcpo pod logs and source (mcpo 0.0.20, mcp 1.26.0), Loki and Prometheus history, Open WebUI config table, pinned image run locally against mock backends and real argocd-mcp, open-webui/mcpo #302 and #316, 2026-11-02
     title: mcpo session wedge triage 2026-11-02
+  - id: specmarshal-rc12-1103
+    resource: specmarshal pod logs and events, the rc.12 image (sha256:8309b552) run locally as 1000 and as root, helm template of chart 0.2.0-rc.12, 2026-11-03
+    title: Specmarshal rc.12 rollout failure 2026-11-03
 ---
 
 # Sync retries are finite, and a wedged operation pages (decided 2026-11-01)
@@ -1117,8 +1120,26 @@ Two things the same test measured, for the next chown hook on BusyBox:
 **A merge does not release it.** Terminate the operation, as in the entry above.
 That rolls rc.9 to rc.12 with `Recreate`, so the surface is down from the first
 SIGTERM until the new pod is ready, and the old pod may take up to
-`terminationGracePeriodSeconds` (11100s) if a run is in flight. Not yet verified
-live.
+`terminationGracePeriodSeconds` (11100s) if a run is in flight.
+
+**Released 2026-11-03 00:01Z, and rc.12 cannot start as its own chart runs it.**
+The new operation synced in one second with `limit: 10`, then the pod stuck in
+`Init:Error` on its first init container:
+
+```
+Error: Cannot read package config /opt/specmarshal/package.json: permission denied.
+```
+
+The rc.12 image ships `package.json`, two branding SVGs and one
+`dist/core/branding` entry as `root:root 0600`, and rc.12 is the first chart that
+sets `runAsUser: 1000`; rc.9 ran as root. Reproduced locally with the pinned
+digest, read-only root and every capability dropped: as 1000 the CLI dies on that
+line, as root it runs. `values.yaml` now overrides `podSecurityContext` to root
+until an image fixes the modes; the render diff is those three lines, and the
+rest of the hardening stays. The iteration Jobs are unaffected: `pods.js`
+hard-codes them to 1000 too, but they run the project's sandbox image and only
+`sleep`. The rc.9 pod it replaced had been crash-looping for 28h on a `/healthz`
+liveness timeout while the app reported `Healthy`.
 
 ## Pinning the kratix image froze half an artifact (found 2026-08-30)
 
