@@ -1,0 +1,52 @@
+# Raspberry Pi 4 arm64 WORKERS for the-cluster -- talos-pi4-1 .. talos-pi4-N.
+#
+# Generation-time patch shared by every Pi 4, used INSTEAD of all.yaml/work.yaml
+# (see rpi4-worker.md). The per-node hostname is a second, inline patch at render
+# time. Holds no secrets; the rendered config does, and it is never committed.
+#
+# Unlike the Pi 5 (rpi5-worker.yaml), the Pi 4 is supported upstream: the image
+# is the official Image Factory build with the rpi_generic overlay, so upgrades
+# pull a normal factory installer.
+machine:
+  install:
+    # The disk the raw image was flashed to. Upgrades rewrite it; nothing wipes.
+    # USB SSD = /dev/sda, SD card = /dev/mmcblk0. Confirm in maintenance mode:
+    # `talosctl -n <ip> get disks --insecure`.
+    disk: /dev/sda
+    wipe: false
+    # Image Factory schematic: overlay siderolabs/sbc-raspberrypi rpi_generic,
+    # no extensions (rpi4-worker.md, "The image").
+    image: factory.talos.dev/metal-installer/ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9:v1.13.12
+  kubelet:
+    defaultRuntimeSeccompProfileEnabled: true
+    disableManifestsDirectory: true
+    # Same arm64 taint as the Pi 5, set at registration (workers cannot change
+    # their own taints afterwards: NodeRestriction). Six running images are
+    # amd64-only (Kratix pipeline images, bosun, delivery-agent).
+    extraConfig:
+      registerWithTaints:
+        - key: node.integratn.tech/arch
+          value: arm64
+          effect: NoSchedule
+  network:
+    interfaces:
+      - deviceSelector:
+          physical: true
+        dhcp: true
+    nameservers:
+      - 10.0.0.1
+      - 1.1.1.1
+      - 8.8.8.8
+  features:
+    hostDNS:
+      enabled: true
+      forwardKubeDNSToHost: true
+  nodeLabels:
+    cluster-role: worker
+    node.integratn.tech/board: rpi4
+cluster:
+  network:
+    cni:
+      name: none
+  proxy:
+    disabled: true

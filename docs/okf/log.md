@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-11-08
+* **Update**: **Two Raspberry Pi 4s (8 GB) joined the-cluster as arm64 workers, `talos-pi4-1` (10.0.4.105) and `talos-pi4-2` (10.0.4.106), fixed leases in UniFi.** Official Image Factory Talos v1.13.12 (`rpi_generic` overlay, schematic `ee21ef4a...`) on USB sticks, so upgrades are ordinary `talosctl upgrade`. Same arm64 taint and `end0` NIC as the Pi 5; no cluster changes were needed. See [Talos nodes](infrastructure/talos-nodes.md).
 * **Update**: **Hermes knows about the Pi 4 workers.** `talos-node-health` and `cluster-health-check` 1.1.0 list `talos-pi4-1`/`talos-pi4-2` (10.0.4.105-106, `board=rpi4`, USB storage, nothing stateful), and widen the scrape check to .101-.106. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes can sync ArgoCD apps, each approved by James.** New `argocd-mcp-ops` in `mcp-system` (Hermes only) with ArgoCD account `hermes-ops`, RBAC get + sync only; Hermes exposes only `sync_application`. Rules in `cluster-remediate`. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes has a knowledge memory: Mozilla.ai cq.** The `cq` CLI (v0.19.2, built into the Hermes image) runs as a stdio MCP server with its SQLite store on the Pi's local NVMe (`/opt/data/cq/local.db`). New skill `knowledge-memory`. See [Hermes Agent](addons/hermes.md).

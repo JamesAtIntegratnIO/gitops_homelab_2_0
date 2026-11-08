@@ -1,12 +1,18 @@
 ---
 type: Infrastructure
 title: Talos nodes
-description: The three bare-metal Talos control-plane nodes and the Raspberry Pi 5 arm64 worker that form the-cluster, their machine-config patches, and how they are managed.
+description: The three bare-metal Talos control-plane nodes and the Raspberry Pi 5 and Pi 4 arm64 workers that form the-cluster, their machine-config patches, and how they are managed.
 tags: [talos, bare-metal, nodes, control-plane, worker, arm64, raspberry-pi]
 status: stable
-generated: { by: claude-code, at: 2026-11-07T19:00:00Z }
+generated: { by: claude-code, at: 2026-11-08T17:30:00Z }
 stale_after: 2027-02-20
 sources:
+  - id: pi4-nodes
+    resource: kubectl get nodes -o wide, Prometheus up{} for 10.0.4.105/106, talosctl get disks on both Pi 4s, 2026-11-08
+    title: Raspberry Pi 4 workers join
+  - id: pi4-runbook
+    resource: ../../../matchbox/talos-machineconfigs/rpi4-worker.md
+    title: Raspberry Pi 4 worker runbook and patch
   - id: pi5-node
     resource: kubectl get node talos-pi5-1 -o wide and talosctl get volumestatus,disks on 10.0.4.104, 2026-11-07
     title: Raspberry Pi 5 worker join
@@ -31,7 +37,8 @@ plane and the main worker pool (`allowSchedulingOnControlPlanes: true`).[^node-o
 Since 2026-11-07 a Raspberry Pi 5 is the first dedicated worker and the first
 arm64 node. It is tainted `node.integratn.tech/arch=arm64:NoSchedule`, so only
 workloads that tolerate it run there (cilium, cilium-envoy, node-exporter,
-promtail, loki-canary).[^pi5-node]
+promtail, loki-canary).[^pi5-node] Since 2026-11-08 two Raspberry Pi 4s
+(8 GB) are arm64 workers too, with the same taint.[^pi4-nodes]
 
 | Node name       | IP         | CPU | Memory | Max pods | Role          |
 |-----------------|------------|-----|--------|----------|---------------|
@@ -39,6 +46,8 @@ promtail, loki-canary).[^pi5-node]
 | `talos-4kg-ymz` | 10.0.4.102 | 4   | ~32 Gi | 110      | control-plane |
 | `talos-1jv-u7d` | 10.0.4.103 | 4   | ~32 Gi | 110      | control-plane |
 | `talos-pi5-1`   | 10.0.4.104 | 4   | 16 Gi  | 110      | worker (arm64) |
+| `talos-pi4-1`   | 10.0.4.105 | 4   | 8 Gi   | 110      | worker (arm64) |
+| `talos-pi4-2`   | 10.0.4.106 | 4   | 8 Gi   | 110      | worker (arm64) |
 
 As of 2026-08-20: Talos **v1.11.5**, Kubernetes **v1.34.1**, kernel
 6.12.57-talos, containerd 2.1.5. Nodes have been up ~221 days (provisioned
@@ -111,3 +120,18 @@ worker needs nothing more.
 
 [^pi5-node]: Raspberry Pi 5 worker join
 [^pi5-runbook]: Raspberry Pi 5 worker runbook and patch
+
+# Raspberry Pi 4 workers
+
+`talos-pi4-1` (10.0.4.105) and `talos-pi4-2` (10.0.4.106) run the official Image
+Factory Talos v1.13.12 image (overlay `rpi_generic`, schematic `ee21ef4a...`),
+booted from USB sticks that hold boot, STATE and EPHEMERAL. Shared patch
+`rpi4-worker.yaml` plus a per-node HostnameConfig. Label
+`node.integratn.tech/board=rpi4`, the same arm64 taint via `registerWithTaints`,
+NIC `end0`. Upgrades use `factory.talos.dev/metal-installer/<schematic>:<version>`,
+so no private registry is needed. Prometheus scraped kubelet, node-exporter and
+hubble on both from the start (the node-scrape policy covers any worker). Runbook:
+[rpi4-worker.md](../../../matchbox/talos-machineconfigs/rpi4-worker.md).[^pi4-runbook]
+
+[^pi4-nodes]: Raspberry Pi 4 workers join
+[^pi4-runbook]: Raspberry Pi 4 worker runbook and patch
