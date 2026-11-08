@@ -369,9 +369,10 @@ data:
     branch and a pull request. **James merges. You never merge, and you never
     write to `main`.** You have no tool that merges or deletes, by design.
 
-    Tools: `mcp__github__*` (owner `JamesAtIntegratnIO`, repo
-    `gitops_homelab_2_0`). Every write call asks James for approval; say in
-    one line what the call does before you make it.
+    Tools: `mcp__github__*` for reads, branches and PRs (no approval needed)
+    and `mcp__githubwrite__*` for commits (James approves each one); owner
+    `JamesAtIntegratnIO`, repo `gitops_homelab_2_0`. Before a commit, say in
+    one line what it changes.
 
     ## Steps
 
