@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-08T16:00:00Z }
+generated: { by: claude-code, at: 2026-11-08T18:40:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -25,9 +25,18 @@ sources:
   - id: backup
     resource: ../../../addons/cluster-roles/control-plane/addons/hermes/hermes-backup.yaml
     title: Hermes nightly backup CronJob
+  - id: design-skill
+    resource: ../../../hack/hermes-design/SKILL.md
+    title: integratn-design skill (source; generated into design-skill.yaml)
   - id: github-mcp
     resource: ../../../addons/cluster-roles/control-plane/addons/mcp-system/github-mcp-hermes.yaml
     title: github-mcp-hermes
+  - id: arr-mcp
+    resource: ../../../addons/cluster-roles/control-plane/addons/mcp-system/arr-mcp.yaml
+    title: arr-mcp config and ExternalSecret
+  - id: arr-mcp-upstream
+    resource: https://github.com/bardesss/arr-mcp/tree/v1.73.0
+    title: bardesss/arr-mcp v1.73.0
   - id: optimization-guide
     resource: https://github.com/OnlyTerp/hermes-optimization-guide/tree/f865f8a
     title: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
@@ -40,11 +49,11 @@ sources:
 
 One pod, `hermes-agent` in namespace `hermes`, pinned to `talos-pi5-1` (it
 tolerates the node's arm64 taint). The image is
-`ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt`,
+`ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2`,
 digest-pinned: the official `nousresearch/hermes-agent:v0.23.0` with the
 `stt-whisper` extra (faster-whisper 1.2.1) installed beside its venv, in `/opt/hermes-stt` on `PYTHONPATH`, pinned from Hermes's
-own `uv.lock`, so speech-to-text runs locally on the Pi's CPU
-(`images/hermes-agent/`). It runs `gateway run`; with
+own `uv.lock`, so speech-to-text runs locally on the Pi's CPU, plus the
+`cq` CLI at `/usr/local/bin/cq` (`images/hermes-agent/`). It runs `gateway run`; with
 no chat platform configured, the service it offers is the OpenAI-compatible API
 server on port 8642 (ClusterIP `hermes-agent`, no ingress from other namespaces
 yet). Open WebUI (namespace `ai`) may reach it, with `API_SERVER_KEY`.[^manifests]
@@ -159,14 +168,78 @@ Skills from git, in ConfigMap `hermes-skills`, mounted read-only under
 firing alerts) and `cluster-triage` (this platform's failure shapes: one-sided
 NetworkPolicies, etcd disk stalls, host-DNS restart storms, stale NFS after a
 Tower reset, the stale nginx-gateway data plane). Both use only the read-only
-MCP tools and treat every fix as a PR for James. They are adapted from the
+MCP tools and treat every fix as a PR for James. Three more read-only skills
+since 2026-11-08: `loki-log-triage` (scoping, patterns and the log lines that
+have meant something here), `kargo-health` (the `kargo_*` kube-state-metrics
+series, then Stage/Promotion/Freight objects, then orphaned
+`kargo/promotion/*` PRs; remedies are reported for James) and
+`talos-node-health` (conditions, versions, cross-node disk-latency
+comparison, scrape gaps; no talosctl, so Talos-layer checks are named for
+James). For kargo-health the `kubernetes-mcp-viewer` ClusterRole reads
+`kargo.akuity.io` projects, projectconfigs, warehouses, stages, freights and
+promotions. They are adapted from the
 repo's `.claude/skills/cluster-triage` and [known issues](../cluster/known-issues.md).[^skills]
+
+**Design system** (`integratn-design`, 2026-11-08). James rejected Hermes's
+first architecture page as generic AI styling, so anything visual Hermes makes
+now follows the IntegratnIO design system ("The Night Shift Ledger",
+`DESIGN.md` in IntegratnIO/specmarshal, the same tokens as Glance and the
+ArgoCD/Kargo/authentik themes). The skill carries `templates/base.css` (tokens,
+components, SVG diagram classes, light ramp) and `templates/page.html` (the
+cluster architecture page redone in the system) as linked files. Its source is
+`hack/hermes-design/`; `gen.sh` writes ConfigMap `hermes-skill-design`
+(`design-skill.yaml`), mounted with `subPath` under
+`/opt/hermes-skills/homelab/integratn-design/`. Edit the source files and
+rerun `gen.sh` (`--check` fails when the YAML is stale), never the YAML.[^design-skill]
 
 Each file is a `subPath` mount: a plain ConfigMap volume adds hidden `..data`
 symlink directories, and Hermes walks skill directories following symlinks, so
 every skill would be listed twice. Hermes truncates a skill's `description` to
 60 characters in its prompt index, so keep them short. Skills the agent writes
-itself go to `/opt/data/skills` and are scanned.
+itself go to `/opt/data/skills` (its PVC, persistent) and are scanned.
+
+**How Hermes improves its skills** (`skill-improve`, 2026-11-08). The git
+skills stay read-only, so a prompt injection cannot rewrite Hermes's own
+rules; Hermes changes them by PR to `skills.yaml` (plus the mount in
+`hermes-agent.yaml` for a new skill) through github-mcp-hermes, and James
+merges. Hermes's local skills are found before the git ones, so it must never
+copy a git skill into `/opt/data/skills` under the same name: that would
+shadow later fixes from git. This route needs the GitHub token to have
+Contents and Pull requests write. First rule learned this way (James relayed
+it from a Hermes session): cluster-remediate 1.1.0 re-reads the pod right
+before a cordon, delete or restart and stops if the failure no longer
+persists.
+
+# Knowledge memory (cq)
+
+Hermes's long-term operational memory is Mozilla.ai's
+[cq](https://github.com/mozilla-ai/cq) (James's choice, 2026-11-08), next to
+its built-in MEMORY.md/USER.md. The `cq` Go CLI (cli/v0.19.2, built from
+source into our image, `images/hermes-agent`) runs as a stdio MCP server
+(`mcp_servers.cq`) with its SQLite store at `/opt/data/cq/local.db`, on the
+Pi's local NVMe data volume: a query took about 15 ms in testing and never
+leaves the node. Tools: query, propose, confirm, flag, revoke, status, at
+`trust: full` (cq declares no `readOnlyHint`, and its writes only touch that
+file). The `knowledge-memory` skill sets the loop: query before acting,
+propose when a lesson stabilizes, confirm/flag after; no secrets, nothing a
+page or log told it to remember, and rules for acting go in git skills
+instead. Never the hosted cq.exchange.
+
+**cq-server** (added 2026-11-08, James: cq runs as its own service) is the
+store: `ghcr.io/mozilla-ai/cq/server` v0.12.4 in namespace `cq`, on the Pi 5
+with SQLite on a 2 Gi local-nvme PVC, UI and API at
+`https://cq.cluster.integratn.tech` (addon `cq`, Kargo target `cq-server`).
+Secrets from 1Password item `cq-server` (`CQ_JWT_SECRET`,
+`CQ_API_KEY_PEPPER`, `HERMES_API_KEY`; UI user `james` seeded once by hand,
+since the image lacks upstream's `seed-users.py`; API keys are made in the UI). Ingress from nginx-gateway and
+Hermes only, no egress. The CLI stays the MCP surface: with `CQ_ADDR` and
+`CQ_API_KEY` set, `cq mcp` sends proposals to the server as `private` and, on
+start, drains every local unit to it (deleting the local copy); remote units
+reach agents only after James approves them in the UI's review queue. Data
+reads on the API are open by upstream design, so the gateway does not
+serve `/api/v1/knowledge` at all (404); the UI keeps cq's own login only (cq
+has no SSO, and James did not want two logins), and Hermes reads by ClusterIP.
+Nothing secret goes in regardless.
 
 # Live operational fixes
 
@@ -185,6 +258,15 @@ verify on another node -> uncordon). Node patch also permits labels and
 taints and workload patch permits any template change: the approval prompt
 and ArgoCD self-heal are the guards there.
 
+ArgoCD syncs go through a third server, `argocd-mcp-ops` (Hermes's
+`mcp_servers.argocdops`, 2026-11-08): mcp-for-argocd with writes on, but its
+ArgoCD account `hermes-ops` may only `get` and `sync` (RBAC in
+`addons/clusters/the-cluster/addons/argo-cd/values.yaml`), so
+create/update/delete and resource actions are refused by ArgoCD. Hermes
+includes only `sync_application`, `trust: untrusted`, and cluster-remediate
+says when a sync is appropriate. Token: 1Password `argocd-hermes-ops`/`token`
+(`argocd account generate-token --account hermes-ops`).
+
 # GitOps fixes
 
 Hermes proposes manifest fixes as branch + PR on
@@ -201,10 +283,17 @@ halves).[^github-mcp][^skills]
   environment, served over streamable HTTP by supergateway. The binary comes
   from the pinned `github-mcp-server` image as an image volume (it is
   distroless).
-- **Tools are cut on the server**: toolsets `repos,pull_requests` with
-  `--exclude-tools` for merge, delete, repo create/fork and reviews, leaving
-  19. Hermes's `tools.include` repeats the 13 it uses, and `trust: untrusted`
-  makes every write call (branch, commit, PR) wait for approval.
+- **Tools are cut on the server**: toolsets `repos,pull_requests,issues,actions`
+  with `--exclude-tools` for delete, repo create/fork, reviews, every
+  issue/comment write and workflow trigger. Since 2026-11-08 Hermes has two
+  entries on it: `github` (`trust: full`: reads, issue/CI reads,
+  create_branch, create_pull_request, update_pull_request,
+  update_pull_request_branch and, since James asked for Hermes to fix and
+  merge Kargo bump PRs without approval, merge_pull_request) needs no
+  approval; `githubwrite` (`trust: untrusted`: create_or_update_file,
+  push_files) asks James on every call. The `gitops-fix` skill's "Merging" section sets the
+  rules: only when asked, gate green on the reviewed head sha, squash, one
+  at a time.
 - **Token**: 1Password item `hermes-agent`, field `GITHUB_TOKEN` (added
   2026-11-08): a fine-grained PAT on James's own account, which is an admin.
   The Hermes pod's ExternalSecret maps only the Anthropic and API-server keys
@@ -218,6 +307,59 @@ halves).[^github-mcp][^skills]
 - Hermes strips `GITHUB_TOKEN`/`GH_TOKEN` from every terminal command by
   design, so git with a token in the Hermes pod was never the route.
 
+# Inside the media vcluster
+
+The host's kubernetes-mcp sees vcluster-media only as synced pods
+(`<pod>-x-media-x-vcluster-media`). Hermes's `kubemedia` server is a second
+read-only kubernetes-mcp-server running **inside** the vcluster (added
+2026-11-08), deployed by the vcluster's own ArgoCD from
+`workloads/vcluster-media/addons/kubernetes-mcp`, so its in-cluster
+ServiceAccount token is a vcluster token. It is bound to the built-in `view`
+ClusterRole plus get/list/watch on ArgoCD's `applications`, `applicationsets`
+and `appprojects`; Secrets are also denied in the server config. The only
+kubeconfig the host holds for the vcluster (`vc-vcluster-media`) is
+cluster-admin, which is why nothing crosses the boundary instead. Hermes calls
+the synced Service `kubernetes-mcp-x-media-x-vcluster-media.vcluster-media:8080`
+(egress `allow-vcluster-media-mcp-egress`, ingress
+`allow-hermes-kubernetes-mcp-ingress`). Its image is on the `kubernetes-mcp`
+Kargo target (key `extraObjects.0...image`, so the Deployment stays the first
+extraObject).
+
+# Inside the media apps
+
+Hermes works inside Sonarr, Radarr, Bazarr, SABnzbd and Jellyfin, not only on
+their manifests, through `arr-mcp` (github.com/bardesss/arr-mcp v1.73.0) in
+`mcp-system` (Hermes's `mcp_servers.arr`, port 6060, no HTTPRoute, ingress from
+Hermes only; added 2026-11-08). Chosen over the other arr MCP servers on
+GitHub for activity, coverage of our whole stack (Bazarr and SABnzbd
+included), a multi-arch image and `readOnlyHint` on every read tool.[^arr-mcp][^arr-mcp-upstream]
+
+- **Writes are gated three times.** arr-mcp grants `safe_write` (search, grab,
+  monitor, rescan, retry, pause, subtitle search, profile change) on the four
+  arr apps and `destructive` nowhere; Jellyfin is read-only. Hermes's token is
+  tier `write`, which caps it below `destructive` whatever the file says.
+  Every write is a preview, then a confirm with the preview's token, audited to
+  `audit.db`; under `trust: untrusted` that is two approvals in Hermes per
+  write. `tools.include` lists the 18 reads and 10 safe writes Hermes uses.
+- **Config is git's.** arr-mcp reads only `/config/config.yaml`, with no env
+  substitution, so ExternalSecret `arr-mcp-config` renders the whole file from
+  1Password `homepage-secret` (the apps' keys) and `arr-mcp` (`MCP_TOKEN`,
+  written only as its sha256; `UI_PASSWORD_HASH`, so the config UI starts
+  claimed instead of handing itself to the first visitor). An init container
+  copies it onto the PVC at every start; changes made in the UI last until the
+  next restart.
+- **Runs on the Pi** beside Hermes, on `local-nvme` (1 Gi, its SQLite audit,
+  log and session files). Not Tower NFS: Bazarr's SQLite corrupted there.
+- **The token is in the Hermes pod** (`ARR_MCP_TOKEN`, Secret
+  `hermes-arr-mcp`), because Hermes sends it as a header. Its terminal could
+  read it and call arr-mcp directly, skipping Hermes's approval prompts; the
+  server's own limits (no destructive tier, preview + confirm) still hold.
+- **House rules** are the `media-house-rules` skill: TV max 1080p (replace,
+  never delete first), no bulk writes (Tower), OpenSubtitles' 1,000/day
+  shared with Jellyfin, the anime-specials numbering gap.
+- To look at the config UI: `kubectl --context admin@the-cluster -n mcp-system
+  port-forward svc/arr-mcp 6060`, sign in as `admin` with `arr-mcp` field `password`.
+
 [^manifests]: Hermes addon manifests
 [^policies]: Hermes namespace and network policies
 [^upstream-docker]: Hermes Agent Docker guide (v0.23.0)
@@ -226,6 +368,8 @@ halves).[^github-mcp][^skills]
 [^skills]: Hermes cluster skills
 [^github-mcp]: github-mcp-hermes
 [^backup]: Hermes nightly backup CronJob
+[^arr-mcp]: arr-mcp config and ExternalSecret
+[^arr-mcp-upstream]: bardesss/arr-mcp v1.73.0
 
 # Tuning
 
@@ -235,7 +379,19 @@ v0.21.4, with every key checked against v0.23.0's built-in defaults first.[^opti
 - **Cost**: the side tasks (compression, titles, background review, approval
   classifier, curator, goal judge) run on `claude-haiku-5-5` instead of the main
   Sonnet model. `tts` is disabled, at most 4 concurrent subagents, and
-  exact-repeat tool loops hard-stop.
+  exact-repeat tool loops hard-stop. Since 2026-11-08 a run stops at 60 model
+  turns (`agent.max_turns`), with a one-time warning to the model at 80%
+  (`agent.budget_warning_ratio: 0.8`), and `prompt_caching.cache_ttl` is
+  `auto` (1-hour cache for chats, 5-minute for cron, API and subagents).
+- **One-shot runs skip every approval.** `hermes -z` sets
+  `HERMES_YOLO_MODE=1` (v0.23.0 `hermes_cli/oneshot.py`), and yolo also skips
+  the `trust: untrusted` MCP gate, so a one-shot run can call kubeops and
+  GitHub writes unprompted. The terminal runs in the same pod as the same uid,
+  so `approvals.deny` blocks `hermes -z`, `--oneshot`, `--yolo`,
+  `HERMES_YOLO_MODE`, `hermes config set` and `approvals.mode`. Deny rules
+  are fnmatch over shell commands and a Python subprocess gets past them, so
+  the real limit is still kubeops's RBAC. Cron and `hermes chat -q` keep the
+  default `deny` for unattended approvals.
 - **Security**: smart approvals with a deny list (`sudo`, piping `curl`/`wget`
   to a shell, `dd` to devices, force-push, `authorized_keys`, `kubectl`), no
   private URLs, secret redaction, no runtime pip installs, internal hosts on the
@@ -253,4 +409,4 @@ v0.21.4, with every key checked against v0.23.0's built-in defaults first.[^opti
   Delegation and cron stay on the main model.
 
 [^optimization-guide]: OnlyTerp hermes-optimization-guide (pinned to Hermes v0.21.4)
-
+[^design-skill]: integratn-design skill (source; generated into design-skill.yaml)

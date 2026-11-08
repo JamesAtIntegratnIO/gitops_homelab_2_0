@@ -170,7 +170,7 @@ spec:
             matchExpressions:
               - key: app
                 operator: In
-                values: [kubernetes-mcp, kubernetes-mcp-ops, argocd-mcp, grafana-mcp, github-mcp-hermes]
+                values: [kubernetes-mcp, kubernetes-mcp-ops, argocd-mcp, argocd-mcp-ops, grafana-mcp, github-mcp-hermes, arr-mcp]
       ports:
         - protocol: TCP
           port: 8080
@@ -180,3 +180,56 @@ spec:
           port: 8000
         - protocol: TCP
           port: 8083   # github-mcp-hermes
+        - protocol: TCP
+          port: 6060   # arr-mcp
+---
+# The read-only kubernetes-mcp inside vcluster-media, on its synced Service
+# (kubernetes-mcp-x-media-x-vcluster-media). The other half is
+# allow-hermes-kubernetes-mcp-ingress in vcluster-media.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vcluster-media-mcp-egress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vcluster-media
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kubernetes-mcp
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# cq-server, the knowledge store Hermes's `cq mcp` client writes to. The
+# other half is allow-cq-ingress in cq.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cq-egress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cq
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cq-server
+      ports:
+        - protocol: TCP
+          port: 3000

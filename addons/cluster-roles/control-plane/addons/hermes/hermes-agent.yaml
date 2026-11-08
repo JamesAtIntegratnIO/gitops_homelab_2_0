@@ -53,6 +53,55 @@ spec:
         key: hermes-agent
         property: API_SERVER_KEY
 ---
+# arr-mcp's bearer token (mcp-system/arr-mcp.yaml; tier `write`, so it cannot
+# delete). Separate from hermes-agent: one bad field fails the whole Secret.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hermes-arr-mcp
+  namespace: hermes
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: hermes-arr-mcp
+    creationPolicy: Owner
+  data:
+    - secretKey: MCP_TOKEN
+      remoteRef:
+        key: arr-mcp
+        property: MCP_TOKEN
+---
+# cq-server's address and Hermes's API key for it, read by mcp_servers.cq's
+# env. Its own Secret (optional in the pod): until the item has
+# HERMES_API_KEY, this Secret does not exist, both env entries render empty,
+# and cq stays on its local file.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hermes-cq
+  namespace: hermes
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: hermes-cq
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        CQ_ADDR: "http://cq-server.cq.svc.cluster.local:3000"
+        CQ_API_KEY: "{{ .apiKey }}"
+  data:
+    - secretKey: apiKey
+      remoteRef:
+        key: cq-server
+        property: HERMES_API_KEY
+---
 # The settings git owns. An init container copies this over
 # /opt/data/config.yaml on every start, so a change made inside the pod
 # (`hermes config set ...`) lasts only until the next restart; make it here.
@@ -106,6 +155,15 @@ data:
     agent:
       disabled_toolsets:
         - "tts"          # no voice provider; browser stays (see /dev/shm below)
+      # Cost caps (keys checked against v0.23.0 config_defaults.py). A run
+      # stops after 60 model turns; at 80% the model gets a one-time warning so
+      # it can wrap up rather than being cut off mid-task. Default is unlimited.
+      max_turns: 60
+      budget_warning_ratio: 0.8
+    # "auto": 1-hour Anthropic cache for human-paced chats (pauses longer than
+    # 5 minutes), 5-minute for cron, API and subagents. Default is "5m".
+    prompt_caching:
+      cache_ttl: "auto"
     delegation:
       max_concurrent_children: 4   # default 10; a Pi 5 has 4 cores and tools run in-pod
     tool_loop_guardrails:
@@ -122,6 +180,18 @@ data:
         - "git push --force*"
         - "*authorized_keys*"
         - "kubectl *"              # the pod has no kube credentials; be explicit anyway
+        # A nested `hermes -z` sets HERMES_YOLO_MODE=1, and yolo also skips the
+        # trust: untrusted MCP gate (kubeops, github). These keep the terminal
+        # from starting an unapproved run of itself, or rewriting its own
+        # approval settings. fnmatch over the lowercased command. Not airtight
+        # (a python subprocess is not a shell command): kubeops RBAC is the
+        # real limit.
+        - "*hermes* -z*"
+        - "*hermes*--oneshot*"
+        - "*--yolo*"
+        - "*hermes_yolo_mode*"
+        - "*hermes*config set*"
+        - "*approvals.mode*"
     security:
       allow_private_urls: false    # also enforced by network-policies/hermes.yaml
       redact_secrets: true
@@ -202,6 +272,26 @@ data:
             - "resources_list"
           resources: false
           prompts: false
+      # The same read-only server, running INSIDE vcluster-media and reading
+      # the vcluster's own API (its Deployments, PVCs, events, ArgoCD
+      # Applications) with a vcluster `view` token. No Secrets.
+      # workloads/vcluster-media/addons/kubernetes-mcp.
+      kubemedia:
+        url: "http://kubernetes-mcp-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8080/mcp"
+        trust: "untrusted"
+        timeout: 60
+        tools:
+          include:
+            - "events_list"
+            - "namespaces_list"
+            - "pods_get"
+            - "pods_list"
+            - "pods_list_in_namespace"
+            - "pods_log"
+            - "resources_get"
+            - "resources_list"
+          resources: false
+          prompts: false
       # Operational actions, each approved by James (trust: untrusted; neither
       # tool declares readOnlyHint): kubernetes-mcp-ops in mcp-system, which
       # exposes only these two tools and whose RBAC allows only pod delete,
@@ -257,14 +347,65 @@ data:
             - "get_application_workload_logs"
           resources: false
           prompts: false
+      # ArgoCD sync, each approved by James (trust: untrusted). argocd-mcp-ops
+      # runs with writes on, but its ArgoCD account `hermes-ops` may only get
+      # and sync (mcp-system/argocd-mcp-ops-deployment.yaml); the reads stay on
+      # the read-only `argocd` server above. Use for an app stuck OutOfSync
+      # that self-heal does not retry, or to re-sync after a fix merges.
+      argocdops:
+        url: "http://argocd-mcp-ops.mcp-system.svc.cluster.local:3000/mcp"
+        trust: "untrusted"
+        timeout: 120
+        tools:
+          include:
+            - "sync_application"
+          resources: false
+          prompts: false
       # GitOps fixes: branch + PR on JamesAtIntegratnIO/gitops_homelab_2_0,
       # through github-mcp-hermes (mcp-system/github-mcp-hermes.yaml), which
       # holds the bot token so it never enters this pod. The server already
       # refuses merge, delete, repo create/fork and reviews; this list is the
       # second guard. Writes (no readOnlyHint) each need approval: untrusted.
+      # Knowledge memory: Mozilla.ai's cq (James's pick, 2026-11-08), the
+      # `cq` CLI built into our image (images/hermes-agent) and run as a stdio
+      # MCP server. Its SQLite store sits on the data volume, the Pi's local
+      # NVMe. The store of record is cq-server (addon cq) via CQ_ADDR and
+      # CQ_API_KEY (Secret hermes-cq); the local file is the fallback. trust: full because cq declares no readOnlyHint and its
+      # writes only touch that local file; an approval per query would make
+      # it useless. Skill: knowledge-memory.
+      cq:
+        command: "/usr/local/bin/cq"
+        args: ["mcp"]
+        env:
+          CQ_LOCAL_DB_PATH: "/opt/data/cq/local.db"
+          CQ_CONFIG_DIR: "/opt/data/cq"
+          # cq-server (addon cq). Unset -> local only. Set -> proposals go to
+          # the server as `private`, and local units drain to it on start.
+          CQ_ADDR: "${CQ_ADDR}"
+          CQ_API_KEY: "${CQ_API_KEY}"
+        trust: "full"
+        timeout: 60
+        tools:
+          include:
+            - "query"
+            - "propose"
+            - "confirm"
+            - "flag"
+            - "revoke"
+            - "status"
+          resources: false
+          prompts: false
+      # Branches and PRs without approval (James, 2026-11-08: approving each
+      # one was busywork). trust: full is safe here because none of these can
+      # change `main`: create_branch only adds a ref, a PR only proposes, and
+      # github-mcp-hermes refuses merge, delete, repo create/fork and reviews
+      # outright. The file writes, which take any branch name including
+      # `main`, are on `githubwrite` below and still need approval, because
+      # the token is James's admin PAT and the `main` ruleset lets the Admin
+      # role bypass it.
       github:
         url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
-        trust: "untrusted"
+        trust: "full"
         timeout: 120
         tools:
           include:
@@ -277,10 +418,78 @@ data:
             - "search_code"
             - "search_pull_requests"
             - "create_branch"
-            - "create_or_update_file"
-            - "push_files"
             - "create_pull_request"
             - "update_pull_request"
+            - "update_pull_request_branch"
+            # Merges without approval (James, 2026-11-08 card: "Merge without
+            # asking"). The gitops-fix skill limits when; addons-gate is the
+            # check.
+            - "merge_pull_request"
+            # Read-only: issues and CI (workflow runs, job logs), so a PR's
+            # failing check can be read without James (2026-11-08).
+            - "issue_read"
+            - "list_issues"
+            - "search_issues"
+            - "actions_list"
+            - "actions_get"
+            - "get_job_logs"
+          resources: false
+          prompts: false
+      # Commits: the same server, each call approved by James (untrusted).
+      githubwrite:
+        url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
+        trust: "untrusted"
+        timeout: 120
+        tools:
+          include:
+            - "create_or_update_file"
+            - "push_files"
+          resources: false
+          prompts: false
+      # Inside the media apps (mcp-system/arr-mcp.yaml): Sonarr, Radarr, Bazarr,
+      # SABnzbd, Jellyfin. Every read declares readOnlyHint; writes need
+      # approval (untrusted), and each is a preview then a confirm. The server
+      # grants safe_write on the four arr apps and no destructive tier at
+      # all, and the token is tier `write`; this list is the second guard
+      # (no deletes, no Seerr/Profilarr/indexer tools). Token: 1Password
+      # `arr-mcp`/MCP_TOKEN via the hermes-arr-mcp Secret. If it is missing,
+      # this server alone fails to connect.
+      arr:
+        url: "http://arr-mcp.mcp-system.svc.cluster.local:6060/mcp"
+        trust: "untrusted"
+        timeout: 120
+        headers:
+          Authorization: "Bearer ${ARR_MCP_TOKEN}"
+        tools:
+          include:
+            - "diagnose"
+            - "stack_health"
+            - "search_media"
+            - "get_media_details"
+            - "get_metadata_issues"
+            - "get_library"
+            - "get_profile_issues"
+            - "get_queue"
+            - "get_history"
+            - "get_wanted"
+            - "get_releases"
+            - "get_blocklist"
+            - "get_calendar"
+            - "get_subtitles"
+            - "get_playback"
+            - "get_indexers"
+            - "lookup_media"
+            - "discover_media"
+            - "trigger_search"
+            - "trigger_scan"
+            - "trigger_subtitle_search"
+            - "grab_release"
+            - "set_monitoring"
+            - "update_media"
+            - "add_media"
+            - "retry_download"
+            - "pause_downloads"
+            - "remove_blocklist_item"
           resources: false
           prompts: false
     # ---- Features, 2026-11-07. Only free ones that need no key beyond
@@ -408,7 +617,7 @@ spec:
               readOnly: true
       containers:
         - name: hermes
-          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt@sha256:21ab2657e366698eef8f07a65fb7c3e148f292011c9da28e9bdcffafc001b00a
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2@sha256:a1a8de48b0ba04ae757fd7008c649d4800a9a2b4d7654001178098b0e12b0e20
           args: ["gateway", "run"]
           # s6 /init runs as root to chown /opt/data, then s6-setuidgid drops
           # every service to uid 10000, and s6-svscan signals those processes.
@@ -445,6 +654,27 @@ spec:
             # this). Keep equal to limits.cpu so it is not throttled.
             - name: OMP_NUM_THREADS
               value: "4"
+            # arr-mcp's bearer token, read by mcp_servers.arr's header. Its own
+            # Secret, so a missing field cannot blank the Anthropic key.
+            - name: ARR_MCP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-arr-mcp
+                  key: MCP_TOKEN
+                  optional: true
+            # cq-server address + API key for mcp_servers.cq (Secret hermes-cq).
+            - name: CQ_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-cq
+                  key: CQ_ADDR
+                  optional: true
+            - name: CQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-cq
+                  key: CQ_API_KEY
+                  optional: true
           envFrom:
             - secretRef:
                 name: hermes-agent
@@ -517,6 +747,49 @@ spec:
               mountPath: /opt/hermes-skills/homelab/cluster-remediate/SKILL.md
               subPath: cluster-remediate.md
               readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/loki-log-triage/SKILL.md
+              subPath: loki-log-triage.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/kargo-health/SKILL.md
+              subPath: kargo-health.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/talos-node-health/SKILL.md
+              subPath: talos-node-health.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/knowledge-memory/SKILL.md
+              subPath: knowledge-memory.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/media-house-rules/SKILL.md
+              subPath: media-house-rules.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/skill-improve/SKILL.md
+              subPath: skill-improve.md
+              readOnly: true
+            - name: skills
+              mountPath: /opt/hermes-skills/homelab/okf-update/SKILL.md
+              subPath: okf-update.md
+              readOnly: true
+            # integratn-design: the design system for anything visual, with
+            # its template files (design-skill.yaml, generated by
+            # hack/hermes-design/gen.sh).
+            - name: design-skill
+              mountPath: /opt/hermes-skills/homelab/integratn-design/SKILL.md
+              subPath: SKILL.md
+              readOnly: true
+            - name: design-skill
+              mountPath: /opt/hermes-skills/homelab/integratn-design/templates/base.css
+              subPath: base.css
+              readOnly: true
+            - name: design-skill
+              mountPath: /opt/hermes-skills/homelab/integratn-design/templates/page.html
+              subPath: page.html
+              readOnly: true
       volumes:
         - name: dshm
           emptyDir:
@@ -531,6 +804,9 @@ spec:
         - name: skills
           configMap:
             name: hermes-skills
+        - name: design-skill
+          configMap:
+            name: hermes-skill-design
 ---
 apiVersion: v1
 kind: Service

@@ -19,6 +19,32 @@
 #   4. Put /opt/hermes-stt on PYTHONPATH. Hermes's launcher runs python with
 #      -P only, which honours PYTHONPATH.
 #
+# cq (github.com/mozilla-ai/cq), Mozilla.ai's shared agent-learning store:
+# Hermes's knowledge memory (James, 2026-11-08). Its CLI is the MCP server
+# (`cq mcp`, stdio) and keeps the store in SQLite, which the Deployment points
+# at the local-NVMe data volume (CQ_LOCAL_DB_PATH). Built from source at the
+# cli/v0.19.2 tag's commit: pure Go (modernc sqlite), so CGO off and a static
+# binary that runs on the Debian base. Bump CQ_COMMIT and CQ_VERSION together.
+FROM docker.io/library/golang:1.27.1-bookworm@sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66 AS cq
+ARG CQ_VERSION=0.19.2
+ARG CQ_COMMIT=70009d3a8fd7d17682c023cf20bb8b11bb453e00
+RUN set -eu; \
+    git init -q /src && cd /src; \
+    git fetch -q --depth 1 https://github.com/mozilla-ai/cq.git "$CQ_COMMIT"; \
+    git checkout -q FETCH_HEAD; \
+    cd cli; \
+    CGO_ENABLED=0 go build -trimpath \
+      -ldflags "-s -w -X github.com/mozilla-ai/cq/cli/internal/version.version=$CQ_VERSION -X github.com/mozilla-ai/cq/cli/internal/version.commit=$CQ_COMMIT" \
+      -o /out/cq .; \
+    /out/cq --version
+
+# talosctl, read-only Talos access for Hermes (2026-11-08). Hermes calls the
+# Talos API through Talos's own Kubernetes API access: a talos.dev
+# ServiceAccount in ns hermes with only the os:reader role, so Talos itself
+# refuses every write. Taken from Sidero's official static image (amd64+arm64)
+# at the cluster's Talos version; bump it with the nodes.
+FROM ghcr.io/siderolabs/talosctl:v1.13.12@sha256:9c68c786022cfa4da7672c6379e9b217c2593034ee52be1ff5bd73d6ed8e0131 AS talosctl
+
 # The base is pinned by digest; bump it together with the tag in the hermes
 # Deployment's comments (addons/cluster-roles/control-plane/addons/hermes/).
 FROM docker.io/nousresearch/hermes-agent:v0.23.0@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
@@ -45,6 +71,12 @@ RUN set -eu; \
     rm -rf "$HERMES_HOME" /root/.cache
 
 ENV PYTHONPATH=/opt/hermes-stt
+
+COPY --from=cq /out/cq /usr/local/bin/cq
+RUN /usr/local/bin/cq --version
+
+COPY --from=talosctl /talosctl /usr/local/bin/talosctl
+RUN /usr/local/bin/talosctl version --client --short
 
 # Upstream's ENTRYPOINT (s6-overlay via entrypoint-dispatch.sh), CMD, USER and
 # WORKDIR are inherited unchanged.

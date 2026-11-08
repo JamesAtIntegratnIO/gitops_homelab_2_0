@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the-cluster architecture</title>
+<style>
+/* PASTE base.css HERE (the whole file). Page-specific rules go below it and
+   spend only the var(--role) tokens. */
+</style>
+</head>
+<body>
+<main class="page">
+
+  <!-- Header: mark, the page's name, then ONE summary line. Judgements in
+       their verdict colour, counts that judge nothing in dim. -->
+  <header class="head">
+    <svg class="mark" viewBox="0 0 256 256" role="img" aria-label="Integratn"><rect width="256" height="256" rx="56" fill="#f26a35"/><g transform="translate(128 128) scale(1.05)" fill="#fff"><polygon points="-30.74,-62.47 -10.25,-74 56.92,-36.22 36.89,-24.43"/><polygon points="36.89,-24.43 56.92,-36.22 56.92,5.69 36.89,-5.81"/><polygon points="36.89,-5.81 56.92,5.69 15.94,28.75 15.94,5.98"/><polygon points="30.74,62.47 10.25,74 -56.92,36.22 -36.89,24.43"/><polygon points="-36.89,24.43 -56.92,36.22 -56.92,-5.69 -36.89,5.81"/><polygon points="-36.89,5.81 -56.92,-5.69 -15.94,-28.75 -15.94,-5.98"/><polygon points="-10.02,-43.99 10.02,-32.72 10.02,43.99 -10.02,32.72"/></g></svg>
+    <div>
+      <h1>the-cluster architecture</h1>
+      <div class="summary"><span class="bad">2 degraded</span><span class="sep">·</span>6/6 nodes Ready<span class="sep">·</span>74/76 apps Synced<span class="sep">·</span>snapshot <span class="data">2026-11-08 17:40Z</span></div>
+    </div>
+  </header>
+
+  <!-- Callouts for what needs James, directly under the header. -->
+  <section class="stack tight" aria-label="Needs you">
+    <div class="callout bad"><span class="chip bad">× Degraded</span><p><code>cq</code> namespace is 4 min old and its pod is not Ready yet.</p></div>
+    <div class="callout bad"><span class="chip bad">× Degraded</span><p><code>specmarshal</code> has crash-looped since <span class="data">11-05</span>: root-only image files. Fix is PR <a href="https://github.com/JamesAtIntegratnIO/gitops_homelab_2_0/pull/614">#614</a>.</p></div>
+  </section>
+
+  <section class="panel" style="margin-top:18px">
+    <h3>How it fits together</h3>
+    <figure class="diagram" style="margin:0">
+      <svg width="1200" height="690" viewBox="0 0 1200 690" role="img" aria-label="Architecture of the-cluster">
+        <defs><marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto"><path class="arrow" d="M0 0 L8 4 L0 8 z"/></marker></defs>
+
+        <!-- Outside the house -->
+        <g class="node ext"><rect x="20"  y="30" width="170" height="52" rx="6"/><text class="t" x="34"  y="52">GitHub</text><text class="s" x="34"  y="70">gitops_homelab_2_0</text></g>
+        <g class="node ext"><rect x="210" y="30" width="170" height="52" rx="6"/><text class="t" x="224" y="52">Clients</text><text class="s" x="224" y="70">*.integratn.tech</text></g>
+        <g class="node ext"><rect x="400" y="30" width="170" height="52" rx="6"/><text class="t" x="414" y="52">Cloudflare</text><text class="s" x="414" y="70">DNS + tunnel edge</text></g>
+        <g class="node ext"><rect x="590" y="30" width="170" height="52" rx="6"/><text class="t" x="604" y="52">1Password</text><text class="s" x="604" y="70">secrets</text></g>
+        <g class="node ext"><rect x="780" y="30" width="170" height="52" rx="6"/><text class="t" x="794" y="52">Matrix</text><text class="s" x="794" y="70">alert room</text></g>
+        <text class="gl" x="20" y="18">Outside</text>
+
+        <!-- The cluster: a hairline frame with a label, not a colour -->
+        <g class="group zone"><rect x="10" y="112" width="930" height="568" rx="6"/></g>
+        <text class="gl" x="24" y="670">the-cluster · Talos 1.13.12 · Kubernetes 1.36.6</text>
+
+        <g class="node"><rect x="24"  y="146" width="170" height="52" rx="6"/><text class="t" x="38"  y="168">MetalLB</text><text class="s" x="38"  y="186">L2 .200–.205</text></g>
+        <g class="node"><rect x="206" y="146" width="170" height="52" rx="6"/><text class="t" x="220" y="168">nginx-gateway</text><text class="s" x="220" y="186">10.0.4.205</text></g>
+        <g class="node"><rect x="388" y="146" width="170" height="52" rx="6"/><text class="t" x="402" y="168">cloudflared</text><text class="s" x="402" y="186">tunnel → gateway</text></g>
+        <g class="node"><rect x="570" y="146" width="170" height="52" rx="6"/><text class="t" x="584" y="168">external-dns</text><text class="s" x="584" y="186">→ Cloudflare</text></g>
+        <g class="node"><rect x="752" y="146" width="170" height="52" rx="6"/><text class="t" x="766" y="168">cert-manager</text><text class="s" x="766" y="186">TLS</text></g>
+
+        <g class="node"><rect x="24"  y="214" width="215" height="110" rx="6"/><text class="t" x="38"  y="236">GitOps</text><text class="s" x="38"  y="256">ArgoCD · 76 apps</text><text class="s" x="38"  y="274">Kargo · Kratix</text><text class="s" x="38"  y="292">Bosun PR gate</text></g>
+        <g class="node"><rect x="251" y="214" width="215" height="110" rx="6"/><text class="t" x="265" y="236">Security</text><text class="s" x="265" y="256">Authentik SSO</text><text class="s" x="265" y="274">Kyverno netpols</text><text class="s" x="265" y="292">External Secrets</text></g>
+        <g class="node"><rect x="478" y="214" width="215" height="110" rx="6"/><text class="t" x="492" y="236">Observability</text><text class="s" x="492" y="256">Prometheus · Loki</text><text class="s" x="492" y="274">Grafana</text><text class="s" x="492" y="292">Alertmanager</text></g>
+        <g class="node"><rect x="705" y="214" width="217" height="110" rx="6"/><text class="t" x="719" y="236">AI &amp; agents</text><text class="s" x="719" y="256">Hermes · Qdrant</text><text class="s" x="719" y="274">Open WebUI</text><text class="v-bad" x="719" y="304">× cq degraded</text></g>
+
+        <g class="group"><rect x="24" y="340" width="898" height="150" rx="6"/></g>
+        <text class="gl" x="40" y="360">vcluster-media · 10/10 synced</text>
+        <g class="node"><rect x="40"  y="370" width="166" height="44" rx="6"/><text class="t" x="54"  y="397">Sonarr</text></g>
+        <g class="node"><rect x="214" y="370" width="166" height="44" rx="6"/><text class="t" x="228" y="397">Radarr</text></g>
+        <g class="node"><rect x="388" y="370" width="166" height="44" rx="6"/><text class="t" x="402" y="397">Bazarr</text></g>
+        <g class="node"><rect x="562" y="370" width="166" height="44" rx="6"/><text class="t" x="576" y="397">SABnzbd</text></g>
+        <g class="node"><rect x="736" y="370" width="166" height="44" rx="6"/><text class="t" x="750" y="397">Configarr</text></g>
+        <g class="node"><rect x="40"  y="424" width="166" height="44" rx="6"/><text class="t" x="54"  y="451">Tracearr</text></g>
+        <g class="node"><rect x="214" y="424" width="166" height="44" rx="6"/><text class="t" x="228" y="451">JellyPlex-Watched</text></g>
+        <g class="node"><rect x="388" y="424" width="166" height="44" rx="6"/><text class="t" x="402" y="451">Otterwiki</text></g>
+        <g class="node"><rect x="562" y="424" width="166" height="44" rx="6"/><text class="t" x="576" y="451">kubernetes-mcp</text></g>
+        <g class="node raise"><rect x="736" y="424" width="166" height="44" rx="6"/><text class="t" x="750" y="443">vcluster API</text><text class="s" x="750" y="460">10.0.4.200</text></g>
+
+        <text class="gl" x="24" y="512">Nodes</text>
+        <g class="node"><rect x="24"  y="520" width="140" height="56" rx="6"/><text class="t" x="38"  y="542">talos-xez-xys</text><text class="s" x="38"  y="562">.101 · Ready</text></g>
+        <g class="node"><rect x="174" y="520" width="140" height="56" rx="6"/><text class="t" x="188" y="542">talos-4kg-ymz</text><text class="s" x="188" y="562">.102 · Ready</text></g>
+        <g class="node"><rect x="324" y="520" width="140" height="56" rx="6"/><text class="t" x="338" y="542">talos-1jv-u7d</text><text class="s" x="338" y="562">.103 · Ready</text></g>
+        <g class="node"><rect x="474" y="520" width="140" height="56" rx="6"/><text class="t" x="488" y="542">talos-pi5-1</text><text class="s" x="488" y="562">.104 · Ready</text></g>
+        <g class="node"><rect x="624" y="520" width="140" height="56" rx="6"/><text class="t" x="638" y="542">talos-pi4-1</text><text class="s" x="638" y="562">.105 · Ready</text></g>
+        <g class="node"><rect x="774" y="520" width="148" height="56" rx="6"/><text class="t" x="788" y="542">talos-pi4-2</text><text class="s" x="788" y="562">.106 · Ready</text></g>
+
+        <g class="node"><rect x="24"  y="592" width="290" height="52" rx="6"/><text class="t" x="38"  y="614">local-nvme</text><text class="s" x="38"  y="632">pi5 NVMe · Hermes state</text></g>
+        <g class="node"><rect x="328" y="592" width="290" height="52" rx="6"/><text class="t" x="342" y="614">config-nfs-client</text><text class="s" x="342" y="632">default SC · app config</text></g>
+        <g class="node"><rect x="632" y="592" width="290" height="52" rx="6"/><text class="t" x="646" y="614">data-nfs-client</text><text class="s" x="646" y="632">media + bulk data</text></g>
+
+        <!-- Beside the cluster -->
+        <g class="node"><rect x="960" y="146" width="230" height="110" rx="6"/><text class="t" x="974" y="168">Tower · Unraid</text><text class="s" x="974" y="188">NFS 10.0.0.12</text><text class="s" x="974" y="206">/mnt/user/kube_storage</text><text class="s" x="974" y="224">/mnt/user/data</text><text class="v-warn" x="974" y="246">· export to * (accepted)</text></g>
+        <g class="node"><rect x="960" y="272" width="230" height="60" rx="6"/><text class="t" x="974" y="296">Proxmox 8 host</text><text class="v-warn" x="974" y="316">· EOL (accepted risk)</text></g>
+        <g class="node"><rect x="960" y="348" width="230" height="60" rx="6"/><text class="t" x="974" y="372">Media servers</text><text class="s" x="974" y="392">Plex · Jellyfin</text></g>
+
+        <!-- Edges: one neutral line; dashed for control/side traffic. Labels in faint 12px. -->
+        <path class="edge" d="M105 82 V100 H200 V214" marker-end="url(#arr)"/><text class="el" x="144" y="96">pull</text>
+        <path class="edge" d="M291 82 V146" marker-end="url(#arr)"/><text class="el" x="298" y="102">HTTPS</text>
+        <path class="edge" d="M479 82 V146" marker-end="url(#arr)"/><text class="el" x="486" y="102">tunnel</text>
+        <path class="edge soft" d="M600 146 V106 H545 V84" marker-end="url(#arr)"/><text class="el" x="606" y="128">DNS</text>
+        <path class="edge soft" d="M650 214 V206 H746 V100 H865 V84" marker-end="url(#arr)"/><text class="el" x="874" y="100">alerts</text>
+        <path class="edge" d="M922 618 H946 V210 H958" marker-end="url(#arr)"/><text class="el" x="900" y="420" transform="rotate(-90 950 420)">NFS</text>
+      </svg>
+    </figure>
+  </section>
+
+  <div class="board" style="margin-top:18px">
+    <div class="stack">
+
+      <section class="tiles" aria-label="Measures">
+        <div class="tile"><span class="label">Nodes Ready</span><span class="figure">6/6</span><span class="note">3 amd64 · 3 arm64</span></div>
+        <div class="tile"><span class="label">Host apps</span><span class="figure">74/76</span><span class="note">Synced + Healthy</span></div>
+        <div class="tile"><span class="label">vcluster-media</span><span class="figure">10/10</span><span class="note">own ArgoCD</span></div>
+        <div class="tile"><span class="label">Namespaces</span><span class="figure">48</span><span class="note">all default-deny</span></div>
+        <div class="tile"><span class="label">etcd fsync p99</span><span class="figure none">not recorded</span></div>
+      </section>
+
+      <section class="panel">
+        <h3>Weak spots</h3>
+        <ul class="plain">
+          <li>etcd WAL fsync on the Lenovo disks</li>
+          <li>Stale NFS handles after a Tower restart</li>
+          <li>Default-deny netpols: a hang is usually a one-sided policy</li>
+        </ul>
+      </section>
+    </div>
+
+    <aside class="stack">
+      <section class="panel">
+        <h3>Ingress</h3>
+        <dl class="kv">
+          <dt>Host gateway</dt><dd>10.0.4.205</dd>
+          <dt>Media gateway</dt><dd>10.0.4.201</dd>
+          <dt>vcluster API</dt><dd>10.0.4.200:443</dd>
+          <dt>Open to WAN</dt><dd>tcp/32400 · udp/51820</dd>
+        </dl>
+      </section>
+      <section class="panel">
+        <h3>Accepted risks</h3>
+        <ul class="plain">
+          <li>Flat firewall zone for the homelab VLAN</li>
+          <li>Tower NFS exported to <code>*</code></li>
+          <li>Proxmox 8 is end of life</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+
+  <p class="foot">Sources: Kubernetes API, ArgoCD (host + vcluster), cq · <span class="data">gitops_homelab_2_0@main</span></p>
+</main>
+</body>
+</html>

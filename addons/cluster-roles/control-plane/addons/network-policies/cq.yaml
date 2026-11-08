@@ -1,0 +1,40 @@
+# cq: Mozilla.ai's cq knowledge store (addons/cluster-roles/control-plane/addons/cq).
+#
+# Default-deny comes from the Kyverno generate policy. Ingress on 3000 from:
+#   - nginx-gateway, for the UI at cq.cluster.integratn.tech (other half: the
+#     gateway's egress list in nginx-gateway.yaml)
+#   - Hermes Agent's `cq mcp` client (other half: allow-cq-egress in
+#     hermes.yaml)
+# No egress at all: semantic search (an embeddings endpoint) is off.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cq
+  labels:
+    app.kubernetes.io/part-of: platform
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cq-ingress
+  namespace: cq
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cq-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-agent
+      ports:
+        - protocol: TCP
+          port: 3000

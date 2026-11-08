@@ -1,0 +1,27 @@
+# Keeps cq's keyless read path off the gateway.
+#
+# cq serves GET /api/v1/knowledge (and /knowledge/stats) without any key by
+# upstream design, and the units describe this homelab. Every other API path
+# checks the cq login (JWT) or an API key, and the web UI never calls
+# /api/v1/knowledge (frontend/src/api.ts uses /auth, /users and /review). So
+# the route answers 404 for that prefix and passes everything else through:
+# one login, cq's own.
+#
+# Why not authentik forward-auth: cq v0.12.4 has no SSO (upstream issues #164
+# ForwardAuth and #393 OIDC are open), so authentik in front meant signing in
+# twice; James did not want that (2026-11-08). Why not "require an
+# Authorization header": GET /api/v1/knowledge never validates the token, so
+# any `Bearer x` would pass.
+#
+# Hermes is unaffected: its `cq mcp` reads by ClusterIP
+# (CQ_ADDR=http://cq-server.cq.svc.cluster.local:3000), never through here.
+apiVersion: gateway.nginx.org/v1alpha1
+kind: SnippetsFilter
+metadata:
+  name: block-keyless-reads
+  namespace: cq
+spec:
+  snippets:
+    - context: http.server.location
+      value: |
+        return 404;

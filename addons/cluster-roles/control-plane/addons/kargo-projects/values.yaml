@@ -189,6 +189,8 @@ projects:
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/argocd-mcp-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/argocd-mcp-ops-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
       github-mcp:
         scope: mcp-system
         image:
@@ -227,6 +229,10 @@ projects:
             keys: [spec.template.spec.containers.0.image]
           - file: addons/cluster-roles/control-plane/addons/mcp-system/kubernetes-mcp-ops-deployment.yaml
             keys: [spec.template.spec.containers.0.image]
+          # Hermes's read-only server inside vcluster-media. The Deployment
+          # must stay the FIRST extraObject.
+          - file: workloads/vcluster-media/addons/kubernetes-mcp/values.yaml
+            keys: [extraObjects.0.spec.template.spec.containers.0.image]
       sequential-thinking:
         scope: mcp-system
         image:
@@ -237,6 +243,30 @@ projects:
             - mcp-system-the-cluster
         updates:
           - file: addons/cluster-roles/control-plane/addons/mcp-system/sequential-thinking-deployment.yaml
+            keys: [spec.template.spec.containers.0.image]
+      arr-mcp:
+        scope: mcp-system
+        image:
+          repoURL: ghcr.io/bardesss/arr-mcp
+          allowTags: ['^\d+\.\d+\.\d+$']   # not the 1.73 / sha256-* tags
+        verify:
+          apps:
+            - mcp-system-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/mcp-system/arr-mcp-deployment.yaml
+            keys:
+              - spec.template.spec.containers.0.image
+              - spec.template.spec.initContainers.0.image
+      cq-server:
+        scope: cq
+        image:
+          repoURL: ghcr.io/mozilla-ai/cq/server
+          allowTags: ['^v\d+\.\d+\.\d+$']
+        verify:
+          apps:
+            - cq-the-cluster
+        updates:
+          - file: addons/cluster-roles/control-plane/addons/cq/cq-server.yaml
             keys: [spec.template.spec.containers.0.image]
 
       # ── our own images (images/, built by GitHub Actions) ────────────
