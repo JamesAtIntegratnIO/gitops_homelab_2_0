@@ -388,6 +388,7 @@ data:
             - "create_branch"
             - "create_pull_request"
             - "update_pull_request"
+            - "update_pull_request_branch"
             # Read-only: issues and CI (workflow runs, job logs), so a PR's
             # failing check can be read without James (2026-11-08).
             - "issue_read"
@@ -398,7 +399,8 @@ data:
             - "get_job_logs"
           resources: false
           prompts: false
-      # Commits: the same server, each call approved by James (untrusted).
+      # Commits and merges: the same server, each call approved by James
+      # (untrusted). A merge changes what runs on the cluster.
       githubwrite:
         url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
         trust: "untrusted"
@@ -407,6 +409,7 @@ data:
           include:
             - "create_or_update_file"
             - "push_files"
+            - "merge_pull_request"
           resources: false
           prompts: false
       # Inside the media apps (mcp-system/arr-mcp.yaml): Sonarr, Radarr, Bazarr,
