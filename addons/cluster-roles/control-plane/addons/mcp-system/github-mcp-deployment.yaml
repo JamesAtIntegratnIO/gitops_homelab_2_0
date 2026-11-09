@@ -11,6 +11,10 @@ metadata:
   namespace: mcp-system
   labels:
     app: github-mcp
+  annotations:
+    # Stakater Reloader rolls this Deployment when its token Secret changes
+    # (secretKeyRef env, read once, at start).
+    secret.reloader.stakater.com/reload: "mcp-github-token"
 spec:
   replicas: 1
   selector:

@@ -37,6 +37,11 @@ metadata:
   namespace: cq
   labels:
     app.kubernetes.io/name: cq-server
+  annotations:
+    # Stakater Reloader rolls this Deployment when the cq-server Secret changes
+    # (envFrom, read once, at start). A rotated CQ_API_KEY_PEPPER still
+    # invalidates every API key: see above.
+    secret.reloader.stakater.com/reload: "cq-server"
 spec:
   replicas: 1
   strategy:

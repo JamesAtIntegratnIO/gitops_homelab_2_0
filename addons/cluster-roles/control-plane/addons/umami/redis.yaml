@@ -29,6 +29,10 @@ metadata:
   labels:
     app.kubernetes.io/name: redis
     app.kubernetes.io/instance: umami
+  annotations:
+    # Stakater Reloader rolls this Deployment when the umami-redis Secret
+    # changes (the password is read through env, once, at start).
+    secret.reloader.stakater.com/reload: "umami-redis"
 spec:
   replicas: 1
   revisionHistoryLimit: 3

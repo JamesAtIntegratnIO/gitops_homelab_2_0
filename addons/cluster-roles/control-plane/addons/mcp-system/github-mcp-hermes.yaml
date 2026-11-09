@@ -48,6 +48,10 @@
 # without that bypass, would close it. If the field is missing, the
 # ExternalSecret fails, the env var is empty (optional) and every GitHub call
 # returns 401.
+#
+# Rotating the PAT: change the 1Password field. ESO updates the Secret within
+# the hour and Stakater Reloader (annotation on the Deployment below) restarts
+# this pod onto it; GitHub tools are unavailable for the ~90 s it takes.
 ---
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
@@ -75,6 +79,8 @@ metadata:
   namespace: mcp-system
   labels:
     app: github-mcp-hermes
+  annotations:
+    secret.reloader.stakater.com/reload: "github-mcp-hermes-token"
 spec:
   replicas: 1
   # One stdio child holds the MCP sessions; never run two side by side.

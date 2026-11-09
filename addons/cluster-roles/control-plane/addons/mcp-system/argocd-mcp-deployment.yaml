@@ -11,6 +11,10 @@ metadata:
   namespace: mcp-system
   labels:
     app: argocd-mcp
+  annotations:
+    # Stakater Reloader rolls this Deployment when its API-token Secret changes
+    # (secretKeyRef env, read once, at start).
+    secret.reloader.stakater.com/reload: "argocd-mcp-secrets"
 spec:
   replicas: 1
   selector:

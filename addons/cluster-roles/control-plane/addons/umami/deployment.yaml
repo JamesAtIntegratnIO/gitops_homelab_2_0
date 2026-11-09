@@ -19,6 +19,11 @@ metadata:
   namespace: umami
   labels:
     app.kubernetes.io/name: umami
+  annotations:
+    # Stakater Reloader rolls this Deployment when the umami-env Secret changes
+    # (DATABASE_URL, APP_SECRET and REDIS_URL are read through envFrom, once,
+    # at start).
+    secret.reloader.stakater.com/reload: "umami-env"
 spec:
   replicas: 1
   revisionHistoryLimit: 3

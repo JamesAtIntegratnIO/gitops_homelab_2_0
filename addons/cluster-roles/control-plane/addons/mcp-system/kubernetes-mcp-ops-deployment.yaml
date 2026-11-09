@@ -9,6 +9,10 @@ metadata:
   namespace: mcp-system
   labels:
     app: kubernetes-mcp-ops
+  annotations:
+    # Stakater Reloader rolls this Deployment when its config changes, so the
+    # config-revision bump below is no longer needed.
+    configmap.reloader.stakater.com/reload: "kubernetes-mcp-ops-config"
 spec:
   replicas: 1
   selector:
@@ -19,7 +23,8 @@ spec:
       labels:
         app: kubernetes-mcp-ops
       annotations:
-        # Bump to roll the pod after editing kubernetes-mcp-ops-config.
+        # Was: bump to roll the pod after editing kubernetes-mcp-ops-config.
+        # Reloader does that now; left in place so this change rolls nothing.
         config-revision: "1"
     spec:
       priorityClassName: platform-batch

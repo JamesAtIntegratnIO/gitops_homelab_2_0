@@ -602,6 +602,18 @@ metadata:
   namespace: hermes
   labels:
     app.kubernetes.io/name: hermes-agent
+  annotations:
+    # Stakater Reloader (addons/.../reloader) rolls this Deployment when any of
+    # these ConfigMaps changes: the settings (an init container copies
+    # config.yaml in on every start) and the three skill ConfigMaps (subPath
+    # mounts never update in place). Without it a merged config change sat
+    # unused until someone ran a rollout restart by hand.
+    configmap.reloader.stakater.com/reload: "hermes-config,hermes-skills,hermes-skill-design,hermes-skill-secrets"
+    # ... and when one of the Secrets read through env changes (the Anthropic
+    # and API-server keys, the arr-mcp token, the cq key). Not hermes-talos:
+    # that is a mounted volume, which updates in place without a restart.
+    # A rollout ends any conversation in flight.
+    secret.reloader.stakater.com/reload: "hermes-agent,hermes-arr-mcp,hermes-cq"
 spec:
   replicas: 1
   strategy:

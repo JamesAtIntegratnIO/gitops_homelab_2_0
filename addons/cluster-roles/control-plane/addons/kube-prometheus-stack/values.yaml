@@ -292,6 +292,15 @@ kube-state-metrics:
     create: false
     name: kargo-custom-resource-state
     key: config.yaml
+  # kube-state-metrics reads that file once, at startup, and nothing watches
+  # it: a corrected metric name sat unused until someone ran a manual rollout
+  # restart (docs/okf/cluster/known-issues.md). Stakater Reloader (addons/.../
+  # reloader) now rolls the Deployment when the ConfigMap changes. The chart's
+  # top-level `annotations` land on the Deployment's own metadata (kube-state-
+  # metrics 8.4.0, templates/deployment.yaml), not on the pod template, so
+  # adding it rolls nothing.
+  annotations:
+    configmap.reloader.stakater.com/reload: "kargo-custom-resource-state"
   resources:
     requests:
       cpu: 50m
