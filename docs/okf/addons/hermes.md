@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: hermes-agent, at: 2026-11-09T19:20:00Z }
+generated: { by: hermes-agent, at: 2026-11-09T19:45:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -173,7 +173,7 @@ subdirectory, keeping 14. The same two alerts watch both jobs. Restore: scale
 
 Local faster-whisper (`stt.provider: local`, model `base`), from `/opt/hermes-stt` in our derived image; the model (~142 MB) is cached in `/opt/data/cache/huggingface`. On the Pi 5 with all 4 cores (`limits.cpu: 4`, `OMP_NUM_THREADS=4`) a 6 s clip takes about 5 s warm and 8 s on first use. Hermes fixes `beam_size` at 5. `tiny` is about twice as fast with the same result on clear speech; switch `stt.local.model` if latency matters more than accuracy.
 
-**Known issue (2026-11-09, fixed in git, not yet deployed).** The running gateway could not import faster-whisper: Hermes's launchers (`/opt/hermes/libexec/hermes*`) `unset PYTHONPATH` and export their own, so the image's `ENV PYTHONPATH=/opt/hermes-stt` never reached the gateway. Evidence: the gateway process had no `/opt/hermes-stt` on its `PYTHONPATH`, `import faster_whisper` failed with the venv's own python, it worked with `PYTHONPATH=/opt/hermes-stt` set by hand, and the gateway log repeated `STT provider 'local' configured but unavailable`. The Dockerfile now adds `/opt/hermes-stt` with a `.pth` file in the venv's site-packages (the launchers run `site.addsitedir()` on it) and its build check reproduces the launcher's path handling. It takes effect when the rebuilt image's digest is pinned in `hermes-agent.yaml` and `hermes-backup.yaml`. The timings above predate this finding; whether they ran through the gateway is not verified.[^image]
+**Fixed (2026-11-09).** Until then the running gateway could not import faster-whisper: Hermes's launchers (`/opt/hermes/libexec/hermes*`) `unset PYTHONPATH` and export their own, so the image's `ENV PYTHONPATH=/opt/hermes-stt` never reached the gateway. Evidence: the gateway process had no `/opt/hermes-stt` on its `PYTHONPATH`, `import faster_whisper` failed with the venv's own python, it worked with `PYTHONPATH=/opt/hermes-stt` set by hand, and the gateway log repeated `STT provider 'local' configured but unavailable`. The Dockerfile now adds `/opt/hermes-stt` with a `.pth` file in the venv's site-packages (the launchers run `site.addsitedir()` on it) and its build check reproduces the launcher's path handling (#757); digest `sha256:ce7787e5...` is pinned in `hermes-agent.yaml` and `hermes-backup.yaml` (#758). Verified after the rollout: the pod booted with 0 restarts, `hermes-stt.pth` is in the venv, the unavailable warning stopped (last one 19:18Z, before the rollout), Hermes's `_transcribe_local` under the launcher's environment returned `success` in 2.3 s, and a spoken test message in the desktop app arrived as text. The timings above predate this fix; whether they ran through the gateway is not verified.[^image]
 
 # Cluster skills
 
