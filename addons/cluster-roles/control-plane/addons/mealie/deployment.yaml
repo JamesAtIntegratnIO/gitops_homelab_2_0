@@ -77,23 +77,52 @@ spec:
               containerPort: 9000
               protocol: TCP
           # POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_SERVER, POSTGRES_PORT and
-          # POSTGRES_DB, from 1Password (externalsecret.yaml beside this file).
+          # POSTGRES_DB, from 1Password (externalsecret.yaml beside this file),
+          # and OIDC_CLIENT_ID / OIDC_CLIENT_SECRET from the second Secret.
           envFrom:
             - secretRef:
                 name: mealie-db
+            - secretRef:
+                name: mealie-oidc
           env:
             - name: DB_ENGINE
               value: postgres
-            # Used for links and, later, the OIDC callback.
+            # Used for links and the OIDC callback (/login).
             - name: BASE_URL
               value: https://mealie.cluster.integratn.tech
-            # Accounts are created by an admin, not by the login page.
+            # Accounts are created by an admin or by signing in with authentik,
+            # not by the login page.
             - name: ALLOW_SIGNUP
               value: "false"
             # Server tasks run at DAILY_SCHEDULE_TIME in this zone. UTC is the
             # image default; set the household's zone here if it matters.
             - name: TZ
               value: UTC
+            # Sign in with authentik (provider `mealie`, blueprint
+            # authentik-blueprints-mealie). Password login STAYS ON, with no
+            # auto-redirect, so a broken OIDC setup cannot lock anyone out;
+            # turn it off (ALLOW_PASSWORD_LOGIN=false, OIDC_AUTO_REDIRECT=true)
+            # once OIDC is proven. The issuer URL is per provider.
+            - name: OIDC_AUTH_ENABLED
+              value: "true"
+            - name: OIDC_PROVIDER_NAME
+              value: authentik
+            - name: OIDC_CONFIGURATION_URL
+              value: https://auth.cluster.integratn.tech/application/o/mealie/.well-known/openid-configuration
+            # Group names come from the `groups` claim (the blueprint's scope
+            # mapping). `authentik Admins` become Mealie admins. OIDC_USER_GROUP
+            # is unset: who may sign in is the authentik application's bindings.
+            - name: OIDC_GROUPS_CLAIM
+              value: groups
+            - name: OIDC_ADMIN_GROUP
+              value: authentik Admins
+            # Mealie blocks server-initiated requests to private addresses.
+            # From a pod auth.cluster.integratn.tech resolves to the gateway's
+            # ClusterIP (coredns-host-config rewrite), which is one. If the
+            # OIDC discovery fetch turns out not to be exempt, this is the fix;
+            # it allows that one host and nothing else.
+            - name: HTTP_ALLOW_LIST
+              value: auth.cluster.integratn.tech
           # See the note at the top of the file.
           securityContext:
             allowPrivilegeEscalation: false
