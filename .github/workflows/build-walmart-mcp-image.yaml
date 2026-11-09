@@ -48,7 +48,7 @@ jobs:
           # Bump the version with every change to server.py, so a tag never
           # names two different images.
           tags: |
-            type=raw,value=v0.1.1
+            type=raw,value=v0.1.2
             type=sha,prefix={{branch}}-
 
       - name: Build and push Docker image

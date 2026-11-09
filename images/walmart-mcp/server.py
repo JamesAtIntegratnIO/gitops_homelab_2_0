@@ -19,6 +19,10 @@ Environment:
   WALMART_STORE_ID      default store for availability (James: 500)
   WALMART_ZIP           default ZIP for availability (James: 79924)
   WALMART_PUBLISHER_ID  optional Impact publisher id (not needed)
+  WALMART_API_BASE      Affiliate API base URL. Default is production
+                        (developer.api.walmart.com). Stage consumer ids only
+                        work against https://developer.api.stg.walmart.com/
+                        api-proxy/service/affil/product/v2.
   MCP_ALLOWED_HOSTS     comma-separated Host headers to accept
 """
 
@@ -38,7 +42,9 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp_types import ToolAnnotations
 
-API = "https://developer.api.walmart.com/api-proxy/service/affil/product/v2"
+API = os.environ.get(
+    "WALMART_API_BASE", "https://developer.api.walmart.com/api-proxy/service/affil/product/v2"
+).rstrip("/")
 CART_BASE = "https://affil.walmart.com/cart/addToCart?items="
 # Walmart and browsers handle URLs well past this; split beyond it.
 CART_URL_LIMIT = 3800
