@@ -6,11 +6,18 @@
 # target is not in kargo-projects/values.yaml (that file is 50 KB and this PR
 # could not safely rewrite it). Add a `mealie` target in a follow-up.
 #
-# HARDENING IS DELIBERATELY MINIMAL. Mealie's entrypoint starts as root and
-# drops to PUID/PGID, and I could not confirm from its docs whether it still
-# works with runAsNonRoot or a read-only root filesystem. Tighten both after
-# the first boot, with the logs in front of you. The data volume's export maps
-# every uid to 99:100 (docs/okf/platform/storage.md), so no chown is needed.
+# THE ENTRYPOINT NEEDS FIVE CAPABILITIES, AND KYVERNO WOULD TAKE THEM ALL.
+# Mealie's run.sh starts as root, chowns /app, then switches to PUID/PGID
+# (911). Kyverno's mutate-restrict-escalation adds `drop: [ALL]` to any
+# container that names no capabilities, and on first boot that gave
+# "chown: changing ownership of '/app': Operation not permitted" and
+# "error: failed switching to \"911\": operation not permitted", a crashloop.
+# Naming them below keeps the drop and adds back what startup needs (the same
+# set, minus KILL, that hermes-agent.yaml uses for its s6 entrypoint). The
+# chown of /app/data itself is still refused by the NFS export, which maps
+# every uid to 99:100 (docs/okf/platform/storage.md); run.sh carries on after
+# it, and any uid can read and write the volume, so nothing else is needed.
+# No runAsNonRoot and no read-only root: the entrypoint needs root first.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -82,6 +89,12 @@ spec:
             # image default; set the household's zone here if it matters.
             - name: TZ
               value: UTC
+          # See the note at the top of the file.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
           resources:
             requests:
               cpu: 100m
