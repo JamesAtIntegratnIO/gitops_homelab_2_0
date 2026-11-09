@@ -1,0 +1,39 @@
+# Upload size for Hermes's two browser routes (hermes-agent.yaml:
+# hermes-webapp, hermes-dashboard). nginx's default request body limit is
+# 1 MB, so the Webapp's image and file uploads (/api/chat/image-upload,
+# /api/chat/file-upload) got 413 from the gateway before Hermes saw them:
+# a 2.1 MB image and a 5.7 MB file on 2026-11-09. 64 MB, the same as the
+# Mealie route (mealie/httproute.yaml), leaves room for several phone photos.
+# Same mechanism as prom-remote (observability-httproutes.yaml).
+#
+# This only raises the gateway's limit; Hermes may enforce its own per-upload
+# size behind it.
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: ClientSettingsPolicy
+metadata:
+  name: hermes-webapp-client-settings
+  namespace: hermes
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: hermes-webapp
+  body:
+    maxSize: 64m
+    # Time allowed between two reads of the body, not for the whole upload.
+    timeout: 120s
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: ClientSettingsPolicy
+metadata:
+  name: hermes-dashboard-client-settings
+  namespace: hermes
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: hermes-dashboard
+  body:
+    maxSize: 64m
+    timeout: 120s
