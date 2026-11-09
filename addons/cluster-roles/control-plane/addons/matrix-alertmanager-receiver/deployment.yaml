@@ -7,9 +7,11 @@ metadata:
     app.kubernetes.io/name: matrix-alertmanager-receiver
     app.kubernetes.io/component: alerting
   annotations:
-    # Stakater Reloader rolls this Deployment when the room mapping changes: the
-    # receiver reads config.yaml once, at start.
+    # Stakater Reloader rolls this Deployment when the room mapping (ConfigMap)
+    # or the Matrix credentials (Secret, read through env) change: the receiver
+    # reads both once, at start. The ConfigMap and the Secret share a name.
     configmap.reloader.stakater.com/reload: "matrix-alertmanager-receiver"
+    secret.reloader.stakater.com/reload: "matrix-alertmanager-receiver"
 spec:
   replicas: 1
   selector:
