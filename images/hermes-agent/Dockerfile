@@ -6,9 +6,10 @@
 # agent runs as uid 10000), so local STT has to be built in.
 #
 # Upstream's /opt/hermes, its venv and its package-manager state are left
-# exactly as shipped. Rebuilding the venv instead (the first version of this
-# file) dropped Hermes's source binding and put PM's install records out of
-# sync, so the gateway crash-looped at boot (2026-11-07, reverted in #676).
+# exactly as shipped, apart from one added .pth file (step 4). Rebuilding the
+# venv instead (the first version of this file) dropped Hermes's source binding
+# and put PM's install records out of sync, so the gateway crash-looped at boot
+# (2026-11-07, reverted in #676).
 #
 # Instead:
 #   1. Export the stt-whisper extra's requirements from Hermes's own uv.lock
@@ -16,8 +17,13 @@
 #   2. Drop every package the venv already has, so nothing shadows it.
 #   3. Install the rest, without resolving (--no-deps: the export is the full
 #      closure), into /opt/hermes-stt with upstream's bundled uv.
-#   4. Put /opt/hermes-stt on PYTHONPATH. Hermes's launcher runs python with
-#      -P only, which honours PYTHONPATH.
+#   4. Put /opt/hermes-stt on the venv's sys.path with a .pth file in its
+#      site-packages. NOT with ENV PYTHONPATH: Hermes's launchers
+#      (/opt/hermes/libexec/hermes*) `unset PYTHONPATH` and export their own, so
+#      an ENV value never reaches the gateway (found 2026-11-09: local STT
+#      reported itself unavailable). The launchers do run site.addsitedir() on
+#      the venv's site-packages, and that processes .pth files. The .pth is
+#      appended after the venv's own packages, so it cannot shadow them.
 #
 # cq (github.com/mozilla-ai/cq), Mozilla.ai's shared agent-learning store:
 # Hermes's knowledge memory (James, 2026-11-08). Its CLI is the MCP server
@@ -56,6 +62,10 @@ WORKDIR /opt/hermes
 # this step: running Hermes code at build time otherwise creates root-owned
 # directories in /opt/data, which then seed the data volume and make the boot
 # fail with "Permission denied" on /opt/data/logs.
+#
+# The last two checks run Python the way the launcher does (PYTHONPATH unset
+# and rebuilt, -P, site.addsitedir on the venv), not with PYTHONPATH set by
+# hand: that is what hid the missing path in the first version of step 4.
 RUN set -eu; \
     export HERMES_HOME=/tmp/hermes-build-home; mkdir -p "$HERMES_HOME"; \
     python3 -m pm.build_env --source /opt/hermes --python /usr/local/bin/python3 \
@@ -66,11 +76,13 @@ RUN set -eu; \
       --python /opt/hermes/.venv/bin/python -r /tmp/stt.txt; \
     rm -rf /tmp/stt-all.txt /tmp/stt.txt; \
     chmod -R a+rX,go-w /opt/hermes-stt; \
-    PYTHONPATH=/opt/hermes-stt /opt/hermes/.venv/bin/python -c "import faster_whisper, ctranslate2, av, onnxruntime, hermes_cli; print('faster-whisper', faster_whisper.__version__)"; \
-    PYTHONPATH=/opt/hermes-stt /opt/hermes/.venv/bin/hermes --version; \
+    site=$(/opt/hermes/.venv/bin/python -c 'import sysconfig; print(sysconfig.get_path("purelib"))'); \
+    echo /opt/hermes-stt > "$site/hermes-stt.pth"; \
+    chmod 644 "$site/hermes-stt.pth"; \
+    env -u PYTHONPATH HERMES_SITE="$site" PYTHONPATH="/opt/hermes/.:$site" \
+      /opt/hermes/.venv/bin/python -P -c "import os, site; site.addsitedir(os.environ['HERMES_SITE']); import faster_whisper, ctranslate2, av, onnxruntime, hermes_cli; print('faster-whisper', faster_whisper.__version__)"; \
+    env -u PYTHONPATH /opt/hermes/.venv/bin/hermes --version; \
     rm -rf "$HERMES_HOME" /root/.cache
-
-ENV PYTHONPATH=/opt/hermes-stt
 
 COPY --from=cq /out/cq /usr/local/bin/cq
 RUN /usr/local/bin/cq --version
