@@ -1,0 +1,50 @@
+# Stakater Reloader: restarts a workload when a ConfigMap it names changes.
+#
+# Why this exists: a pod that copies or mounts a ConfigMap by subPath never
+# sees a later change, and ArgoCD updating the ConfigMap does not roll the
+# Deployment. Hermes (config.yaml is copied in by an init container on every
+# start) and kube-state-metrics' CustomResourceState file were both stuck on
+# the old content until someone ran a manual rollout restart. The cluster
+# carries the label `enable_stakater_reloader: "true"` but nothing deployed it
+# (docs/okf/cluster/known-issues.md), so `reloader.stakater.com/*` annotations
+# did nothing until now.
+#
+# Opt-in only. `autoReloadAll` stays false, so Reloader acts only on a
+# workload that carries `configmap.reloader.stakater.com/reload: <names>` (or
+# the `auto` annotation) itself. Today that is hermes-agent.
+#
+# ConfigMaps only. `ignoreSecrets: true` drops the Secret watch and the
+# cluster-wide read access to every Secret that comes with it. A rotated
+# Secret (an ExternalSecret refresh) therefore does NOT restart anything; ask
+# for Secret support separately if you want it.
+#
+# `reloadStrategy: annotations` patches a pod-template annotation
+# (`reloader.stakater.com/last-reloaded-from`) instead of an env var, the form
+# the Reloader docs recommend alongside ArgoCD. The apps it touches are not
+# server-side-applied, and a live-only annotation is not in their manifests, so
+# a later sync leaves it alone.
+reloader:
+  ignoreSecrets: true
+  reloadStrategy: annotations
+  # Cluster-wide watch: the workloads it serves live in other namespaces.
+  watchGlobally: true
+  logLevel: info
+  deployment:
+    replicas: 1
+    # Developer tooling tier, like argo-rollouts.
+    priorityClassName: platform-batch
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 192Mi

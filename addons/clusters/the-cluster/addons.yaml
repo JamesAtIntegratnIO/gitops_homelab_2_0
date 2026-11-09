@@ -129,3 +129,30 @@ mealie:
       - CreateNamespace=true
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
+
+reloader:
+  # Stakater Reloader, so a ConfigMap change rolls the workloads that opt in
+  # (hermes-agent today). Values and the reasoning: cluster-roles/control-plane/
+  # addons/reloader/values.yaml; the namespace and NetworkPolicies are in
+  # network-policies/reloader.yaml. The cluster already carries the label
+  # `enable_stakater_reloader`, which nothing consumed (known-issues.md).
+  #
+  # Defined here, not in cluster-roles/control-plane/addons/addons.yaml next to
+  # argo-rollouts, for the same size reason as mealie above. The layers
+  # deep-merge, so moving it changes nothing.
+  enabled: true
+  namespace: reloader
+  releaseName: reloader
+  chartName: reloader
+  project: platform-services
+  chartRepository: https://stakater.github.io/stakater-charts
+  defaultVersion: 2.2.19
+  selectorMatchLabels:
+    cluster_role: control-plane
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
