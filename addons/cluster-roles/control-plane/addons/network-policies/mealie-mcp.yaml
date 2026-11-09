@@ -1,0 +1,102 @@
+# mealie-mcp (mcp-system/mealie-mcp.yaml): Hermes -> mealie-mcp -> Mealie.
+# All four halves in one file, each an ADDITIONAL policy, so mcp-system.yaml,
+# hermes.yaml and mealie.yaml are untouched. NetworkPolicies are additive:
+# each one below only opens its own path.
+#
+#   hermes-agent  --8000-->  mealie-mcp   (hermes egress, mcp-system ingress)
+#   mealie-mcp    --9000-->  mealie       (mcp-system egress, mealie ingress)
+#
+# mealie-mcp needs nothing else: no internet (Mealie does the fetching for
+# URL and AI imports), no kube API.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mealie-mcp-egress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mcp-system
+          podSelector:
+            matchLabels:
+              app: mealie-mcp
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-hermes-to-mealie-mcp
+  namespace: mcp-system
+spec:
+  podSelector:
+    matchLabels:
+      app: mealie-mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-agent
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mealie-mcp-egress
+  namespace: mcp-system
+spec:
+  podSelector:
+    matchLabels:
+      app: mealie-mcp
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mealie
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mealie
+      ports:
+        - protocol: TCP
+          port: 9000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mealie-mcp-ingress
+  namespace: mealie
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mcp-system
+          podSelector:
+            matchLabels:
+              app: mealie-mcp
+      ports:
+        - protocol: TCP
+          port: 9000

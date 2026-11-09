@@ -1,0 +1,161 @@
+# mealie-mcp: an MCP server for Mealie, for Hermes Agent only, so Hermes can
+# import and parse recipes and work on meal plans and shopping lists (James,
+# 2026-11-09: "tools to allow us to import recipes").
+#
+# Server: github.com/djwmarcx/better-mealie-mcp (MIT). Chosen because it runs
+# as published, with no bridge and no image of our own: it serves streamable
+# HTTP itself (`--http 8000`, endpoint /mcp), and its image is multi-arch and
+# tagged by the Mealie version it was generated from (3.30.0 = our Mealie).
+# (ni-c/mealie-mcp speaks stdio only and needs Node 24+; supergateway's image
+# is Node 20, so that route needed a custom image.)
+#
+# It is FastMCP over Mealie's OpenAPI spec: one tool per endpoint, ~280 in all,
+# admin included, and NO server-side guard rails (no dry runs, no confirm
+# step). The limits are therefore ours, three deep:
+#   1. MEALIE_INCLUDE_TAGS: only the API groups below are generated at all
+#      (no admin, users, groups, auth, explore, shared, comments, media).
+#   2. Hermes's include lists name every tool it may call (hermes-agent.yaml).
+#   3. The tools declare no readOnlyHint, so Hermes splits them: `mealie`
+#      (reads, trust: full) and `mealiewrite` (writes, trust: untrusted: every
+#      write asks James).
+# The Mealie token's own user is the final limit: whatever that user cannot
+# do in Mealie, this server cannot either.
+#
+# Token: 1Password item `mealie-api`, field `token` (a Mealie API token,
+# Profile > API Tokens, created by James). It stays in this pod; Hermes never
+# sees it.
+#
+# No HTTPRoute; ingress from Hermes only (network-policies/mealie-mcp.yaml).
+# Not Kargo-tracked yet: pinned by tag and digest. Bump it with Mealie: the
+# tag should match the Mealie version.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: mealie-mcp-token
+  namespace: mcp-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: mealie-mcp-token
+    creationPolicy: Owner
+  data:
+    - secretKey: MEALIE_API_TOKEN
+      remoteRef:
+        key: mealie-api
+        property: token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mealie-mcp
+  namespace: mcp-system
+  labels:
+    app: mealie-mcp
+  annotations:
+    # Stakater Reloader: restart when the token Secret changes (env, read once).
+    secret.reloader.stakater.com/reload: "mealie-mcp-token"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mealie-mcp
+  template:
+    metadata:
+      labels:
+        app: mealie-mcp
+    spec:
+      # Deferrable: developer tooling, not a platform dependency.
+      priorityClassName: platform-batch
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's USER is the name `mcpuser` (a `useradd -r` system user),
+        # which the kubelet cannot check as non-root, so the uid is given here.
+        # Any non-root uid works: the venv in /app is root-owned and readable.
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mealie-mcp
+          image: ghcr.io/djwmarcx/better-mealie-mcp:3.30.0@sha256:db892bbaed99cf08e381585b5b35833ca07c0f34d14ab0d15859a849cdd367fb
+          # ENTRYPOINT is `better-mealie-mcp` (stdio); this switches it to HTTP.
+          args: ["--http", "8000"]
+          env:
+            # In-cluster, plain HTTP: the request never leaves the cluster.
+            - name: MEALIE_BASE_URL
+              value: "http://mealie.mealie.svc.cluster.local:9000"
+            - name: MEALIE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-mcp-token
+                  key: MEALIE_API_TOKEN
+                  optional: true
+            - name: MCP_HOST
+              value: "0.0.0.0"
+            - name: MCP_SERVER_NAME
+              value: "Mealie"
+            # Only these API groups become tools (first path segment under
+            # /api). households carries meal plans and shopping lists.
+            - name: MEALIE_INCLUDE_TAGS
+              value: "app,recipes,parser,foods,units,organizers,households"
+            # Seconds per Mealie call. An AI import waits on the AI provider.
+            - name: MEALIE_TIMEOUT
+              value: "170"
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          # No HTTP health path is documented; a listening port is the check.
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mealie-mcp
+  namespace: mcp-system
+  labels:
+    app: mealie-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: mealie-mcp
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
