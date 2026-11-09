@@ -3,11 +3,11 @@
 # hermes.yaml and mealie.yaml are untouched. NetworkPolicies are additive:
 # each one below only opens its own path.
 #
-#   hermes-agent  --8084-->  mealie-mcp   (hermes egress, mcp-system ingress)
+#   hermes-agent  --8000-->  mealie-mcp   (hermes egress, mcp-system ingress)
 #   mealie-mcp    --9000-->  mealie       (mcp-system egress, mealie ingress)
 #
 # mealie-mcp needs nothing else: no internet (Mealie does the fetching for
-# URL and image imports), no kube API.
+# URL and AI imports), no kube API.
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -30,7 +30,7 @@ spec:
               app: mealie-mcp
       ports:
         - protocol: TCP
-          port: 8084
+          port: 8000
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -53,7 +53,7 @@ spec:
               app.kubernetes.io/name: hermes-agent
       ports:
         - protocol: TCP
-          port: 8084
+          port: 8000
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
