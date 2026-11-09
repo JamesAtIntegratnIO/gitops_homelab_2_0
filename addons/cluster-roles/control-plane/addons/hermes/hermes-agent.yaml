@@ -400,9 +400,8 @@ data:
       # change `main`: create_branch only adds a ref, a PR only proposes, and
       # github-mcp-hermes refuses merge, delete, repo create/fork and reviews
       # outright. The file writes, which take any branch name including
-      # `main`, are on `githubwrite` below and still need approval, because
-      # the token is James's admin PAT and the `main` ruleset lets the Admin
-      # role bypass it.
+      # `main`, are on `githubwrite` below (also trust: full since
+      # 2026-11-08; read the comment there).
       github:
         url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
         trust: "full"
@@ -435,10 +434,20 @@ data:
             - "get_job_logs"
           resources: false
           prompts: false
-      # Commits: the same server, each call approved by James (untrusted).
+      # Commits: the same server, on every repo the token reaches (gitops and
+      # nix_dots_2 today). trust: full since James's decision of 2026-11-08, made
+      # with the risk known: these two tools take any branch name, including
+      # `main`, the token is James's admin PAT, and the `main` ruleset lets the
+      # Admin role bypass it. So NOTHING BUT HERMES'S OWN RULES stops a commit
+      # to `main`. James's condition: every change goes through a
+      # `hermes/<type>-<slug>` branch and a pull request; Hermes never commits
+      # or pushes to `main`. Enforcing that for real needs a "require a pull
+      # request" ruleset without the admin bypass, or a non-admin token (see
+      # github-mcp-hermes.yaml). To bring the per-call approval back, set
+      # trust to "untrusted" again.
       githubwrite:
         url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
-        trust: "untrusted"
+        trust: "full"
         timeout: 120
         tools:
           include:
@@ -921,4 +930,3 @@ spec:
       backendRefs:
         - name: hermes-agent
           port: 9119
-
