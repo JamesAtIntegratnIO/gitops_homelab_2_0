@@ -3,9 +3,9 @@
 #
 # NO authentik forward-auth in front, on purpose. Forward-auth would block
 # Mealie's API tokens (the meal-plan and shopping-list API an agent uses) and
-# its mobile apps. Mealie authenticates the request itself: its own login now,
-# OIDC against authentik in a follow-up. Change the first-login credentials at
-# once (README.md).
+# its mobile apps. Mealie authenticates the request itself: its own login, and
+# OIDC against authentik ("Login with authentik"). Change the first-login
+# credentials at once (README.md).
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -29,6 +29,27 @@ spec:
       backendRefs:
         - name: mealie
           port: 9000
+---
+# Upload size for the route above. nginx's default request body limit is 1 MB,
+# and "create recipe from images with AI" posts the phone photos in one request:
+# 13-22 MB for 2-3 photos (2026-11-09), refused by the gateway with 413 before
+# Mealie ever saw it (Mealie only showed "recipe creation failed"). 64 MB
+# leaves room for 5-6 photos; recipe image and backup uploads go through the
+# same route. Same mechanism as prom-remote (observability-httproutes.yaml).
+apiVersion: gateway.nginx.org/v1alpha1
+kind: ClientSettingsPolicy
+metadata:
+  name: mealie-client-settings
+  namespace: mealie
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: mealie
+  body:
+    maxSize: 64m
+    # Time allowed between two reads of the body, not for the whole upload.
+    timeout: 120s
 ---
 # The http half: a redirect to https, naming no backend.
 apiVersion: gateway.networking.k8s.io/v1
