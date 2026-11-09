@@ -1,0 +1,139 @@
+# Mealie, the recipe manager / meal planner / shopping list: the official image,
+# one replica, plain manifests, Postgres on datacron. Recipe images and
+# backups live on the PVC below; everything else is in the database.
+#
+# THE IMAGE IS NOT KARGO-TRACKED YET. It is pinned by tag and digest, but its
+# target is not in kargo-projects/values.yaml (that file is 50 KB and this PR
+# could not safely rewrite it). Add a `mealie` target in a follow-up.
+#
+# HARDENING IS DELIBERATELY MINIMAL. Mealie's entrypoint starts as root and
+# drops to PUID/PGID, and I could not confirm from its docs whether it still
+# works with runAsNonRoot or a read-only root filesystem. Tighten both after
+# the first boot, with the logs in front of you. The data volume's export maps
+# every uid to 99:100 (docs/okf/platform/storage.md), so no chown is needed.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mealie-data
+  namespace: mealie
+  labels:
+    app.kubernetes.io/name: mealie
+  annotations:
+    # Recipe images are only here. Pruning the app must not delete them.
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: config-nfs-client
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mealie
+  namespace: mealie
+  labels:
+    app.kubernetes.io/name: mealie
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  # One RWO volume: never run two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mealie
+    spec:
+      automountServiceAccountToken: false
+      # A Service named `mealie` would otherwise inject MEALIE_* variables into
+      # an app that reads its configuration from the environment.
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mealie
+          image: ghcr.io/mealie-recipes/mealie:v3.30.0@sha256:90f83da6f3ab0a421efc827118a556168573930105f13fa3321768f42163d784
+          ports:
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+          # POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_SERVER, POSTGRES_PORT and
+          # POSTGRES_DB, from 1Password (externalsecret.yaml beside this file).
+          envFrom:
+            - secretRef:
+                name: mealie-db
+          env:
+            - name: DB_ENGINE
+              value: postgres
+            # Used for links and, later, the OIDC callback.
+            - name: BASE_URL
+              value: https://mealie.cluster.integratn.tech
+            # Accounts are created by an admin, not by the login page.
+            - name: ALLOW_SIGNUP
+              value: "false"
+            # Server tasks run at DAILY_SCHEDULE_TIME in this zone. UTC is the
+            # image default; set the household's zone here if it matters.
+            - name: TZ
+              value: UTC
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          # /api/app/about is the image's own health check path. It answers from
+          # settings and touches nothing external, so it is safe for liveness
+          # (CLAUDE.md: never point liveness at a dependency). First start runs
+          # the database migrations, hence the long startup probe.
+          startupProbe:
+            httpGet:
+              path: /api/app/about
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/app/about
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/app/about
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mealie-data
+---
+# mealie.mealie.svc.cluster.local:9000 -- what the gateway route reaches, and
+# the address an in-cluster MCP server or Hermes would use for the API.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mealie
+  namespace: mealie
+  labels:
+    app.kubernetes.io/name: mealie
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: mealie
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http
+      protocol: TCP

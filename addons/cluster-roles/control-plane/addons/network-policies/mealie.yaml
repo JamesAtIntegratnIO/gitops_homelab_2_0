@@ -1,0 +1,136 @@
+# Mealie. The namespace starts from the default-deny Kyverno generates
+# (kyverno-generate-default-deny.yaml); everything the pod is allowed is below.
+#
+# Mealie is reached through the gateway only, on 9000. That needs both halves:
+# allow-gateway-ingress here, and allow-mealie-egress in the nginx-gateway
+# namespace at the bottom of this file. NetworkPolicies are additive, so the
+# second half is a policy of its own rather than an edit to nginx-gateway.yaml;
+# without it the request hangs with zero bytes instead of failing.
+#
+# Mealie reaches Postgres, DNS and the public internet (recipe import fetches
+# web pages) and nothing else.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mealie
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: mealie
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# The store: the external Postgres on 10.0.3.1 (datacron). Not a node address,
+# so a plain ipBlock matches it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-egress
+  namespace: mealie
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.3.1/32
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# Recipe import fetches pages and images from the internet. Public addresses
+# only: every RFC1918 range is excepted, which also keeps Mealie away from the
+# rest of the cluster and the LAN.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internet-egress
+  namespace: mealie
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+---
+# The gateway's data plane, on 9000. The other half is allow-mealie-egress below.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-ingress
+  namespace: mealie
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nginx-gateway-nginx
+      ports:
+        - protocol: TCP
+          port: 9000
+---
+# The egress half, in the gateway's own namespace: nginx to Mealie on 9000.
+# Additive to allow-nginx-dataplane in nginx-gateway.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mealie-egress
+  namespace: nginx-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-gateway-nginx
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mealie
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mealie
+      ports:
+        - protocol: TCP
+          port: 9000
