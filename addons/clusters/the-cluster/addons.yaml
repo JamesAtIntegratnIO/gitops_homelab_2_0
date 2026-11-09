@@ -129,3 +129,41 @@ mealie:
       - CreateNamespace=true
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
+
+secret-generation:
+  # The ClusterSecretStore `onepassword-generated` (a write token for the 1Password
+  # vault `generated` only) and its token ExternalSecret, so a reviewed PR can
+  # create NEW random secrets without a value passing through git or Hermes.
+  # README.md in the path says how it works, its limits and the one-time
+  # setup (vault, Connect token, 1Password item `eso-generated-token`). The
+  # create-only guard is network-policies/kyverno-restrict-pushsecret.yaml.
+  #
+  # Defined here, not in cluster-roles/control-plane/addons.yaml, for the same
+  # reason as mealie above: that file is 49 KB.
+  #
+  # Until the 1Password item exists the store is not Ready; nothing else uses it.
+  enabled: true
+  type: manifest
+  namespace: external-secrets
+  project: platform-services
+  defaultVersion: "main"
+  path: addons/cluster-roles/control-plane/addons/secret-generation
+  selectorMatchLabels:
+    cluster_role: control-plane
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.target.template.mergePolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
