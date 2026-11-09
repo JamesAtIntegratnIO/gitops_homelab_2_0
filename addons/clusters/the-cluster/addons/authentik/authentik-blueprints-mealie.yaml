@@ -2,8 +2,9 @@
 # authentik/values.yaml (blueprints.configMaps), so adding it did not mean
 # rewriting the 25 KB authentik-blueprints file.
 #
-# Client id and secret come from the 1Password item `authentik-mealie-oidc`
-# (fields `client-id`, `client-secret`) through the ExternalSecret in
+# Client id and secret come from the 1Password item `generated-mealie-oidc`
+# (fields `client-id`, `client-secret`; created once by the PushSecret in
+# mealie/oidc-generated-secret.yaml) through the ExternalSecret in
 # authentik-mealie-secret.yaml and the MEALIE_CLIENT_* env in values.yaml.
 # Mealie reads the SAME item (mealie/externalsecret.yaml), so the two sides
 # cannot disagree for longer than one refresh.
@@ -12,6 +13,9 @@
 # `authentik Admins` (they become Mealie admins, OIDC_ADMIN_GROUP) and of
 # `mealie-users` (the household; add them to the group in the authentik UI).
 # Mealie's own OIDC_USER_GROUP is left unset.
+#
+# authentik applies changes to this file by itself, on its own timer (up to
+# about an hour after ArgoCD syncs it).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -50,6 +54,29 @@ data:
               "groups": [group.name for group in user.ak_groups.all()],
             }
 
+      # The `email` scope for Mealie only, asserting email_verified: true.
+      # Mealie (v3.21+) refuses any OIDC login without email_verified true,
+      # because it links a login to an existing account by email. authentik
+      # (2025.10+) sends email_verified: false from its default email mapping,
+      # since it cannot prove anyone owns an address. This is the fix from
+      # authentik's "Verify email addresses" doc, scoped to this provider, so
+      # the default mapping is NOT also listed below (never both).
+      # What it trusts: that no authentik user can set their email to someone
+      # else's. Keep "Allow users to change email" off in System > Settings,
+      # or a user could sign in to Mealie as whoever owns that address.
+      - model: authentik_providers_oauth2.scopemapping
+        identifiers:
+          name: Mealie Email Scope
+          scope_name: email
+        id: email-scope
+        attrs:
+          description: Email address, asserted as verified (Mealie only)
+          expression: |
+            return {
+              "email": request.user.email,
+              "email_verified": True,
+            }
+
       - model: authentik_providers_oauth2.oauth2provider
         identifiers:
           name: mealie-provider
@@ -66,9 +93,12 @@ data:
             - url: https://mealie.cluster.integratn.tech/login?direct=1
               matching_mode: strict
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, "authentik Self-signed Certificate"]]
+          # By name, not by scope_name: two mappings now have scope_name
+          # `email` (authentik's default and Mealie's), and a scope_name lookup
+          # could return either.
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "openid"]]
-            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "email"]]
+            - !KeyOf email-scope
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, "profile"]]
             - !Find [authentik_providers_oauth2.scopemapping, [name, "Mealie Groups Scope"]]
           include_claims_in_id_token: true
