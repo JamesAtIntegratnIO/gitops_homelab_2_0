@@ -602,6 +602,15 @@ metadata:
   namespace: hermes
   labels:
     app.kubernetes.io/name: hermes-agent
+  annotations:
+    # Stakater Reloader (addons/.../reloader) rolls this Deployment when any of
+    # these ConfigMaps changes: the settings (an init container copies
+    # config.yaml in on every start) and the three skill ConfigMaps (subPath
+    # mounts never update in place). Without it a merged config change sat
+    # unused until someone ran a rollout restart by hand. ConfigMaps only:
+    # Reloader is set to ignore Secrets. A rollout ends any conversation in
+    # flight.
+    configmap.reloader.stakater.com/reload: "hermes-config,hermes-skills,hermes-skill-design,hermes-skill-secrets"
 spec:
   replicas: 1
   strategy:
