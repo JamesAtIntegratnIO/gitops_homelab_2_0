@@ -455,6 +455,24 @@ data:
             - "push_files"
           resources: false
           prompts: false
+      # File deletes (James, 2026-11-09: a PR branch could not drop files it no
+      # longer needed, so the PR had to be replaced). The same server and the
+      # same admin PAT as githubwrite, so delete_file also takes any branch name,
+      # `main` included, and the same condition holds: only on the
+      # `hermes/<type>-<slug>` branch of an open PR, never on `main`. Unlike
+      # the commit tools this one is trust: untrusted, because delete_file
+      # declares no readOnlyHint and a delete is the one write that is hard to
+      # see in a review: every delete asks James. To drop the prompt, set trust
+      # to "full" as githubwrite is.
+      githubdelete:
+        url: "http://github-mcp-hermes.mcp-system.svc.cluster.local:8083/mcp"
+        trust: "untrusted"
+        timeout: 120
+        tools:
+          include:
+            - "delete_file"
+          resources: false
+          prompts: false
       # Inside the media apps (mcp-system/arr-mcp.yaml): Sonarr, Radarr, Bazarr,
       # SABnzbd, Jellyfin. Every read declares readOnlyHint; writes need
       # approval (untrusted), and each is a preview then a confirm. The server
