@@ -131,12 +131,13 @@ mealie:
       - RespectIgnoreDifferences=true
 
 secret-generation:
-  # The ClusterSecretStore `onepassword-generated` (a write token for the 1Password
-  # vault `generated` only) and its token ExternalSecret, so a reviewed PR can
-  # create NEW random secrets without a value passing through git or Hermes.
-  # README.md in the path says how it works, its limits and the one-time
-  # setup (vault, Connect token, 1Password item `eso-generated-token`). The
-  # create-only guard is network-policies/kyverno-restrict-pushsecret.yaml.
+  # The ClusterSecretStore `onepassword-generated` (the `homelab` vault again,
+  # with its own Connect token that may write) and that token's ExternalSecret,
+  # so a reviewed PR can create NEW random secrets without a value passing
+  # through git or Hermes. README.md in the path says how it works, its limits
+  # and the one-time setup (Connect token, 1Password item
+  # `eso-generated-token`). The create-only guard is
+  # network-policies/kyverno-restrict-pushsecret.yaml.
   #
   # Defined here, not in cluster-roles/control-plane/addons.yaml, for the same
   # reason as mealie above: that file is 49 KB.
