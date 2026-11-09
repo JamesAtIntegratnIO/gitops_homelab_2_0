@@ -1,0 +1,77 @@
+# walmart-mcp (mcp-system/walmart-mcp.yaml): Hermes -> walmart-mcp -> Walmart.
+# Each an ADDITIONAL policy, so mcp-system.yaml and hermes.yaml are untouched.
+#
+#   hermes-agent  --8000-->  walmart-mcp     (hermes egress, mcp-system ingress)
+#   walmart-mcp   --443--->  internet        (developer.api.walmart.com; no
+#                                             private ranges)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-walmart-mcp-egress
+  namespace: hermes
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hermes-agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mcp-system
+          podSelector:
+            matchLabels:
+              app: walmart-mcp
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-hermes-to-walmart-mcp
+  namespace: mcp-system
+spec:
+  podSelector:
+    matchLabels:
+      app: walmart-mcp
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hermes
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: hermes-agent
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+# Same shape as allow-github-egress (mcp-system.yaml): public internet on 443,
+# private ranges excluded.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-walmart-mcp-internet-egress
+  namespace: mcp-system
+spec:
+  podSelector:
+    matchLabels:
+      app: walmart-mcp
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
