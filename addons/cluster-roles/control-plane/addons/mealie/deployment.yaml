@@ -6,7 +6,7 @@
 # target is not in kargo-projects/values.yaml (that file is 50 KB and this PR
 # could not safely rewrite it). Add a `mealie` target in a follow-up.
 #
-# THE ENTRYPOINT NEEDS SIX CAPABILITIES, AND KYVERNO WOULD TAKE THEM ALL.
+# THE ENTRYPOINT NEEDS FIVE CAPABILITIES, AND KYVERNO WOULD TAKE THEM ALL.
 # Mealie's run.sh starts as root, chowns /app, then switches to PUID/PGID
 # (911). Kyverno's mutate-restrict-escalation adds `drop: [ALL]` to any
 # container that names no capabilities, and on first boot that gave
