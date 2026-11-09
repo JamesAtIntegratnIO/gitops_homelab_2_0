@@ -78,7 +78,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: walmart-mcp
-          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/walmart-mcp:v0.1.0@sha256:ffb12de6d1a2f61abeb12414b093fa2e65864ff4e0d90db07da6f7b3e1107d19
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/walmart-mcp:v0.1.1@sha256:768d42ba08e787c41f68378395c064fcb733a5be1caa21e7d1848e3766c48189
           env:
             - name: WALMART_STORE_ID
               value: "500"
