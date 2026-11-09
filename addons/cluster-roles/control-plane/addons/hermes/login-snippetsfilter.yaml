@@ -1,0 +1,26 @@
+# One login, through authentik, for Hermes's dashboard and Webapp.
+#
+# Hermes's dashboard serves its own /login page listing its sign-in
+# providers. Ours has exactly one, the self-hosted OIDC client `hermes` in
+# authentik, so that page is a dead step: an unthemed Nous page with one
+# button labelled "Sign in with Self-Hosted OIDC" (the label is hard-coded in
+# Hermes v0.23.0's self_hosted plugin and not configurable). This sends
+# /login straight to the OAuth start, so a signed-out browser lands on the
+# authentik sign-in like every other app, and a browser already signed in to
+# authentik comes straight back. `next=` (where the gate was sending you) is
+# kept in $args.
+#
+# Lives in `hermes` because ExtensionRef on an HTTPRoute cannot name another
+# namespace. Snippets are already enabled on nginx-gateway (bosun, qdrant).
+apiVersion: gateway.nginx.org/v1alpha1
+kind: SnippetsFilter
+metadata:
+  name: hermes-login-via-authentik
+  namespace: hermes
+spec:
+  snippets:
+    - context: http.server
+      value: |
+        location = /login {
+            return 302 /auth/login?provider=self-hosted&$args;
+        }

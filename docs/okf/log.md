@@ -1,5 +1,8 @@
 # Update Log
 
+## 2026-11-09
+* **Update**: **Hermes signs in through authentik only.** Its own `/login` page (unthemed Nous page, button hard-coded "Sign in with Self-Hosted OIDC") is skipped: SnippetsFilter `hermes-login-via-authentik` on the dashboard and Webapp routes redirects `/login` to the OAuth start. See [Hermes Agent](addons/hermes.md).
+
 ## 2026-11-08
 * **Fix**: **No focus box inside Hermes text fields.** The `integratn` skin and theme drew a 2px outline inside the Webapp composer; inputs and textareas now rely on their own frame. See [Hermes Agent](addons/hermes.md).
 * **Update**: **Hermes's own UIs wear James's design system.** Dashboard theme `integratn` and skin `integratn` (CLI/TUI, Chat tab, Webapp) from `hack/hermes-design/`, mounted from ConfigMap `hermes-skill-design` into `/opt/data/dashboard-themes/` and `/opt/data/skins/`, selected in config.yaml. See [Hermes Agent](addons/hermes.md).
