@@ -1,0 +1,178 @@
+# mealie-mcp: an MCP server for Mealie, for Hermes Agent only, so Hermes can
+# read, import and parse recipes and work on meal plans and shopping lists
+# (James, 2026-11-09: "tools to allow us to import recipes").
+#
+# Server: github.com/ni-c/mealie-mcp (MIT), chosen over rldiao/mealie-mcp-server
+# because it publishes a multi-arch image, never reaches Mealie's admin routes,
+# token minting or webhooks, updates recipes with PATCH (only named fields
+# change), and parses ingredients as a dry run first. It speaks stdio only, so
+# supergateway serves it over streamable HTTP, as for github-mcp-hermes.
+#
+# HOW THE TWO IMAGES MEET: mealie-mcp needs Node 24+, supergateway's image is
+# Node 20. So the container is mealie-mcp's own image (Node 26), and
+# supergateway's image is mounted read-only as an image volume at
+# /opt/supergateway. Its global bin link (usr/local/bin/supergateway) is a
+# relative symlink into its own node_modules and starts with
+# `#!/usr/bin/env node`, so it runs on this image's Node.
+#
+# Tools: MEALIE_ALLOW_TOOLS registers only the list below; anything else (every
+# delete, merge, share-token and comment tool) does not exist here. An entry
+# that matches no tool aborts startup, so a rename upstream shows as a crash,
+# not as a silently missing tool. Hermes's own include list is the second
+# guard, and its trust: untrusted asks James before every write.
+# ELICITATION=false: the server's own "ask a person" step becomes a two-call
+# confirm token instead of an MCP elicitation dialog Hermes may not show.
+#
+# Token: 1Password item `mealie-api`, field `token` (a Mealie API token,
+# Profile > API Tokens, created by James). It acts as the user who created it.
+# It stays in this pod; Hermes never sees it. mealie-mcp removes it from its
+# own process environment once read.
+#
+# No HTTPRoute; ingress from Hermes only (network-policies/mealie-mcp.yaml).
+# Not Kargo-tracked yet: both images are pinned by tag and digest.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: mealie-mcp-token
+  namespace: mcp-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: mealie-mcp-token
+    creationPolicy: Owner
+  data:
+    - secretKey: MEALIE_API_TOKEN
+      remoteRef:
+        key: mealie-api
+        property: token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mealie-mcp
+  namespace: mcp-system
+  labels:
+    app: mealie-mcp
+  annotations:
+    # Stakater Reloader: restart when the token Secret changes (env, read once).
+    secret.reloader.stakater.com/reload: "mealie-mcp-token"
+spec:
+  replicas: 1
+  # One stdio child holds the MCP sessions; never run two side by side.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mealie-mcp
+  template:
+    metadata:
+      labels:
+        app: mealie-mcp
+    spec:
+      # Deferrable: developer tooling, not a platform dependency.
+      priorityClassName: platform-batch
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's own `node` user.
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mealie-mcp
+          image: ghcr.io/ni-c/mealie-mcp:0.6.0@sha256:4468960394e97adcb173f2f46725cdcf4f68cab0c242a9ad755f4453faa740d6
+          command:
+            - /opt/supergateway/usr/local/bin/supergateway
+          args:
+            - --stdio
+            - "node /app/dist/index.js"
+            - --port
+            - "8084"
+            - --outputTransport
+            - streamableHttp
+            - --stateful
+            - --path
+            - /mcp
+            - --healthEndpoint
+            - /healthz
+          env:
+            # In-cluster, plain HTTP: the request never leaves the cluster.
+            - name: MEALIE_URL
+              value: "http://mealie.mealie.svc.cluster.local:9000"
+            - name: MEALIE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-mcp-token
+                  key: MEALIE_API_TOKEN
+                  optional: true
+            - name: ELICITATION
+              value: "false"
+            # Reads, import, recipe edits, ingredient parsing, foods and units,
+            # tags/categories, meal plans and shopping lists. No deletes, merges,
+            # share tokens, comments, cookbooks, ratings or random meals.
+            - name: MEALIE_ALLOW_TOOLS
+              value: "search_recipes,get_recipe,suggest_recipes,create_recipe,update_recipe,parse_recipe_ingredients,set_recipe_image,set_recipe_last_made,preview_recipe_url,import_recipe_from_url,import_recipe_from_html_or_json,import_recipe_from_image,list_organizers,create_organizer,update_organizer,list_foods,create_food,list_units,create_unit,parse_ingredients,list_mealplans,get_todays_meals,create_mealplan_entry,update_mealplan_entry,list_shopping_lists,get_shopping_list,create_shopping_list,add_shopping_list_items,update_shopping_list_items,add_recipe_to_shopping_list,remove_recipe_from_shopping_list,list_cookbooks,get_cookbook,list_recipe_timeline,get_about"
+          ports:
+            - containerPort: 8084
+              name: http
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: supergateway
+              mountPath: /opt/supergateway
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8084
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          # Liveness is "is the process wedged", never "is Mealie reachable".
+          livenessProbe:
+            tcpSocket:
+              port: 8084
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      volumes:
+        - name: supergateway
+          image:
+            reference: ghcr.io/supercorp-ai/supergateway:4.2.1@sha256:ba077866d6daae4c5157bce792dd87468e29d3bcac98153d8029ed772d743ea6
+            pullPolicy: IfNotPresent
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mealie-mcp
+  namespace: mcp-system
+  labels:
+    app: mealie-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: mealie-mcp
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084
+      protocol: TCP
