@@ -1,0 +1,143 @@
+# walmart-mcp: read-only Walmart catalog tools for Hermes Agent, so Hermes can
+# turn a grocery list into one add-to-cart link that James opens and checks out
+# himself (James, 2026-11-09: link approach, store #500 / ZIP 79924).
+#
+# Image: our own, images/walmart-mcp (server.py, official MCP SDK 2.3.0), built
+# by .github/workflows/build-walmart-mcp-image.yaml. Three tools, all
+# readOnlyHint: search_products (Affiliate API /search), lookup_items (/items,
+# availability for store 500), cart_link (builds
+# https://affil.walmart.com/cart/addToCart?items=<id>|<qty>,..., no request).
+# Nothing here logs in to walmart.com, holds Walmart cookies, or changes a cart.
+#
+# Credentials: 1Password item `walmart-io` (vault homelab), created by James:
+# consumer-id and key-version from the walmart.io dashboard, private-key the
+# PEM whose public half he uploaded there. The server signs each request with
+# it and drops it from its environment at start.
+#
+# No HTTPRoute; ingress from Hermes only, egress to the internet on 443 only
+# (network-policies/walmart-mcp.yaml). Not Kargo-tracked: our own image, bump
+# the digest after a rebuild.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: walmart-mcp
+  namespace: mcp-system
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-store
+  target:
+    name: walmart-mcp
+    creationPolicy: Owner
+  data:
+    - secretKey: WALMART_CONSUMER_ID
+      remoteRef:
+        key: walmart-io
+        property: consumer-id
+    - secretKey: WALMART_KEY_VERSION
+      remoteRef:
+        key: walmart-io
+        property: key-version
+    - secretKey: WALMART_PRIVATE_KEY
+      remoteRef:
+        key: walmart-io
+        property: private-key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: walmart-mcp
+  namespace: mcp-system
+  labels:
+    app: walmart-mcp
+  annotations:
+    # Stakater Reloader: restart when the credentials change (env, read once).
+    secret.reloader.stakater.com/reload: "walmart-mcp"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: walmart-mcp
+  template:
+    metadata:
+      labels:
+        app: walmart-mcp
+    spec:
+      # Deferrable: developer tooling, not a platform dependency.
+      priorityClassName: platform-batch
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: walmart-mcp
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/walmart-mcp:v0.1.0@sha256:ffb12de6d1a2f61abeb12414b093fa2e65864ff4e0d90db07da6f7b3e1107d19
+          env:
+            - name: WALMART_STORE_ID
+              value: "500"
+            - name: WALMART_ZIP
+              value: "79924"
+            # DNS-rebinding guard: only these Host headers are accepted.
+            - name: MCP_ALLOWED_HOSTS
+              value: "walmart-mcp.mcp-system.svc.cluster.local:8000,walmart-mcp.mcp-system.svc:8000,walmart-mcp:8000"
+          envFrom:
+            - secretRef:
+                name: walmart-mcp
+                optional: true
+          ports:
+            - containerPort: 8000
+              name: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 15
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: walmart-mcp
+  namespace: mcp-system
+  labels:
+    app: walmart-mcp
+spec:
+  type: ClusterIP
+  selector:
+    app: walmart-mcp
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
