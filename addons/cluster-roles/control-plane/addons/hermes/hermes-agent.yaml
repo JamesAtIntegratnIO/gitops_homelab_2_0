@@ -519,56 +519,84 @@ data:
             - "remove_blocklist_item"
           resources: false
           prompts: false
-      # Recipes, meal plans and shopping lists in Mealie (mcp-system/
-      # mealie-mcp.yaml, ni-c/mealie-mcp behind supergateway). The token is
-      # James's Mealie API token and stays in that pod. Reads declare
-      # readOnlyHint and run freely; every write (import, create, update,
-      # parse, foods/units, plans, lists) asks James (untrusted). The server
-      # registers only these tools (MEALIE_ALLOW_TOOLS): no deletes, merges,
-      # share tokens or comments. parse_recipe_ingredients is a dry run unless
-      # dry_run is false, and its write then needs the server's own confirm
-      # token as well. 180 s: an image import waits on Mealie's AI provider.
+      # Recipes, meal plans and shopping lists in Mealie, through mealie-mcp
+      # (mcp-system/mealie-mcp.yaml, djwmarcx/better-mealie-mcp: one tool per
+      # Mealie API endpoint, generated from its OpenAPI spec). The token is
+      # James's Mealie API token and stays in that pod. The server marks no
+      # tool read-only, so it is split like github/githubwrite:
+      #   mealie       reads, plus the two calls that compute without saving
+      #                (ingredient parser, test-scrape of a URL): trust full.
+      #   mealiewrite  everything that saves: trust untrusted, every call asks
+      #                James.
+      # Not listed, so never callable: deletes, merges, bulk actions, full-
+      # recipe PUT (PATCH only changes the fields given), exports, sharing,
+      # meal-plan rules, iCal, webhooks, invitations, household settings.
+      # 180 s: an AI import waits on Mealie's AI provider (server side 170 s).
       mealie:
-        url: "http://mealie-mcp.mcp-system.svc.cluster.local:8084/mcp"
+        url: "http://mealie-mcp.mcp-system.svc.cluster.local:8000/mcp"
+        trust: "full"
+        timeout: 180
+        tools:
+          include:
+            - "list_app_about"
+            - "list_recipes"
+            - "get_recipes_by_slug"
+            - "list_recipes_suggestions"
+            - "list_recipes_timeline_events"
+            - "create_recipes_test_scrape_url"
+            - "create_parser_ingredient"
+            - "create_parser_ingredients"
+            - "list_foods"
+            - "get_foods_by_item"
+            - "list_units"
+            - "get_units_by_item"
+            - "list_organizers_categories"
+            - "list_organizers_tags"
+            - "list_organizers_tools"
+            - "get_organizers_categories_slug_by_category_slug"
+            - "get_organizers_tags_slug_by_tag_slug"
+            - "get_organizers_tools_slug_by_tool_slug"
+            - "list_households_mealplans"
+            - "list_households_mealplans_today"
+            - "get_households_mealplans_by_item"
+            - "list_households_shopping_lists"
+            - "get_households_shopping_lists_by_item"
+            - "list_households_shopping_items"
+          resources: false
+          prompts: false
+      mealiewrite:
+        url: "http://mealie-mcp.mcp-system.svc.cluster.local:8000/mcp"
         trust: "untrusted"
         timeout: 180
         tools:
           include:
-            - "search_recipes"
-            - "get_recipe"
-            - "suggest_recipes"
-            - "create_recipe"
-            - "update_recipe"
-            - "parse_recipe_ingredients"
-            - "set_recipe_image"
-            - "set_recipe_last_made"
-            - "preview_recipe_url"
-            - "import_recipe_from_url"
-            - "import_recipe_from_html_or_json"
-            - "import_recipe_from_image"
-            - "list_organizers"
-            - "create_organizer"
-            - "update_organizer"
-            - "list_foods"
-            - "create_food"
-            - "list_units"
-            - "create_unit"
-            - "parse_ingredients"
-            - "list_mealplans"
-            - "get_todays_meals"
-            - "create_mealplan_entry"
-            - "update_mealplan_entry"
-            - "list_shopping_lists"
-            - "get_shopping_list"
-            - "create_shopping_list"
-            - "add_shopping_list_items"
-            - "update_shopping_list_items"
-            - "add_recipe_to_shopping_list"
-            - "remove_recipe_from_shopping_list"
-            - "list_cookbooks"
-            - "get_cookbook"
-            - "list_recipe_timeline"
-            - "get_about"
+            # Import: from a URL, from HTML or schema.org JSON, or with AI
+            # (text, photos), and a blank recipe to fill with PATCH.
+            - "create_recipes_create_url"
+            - "create_recipes_create_html_or_json"
+            - "create_recipes_create_ai"
+            - "create_recipes"
+            - "patch_recipes_by_slug"
+            - "patch_recipes_by_slug_last_made"
+            - "create_recipes_by_slug_image"
+            - "update_recipes_by_slug_image"
+            # Vocabulary the parser matches against.
+            - "create_foods"
+            - "update_foods_by_item"
+            - "create_units"
+            - "update_units_by_item"
+            - "create_organizers_categories"
+            - "create_organizers_tags"
+            - "create_organizers_tools"
+            # Meal plans and shopping lists.
+            - "create_households_mealplans"
+            - "update_households_mealplans_by_item"
+            - "create_households_shopping_lists"
+            - "create_households_shopping_items"
+            - "create_households_shopping_items_create_bulk"
+            - "update_households_shopping_items_by_item"
+            - "create_households_shopping_lists_by_item_recipe"
+            - "create_households_shopping_lists_by_item_recipe_by_recip"
           resources: false
           prompts: false
     # ---- Features, 2026-11-07. Only free ones that need no key beyond
