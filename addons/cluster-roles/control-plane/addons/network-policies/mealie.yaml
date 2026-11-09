@@ -7,8 +7,9 @@
 # second half is a policy of its own rather than an edit to nginx-gateway.yaml;
 # without it the request hangs with zero bytes instead of failing.
 #
-# Mealie reaches Postgres, DNS and the public internet (recipe import fetches
-# web pages) and nothing else.
+# Mealie reaches Postgres, DNS, the public internet (recipe import fetches
+# web pages) and authentik (OIDC discovery and token exchange, through the
+# gateway) and nothing else.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -109,6 +110,39 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+---
+# Sign in with authentik: Mealie fetches the OIDC discovery document and
+# exchanges the code at auth.cluster.integratn.tech. In a pod that name is
+# rewritten to the gateway's Service (coredns-host-config), and the internet
+# rule above excludes it (RFC1918). Same two rules as allow-argocd-server-oidc
+# in argocd.yaml, which explains why both are there: Cilium sees the gateway's
+# LB VIP (10.0.4.205) as a CIDR identity, not as the gateway endpoint. Hermes's
+# allow-authentik-egress carries only the first and works through the Service;
+# the second costs nothing and covers the other path.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-authentik-egress
+  namespace: mealie
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: nginx-gateway
+            app.kubernetes.io/name: nginx-gateway-nginx
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toCIDR:
+        - 10.0.4.205/32
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
 ---
 # The egress half, in the gateway's own namespace: nginx to Mealie on 9000.
 # Additive to allow-nginx-dataplane in nginx-gateway.yaml.
