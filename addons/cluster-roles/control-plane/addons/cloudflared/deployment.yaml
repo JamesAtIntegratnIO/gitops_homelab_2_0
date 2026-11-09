@@ -26,6 +26,10 @@ metadata:
   namespace: cloudflared
   labels:
     app.kubernetes.io/name: cloudflared
+  annotations:
+    # Stakater Reloader rolls this Deployment when the tunnel token Secret
+    # changes (TUNNEL_TOKEN is read from env once, at start).
+    secret.reloader.stakater.com/reload: "cloudflared-tunnel"
 spec:
   replicas: 2
   revisionHistoryLimit: 3

@@ -1,22 +1,32 @@
-# Stakater Reloader: restarts a workload when a ConfigMap it names changes.
+# Stakater Reloader: restarts a workload when a ConfigMap or Secret it names
+# changes.
 #
-# Why this exists: a pod that copies or mounts a ConfigMap by subPath never
-# sees a later change, and ArgoCD updating the ConfigMap does not roll the
-# Deployment. Hermes (config.yaml is copied in by an init container on every
-# start) and kube-state-metrics' CustomResourceState file were both stuck on
+# Why this exists: a pod that copies or mounts a ConfigMap by subPath, or reads
+# a Secret through env, never sees a later change, and ArgoCD or ESO updating
+# the object does not roll the Deployment. Hermes (config.yaml is copied in by
+# an init container on every start), kube-state-metrics' CustomResourceState
+# file and every 1Password-backed credential read through env were all stuck on
 # the old content until someone ran a manual rollout restart. The cluster
 # carries the label `enable_stakater_reloader: "true"` but nothing deployed it
 # (docs/okf/cluster/known-issues.md), so `reloader.stakater.com/*` annotations
 # did nothing until now.
 #
 # Opt-in only. `autoReloadAll` stays false, so Reloader acts only on a
-# workload that carries `configmap.reloader.stakater.com/reload: <names>` (or
-# the `auto` annotation) itself. Today that is hermes-agent.
+# workload that carries `configmap.reloader.stakater.com/reload: <names>` or
+# `secret.reloader.stakater.com/reload: <names>` itself. Each workload's
+# manifest names what it reloads on; grep the repo for `reloader.stakater.com`.
 #
-# ConfigMaps only. `ignoreSecrets: true` drops the Secret watch and the
-# cluster-wide read access to every Secret that comes with it. A rotated
-# Secret (an ExternalSecret refresh) therefore does NOT restart anything; ask
-# for Secret support separately if you want it.
+# Secrets are watched too (James, 2026-11-09). That means the chart's
+# ClusterRole can get, list and watch EVERY Secret in the cluster, which
+# `ignoreSecrets: true` had kept out. The same is already true of external-
+# secrets (it writes them) and of the ArgoCD controller. If that is ever more
+# than you want, the narrower form is `watchGlobally: false` with an explicit
+# `namespaces:` list (a Role per namespace instead of a ClusterRole), at the
+# price of a workload in an unlisted namespace silently never reloading.
+#
+# A Secret is rolled only when its VALUE changes: ESO rewrites a Secret only
+# when the 1Password value differs, so the hourly refresh does not restart
+# anything.
 #
 # `reloadStrategy: annotations` patches a pod-template annotation
 # (`reloader.stakater.com/last-reloaded-from`) instead of an env var, the form
@@ -24,7 +34,7 @@
 # server-side-applied, and a live-only annotation is not in their manifests, so
 # a later sync leaves it alone.
 reloader:
-  ignoreSecrets: true
+  ignoreSecrets: false
   reloadStrategy: annotations
   # Cluster-wide watch: the workloads it serves live in other namespaces.
   watchGlobally: true

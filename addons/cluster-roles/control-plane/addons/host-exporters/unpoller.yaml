@@ -17,6 +17,10 @@ metadata:
   namespace: host-exporters
   labels:
     app.kubernetes.io/name: unpoller
+  annotations:
+    # Stakater Reloader rolls this Deployment when the login Secret changes
+    # (read through env, once, at start).
+    secret.reloader.stakater.com/reload: "unpoller"
 spec:
   replicas: 1
   revisionHistoryLimit: 3
