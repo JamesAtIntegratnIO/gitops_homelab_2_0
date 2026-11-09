@@ -14,7 +14,8 @@ signature lives 180 s, so one is made per request.
 Environment:
   WALMART_CONSUMER_ID   consumer id (UUID) from the walmart.io dashboard
   WALMART_KEY_VERSION   private key version from the dashboard (e.g. "1")
-  WALMART_PRIVATE_KEY   the PEM private key itself (not a path)
+  WALMART_PRIVATE_KEY   the private key itself (not a path): PEM (PKCS#8 or
+                        PKCS#1) or OpenSSH format, line breaks optional
   WALMART_STORE_ID      default store for availability (James: 500)
   WALMART_ZIP           default ZIP for availability (James: 79924)
   WALMART_PUBLISHER_ID  optional Impact publisher id (not needed)
@@ -25,6 +26,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 import time
 from typing import Any
 
@@ -47,10 +49,31 @@ STORE_ID = os.environ.get("WALMART_STORE_ID", "").strip()
 ZIP = os.environ.get("WALMART_ZIP", "").strip()
 PUBLISHER_ID = os.environ.get("WALMART_PUBLISHER_ID", "").strip()
 
-_pem = os.environ.pop("WALMART_PRIVATE_KEY", "").strip()
-# 1Password can flatten a multi-line field into one line with literal "\n".
-_pem = _pem.replace("\\n", "\n")
-PRIVATE_KEY = serialization.load_pem_private_key(_pem.encode(), password=None) if _pem else None
+
+def _normalize_pem(raw: str) -> str:
+    """Rebuild a PEM whatever a paste did to its line breaks.
+
+    A 1Password text field is single-line: pasting a key there turns its
+    newlines into spaces (or a literal "\\n", or CRLF), which cryptography
+    rejects as MalformedFraming. Take the BEGIN/END labels and the base64
+    body, drop all whitespace from the body, and re-wrap it at 64 columns.
+    """
+    text = raw.replace("\\n", "\n").replace("\r", "").strip()
+    m = re.search(r"-----BEGIN ([A-Z ]+)-----(.*?)-----END \1-----", text, re.S)
+    if not m:
+        return text
+    label, body = m.group(1), re.sub(r"\s+", "", m.group(2))
+    lines = [body[i : i + 64] for i in range(0, len(body), 64)]
+    return f"-----BEGIN {label}-----\n" + "\n".join(lines) + f"\n-----END {label}-----\n"
+
+
+_pem = _normalize_pem(os.environ.pop("WALMART_PRIVATE_KEY", ""))
+PRIVATE_KEY = None
+if _pem:
+    if "OPENSSH PRIVATE KEY" in _pem:
+        PRIVATE_KEY = serialization.load_ssh_private_key(_pem.encode(), password=None)
+    else:
+        PRIVATE_KEY = serialization.load_pem_private_key(_pem.encode(), password=None)
 del _pem
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True)
