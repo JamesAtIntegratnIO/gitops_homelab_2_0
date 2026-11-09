@@ -1,7 +1,7 @@
 # Hermes Agent (Nous Research) on the Raspberry Pi 5 worker, talos-pi5-1.
 #
 # Image: our thin derivative of the official v0.23.0 image with local
-# speech-to-text (faster-whisper in /opt/hermes-stt on PYTHONPATH), arm64 only:
+# speech-to-text (faster-whisper in /opt/hermes-stt, on the venv's sys.path via a .pth file), arm64 only:
 # images/hermes-agent/Dockerfile, built by
 # .github/workflows/build-hermes-agent-image.yaml. Digest-pinned. To move
 # Hermes, bump the FROM digest there, let CI publish, then pin the new digest
@@ -746,7 +746,7 @@ spec:
               readOnly: true
       containers:
         - name: hermes
-          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2-tc1.13.12@sha256:ba93ef0fda7ab0e6cbd262b9afe142804c7415a8589d500eb5b4dac9d7b35550
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2-tc1.13.12@sha256:ce7787e5371b657d5f0af99c90cefb7a8bc18d614a3428787211bbb22edaa196
           args: ["gateway", "run"]
           # s6 /init runs as root to chown /opt/data, then s6-setuidgid drops
           # every service to uid 10000, and s6-svscan signals those processes.
