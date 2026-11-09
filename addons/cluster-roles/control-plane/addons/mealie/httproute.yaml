@@ -1,0 +1,55 @@
+# mealie.cluster.integratn.tech -- LAN only (every *.cluster.integratn.tech name
+# resolves to the gateway VIP; nothing here is on the tunnel).
+#
+# NO authentik forward-auth in front, on purpose. Forward-auth would block
+# Mealie's API tokens (the meal-plan and shopping-list API an agent uses) and
+# its mobile apps. Mealie authenticates the request itself: its own login now,
+# OIDC against authentik in a follow-up. Change the first-login credentials at
+# once (README.md).
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mealie
+  namespace: mealie
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  # external-dns runs with `--source=gateway-httproute`, so this hostname is
+  # also what creates the DNS record.
+  hostnames:
+    - mealie.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: mealie
+          port: 9000
+---
+# The http half: a redirect to https, naming no backend.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: mealie-http-redirect
+  namespace: mealie
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: http
+  hostnames:
+    - mealie.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
