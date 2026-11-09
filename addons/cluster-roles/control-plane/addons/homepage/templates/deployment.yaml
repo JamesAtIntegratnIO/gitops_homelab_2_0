@@ -9,9 +9,13 @@
 # not have to move.
 #
 # Glance reads its environment once, at start, so a 1Password change reaches
-# the page only after `kubectl -n homepage rollout restart deploy/homepage`.
-# A change to glance/ rolls the pod by itself: the checksum/config annotation
-# below changes with it.
+# the page only after `kubectl -n homepage rollout restart deploy/homepage`
+# (Stakater Reloader is set to ignore Secrets). A change to glance/ rolls the
+# pod by itself: the checksum/config annotation below changes with it. A change
+# to the glance-env ConfigMap (templates/env.yaml), which the checksum does not
+# cover, is rolled by Reloader through the annotation on the Deployment.
+# glance-config is deliberately NOT in that annotation: the checksum already
+# rolls it, and naming it twice would roll the pod twice.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,6 +23,8 @@ metadata:
   namespace: homepage
   labels:
     app.kubernetes.io/name: homepage
+  annotations:
+    configmap.reloader.stakater.com/reload: "glance-env"
 spec:
   replicas: 1
   revisionHistoryLimit: 3

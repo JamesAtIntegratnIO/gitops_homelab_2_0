@@ -8,6 +8,10 @@ metadata:
   namespace: mcp-system
   labels:
     app: kubernetes-mcp
+  annotations:
+    # Stakater Reloader rolls this Deployment when its config changes: the
+    # server reads config.toml once, at start.
+    configmap.reloader.stakater.com/reload: "kubernetes-mcp-config"
 spec:
   replicas: 1
   selector:
