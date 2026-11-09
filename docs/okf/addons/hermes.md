@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-08T22:20:00Z }
+generated: { by: claude-code, at: 2026-11-09T01:50:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -205,7 +205,11 @@ same ConfigMap carries a dashboard theme (`dashboard-themes/integratn.yaml`,
 system fonts in place of the Nous display faces, 6px radius, compact, no
 grain, glow, shadows or blur) and a skin (`skins/integratn.yaml`,
 `display.skin: integratn`) for the CLI/TUI, the dashboard's Chat tab and the
-Webapp, whose `customCSS` pins the Webapp's surfaces. A theme or skin picked
+Webapp, whose `customCSS` pins the Webapp's surfaces. Hermes's own `/login` page (server-rendered, unthemed, one
+button hard-coded as "Self-Hosted OIDC") is skipped: SnippetsFilter
+`hermes-login-via-authentik` on both HTTPRoutes answers `/login` with a 302 to
+`/auth/login?provider=self-hosted&<next>`, so sign-in is the authentik page
+only. A theme or skin picked
 in a UI lasts until the next restart, when config.yaml is copied back. Edit the source files and
 rerun `gen.sh` (`--check` fails when the YAML is stale), never the YAML.[^design-skill]
 

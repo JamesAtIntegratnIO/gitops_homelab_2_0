@@ -883,6 +883,13 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        # /login goes straight to authentik (login-snippetsfilter.yaml).
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: hermes-login-via-authentik
       backendRefs:
         - name: hermes-agent
           port: 9120
@@ -904,6 +911,13 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        # /login goes straight to authentik (login-snippetsfilter.yaml).
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: hermes-login-via-authentik
       backendRefs:
         - name: hermes-agent
           port: 9119
