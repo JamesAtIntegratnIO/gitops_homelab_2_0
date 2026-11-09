@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: claude-code, at: 2026-11-09T01:50:00Z }
+generated: { by: hermes-agent, at: 2026-11-09T19:20:00Z }
 stale_after: 2027-02-07
 sources:
   - id: manifests
@@ -46,6 +46,9 @@ sources:
   - id: upstream-docker
     resource: https://github.com/NousResearch/hermes-agent/blob/v0.23.0/website/docs/user-guide/docker.md
     title: Hermes Agent Docker guide (v0.23.0)
+  - id: image
+    resource: ../../../images/hermes-agent/Dockerfile
+    title: Hermes derived image Dockerfile
 ---
 
 # What runs
@@ -54,7 +57,7 @@ One pod, `hermes-agent` in namespace `hermes`, pinned to `talos-pi5-1` (it
 tolerates the node's arm64 taint). The image is
 `ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2`,
 digest-pinned: the official `nousresearch/hermes-agent:v0.23.0` with the
-`stt-whisper` extra (faster-whisper 1.2.1) installed beside its venv, in `/opt/hermes-stt` on `PYTHONPATH`, pinned from Hermes's
+`stt-whisper` extra (faster-whisper 1.2.1) installed beside its venv, in `/opt/hermes-stt` (on the venv's `sys.path` through a `.pth` file), pinned from Hermes's
 own `uv.lock`, so speech-to-text runs locally on the Pi's CPU, plus the
 `cq` CLI at `/usr/local/bin/cq` (`images/hermes-agent/`). It runs `gateway run`; with
 no chat platform configured, the service it offers is the OpenAI-compatible API
@@ -169,6 +172,8 @@ subdirectory, keeping 14. The same two alerts watch both jobs. Restore: scale
 # Speech-to-text
 
 Local faster-whisper (`stt.provider: local`, model `base`), from `/opt/hermes-stt` in our derived image; the model (~142 MB) is cached in `/opt/data/cache/huggingface`. On the Pi 5 with all 4 cores (`limits.cpu: 4`, `OMP_NUM_THREADS=4`) a 6 s clip takes about 5 s warm and 8 s on first use. Hermes fixes `beam_size` at 5. `tiny` is about twice as fast with the same result on clear speech; switch `stt.local.model` if latency matters more than accuracy.
+
+**Known issue (2026-11-09, fixed in git, not yet deployed).** The running gateway could not import faster-whisper: Hermes's launchers (`/opt/hermes/libexec/hermes*`) `unset PYTHONPATH` and export their own, so the image's `ENV PYTHONPATH=/opt/hermes-stt` never reached the gateway. Evidence: the gateway process had no `/opt/hermes-stt` on its `PYTHONPATH`, `import faster_whisper` failed with the venv's own python, it worked with `PYTHONPATH=/opt/hermes-stt` set by hand, and the gateway log repeated `STT provider 'local' configured but unavailable`. The Dockerfile now adds `/opt/hermes-stt` with a `.pth` file in the venv's site-packages (the launchers run `site.addsitedir()` on it) and its build check reproduces the launcher's path handling. It takes effect when the rebuilt image's digest is pinned in `hermes-agent.yaml` and `hermes-backup.yaml`. The timings above predate this finding; whether they ran through the gateway is not verified.[^image]
 
 # Cluster skills
 
@@ -404,6 +409,7 @@ included), a multi-arch image and `readOnlyHint` on every read tool.[^arr-mcp][^
 [^cq-backup]: cq-server nightly backup CronJob
 [^arr-mcp]: arr-mcp config and ExternalSecret
 [^arr-mcp-upstream]: bardesss/arr-mcp v1.73.0
+[^image]: Hermes derived image Dockerfile
 
 # Tuning
 
