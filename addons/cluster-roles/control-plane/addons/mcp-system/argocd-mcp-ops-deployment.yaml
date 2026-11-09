@@ -22,6 +22,11 @@ metadata:
   namespace: mcp-system
   labels:
     app: argocd-mcp-ops
+  annotations:
+    # Stakater Reloader rolls this Deployment when the token Secret changes
+    # (secretKeyRef env, read once, at start), so a regenerated hermes-ops
+    # token takes effect without a manual restart.
+    secret.reloader.stakater.com/reload: "argocd-mcp-ops-token"
 spec:
   replicas: 1
   selector:

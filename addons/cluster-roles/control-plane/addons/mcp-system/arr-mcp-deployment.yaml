@@ -9,6 +9,11 @@ metadata:
   namespace: mcp-system
   labels:
     app: arr-mcp
+  annotations:
+    # Stakater Reloader rolls this Deployment when the rendered config Secret
+    # changes: the init container copies it onto the volume at every start, so
+    # an ExternalSecret refresh alone never reached the running pod.
+    secret.reloader.stakater.com/reload: "arr-mcp-config"
 spec:
   replicas: 1
   # SQLite files (audit, logs, sessions) on a RWO volume: never two pods.
@@ -22,9 +27,9 @@ spec:
       labels:
         app: arr-mcp
       annotations:
-        # Bump to roll the pod after the rendered config changes (an
-        # ExternalSecret refresh does not restart it; the file is seeded at
-        # start).
+        # Was: bump to roll the pod after the rendered config changes.
+        # Reloader does that now (see the Deployment's annotation); left in
+        # place so this change rolls nothing.
         config-revision: "1"
     spec:
       priorityClassName: platform-batch
