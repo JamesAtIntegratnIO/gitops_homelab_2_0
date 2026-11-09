@@ -599,6 +599,23 @@ data:
             - "create_households_shopping_lists_by_item_recipe_by_recip"
           resources: false
           prompts: false
+      # Walmart catalog, through walmart-mcp (mcp-system/walmart-mcp.yaml, our
+      # own image, images/walmart-mcp). Three tools, all readOnlyHint, none of
+      # which touches a Walmart account: search_products, lookup_items (store
+      # 500 / ZIP 79924 by default) and cart_link, which only builds the
+      # add-to-cart URL James opens and checks out himself. So trust: full.
+      # Skill: walmart-cart.
+      walmart:
+        url: "http://walmart-mcp.mcp-system.svc.cluster.local:8000/mcp"
+        trust: "full"
+        timeout: 60
+        tools:
+          include:
+            - "search_products"
+            - "lookup_items"
+            - "cart_link"
+          resources: false
+          prompts: false
     # ---- Features, 2026-11-07. Only free ones that need no key beyond
     # Anthropic and send nothing to Nous. Already on by default in v0.23.0 and
     # left alone: memory and user profile, skills, session_search, cron (the
