@@ -55,7 +55,7 @@ spec:
         # copy on the volume at every start, so anything changed in the
         # config UI lasts only until the next restart.
         - name: seed-config
-          image: ghcr.io/bardesss/arr-mcp:1.81.0@sha256:2d688adb9c8a885877625794fc98107e7bae0b85c7ec27dfc894ab2e09c69d31
+          image: ghcr.io/bardesss/arr-mcp:1.82.0@sha256:9f710ebafa31c3cd8b9316a545f277b12b00f4517ff3518b34a4316421e57c44
           command: ["sh", "-c", "cp /seed/config.yaml /config/config.yaml && chmod 600 /config/config.yaml"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -78,7 +78,7 @@ spec:
               mountPath: /config
       containers:
         - name: arr-mcp
-          image: ghcr.io/bardesss/arr-mcp:1.81.0@sha256:2d688adb9c8a885877625794fc98107e7bae0b85c7ec27dfc894ab2e09c69d31
+          image: ghcr.io/bardesss/arr-mcp:1.82.0@sha256:9f710ebafa31c3cd8b9316a545f277b12b00f4517ff3518b34a4316421e57c44
           env:
             - name: ARR_MCP_PORT
               value: "6060"
