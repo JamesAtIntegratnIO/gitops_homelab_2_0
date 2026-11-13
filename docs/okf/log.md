@@ -1,5 +1,8 @@
 # Update Log
 
+## 2026-11-13
+* **Issue → Fix**: **Every vcluster-media app was unreachable for ~3.5 days while all pods showed Running.** schedule-arm64-images (#720) recreated the vcluster gateway data plane onto `talos-pi4-2`; its LoadBalancer is `externalTrafficPolicy: Local` and MetalLB speakers ran only on the amd64 nodes (eno1), so nothing announced 10.0.4.201. Hotfix: temporary PolicyException `vcluster-media/vcluster-media-gateway-stays-amd64` and a pod restart. Fix (James's call): MetalLB speakers now tolerate the arch taint on the Pi 4s (Pi 5 excluded) and the L2Advertisement announces on `end0` too, so Pi-hosted LB backends work. See [Talos nodes](infrastructure/talos-nodes.md).
+
 ## 2026-11-09
 * **Update**: **Hermes signs in through authentik only.** Its own `/login` page (unthemed Nous page, button hard-coded "Sign in with Self-Hosted OIDC") is skipped: SnippetsFilter `hermes-login-via-authentik` on the dashboard and Webapp routes redirects `/login` to the OAuth start. See [Hermes Agent](addons/hermes.md).
 

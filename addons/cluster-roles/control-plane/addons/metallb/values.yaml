@@ -7,8 +7,8 @@
 #   - NET_RAW capability  (ARP/NDP for L2 LoadBalancer)
 #
 # This cluster is L2-only: one IPAddressPool (10.0.4.200-253) and one
-# L2Advertisement on eno1. There is no BGPPeer and no BGPAdvertisement, so
-# nothing here needs FRR.
+# L2Advertisement on eno1 (amd64) and end0 (Pi 4). There is no BGPPeer and no
+# BGPAdvertisement, so nothing here needs FRR.
 #
 # Chart 0.16.1 flips two defaults in opposite directions -- `speaker.frr.enabled`
 # true -> false and `frrk8s.enabled` false -> true -- which would retire the FRR
@@ -53,6 +53,29 @@ controller:
 
 speaker:
   priorityClassName: platform-critical
+  # Speakers also run on the Pi 4 workers. A LoadBalancer with
+  # externalTrafficPolicy: Local is announced only from a node that has both a
+  # ready endpoint and a speaker, and schedule-arm64-images (Kyverno) lets
+  # allowlisted pods -- including the vcluster-media gateway behind 10.0.4.201 --
+  # land on the Pi 4s. With speakers only on amd64, a gateway pod on a Pi left
+  # its VIP unannounced (2026-11-09 to 11-13, every *.vcluster-media app down).
+  # The Pi 4s announce on end0 (see the L2Advertisement). The Pi 5 stays
+  # reserved for hermes and cq and gets no speaker, matching the policy's
+  # required board!=rpi5 affinity.
+  tolerations:
+    - key: node.integratn.tech/arch
+      operator: Equal
+      value: arm64
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node.integratn.tech/board
+                operator: NotIn
+                values:
+                  - rpi5
   # L2-only, as above. With this off the speaker is a single container and the
   # frr / reloader / frr-metrics sidecars and their three init containers -- and
   # the resource blocks that used to size them -- are gone.
