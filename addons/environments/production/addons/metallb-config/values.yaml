@@ -8,8 +8,11 @@ metadata:
 spec:
   ipAddressPools:
     - default
+  # eno1 on the amd64 nodes, end0 on the Pi 4 workers (both on 10.0.4.0/24).
+  # A node announces only on the listed interfaces it actually has.
   interfaces:
     - eno1
+    - end0
   nodeSelectors:
     - matchExpressions:
         - key: kubernetes.io/hostname

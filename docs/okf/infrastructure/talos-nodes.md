@@ -4,7 +4,7 @@ title: Talos nodes
 description: The three bare-metal Talos control-plane nodes and the Raspberry Pi 5 and Pi 4 arm64 workers that form the-cluster, their machine-config patches, how they are managed, and what is scheduled onto the Pis.
 tags: [talos, bare-metal, nodes, control-plane, worker, arm64, raspberry-pi]
 status: stable
-generated: { by: hermes-agent, at: 2026-11-08T19:30:00Z }
+generated: { by: claude, at: 2026-11-13T02:10:00Z }
 stale_after: 2027-02-08
 sources:
   - id: arm64-scheduling
@@ -111,8 +111,9 @@ built on holocron) from its own Samsung 990 PRO 1 TB NVMe, not a Matchbox PXE
 boot: the official Image Factory `rpi_5` overlay ships a U-Boot that cannot read
 NVMe or USB on a Pi 5. EPHEMERAL is capped at 100 GiB and the rest of the NVMe is
 the `local-nvme` user volume at `/var/mnt/local-nvme`. Its NIC is `end0`, so
-Cilium's `devices` lists it beside `eno1`; MetalLB's L2Advertisement stays
-`eno1`-only so the Pi never announces a VIP. Upgrades need its installer in a
+Cilium's `devices` lists it beside `eno1`. The L2Advertisement lists `end0` for
+the Pi 4s, but the MetalLB speaker DaemonSet excludes `board=rpi5`, so the Pi 5
+never announces a VIP. Upgrades need its installer in a
 registry the node can reach, which does not exist yet. Full runbook:
 [rpi5-worker.md](../../../matchbox/talos-machineconfigs/rpi5-worker.md).[^pi5-runbook]
 
@@ -200,6 +201,13 @@ Limits, stated plainly:
   pod using the new tag can still be scheduled onto a Pi 4 and fail to start
   there, because the scheduler does not know about image architecture. Remove the
   entry or go back to exact tags.
+- MetalLB speakers run on the Pi 4s (arch toleration, `board!=rpi5`) and the
+  L2Advertisement announces on `eno1` and `end0`. Before that, speakers ran only
+  on the amd64 nodes, and a pod behind an `externalTrafficPolicy: Local`
+  LoadBalancer that landed on a Pi had nobody announcing its VIP: from about
+  2026-11-09 to 11-13 the vcluster-media gateway data plane sat on `talos-pi4-2`
+  and every `*.vcluster-media.integratn.tech` app timed out while all pods
+  showed Running. Not verified yet: a VIP actually answering from a Pi.
 - Mutation is CREATE-only, so existing pods move only when recreated.
 - Mutate rules have no Audit mode; the allowlist is the control.
 - Not verified: how the scheduler actually spreads these pods across the Pi 4s
