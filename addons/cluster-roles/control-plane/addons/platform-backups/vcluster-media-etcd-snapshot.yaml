@@ -66,7 +66,7 @@ spec:
               # Kept on the same minor as the etcd the vcluster runs
               # (platform/vclusters: registry.k8s.io/etcd:3.6.x); Kargo tracks
               # this line under addons.targets.vcluster-etcd-snapshot-client.
-              image: registry.k8s.io/etcd:3.6.16-0@sha256:b29d816b546a1966fe7034a33b34e231fa98c47ce4d2883f70b0555020b22132
+              image: registry.k8s.io/etcd:3.6.17-0@sha256:f84fa13db51b1458a5a51d7eb3fa303c179dd28f5d337935418a5bae4a305e5f
               args:
                 - etcdctl
                 - --endpoints=https://vcluster-media-etcd.vcluster-media.svc:2379
