@@ -190,7 +190,7 @@ external-dns-vcluster:
   chartName: external-dns
   project: platform-services
   chartRepository: https://kubernetes-sigs.github.io/external-dns
-  defaultVersion: 1.23.0
+  defaultVersion: 1.24.0
   selector:
     matchExpressions:
       - key: enable_external_dns
