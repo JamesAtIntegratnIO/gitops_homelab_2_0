@@ -207,7 +207,10 @@ Limits, stated plainly:
   LoadBalancer that landed on a Pi had nobody announcing its VIP: from about
   2026-11-09 to 11-13 the vcluster-media gateway data plane sat on `talos-pi4-2`
   and every `*.vcluster-media.integratn.tech` app timed out while all pods
-  showed Running. Not verified yet: a VIP actually answering from a Pi.
+  showed Running. Verified 2026-11-13 after #795: with the gateway pod on
+  `talos-pi4-1`, MetalLB announced 10.0.4.201 from that node and all seven
+  apps returned 200. Moving the pod costs roughly 30-60 s of timeouts while
+  the endpoint turns ready and the announcement moves.
 - Mutation is CREATE-only, so existing pods move only when recreated.
 - Mutate rules have no Audit mode; the allowlist is the control.
 - Not verified: how the scheduler actually spreads these pods across the Pi 4s
