@@ -592,7 +592,7 @@ loki:
   chartName: loki
   project: platform-services
   chartRepository: https://grafana-community.github.io/helm-charts
-  defaultVersion: 21.4.1
+  defaultVersion: 21.4.2
   selector:
     matchExpressions:
       - key: cluster_role
