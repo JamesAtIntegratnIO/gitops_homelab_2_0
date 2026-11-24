@@ -904,7 +904,7 @@ data:
     ---
     name: media-house-rules
     description: "Use for anything inside Sonarr/Radarr/Bazarr/SAB/Jellyfin."
-    version: 1.0.0
+    version: 1.1.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -925,18 +925,23 @@ data:
       `get_queue`, `get_history`, `get_wanted`, `get_releases`,
       `get_subtitles`, `get_library`, `get_media_details`, `get_playback`.
       Reads need no approval.
-    - Safe writes on Sonarr, Radarr, Bazarr and SABnzbd only:
+    - Writes on Sonarr, Radarr, Bazarr and SABnzbd only:
       `trigger_search`, `trigger_scan`, `import_download`,
       `trigger_subtitle_search`,
       `grab_release`, `set_monitoring`, `update_media`, `add_media`,
-      `retry_download`, `pause_downloads`, `remove_blocklist_item`.
-      Every write is a preview first, then a confirm with the token the
-      preview returned. James approves each call, so two prompts per write.
-      Show him what the preview said before you confirm.
-    - Jellyfin is read-only. Nothing can delete: no `delete_media`,
-      `delete_episode_files` or `remove_queue_item`. The
-      server refuses them (its token is tier `write`). If a fix needs a
-      delete, say exactly what and why, and let James do it.
+      `retry_download`, `pause_downloads`, `remove_blocklist_item`, and,
+      since 2026-11-24, `remove_queue_item`. Every write is a preview
+      first, then a confirm with the token the preview returned. James
+      approves each call, so two prompts per write. Show him what the
+      preview said before you confirm.
+    - Jellyfin is read-only. Those four services are granted `destructive`,
+      so queue rows can be removed and blocklisted. Use that for
+      `remove_queue_item` and nothing else. The grant is per service, so
+      `delete_media`, `delete_episode_files`, `fix_profile` and
+      `delete_indexer` are technically open too: never use them unless James
+      names that action for that title. Do not look for another route to a
+      delete (an app's own API, a download client's API): the preview and
+      the approval are the point.
 
     ## House rules
 
@@ -956,12 +961,73 @@ data:
       shared with Jellyfin's own task. Search one series or film at a time.
       Anime specials are numbered S01E00 on OpenSubtitles and S00E01 in
       Sonarr, so Bazarr misses them. Report it; do not retry in a loop.
-    - **Stuck in the queue:** `diagnose_media` first. Usenet "cannot be completed"
-      means the release is incomplete; grab another with `get_releases` and
-      `grab_release`, or `retry_download` once. An import pending on a
-      finished download: `import_download`.
+    - **Stuck in the queue:** work it with "Working the queue" below. A
+      finished download pending import: `import_download`.
     - **Jellyfin playback restarting at the end of an episode** is the
       Wholphin client on the Living Room TV, not the server.
+
+    ## Working the queue
+
+    For "fix the queue" or "finalize or redo these downloads". A dead Sonarr
+    row blocks its own replacement (Sonarr rejects every candidate with
+    `Release in queue already meets cutoff`), so clear the dead rows first,
+    then search. Do the whole job; do not hand James steps you can take.
+
+    1. **Read it once.** `get_queue` with `kind: series`. A season pack is
+       one row per episode, all sharing a `downloadId`: group by it and
+       report groups, not 100+ rows. Standard detail carries `importState`
+       and `statusMessages`; minimal detail hides them.
+    2. **Check the download client.** `get_stack_health` failures: a Usenet
+       provider `Authentication Failed` explains many "cannot be completed"
+       rows, and new grabs will fail the same way until it is fixed. Say so
+       before re-grabbing anything.
+    3. **Classify each group by its status message:**
+       - `Aborted, cannot be completed`: incomplete release. Remove it with
+         `blocklist: true`, then find a different release.
+       - `Not an upgrade for existing episode file(s)`: the library already
+         has better. Remove it without blocklisting: the release is fine,
+         just unwanted.
+       - `Found archive file, might need to be extracted`: `import_download`
+         with `dry_run` says it sees no files. Remove with `blocklist: true`,
+         then find a new release.
+       - `matched to series by ID. Automatic import is not possible`: this one
+         imports. `import_download` with `dry_run`; if it names the right
+         series and episode, preview, confirm, then check `get_history`
+         `event_type: imported` for it.
+       - `Episode NxM was not found in the grabbed release`: season numbering
+         mismatch (Unsolved Mysteries 2020 S03 is season 17 in Sonarr). A
+         `mapping` does not override it; Sonarr still refuses. Leave the rows
+         and ask James, since removing deletes a good download.
+       - Wrong language or wrong series match (German "Medical Detectives"
+         releases land on Forensic Files): `get_history` for the series
+         first; James has marked such releases failed before. Do not import
+         them. Remove with `blocklist: true`.
+    4. **Check the episode is really missing** before any search. Failed
+       rows are often leftovers for episodes already on disk. Use
+       `get_media_details` and read `hasFile`, or the season `onDisk` against
+       `aired`. Avoid `detail: full` on long series (the Flash is 190
+       episodes): use it only for short ones or when you need an episode id.
+       A leftover row for an episode that is on disk only needs removing.
+    5. **Remove one group at a time** with `remove_queue_item` (Sonarr or
+       Radarr). It takes one row id, previews, then confirms. Removing deletes
+       the download's data in the client, which is why step 3 comes first.
+       Remove one row per `downloadId`, `get_queue` again, and repeat for any
+       survivors. `blocklist: true` only works when the app holds a grab
+       record for the download: the preview says when it will not blocklist
+       (rows reading `wasn't grabbed by Sonarr` have none). Then just remove
+       it and say so. Blocklisting can make Sonarr search for a replacement
+       by itself (Redownload Failed), so do one series, then check
+       `get_queue`, before the next. This is the no-bulk rule, not a
+       formality.
+    6. **Find replacements one series at a time**, per episode for singles
+       and per season for a missing season, with `get_releases` and
+       `grab_release`. If every candidate is still rejected with `Release in
+       queue already meets cutoff`, a dead row remains: re-read the queue.
+    7. **If a tool refuses its arguments both ways** (the wrapper rejects a
+       parameter the server then requires), stop and report it. Do not loop
+       through variants.
+    8. **Report once:** what you imported (with the history line that proves
+       it), what you removed and blocklisted, what is still blocked and why.
 
     ## When it is not the app
 
