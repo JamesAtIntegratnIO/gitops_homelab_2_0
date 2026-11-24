@@ -1070,4 +1070,4 @@ spec:
             name: hermes-login-via-authentik
       backendRefs:
         - name: hermes-agent
-          port: 9120
+          port: 9119
