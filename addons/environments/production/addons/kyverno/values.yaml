@@ -3,94 +3,11 @@ config:
   webhookLabels:
     app.kubernetes.io/managed-by: argocd
 
-webhooksCleanup:
-  image:
-    registry: ghcr.io
-    repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
-    tag: 'v1.34.1'
-
-policyReportsCleanup:
-  image:
-    registry: ghcr.io
-    repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
-    tag: 'v1.34.1'
-
-cleanupJobs:
-  admissionReports:
-    image:
-      registry: ghcr.io
-      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
-      tag: 'v1.34.1'
-    securityContext:
-      runAsNonRoot: false
-      privileged: false
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      capabilities:
-        drop:
-          - ALL
-      seccompProfile:
-        type: RuntimeDefault
-  clusterAdmissionReports:
-    image:
-      registry: ghcr.io
-      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
-      tag: 'v1.34.1'
-    securityContext:
-      runAsNonRoot: false
-      privileged: false
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      capabilities:
-        drop:
-          - ALL
-      seccompProfile:
-        type: RuntimeDefault
-  ephemeralReports:
-    image:
-      registry: ghcr.io
-      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
-      tag: 'v1.34.1'
-    securityContext:
-      runAsNonRoot: false
-      privileged: false
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      capabilities:
-        drop:
-          - ALL
-      seccompProfile:
-        type: RuntimeDefault
-  clusterEphemeralReports:
-    image:
-      registry: ghcr.io
-      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
-      tag: 'v1.34.1'
-    securityContext:
-      runAsNonRoot: false
-      privileged: false
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      capabilities:
-        drop:
-          - ALL
-      seccompProfile:
-        type: RuntimeDefault
-  updateRequests:
-    image:
-      registry: ghcr.io
-      repository: jamesatintegratnio/gitops_homelab_2_0/kubectl
-      tag: 'v1.34.1'
-    securityContext:
-      runAsNonRoot: false
-      privileged: false
-      allowPrivilegeEscalation: false
-      readOnlyRootFilesystem: true
-      capabilities:
-        drop:
-          - ALL
-      seccompProfile:
-        type: RuntimeDefault
+# No webhooksCleanup / policyReportsCleanup / cleanupJobs overrides any more.
+# Chart 3.3+ dropped policyReportsCleanup and every cleanupJobs.* CronJob
+# (report cleanup moved into the controllers), and webhooksCleanup now runs
+# kyverno/readiness-checker `scale-deploy` at the chart's appVersion: pointing
+# it at our kubectl image, as 3.2.x needed, would break the pre-delete hooks.
 
 # The admission controller is the one component whose absence blocks recovery:
 # both resource webhooks are failurePolicy: Fail with a 10s timeout and exclude
