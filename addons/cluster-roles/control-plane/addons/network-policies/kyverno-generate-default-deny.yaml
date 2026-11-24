@@ -1,8 +1,19 @@
-# Kyverno ClusterPolicy: Auto-generate default-deny NetworkPolicy for new namespaces
-# This ensures every namespace gets a baseline network isolation policy automatically.
-# The companion audit policy (require-default-deny-netpol) reports compliance status.
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+# Kyverno GeneratingPolicy: default-deny-all NetworkPolicy in every namespace.
+# The companion audit policy (require-default-deny-netpol) reports compliance.
+#
+# Migrated from a ClusterPolicy of the same name for Kyverno 1.20. The name is
+# load-bearing: Kyverno only adopts an existing downstream object whose
+# generate.kyverno.io/policy-name and trigger-uid labels match, so keeping the
+# name lets this policy take over every default-deny-all the old one made
+# instead of skipping them. The old policy had orphanDownstreamOnPolicyDelete
+# set before it was removed, so its deletion left them in place.
+#
+# orphanDownstreamOnPolicyDelete is on here too, on purpose: with synchronize
+# on, deleting this policy would otherwise delete every default-deny-all in the
+# cluster (the trap in CLAUDE.md). generateExisting re-covers every namespace
+# whenever the policy is (re)created.
+apiVersion: policies.kyverno.io/v1
+kind: GeneratingPolicy
 metadata:
   name: generate-default-deny-netpol
   annotations:
@@ -10,50 +21,39 @@ metadata:
     policies.kyverno.io/category: Networking
     policies.kyverno.io/severity: medium
     policies.kyverno.io/description: >-
-      Automatically creates a default-deny-all NetworkPolicy in every new
-      namespace. This blocks all ingress and egress by default, requiring
-      explicit allow rules for legitimate traffic.
+      Creates a default-deny-all NetworkPolicy in every namespace, blocking all
+      ingress and egress until explicit allow rules are added.
 spec:
-  admission: true
-  background: true
-  validationFailureAction: Audit
-  # Generate for namespaces that already exist, not just new ones. Required so
-  # the delete+recreate cycle (Kyverno forbids in-place edits of generate
-  # rules) immediately re-covers every existing namespace, and so a cluster
-  # rebuild converges without namespace-creation ordering luck.
-  generateExisting: true
-  rules:
-    - name: generate-default-deny
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Namespace
-      exclude:
-        any:
-          - resources:
-              names:
-                - kube-system
-                - kube-public
-                - kube-node-lease
-                - cilium-secrets
-                - kratix-worker-system
-                - mcp-system
-      generate:
-        synchronize: true
-        # Set before this policy is deleted in the CEL migration: with
-        # synchronize on, deleting it would otherwise delete every
-        # default-deny-all it generated. Mutable in place since Kyverno 1.19
-        # (immutable in 1.12, so it could not ride the 3.9.2 bump).
-        orphanDownstreamOnPolicyDelete: true
-        apiVersion: networking.k8s.io/v1
-        kind: NetworkPolicy
-        name: default-deny-all
-        namespace: "{{request.object.metadata.name}}"
-        data:
-          spec:
-            podSelector: {}
-            policyTypes:
-              - Ingress
-              - Egress
+  evaluation:
+    admission:
+      enabled: true
+    generateExisting:
+      enabled: true
+    synchronize:
+      enabled: true
+    orphanDownstreamOnPolicyDelete:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [namespaces]
+  matchConditions:
+    - name: not-excluded
+      expression: >-
+        !(object.metadata.name in ['kube-system', 'kube-public',
+        'kube-node-lease', 'cilium-secrets', 'kratix-worker-system', 'mcp-system'])
+  variables:
+    - name: nsName
+      expression: object.metadata.name
+  generate:
+    - expression: >-
+        generator.Apply(variables.nsName, [
+          {
+            "apiVersion": dyn("networking.k8s.io/v1"),
+            "kind": dyn("NetworkPolicy"),
+            "metadata": dyn({"name": "default-deny-all", "namespace": variables.nsName}),
+            "spec": dyn({"podSelector": {}, "policyTypes": ["Ingress", "Egress"]})
+          }
+        ])

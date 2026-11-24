@@ -1,66 +1,7 @@
-# Kyverno ClusterPolicy: Disallow workloads in default namespace
+# Kyverno policy: Disallow workloads in default namespace
 # The default namespace should not contain application workloads.
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
-metadata:
-  name: disallow-default-namespace
-  annotations:
-    policies.kyverno.io/title: Disallow Default Namespace
-    policies.kyverno.io/category: Best Practices
-    policies.kyverno.io/severity: medium
-    policies.kyverno.io/description: >-
-      Kubernetes best practices recommend not using the default namespace for
-      application workloads. This policy blocks Pods, Deployments,
-      StatefulSets, DaemonSets, Jobs, and CronJobs in the default namespace.
-spec:
-  admission: true
-  validationFailureAction: Enforce
-  background: true
-  rules:
-    - name: deny-default-namespace
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-                - Deployment
-                - StatefulSet
-                - DaemonSet
-                - Job
-                - CronJob
-              namespaces:
-                - default
-      exclude:
-        any:
-          # Allow Kratix promise pipeline resources in default namespace
-          - resources:
-              kinds:
-                - Pod
-                - Job
-              selector:
-                matchExpressions:
-                  - key: kratix-promise-id
-                    operator: Exists
-          # Allow Kratix-managed resources (promise installations)
-          - resources:
-              kinds:
-                - Pod
-                - Job
-              selector:
-                matchExpressions:
-                  - key: app.kubernetes.io/managed-by
-                    operator: In
-                    values:
-                      - kratix
-      validate:
-        message: >-
-          Deploying workloads to the 'default' namespace is not allowed.
-          Please create a dedicated namespace for your application.
-        deny: {}
----
-# CEL replacement for the ClusterPolicy above (Kyverno 1.20 no longer runs
-# ClusterPolicy). Same name, same exclusions for Kratix pipeline Pods/Jobs.
+# Kyverno CEL policy (policies.kyverno.io/v1; ClusterPolicy is gone in 1.20).
+# Same name, same exclusions for Kratix pipeline Pods/Jobs.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:

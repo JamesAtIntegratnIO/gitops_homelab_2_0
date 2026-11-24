@@ -110,6 +110,10 @@ rules:
   - apiGroups: ["kyverno.io"]
     resources: ["policyexceptions"]
     verbs: ["get", "list", "watch"]
+  # Kyverno CEL policies (the only kind Kyverno 1.20+ executes)
+  - apiGroups: ["policies.kyverno.io"]
+    resources: ["validatingpolicies", "mutatingpolicies", "generatingpolicies", "deletingpolicies", "imagevalidatingpolicies", "policyexceptions"]
+    verbs: ["get", "list", "watch"]
   # Kyverno/wgpolicyk8s policy reports
   - apiGroups: ["wgpolicyk8s.io"]
     resources: ["policyreports", "clusterpolicyreports"]

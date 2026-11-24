@@ -11,9 +11,12 @@
 #
 # The cleanup controller needs the delete permissions granted in
 # kyverno-cleanup-rbac.yaml; Kyverno validates that when the policy is admitted.
----
-apiVersion: kyverno.io/v2
-kind: ClusterCleanupPolicy
+#
+# DeletingPolicy (policies.kyverno.io/v1) since the Kyverno 1.20 migration;
+# same names, schedules and conditions as the ClusterCleanupPolicies they
+# replaced.
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
 metadata:
   name: cleanup-suspended-pipeline-jobs
   annotations:
@@ -25,151 +28,6 @@ metadata:
       superseded. The kratix-pipeline-cleanup CronJob only prunes *succeeded*
       Jobs, so suspended ones accumulate and keep the request's Reconciled
       condition Failing. Anything still suspended after 24h is finished with.
-spec:
-  match:
-    any:
-      - resources:
-          kinds:
-            - Job
-          namespaces:
-            - platform-requests
-  conditions:
-    all:
-      - key: "{{ target.spec.suspend || `false` }}"
-        operator: Equals
-        value: true
-      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
-        operator: GreaterThan
-        value: 24h
-  schedule: "17 * * * *"
----
-apiVersion: kyverno.io/v2
-kind: ClusterCleanupPolicy
-metadata:
-  name: cleanup-failed-jobs
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-    policies.kyverno.io/title: Delete long-failed Jobs
-    policies.kyverno.io/subject: Job
-    policies.kyverno.io/description: >-
-      A Job still marked failed 24h later has exhausted its backoffLimit and will
-      never retry on its own. Deleting it lets the owner -- a CronJob, the Trivy
-      operator, or Kratix -- create a fresh one, which is exactly the manual fix
-      in docs/kratix-troubleshooting.md and the one that recovered Trivy.
-      Failures stay visible through the existing alert rules; this only stops a
-      dead Job from blocking its successor.
-spec:
-  match:
-    any:
-      - resources:
-          kinds:
-            - Job
-  conditions:
-    all:
-      - key: "{{ target.status.failed || `0` }}"
-        operator: GreaterThan
-        value: 0
-      - key: "{{ target.status.active || `0` }}"
-        operator: Equals
-        value: 0
-      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
-        operator: GreaterThan
-        value: 24h
-  schedule: "23 * * * *"
----
-apiVersion: kyverno.io/v2
-kind: ClusterCleanupPolicy
-metadata:
-  name: cleanup-failed-pods
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-    policies.kyverno.io/title: Delete Failed and Evicted Pods
-    policies.kyverno.io/subject: Pod
-    policies.kyverno.io/description: >-
-      Terminal Pods (Failed phase, which covers Evicted and node-shutdown) are
-      not garbage collected until the per-namespace terminated-pod threshold is
-      reached. They accumulate after a node loss and make `kubectl get pods -A`
-      unreadable exactly when it matters most.
-spec:
-  match:
-    any:
-      - resources:
-          kinds:
-            - Pod
-  conditions:
-    all:
-      - key: "{{ target.status.phase }}"
-        operator: Equals
-        value: Failed
-      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
-        operator: GreaterThan
-        value: 24h
-  schedule: "41 * * * *"
----
-apiVersion: kyverno.io/v2
-kind: ClusterCleanupPolicy
-metadata:
-  name: cleanup-pods-stuck-creating-container
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-    policies.kyverno.io/title: Delete Pods stuck in CreateContainerError
-    policies.kyverno.io/subject: Pod
-    policies.kyverno.io/description: >-
-      Every PV here is an NFS subdirectory mount on Unraid, and those handles go
-      stale server-side (mover, array or NFS restart). The kubelet keeps a pod's
-      stale mount and never remounts it, so the next container start fails with
-      CreateContainerError ("failed to stat ...kubernetes.io~nfs/pvc-...") or
-      CreateContainerConfigError ("failed to prepare subPath") and stays there
-      until someone deletes the pod -- a fresh pod gets a fresh mount. On
-      2026-10-08 that was Prometheus for 21h and the Kratix controller for 18
-      days. Nothing else acts on this state: the descheduler protects pods with
-      PVCs and a container that never starts accumulates no restarts, and
-      cleanup-failed-pods only matches phase Failed.
-      Only pods with an owner are touched, so something recreates each one
-      (vcluster-synced pods are owned by the vcluster Service and are recreated
-      through the syncer). If the cause is not a stale mount -- a missing
-      Secret, or the NFS server still down -- the replacement fails the same way
-      and PodStuckCreatingContainer in platform-alerts pages; that alert counts
-      by namespace and container precisely so this policy's churn cannot reset
-      it.
-spec:
-  match:
-    any:
-      - resources:
-          kinds:
-            - Pod
-  conditions:
-    all:
-      - key: "{{ length(target.metadata.ownerReferences || `[]`) }}"
-        operator: GreaterThan
-        value: 0
-      - key: "{{ [target.status.initContainerStatuses[].state.waiting.reason, target.status.containerStatuses[].state.waiting.reason][] | [?@ == 'CreateContainerError' || @ == 'CreateContainerConfigError'] | length(@) }}"
-        operator: GreaterThan
-        value: 0
-      # A floor, not a measure of how long it has been stuck (the waiting state
-      # carries no timestamp): it keeps the policy off a pod that is seconds old
-      # and merely waiting for its Secret to sync.
-      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
-        operator: GreaterThan
-        value: 15m
-  schedule: "*/15 * * * *"
----
-# CEL replacements for the four ClusterCleanupPolicies above (Kyverno 1.20 no
-# longer runs ClusterCleanupPolicy). Same names, schedules and conditions. The
-# cleanup controller runs these too, so kyverno-cleanup-rbac.yaml still covers
-# the delete permissions.
-apiVersion: policies.kyverno.io/v1
-kind: DeletingPolicy
-metadata:
-  name: cleanup-suspended-pipeline-jobs
-  annotations:
-    argocd.argoproj.io/sync-wave: "0"
-    policies.kyverno.io/title: Delete suspended Kratix pipeline Jobs
-    policies.kyverno.io/subject: Job
-    policies.kyverno.io/description: >-
-      Kratix suspends a pipeline Job rather than deleting it when a workflow is
-      superseded. Anything in platform-requests still suspended after 24h is
-      finished with.
 spec:
   schedule: "17 * * * *"
   matchConstraints:
@@ -198,8 +56,12 @@ metadata:
     policies.kyverno.io/title: Delete long-failed Jobs
     policies.kyverno.io/subject: Job
     policies.kyverno.io/description: >-
-      A Job still marked failed and inactive 24h after creation has exhausted
-      its backoffLimit. Deleting it lets its owner create a fresh one.
+      A Job still marked failed 24h later has exhausted its backoffLimit and
+      will never retry on its own. Deleting it lets the owner -- a CronJob, the
+      Trivy operator, or Kratix -- create a fresh one, which is exactly the
+      manual fix in docs/kratix-troubleshooting.md and the one that recovered
+      Trivy. Failures stay visible through the existing alert rules; this only
+      stops a dead Job from blocking its successor.
 spec:
   schedule: "23 * * * *"
   matchConstraints:
@@ -225,8 +87,10 @@ metadata:
     policies.kyverno.io/title: Delete Failed and Evicted Pods
     policies.kyverno.io/subject: Pod
     policies.kyverno.io/description: >-
-      Terminal Pods (Failed phase, which covers Evicted and node-shutdown)
-      older than 24h.
+      Terminal Pods (Failed phase, which covers Evicted and node-shutdown) are
+      not garbage collected until the per-namespace terminated-pod threshold is
+      reached. They accumulate after a node loss and make `kubectl get pods -A`
+      unreadable exactly when it matters most.
 spec:
   schedule: "41 * * * *"
   matchConstraints:
@@ -250,9 +114,22 @@ metadata:
     policies.kyverno.io/title: Delete Pods stuck in CreateContainerError
     policies.kyverno.io/subject: Pod
     policies.kyverno.io/description: >-
-      Owned pods whose container is stuck in CreateContainerError or
-      CreateContainerConfigError (usually a stale NFS mount), at least 15m old.
-      See the ClusterCleanupPolicy of the same name above for the reasoning.
+      Every PV here is an NFS subdirectory mount on Unraid, and those handles go
+      stale server-side (mover, array or NFS restart). The kubelet keeps a pod's
+      stale mount and never remounts it, so the next container start fails with
+      CreateContainerError ("failed to stat ...kubernetes.io~nfs/pvc-...") or
+      CreateContainerConfigError ("failed to prepare subPath") and stays there
+      until someone deletes the pod -- a fresh pod gets a fresh mount. On
+      2026-10-08 that was Prometheus for 21h and the Kratix controller for 18
+      days. Nothing else acts on this state: the descheduler protects pods with
+      PVCs and a container that never starts accumulates no restarts, and
+      cleanup-failed-pods only matches phase Failed. Only pods with an owner are
+      touched, so something recreates each one (vcluster-synced pods are owned
+      by the vcluster Service and are recreated through the syncer). If the
+      cause is not a stale mount -- a missing Secret, or the NFS server still
+      down -- the replacement fails the same way and PodStuckCreatingContainer
+      in platform-alerts pages; that alert counts by namespace and container
+      precisely so this policy's churn cannot reset it.
 spec:
   schedule: "*/15 * * * *"
   matchConstraints:

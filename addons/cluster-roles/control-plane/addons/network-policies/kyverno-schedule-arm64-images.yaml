@@ -1,4 +1,4 @@
-# Kyverno ClusterPolicy: let multi-arch pods run on the Raspberry Pi 4 workers
+# Kyverno policy: let multi-arch pods run on the Raspberry Pi 4 workers
 #
 # The Pi workers carry node.integratn.tech/arch=arm64:NoSchedule because the
 # scheduler does not check image architecture, so nothing lands there unless it
@@ -113,151 +113,8 @@ data:
       "us-docker.pkg.dev/fairwinds-ops/oss/goldilocks:*"
     ]
 ---
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
-metadata:
-  name: schedule-arm64-images
-  annotations:
-    policies.kyverno.io/title: Allow Allowlisted Images On The Pi Workers
-    policies.kyverno.io/category: Scheduling
-    policies.kyverno.io/severity: low
-    policies.kyverno.io/subject: Pod
-    policies.kyverno.io/description: >-
-      Pods whose images are all on the arm64-image-allowlist ConfigMap in the
-      kyverno namespace get the node.integratn.tech/arch toleration and a
-      required nodeAffinity that excludes board=rpi5. Any other pod, and any pod
-      in a protected namespace, is left alone.
-spec:
-  admission: true
-  validationFailureAction: Audit
-  background: false
-  rules:
-    - name: tolerate-arm64-for-allowlisted-images
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-              operations:
-                - CREATE
-      exclude:
-        any:
-          - resources:
-              namespaces:
-                - kube-system
-                - kube-public
-                - kube-node-lease
-                - kyverno
-                - cilium-secrets
-                - metallb-system
-                - nfs-provisioner
-                - local-path-storage
-                - trivy-system
-                - hermes
-                - cq
-      context:
-        - name: arm64Images
-          configMap:
-            name: arm64-image-allowlist
-            namespace: kyverno
-      preconditions:
-        all:
-          # At least one image, so a pod with none cannot pass AllIn vacuously.
-          - key: "{{ request.object.spec.[initContainers[].image || `[]`, containers[].image || `[]`][] | length(@) }}"
-            operator: GreaterThan
-            value: 0
-          - key: "{{ request.object.spec.[initContainers[].image || `[]`, containers[].image || `[]`][] | [*].split(@, '@')[0] }}"
-            operator: AllIn
-            value: "{{ parse_json(arm64Images.data.images) }}"
-          # Already placed, or constrained by something else: leave it alone.
-          - key: "{{ request.object.spec.nodeName || '' }}"
-            operator: Equals
-            value: ""
-          # Key presence, not value: the control-plane label's value is empty.
-          - key: "{{ keys(request.object.spec.nodeSelector || `{}`) }}"
-            operator: AllNotIn
-            value:
-              - node-role.kubernetes.io/control-plane
-              - node.integratn.tech/board
-          - key: "{{ request.object.spec.nodeSelector.\"kubernetes.io/arch\" || 'arm64' }}"
-            operator: Equals
-            value: arm64
-          - key: "{{ length(request.object.spec.affinity.nodeAffinity || `{}`) }}"
-            operator: Equals
-            value: 0
-      mutate:
-        # Existing affinity keys (podAntiAffinity...) and tolerations are kept:
-        # the first op writes the pod's own affinity back (or {}), the second
-        # adds nodeAffinity under it (the preconditions guarantee there was none),
-        # the third appends ours to the toleration list. The nodeAffinity value is
-        # static on purpose: Kyverno's variable syntax cannot hold a JSON literal
-        # nested more than one brace deep.
-        patchesJson6902: |-
-          - op: add
-            path: /spec/affinity
-            value: {{ request.object.spec.affinity || `{}` }}
-          - op: add
-            path: /spec/affinity/nodeAffinity
-            value:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                nodeSelectorTerms:
-                  - matchExpressions:
-                      - key: node.integratn.tech/board
-                        operator: NotIn
-                        values:
-                          - rpi5
-          - op: add
-            path: /spec/tolerations
-            value: {{ [request.object.spec.tolerations || `[]`, `[{"key":"node.integratn.tech/arch","operator":"Equal","value":"arm64","effect":"NoSchedule"}]`][] }}
-    - name: audit-non-allowlisted-images-on-arm64
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-              operations:
-                - CREATE
-      exclude:
-        any:
-          - resources:
-              namespaces:
-                - kube-system
-                - kube-public
-                - kube-node-lease
-                - kyverno
-                - cilium-secrets
-                - metallb-system
-                - nfs-provisioner
-                - local-path-storage
-                - trivy-system
-                - hermes
-                - cq
-      context:
-        - name: arm64Images
-          configMap:
-            name: arm64-image-allowlist
-            namespace: kyverno
-      preconditions:
-        all:
-          - key: "{{ request.object.spec.nodeSelector.\"kubernetes.io/arch\" || '' }}"
-            operator: Equals
-            value: arm64
-      validate:
-        message: >-
-          This pod selects arm64 but runs an image that is not on the
-          arm64-image-allowlist ConfigMap in the kyverno namespace. Check that
-          the image has a linux/arm64 manifest and add it, or drop the nodeSelector.
-        deny:
-          conditions:
-            any:
-              - key: "{{ request.object.spec.[initContainers[].image || `[]`, containers[].image || `[]`][] | [*].split(@, '@')[0] }}"
-                operator: AnyNotIn
-                value: "{{ parse_json(arm64Images.data.images) }}"
----
-# CEL replacement for the first rule above (Kyverno 1.20 no longer runs
-# ClusterPolicy). Same preconditions, same patch, same exclusions.
+# The mutation: toleration + nodeAffinity for pods whose images are all on the
+# allowlist above.
 apiVersion: policies.kyverno.io/v1
 kind: MutatingPolicy
 metadata:
@@ -350,7 +207,7 @@ spec:
             [JSONPatch{op: "add", path: "/spec/tolerations/-", value: variables.toleration}] :
             [JSONPatch{op: "add", path: "/spec/tolerations", value: [variables.toleration]}])
 ---
-# CEL replacement for the second (Audit) rule above.
+# The Audit half: report arm64-selecting pods with images not on the list.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
