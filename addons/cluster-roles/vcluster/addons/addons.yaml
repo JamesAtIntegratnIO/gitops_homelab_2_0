@@ -230,7 +230,7 @@ kube-prometheus-stack-agent:
   chartName: kube-prometheus-stack
   project: platform-services
   chartRepository: https://prometheus-community.github.io/helm-charts
-  defaultVersion: 93.1.1
+  defaultVersion: 93.4.1
   valuesFolderName: kube-prometheus-stack-agent
   selector:
     matchExpressions:
@@ -474,7 +474,7 @@ nginx-gateway-fabric-vcluster:
   chartName: nginx-gateway-fabric
   project: platform-services
   chartRepository: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
-  defaultVersion: 2.9.0
+  defaultVersion: 2.9.1
   annotationsApp:
     argocd.argoproj.io/sync-wave: "10"
   selector:
