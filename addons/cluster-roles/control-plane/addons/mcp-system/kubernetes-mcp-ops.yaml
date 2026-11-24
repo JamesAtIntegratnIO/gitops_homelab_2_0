@@ -235,7 +235,8 @@ subjects:
 # image that cannot be pulled, and a Job that never finishes blocks its
 # CronJob (concurrencyPolicy Forbid) and the ArgoCD hook waiting on it. Setting
 # spec.activeDeadlineSeconds makes the Job controller fail it and delete its
-# pods, and the cleanup-failed-jobs ClusterCleanupPolicy then removes it. No
+# pods, which unblocks the CronJob. The failed Job object stays until the
+# cleanup-failed-jobs ClusterCleanupPolicy removes it, 24h after creation. No
 # delete verb: nothing here removes an object.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
