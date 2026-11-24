@@ -217,7 +217,7 @@ extraObjects:
                   cpu: 100m
                   memory: 512Mi
                 limits:
-                  memory: 1536Mi
+                  memory: 3Gi
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false
