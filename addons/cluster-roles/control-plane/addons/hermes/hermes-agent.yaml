@@ -53,8 +53,9 @@ spec:
         key: hermes-agent
         property: API_SERVER_KEY
 ---
-# arr-mcp's bearer token (mcp-system/arr-mcp.yaml; tier `write`, so it cannot
-# delete). Separate from hermes-agent: one bad field fails the whole Secret.
+# arr-mcp's bearer token (mcp-system/arr-mcp.yaml; tier `destructive`, which
+# each service's permissions then narrow). Separate from hermes-agent: one bad
+# field fails the whole Secret.
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -476,9 +477,12 @@ data:
       # Inside the media apps (mcp-system/arr-mcp.yaml): Sonarr, Radarr, Bazarr,
       # SABnzbd, Jellyfin. Every read declares readOnlyHint. trust: full since
       # James's decision of 2026-11-24 (approving each write was busywork): the
-      # server grants safe_write on the four arr apps and no destructive tier at
-      # all, and the token is tier `write`; this list is the second guard
-      # (no deletes, no Seerr/Profilarr/indexer tools). The server's own
+      # server grants destructive on the four arr apps (2026-11-24, so queue
+      # rows can be removed and blocklisted) and the token is tier
+      # `destructive`. This list is the second guard: it names remove_queue_item
+      # and no other delete tool (no delete_media, delete_episode_files,
+      # fix_profile, delete_indexer; no Seerr/Profilarr/indexer tools), so
+      # Hermes can clear queue rows and nothing else. The server's own
       # preview-then-confirm on each write stays. Token: 1Password
       # `arr-mcp`/MCP_TOKEN via the hermes-arr-mcp Secret. If it is missing,
       # this server alone fails to connect. To bring the per-call approval
@@ -519,6 +523,7 @@ data:
             - "retry_download"
             - "pause_downloads"
             - "remove_blocklist_item"
+            - "remove_queue_item"
           resources: false
           prompts: false
       # Recipes, meal plans and shopping lists in Mealie, through mealie-mcp
@@ -1070,4 +1075,4 @@ spec:
             name: hermes-login-via-authentik
       backendRefs:
         - name: hermes-agent
-          port: 9119
+          port: 9120
