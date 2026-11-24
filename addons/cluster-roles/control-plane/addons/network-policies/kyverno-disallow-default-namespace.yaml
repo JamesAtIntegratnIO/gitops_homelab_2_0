@@ -58,3 +58,60 @@ spec:
           Deploying workloads to the 'default' namespace is not allowed.
           Please create a dedicated namespace for your application.
         deny: {}
+---
+# CEL replacement for the ClusterPolicy above (Kyverno 1.20 no longer runs
+# ClusterPolicy). Same name, same exclusions for Kratix pipeline Pods/Jobs.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-default-namespace
+  annotations:
+    policies.kyverno.io/title: Disallow Default Namespace
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Blocks Pods, Deployments, StatefulSets, DaemonSets, Jobs and CronJobs in
+      the default namespace, except Kratix promise pipeline Pods and Jobs.
+spec:
+  validationActions:
+    - Deny
+  evaluation:
+    admission:
+      enabled: true
+    background:
+      enabled: true
+  # The kinds are listed explicitly, so no pod-controller variants.
+  autogen:
+    podControllers:
+      controllers: []
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: [default]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+      - apiGroups: [apps]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [deployments, statefulsets, daemonsets]
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs, cronjobs]
+  matchConditions:
+    # Kratix promise pipelines and installs run their Pods and Jobs here.
+    - name: not-kratix
+      expression: >-
+        !(object.kind in ['Pod', 'Job'] &&
+          ('kratix-promise-id' in object.metadata.?labels.orValue({}) ||
+           object.metadata.?labels[?'app.kubernetes.io/managed-by'].orValue('') == 'kratix'))
+  validations:
+    - expression: "false"
+      message: >-
+        Deploying workloads to the 'default' namespace is not allowed.
+        Please create a dedicated namespace for your application.

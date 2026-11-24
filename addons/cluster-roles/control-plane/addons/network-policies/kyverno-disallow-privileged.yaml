@@ -45,3 +45,50 @@ spec:
             containers:
               - =(securityContext):
                   =(privileged): "false"
+---
+# CEL replacement for the ClusterPolicy above (Kyverno 1.20 no longer runs
+# ClusterPolicy). Pod controllers (Deployments, Jobs...) are covered by
+# Kyverno's default autogen, as before.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-privileged-containers
+  annotations:
+    policies.kyverno.io/title: Disallow Privileged Containers
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Blocks pods with securityContext.privileged set to true on any container,
+      init container or ephemeral container, outside kube-system (Cilium).
+spec:
+  validationActions:
+    - Deny
+  evaluation:
+    admission:
+      enabled: true
+    background:
+      enabled: true
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allContainers
+      expression: >-
+        object.spec.containers
+        + object.spec.?initContainers.orValue([])
+        + object.spec.?ephemeralContainers.orValue([])
+  validations:
+    - expression: >-
+        variables.allContainers.all(c, !c.?securityContext.?privileged.orValue(false))
+      messageExpression: >-
+        "Privileged containers are not allowed. Container(s) " +
+        variables.allContainers.filter(c, c.?securityContext.?privileged.orValue(false)).map(c, c.name).join(", ") +
+        " run in privileged mode."
