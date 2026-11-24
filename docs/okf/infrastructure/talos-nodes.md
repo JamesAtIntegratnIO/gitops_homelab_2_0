@@ -4,7 +4,7 @@ title: Talos nodes
 description: The three bare-metal Talos control-plane nodes and the Raspberry Pi 5 and Pi 4 arm64 workers that form the-cluster, their machine-config patches, how they are managed, and what is scheduled onto the Pis.
 tags: [talos, bare-metal, nodes, control-plane, worker, arm64, raspberry-pi]
 status: stable
-generated: { by: claude, at: 2026-11-13T02:10:00Z }
+generated: { by: hermes-agent, at: 2026-11-24T23:20:00Z }
 stale_after: 2027-02-08
 sources:
   - id: arm64-scheduling
@@ -34,6 +34,9 @@ sources:
   - id: bootstrap-doc
     resource: ../../bootstrap.md
     title: Bootstrap & Bare-Metal Talos guide
+  - id: metrics-scrape
+    resource: Hermes read-only checks 2026-11-24 (metrics-server pod log, nodes_top, the kube-system network policies, the argocd-vcluster app status)
+    title: metrics-server worker scrape failure
 ---
 
 # Node inventory
@@ -125,10 +128,28 @@ control-plane nodes and not a worker. `cilium-dbg monitor --type drop` on
 Prometheus's node showed `Policy denied ... -> remote-node: 10.0.4.104:10250`.
 Fixed by CiliumNetworkPolicy `allow-prometheus-node-scrape` in `monitoring`
 (`toEntities: [host, remote-node]`, ports 10250, 9100, 9965); any future
-worker needs nothing more.
+worker needs nothing more for Prometheus.
+
+metrics-server had the same gap, found on 2026-11-24. Its only egress rule to
+node IPs was the 10.0.4.0/24 `ipBlock` in `allow-metrics-server`, so its two
+replicas (which run on control-plane nodes) reached the three control-plane
+nodes through the `kube-apiserver` entity and timed out on all three workers.
+Its log repeated `Failed to scrape node, timeout to access kubelet` for
+10.0.4.104, 10.0.4.105 and 10.0.4.106 on port 10250 every 15 seconds, and
+`kubectl top nodes` listed `<unknown>` for `talos-pi5-1`, `talos-pi4-1` and
+`talos-pi4-2`, so a pod on a worker had no resource metrics. CiliumNetworkPolicy
+`allow-metrics-server-kubelet-scrape` in `kube-system` (`toEntities: [host,
+remote-node]`, port 10250) is the fix, the same shape as the Prometheus one.
+Not verified after the change: that the three workers report metrics. A
+probable consequence, also not verified: the HPA `argo-cd-argocd-server` in
+vcluster-media reported `failed to get memory utilization: ... no metrics
+returned from resource metrics API` and its ArgoCD Application went Degraded at
+14:56Z, a minute after the argo-cd 10.15.0 rollout finished, which would fit its
+pod having moved onto a worker.[^metrics-scrape]
 
 [^pi5-node]: Raspberry Pi 5 worker join
 [^pi5-runbook]: Raspberry Pi 5 worker runbook and patch
+[^metrics-scrape]: metrics-server worker scrape failure
 
 # Raspberry Pi 4 workers
 

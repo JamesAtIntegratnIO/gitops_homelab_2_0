@@ -277,6 +277,35 @@ spec:
             - port: "10250"
               protocol: TCP
 ---
+# metrics-server -> kubelet on every node, by entity.
+#
+# The 10.0.4.0/24 ipBlock in allow-metrics-server below never matches a node IP
+# in Cilium. The three control-plane nodes were still reachable, through
+# allow-kube-api's `kube-apiserver` entity (which covers their IPs on any port),
+# but a worker was not: metrics-server timed out scraping talos-pi4-1,
+# talos-pi4-2 and talos-pi5-1 ("Failed to scrape node, timeout to access
+# kubelet"), so `kubectl top nodes` showed <unknown> for them and pods on a
+# worker had no resource metrics. Same cause and same fix as
+# allow-prometheus-node-scrape in monitoring.yaml. `host` is the node the
+# metrics-server pod runs on, `remote-node` every other.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-metrics-server-kubelet-scrape
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: metrics-server
+  egress:
+    - toEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+---
 # metrics-server: Prometheus scraping + kubelet egress
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
