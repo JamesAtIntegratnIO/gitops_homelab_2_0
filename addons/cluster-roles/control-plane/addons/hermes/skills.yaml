@@ -904,7 +904,7 @@ data:
     ---
     name: media-house-rules
     description: "Use for anything inside Sonarr/Radarr/Bazarr/SAB/Jellyfin."
-    version: 1.0.0
+    version: 1.1.0
     author: James (gitops_homelab_2_0)
     platforms: [linux]
     metadata:
@@ -935,8 +935,11 @@ data:
       Show him what the preview said before you confirm.
     - Jellyfin is read-only. Nothing can delete: no `delete_media`,
       `delete_episode_files` or `remove_queue_item`. The
-      server refuses them (its token is tier `write`). If a fix needs a
-      delete, say exactly what and why, and let James do it.
+      server refuses them (its token is tier `write`), and that includes
+      removing a row from the Sonarr or Radarr queue. If a fix needs a
+      delete, say exactly what and why, and let James do it. Do not look for
+      another route to the same delete (an app's own API, a download
+      client's API): the refusal is the policy, not a gap.
 
     ## House rules
 
@@ -956,12 +959,62 @@ data:
       shared with Jellyfin's own task. Search one series or film at a time.
       Anime specials are numbered S01E00 on OpenSubtitles and S00E01 in
       Sonarr, so Bazarr misses them. Report it; do not retry in a loop.
-    - **Stuck in the queue:** `diagnose_media` first. Usenet "cannot be completed"
-      means the release is incomplete; grab another with `get_releases` and
-      `grab_release`, or `retry_download` once. An import pending on a
-      finished download: `import_download`.
+    - **Stuck in the queue:** work it with "Working the queue" below. A
+      finished download pending import: `import_download`.
     - **Jellyfin playback restarting at the end of an episode** is the
       Wholphin client on the Living Room TV, not the server.
+
+    ## Working the queue
+
+    For "fix the queue" or "finalize or redo these downloads". You cannot
+    remove rows, and a dead row blocks its own replacement, so triage
+    first, do what works, and hand James one exact list. Do not make him
+    discover the limit by asking for the whole job.
+
+    1. **Read it once.** `get_queue` with `kind: series`. A season pack is
+       one row per episode, all sharing a `downloadId`: group by it and
+       report groups, not 100+ rows. Standard detail carries `importState`
+       and `statusMessages`; minimal detail hides them.
+    2. **Check the download client.** `get_stack_health` failures: a Usenet
+       provider `Authentication Failed` explains many "cannot be completed"
+       rows, and new grabs will fail the same way until it is fixed. Say so
+       before re-grabbing anything.
+    3. **Classify each group by its status message:**
+       - `Aborted, cannot be completed`: incomplete release. Needs removal
+         (James), then a different release.
+       - `Not an upgrade for existing episode file(s)`: the library already
+         has better. Needs removal only.
+       - `Found archive file, might need to be extracted`: `import_download`
+         with `dry_run` says it sees no files. Needs removal, then a new
+         release.
+       - `matched to series by ID. Automatic import is not possible`: this one
+         imports. `import_download` with `dry_run`; if it names the right
+         series and episode, preview, confirm, then check `get_history`
+         `event_type: imported` for it.
+       - `Episode NxM was not found in the grabbed release`: season numbering
+         mismatch (Unsolved Mysteries 2020 S03 is season 17 in Sonarr). A
+         `mapping` does not override it; Sonarr still refuses. Fix in Sonarr
+         or leave it, and say which.
+       - Wrong language or wrong series match (German "Medical Detectives"
+         releases land on Forensic Files): `get_history` for the series
+         first; James has marked such releases failed before. Do not import
+         them. Needs removal.
+    4. **Check the episode is really missing** before any search. Failed
+       rows are often leftovers for episodes already on disk. Use
+       `get_media_details` and read `hasFile`, or the season `onDisk` against
+       `aired`. Avoid `detail: full` on long series (the Flash is 190
+       episodes): use it only for short ones or when you need an episode id.
+    5. **Find replacements one series at a time**, per episode for singles
+       and per season for a missing season. If `get_releases` rejects every
+       candidate with `Release in queue already meets cutoff`, a dead queue
+       row is the blocker. Stop searching other series: they will all say
+       the same. Hand James the list of rows to remove, with blocklist for the
+       failed and archive ones, and offer to resume once they are gone.
+    6. **If a tool refuses its arguments both ways** (the wrapper rejects a
+       parameter the server then requires), stop and report it. Do not loop
+       through variants.
+    7. **Report once:** what you imported (with the history line that proves
+       it), what is blocked and why, and the removal list.
 
     ## When it is not the app
 
