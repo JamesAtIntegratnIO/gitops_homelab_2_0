@@ -474,16 +474,18 @@ data:
           resources: false
           prompts: false
       # Inside the media apps (mcp-system/arr-mcp.yaml): Sonarr, Radarr, Bazarr,
-      # SABnzbd, Jellyfin. Every read declares readOnlyHint; writes need
-      # approval (untrusted), and each is a preview then a confirm. The server
-      # grants safe_write on the four arr apps and no destructive tier at
+      # SABnzbd, Jellyfin. Every read declares readOnlyHint. trust: full since
+      # James's decision of 2026-11-24 (approving each write was busywork): the
+      # server grants safe_write on the four arr apps and no destructive tier at
       # all, and the token is tier `write`; this list is the second guard
-      # (no deletes, no Seerr/Profilarr/indexer tools). Token: 1Password
+      # (no deletes, no Seerr/Profilarr/indexer tools). The server's own
+      # preview-then-confirm on each write stays. Token: 1Password
       # `arr-mcp`/MCP_TOKEN via the hermes-arr-mcp Secret. If it is missing,
-      # this server alone fails to connect.
+      # this server alone fails to connect. To bring the per-call approval
+      # back, set trust to "untrusted" again.
       arr:
         url: "http://arr-mcp.mcp-system.svc.cluster.local:6060/mcp"
-        trust: "untrusted"
+        trust: "full"
         timeout: 120
         headers:
           Authorization: "Bearer ${ARR_MCP_TOKEN}"
@@ -526,8 +528,10 @@ data:
       # tool read-only, so it is split like github/githubwrite:
       #   mealie       reads, plus the two calls that compute without saving
       #                (ingredient parser, test-scrape of a URL): trust full.
-      #   mealiewrite  everything that saves: trust untrusted, every call asks
-      #                James.
+      #   mealiewrite  everything that saves: trust full since James's
+      #                decision of 2026-11-24 (approving each save was
+      #                busywork). To bring the per-call approval back, set
+      #                trust to "untrusted" again.
       # Not listed, so never callable: deletes, merges, bulk actions, full-
       # recipe PUT (PATCH only changes the fields given), exports, sharing,
       # meal-plan rules, iCal, webhooks, invitations, household settings.
@@ -566,7 +570,7 @@ data:
           prompts: false
       mealiewrite:
         url: "http://mealie-mcp.mcp-system.svc.cluster.local:8000/mcp"
-        trust: "untrusted"
+        trust: "full"
         timeout: 180
         tools:
           include:
@@ -1066,4 +1070,4 @@ spec:
             name: hermes-login-via-authentik
       backendRefs:
         - name: hermes-agent
-          port: 9119
+          port: 9120
