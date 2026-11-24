@@ -153,3 +153,123 @@ spec:
         operator: GreaterThan
         value: 15m
   schedule: "*/15 * * * *"
+---
+# CEL replacements for the four ClusterCleanupPolicies above (Kyverno 1.20 no
+# longer runs ClusterCleanupPolicy). Same names, schedules and conditions. The
+# cleanup controller runs these too, so kyverno-cleanup-rbac.yaml still covers
+# the delete permissions.
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
+metadata:
+  name: cleanup-suspended-pipeline-jobs
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    policies.kyverno.io/title: Delete suspended Kratix pipeline Jobs
+    policies.kyverno.io/subject: Job
+    policies.kyverno.io/description: >-
+      Kratix suspends a pipeline Job rather than deleting it when a workflow is
+      superseded. Anything in platform-requests still suspended after 24h is
+      finished with.
+spec:
+  schedule: "17 * * * *"
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: [platform-requests]
+    resourceRules:
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: ["*"]
+        resources: [jobs]
+  conditions:
+    - name: suspended
+      expression: object.spec.?suspend.orValue(false) == true
+    - name: older-than-24h
+      expression: time.now() - timestamp(object.metadata.creationTimestamp) > duration("24h")
+---
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
+metadata:
+  name: cleanup-failed-jobs
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    policies.kyverno.io/title: Delete long-failed Jobs
+    policies.kyverno.io/subject: Job
+    policies.kyverno.io/description: >-
+      A Job still marked failed and inactive 24h after creation has exhausted
+      its backoffLimit. Deleting it lets its owner create a fresh one.
+spec:
+  schedule: "23 * * * *"
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: ["*"]
+        resources: [jobs]
+  conditions:
+    - name: failed
+      expression: object.?status.?failed.orValue(0) > 0
+    - name: inactive
+      expression: object.?status.?active.orValue(0) == 0
+    - name: older-than-24h
+      expression: time.now() - timestamp(object.metadata.creationTimestamp) > duration("24h")
+---
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
+metadata:
+  name: cleanup-failed-pods
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    policies.kyverno.io/title: Delete Failed and Evicted Pods
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Terminal Pods (Failed phase, which covers Evicted and node-shutdown)
+      older than 24h.
+spec:
+  schedule: "41 * * * *"
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: ["*"]
+        resources: [pods]
+  conditions:
+    - name: failed
+      expression: object.?status.?phase.orValue('') == 'Failed'
+    - name: older-than-24h
+      expression: time.now() - timestamp(object.metadata.creationTimestamp) > duration("24h")
+---
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
+metadata:
+  name: cleanup-pods-stuck-creating-container
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    policies.kyverno.io/title: Delete Pods stuck in CreateContainerError
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Owned pods whose container is stuck in CreateContainerError or
+      CreateContainerConfigError (usually a stale NFS mount), at least 15m old.
+      See the ClusterCleanupPolicy of the same name above for the reasoning.
+spec:
+  schedule: "*/15 * * * *"
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: ["*"]
+        resources: [pods]
+  conditions:
+    - name: has-owner
+      expression: size(object.metadata.?ownerReferences.orValue([])) > 0
+    - name: stuck-creating
+      expression: >-
+        (object.?status.?initContainerStatuses.orValue([])
+         + object.?status.?containerStatuses.orValue([]))
+        .exists(s, s.?state.?waiting.?reason.orValue('') in
+          ['CreateContainerError', 'CreateContainerConfigError'])
+    # A floor, not a measure of how long it has been stuck.
+    - name: older-than-15m
+      expression: time.now() - timestamp(object.metadata.creationTimestamp) > duration("15m")
