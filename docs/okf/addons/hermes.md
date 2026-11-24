@@ -110,7 +110,7 @@ fields `ANTHROPIC_API_KEY` and `API_SERVER_KEY`). The terminal backend is
 
 # Persona
 
-Since 2026-11-24 Hermes speaks with Ted's voice from *Bill & Ted's Excellent
+Since 2026-11-24 (PR 876) Hermes speaks with Ted's voice from *Bill & Ted's Excellent
 Adventure* (James's request). The file was written from a read of the whole
 fifth-draft script (scanned PDF, OCR'd locally; 117 pages), working from how
 Ted reacts to people and situations rather than from his lines: a
