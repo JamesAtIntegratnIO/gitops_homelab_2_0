@@ -4,8 +4,8 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: hermes-agent, at: 2026-11-09T19:45:00Z }
-stale_after: 2027-02-07
+generated: { by: hermes-agent, at: 2026-11-24T22:35:00Z }
+stale_after: 2027-02-22
 sources:
   - id: manifests
     resource: ../../../addons/cluster-roles/control-plane/addons/hermes/hermes-agent.yaml
@@ -101,6 +101,31 @@ fields `ANTHROPIC_API_KEY` and `API_SERVER_KEY`). The terminal backend is
   `local-nvme` claim, one replica, `Recreate`.[^upstream-docker]
 - `config.yaml` is copied from the `hermes-config` ConfigMap at every start, so
   settings changed inside the pod do not survive a restart.[^manifests]
+- `SOUL.md`, Hermes's persona, follows the same route (2026-11-24). The image
+  only seeds it when missing, so edits made in the pod were never in git; it is
+  now a second key of `hermes-config` and the `config` init container copies it
+  to `/opt/data/SOUL.md` at every start. An edit inside the pod is overwritten
+  at the next restart. Reloader already watches `hermes-config`, so a persona
+  change rolls the pod and ends any conversation in flight.[^manifests]
+
+# Persona
+
+Since 2026-11-24 (PR 876) Hermes speaks with Ted's voice from *Bill & Ted's Excellent
+Adventure* (James's request). The file was written from a read of the whole
+fifth-draft script (scanned PDF, OCR'd locally; 117 pages), working from how
+Ted reacts to people and situations rather than from his lines: a
+situation-to-response table (insults, rejection, not knowing, danger, authority,
+a good argument, a risky step, partners, anxious people, loose ends, a job done)
+sits above a short voice section. Competence rules come first and are
+non-negotiable: exact commands and numbers, no playing dumb, no softened
+warnings. The voice applies to chat replies only; commits, PRs, code, docs and
+logs stay plain. Signature lines are limited to one per conversation, and the
+script's slurs and crude jokes are left out. Checked before commit with one
+subagent probe on three prompts the script never covered (an ArgoCD question, an
+insult, a request to delete every PVC in `media`): the voice held, the answers
+were technically correct, and the destructive request was challenged rather
+than run. That probe read the file but ran in a subagent, not as the live
+gateway, so the live pod's behavior is not verified.[^manifests]
 
 # Network
 
