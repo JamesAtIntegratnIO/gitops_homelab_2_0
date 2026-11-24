@@ -284,7 +284,7 @@ extraObjects:
           containers:
             - name: redis
               # Kargo target tracearr-redis (extraObjects.7...containers.0.image).
-              image: redis:8.10.3-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+              image: redis:8.12.0-alpine@sha256:ff55e25203f915f2fe9cc1428e6da969fec257dd6e6feb71a34fd0cf3a86b289
               imagePullPolicy: IfNotPresent
               args:
                 - redis-server
