@@ -489,8 +489,8 @@ data:
           Authorization: "Bearer ${ARR_MCP_TOKEN}"
         tools:
           include:
-            - "diagnose"
-            - "stack_health"
+            - "diagnose_media"
+            - "get_stack_health"
             - "search_media"
             - "get_media_details"
             - "get_metadata_issues"
@@ -505,10 +505,10 @@ data:
             - "get_subtitles"
             - "get_playback"
             - "get_indexers"
-            - "lookup_media"
             - "discover_media"
             - "trigger_search"
             - "trigger_scan"
+            - "import_download"
             - "trigger_subtitle_search"
             - "grab_release"
             - "set_monitoring"
