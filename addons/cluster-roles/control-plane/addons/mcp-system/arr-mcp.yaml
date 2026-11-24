@@ -12,19 +12,29 @@
 # audited to audit.db. In Hermes that is two approvals per write.
 #
 # Grants here: safe_write on Sonarr, Radarr, Bazarr and SABnzbd; Jellyfin
-# read-only; destructive NOWHERE (house rule: never delete before the
-# replacement has imported). The 1080p TV cap is not enforceable here; it
-# lives in Hermes's media-house-rules skill and James's approvals.
+# read-only; destructive on SONARR ONLY (2026-11-24). Why: remove_queue_item
+# (with blocklist: true) is the only way to clear a failed or stuck queue row,
+# and a dead row blocks every replacement (Sonarr rejects them all with
+# "Release in queue already meets cutoff"). The tier is per service, not per
+# tool, so on Sonarr it also unlocks delete_media, delete_episode_files and
+# fix_profile. The media-house-rules skill limits Hermes to remove_queue_item,
+# and every call still needs James's approval twice. Radarr, Bazarr and
+# SABnzbd stay non-destructive. House rule unchanged: never delete a file
+# before its replacement has imported. The 1080p TV cap is not enforceable
+# here; it lives in Hermes's media-house-rules skill and James's approvals.
 #
 # Config: arr-mcp reads only /config/config.yaml (no env substitution), so this
 # ExternalSecret renders the whole file and the Deployment's init container
-# copies it onto the PVC at every start (arr-mcp-deployment.yaml). Sources:
+# copies it onto the PVC at every start (arr-mcp-deployment.yaml). Stakater
+# Reloader rolls the Deployment when the rendered Secret changes. Sources:
 #   - 1Password `homepage-secret`: the apps' API keys (same item homepage and
 #     the media vcluster already read).
 #   - 1Password `arr-mcp` (homelab vault, created 2026-11-08):
 #       MCP_TOKEN         Hermes's bearer token; only its sha256 is written
-#                         here. Tier `write`, so even a leaked token cannot
-#                         delete, whatever the permissions say.
+#                         here. Tier `destructive` since 2026-11-24 (was
+#                         `write`). A tier only narrows what each service's
+#                         `permissions` allow, so the token can delete on
+#                         Sonarr and nowhere else.
 #       UI_PASSWORD_HASH  scrypt hash of the item's `password` field, so the
 #                         config UI starts CLAIMED (an unclaimed
 #                         instance hands itself to the first visitor).
@@ -63,7 +73,7 @@ spec:
               api_key: "{{ .sonarr }}"
               permissions:
                 safe_write: true
-                destructive: false
+                destructive: true
             radarr:
               url: http://radarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:7878
               api_key: "{{ .radarr }}"
@@ -94,7 +104,7 @@ spec:
             allow_token_in_url: false
             tokens:
               - name: hermes
-                tier: write
+                tier: destructive
                 hash: "sha256:{{ .mcpToken | sha256sum }}"
   data:
     - secretKey: sonarr
