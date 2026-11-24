@@ -925,24 +925,23 @@ data:
       `get_queue`, `get_history`, `get_wanted`, `get_releases`,
       `get_subtitles`, `get_library`, `get_media_details`, `get_playback`.
       Reads need no approval.
-    - Safe writes on Sonarr, Radarr, Bazarr and SABnzbd only:
+    - Writes on Sonarr, Radarr, Bazarr and SABnzbd only:
       `trigger_search`, `trigger_scan`, `import_download`,
       `trigger_subtitle_search`,
       `grab_release`, `set_monitoring`, `update_media`, `add_media`,
-      `retry_download`, `pause_downloads`, `remove_blocklist_item`.
-      Every write is a preview first, then a confirm with the token the
-      preview returned. James approves each call, so two prompts per write.
-      Show him what the preview said before you confirm.
-    - Jellyfin is read-only. Deleting is limited to **Sonarr**, the one
-      service arr-mcp grants `destructive` (since 2026-11-24, so queue rows
-      can be cleared). Use it for `remove_queue_item` and nothing else.
-      The grant is per service, so `delete_media`, `delete_episode_files`
-      and `fix_profile` are technically open on Sonarr too: never use them
-      unless James names that action for that title. Radarr, Bazarr, SABnzbd
-      and Jellyfin cannot delete, and that includes Radarr queue rows: say
-      exactly what and why, and let James do it. Do not look for another
-      route to a delete (an app's own API, a download client's API); a
-      refusal is the policy, not a gap.
+      `retry_download`, `pause_downloads`, `remove_blocklist_item`, and,
+      since 2026-11-24, `remove_queue_item`. Every write is a preview
+      first, then a confirm with the token the preview returned. James
+      approves each call, so two prompts per write. Show him what the
+      preview said before you confirm.
+    - Jellyfin is read-only. Those four services are granted `destructive`,
+      so queue rows can be removed and blocklisted. Use that for
+      `remove_queue_item` and nothing else. The grant is per service, so
+      `delete_media`, `delete_episode_files`, `fix_profile` and
+      `delete_indexer` are technically open too: never use them unless James
+      names that action for that title. Do not look for another route to a
+      delete (an app's own API, a download client's API): the preview and
+      the approval are the point.
 
     ## House rules
 
@@ -1009,11 +1008,11 @@ data:
        `aired`. Avoid `detail: full` on long series (the Flash is 190
        episodes): use it only for short ones or when you need an episode id.
        A leftover row for an episode that is on disk only needs removing.
-    5. **Remove one group at a time** with `remove_queue_item` (Sonarr only).
-       It takes one row id, previews, then confirms. Removing deletes the
-       download's data in the client, which is why step 3 comes first.
+    5. **Remove one group at a time** with `remove_queue_item` (Sonarr or
+       Radarr). It takes one row id, previews, then confirms. Removing deletes
+       the download's data in the client, which is why step 3 comes first.
        Remove one row per `downloadId`, `get_queue` again, and repeat for any
-       survivors. `blocklist: true` only works when Sonarr holds a grab
+       survivors. `blocklist: true` only works when the app holds a grab
        record for the download: the preview says when it will not blocklist
        (rows reading `wasn't grabbed by Sonarr` have none). Then just remove
        it and say so. Blocklisting can make Sonarr search for a replacement

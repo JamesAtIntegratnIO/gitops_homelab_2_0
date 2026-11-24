@@ -11,17 +11,20 @@
 # Every write is previewed first, then confirmed with a dry-run token, and
 # audited to audit.db. In Hermes that is two approvals per write.
 #
-# Grants here: safe_write on Sonarr, Radarr, Bazarr and SABnzbd; Jellyfin
-# read-only; destructive on SONARR ONLY (2026-11-24). Why: remove_queue_item
-# (with blocklist: true) is the only way to clear a failed or stuck queue row,
-# and a dead row blocks every replacement (Sonarr rejects them all with
-# "Release in queue already meets cutoff"). The tier is per service, not per
-# tool, so on Sonarr it also unlocks delete_media, delete_episode_files and
-# fix_profile. The media-house-rules skill limits Hermes to remove_queue_item,
-# and every call still needs James's approval twice. Radarr, Bazarr and
-# SABnzbd stay non-destructive. House rule unchanged: never delete a file
-# before its replacement has imported. The 1080p TV cap is not enforceable
-# here; it lives in Hermes's media-house-rules skill and James's approvals.
+# Grants here: destructive (which implies safe_write) on Sonarr, Radarr, Bazarr
+# and SABnzbd since 2026-11-24, at James's request; Jellyfin stays read-only
+# (it holds nothing Hermes needs to change, and its media lives on Tower).
+# Why: remove_queue_item (with blocklist: true) is the only way to clear a
+# failed or stuck queue row, and a dead row blocks every replacement (Sonarr
+# rejects them all with "Release in queue already meets cutoff"). The tier is
+# per service, not per tool, so each of those four services now also allows
+# its other destructive tools (delete_media, delete_episode_files,
+# fix_profile, delete_indexer where the service has them). The
+# media-house-rules skill limits Hermes to queue cleanup unless James names
+# another action, and every call still needs James's approval twice. House
+# rule unchanged: never delete a file before its replacement has imported.
+# The 1080p TV cap is not enforceable here; it lives in Hermes's
+# media-house-rules skill and James's approvals.
 #
 # Config: arr-mcp reads only /config/config.yaml (no env substitution), so this
 # ExternalSecret renders the whole file and the Deployment's init container
@@ -34,7 +37,7 @@
 #                         here. Tier `destructive` since 2026-11-24 (was
 #                         `write`). A tier only narrows what each service's
 #                         `permissions` allow, so the token can delete on
-#                         Sonarr and nowhere else.
+#                         Sonarr, Radarr, Bazarr and SABnzbd, not Jellyfin.
 #       UI_PASSWORD_HASH  scrypt hash of the item's `password` field, so the
 #                         config UI starts CLAIMED (an unclaimed
 #                         instance hands itself to the first visitor).
@@ -79,19 +82,19 @@ spec:
               api_key: "{{ .radarr }}"
               permissions:
                 safe_write: true
-                destructive: false
+                destructive: true
             bazarr:
               url: http://bazarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:6767
               api_key: "{{ .bazarr }}"
               permissions:
                 safe_write: true
-                destructive: false
+                destructive: true
             sabnzbd:
               url: http://sabnzbd-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8080
               api_key: "{{ .sabnzbd }}"
               permissions:
                 safe_write: true
-                destructive: false
+                destructive: true
             jellyfin:
               url: http://10.0.0.12:8096
               api_key: "{{ .jellyfin }}"
