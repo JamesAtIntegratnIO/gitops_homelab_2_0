@@ -921,19 +921,20 @@ data:
 
     ## What you can do
 
-    - Read anything: start with `stack_health` or `diagnose`, then
+    - Read anything: start with `get_stack_health` or `diagnose_media`, then
       `get_queue`, `get_history`, `get_wanted`, `get_releases`,
       `get_subtitles`, `get_library`, `get_media_details`, `get_playback`.
       Reads need no approval.
     - Safe writes on Sonarr, Radarr, Bazarr and SABnzbd only:
-      `trigger_search`, `trigger_scan`, `trigger_subtitle_search`,
+      `trigger_search`, `trigger_scan`, `import_download`,
+      `trigger_subtitle_search`,
       `grab_release`, `set_monitoring`, `update_media`, `add_media`,
       `retry_download`, `pause_downloads`, `remove_blocklist_item`.
       Every write is a preview first, then a confirm with the token the
       preview returned. James approves each call, so two prompts per write.
       Show him what the preview said before you confirm.
     - Jellyfin is read-only. Nothing can delete: no `delete_media`,
-      `delete_episode_files`, `remove_queue_item` or `clean_queue`. The
+      `delete_episode_files` or `remove_queue_item`. The
       server refuses them (its token is tier `write`). If a fix needs a
       delete, say exactly what and why, and let James do it.
 
@@ -955,10 +956,10 @@ data:
       shared with Jellyfin's own task. Search one series or film at a time.
       Anime specials are numbered S01E00 on OpenSubtitles and S00E01 in
       Sonarr, so Bazarr misses them. Report it; do not retry in a loop.
-    - **Stuck in the queue:** `diagnose` first. Usenet "cannot be completed"
+    - **Stuck in the queue:** `diagnose_media` first. Usenet "cannot be completed"
       means the release is incomplete; grab another with `get_releases` and
       `grab_release`, or `retry_download` once. An import pending on a
-      finished download: `trigger_scan` with `action: "import"`.
+      finished download: `import_download`.
     - **Jellyfin playback restarting at the end of an episode** is the
       Wholphin client on the Living Room TV, not the server.
 
