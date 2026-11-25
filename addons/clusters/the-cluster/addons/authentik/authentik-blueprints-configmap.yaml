@@ -472,6 +472,16 @@ data:
       google_client_id: !Env GOOGLE_CLIENT_ID
       google_client_secret: !Env GOOGLE_CLIENT_SECRET
     entries:
+      # The sources below !Find the sign-up flow from
+      # 14-google-invite-enrollment.yaml. Blueprints apply in no fixed order,
+      # and a !Find that runs first silently sets enrollment_flow to null, so
+      # apply 14 before this one.
+      - model: authentik_blueprints.metaapplyblueprint
+        attrs:
+          identifiers:
+            name: google-invite-enrollment
+          required: true
+
       # Property mapping to sync Google Workspace group memberships
       - model: authentik_sources_oauth.oauthsourcepropertymapping
         identifiers:
@@ -1500,11 +1510,15 @@ data:
 
             email = ((context.get("prompt_data") or {}).get("email") or "").strip()
             if email:
-                Invitation.objects.filter(
-                    flow__slug="integratn-invitation",
-                    fixed_data__email__iexact=email,
-                    single_use=True,
-                ).delete()
+                try:
+                    Invitation.objects.filter(
+                        flow__slug="integratn-invitation",
+                        fixed_data__email__iexact=email,
+                        single_use=True,
+                    ).delete()
+                except Exception as exc:
+                    # A failure here must not skip the login stage.
+                    ak_logger.warning("could not use up invitation", error=str(exc))
             return True
 
       - model: authentik_flows.flow
