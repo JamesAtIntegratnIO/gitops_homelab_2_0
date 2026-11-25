@@ -121,10 +121,20 @@ blueprint) -- an application with no binding is open to every account.
 
 1. Admin interface (`https://auth-admin.cluster.integratn.tech`) ->
    Directory -> Invitations -> Create. Flow `integratn-invitation`, single
-   use, expires in a few days. Fixed data may pre-fill
-   `{"email": "...", "username": "..."}`.
-2. Send them the invitation link. They pick a username and password (14+
-   characters, not breached) and enrol TOTP or a passkey.
+   use, expires in a few days (check the date the form shows: left at its
+   default it is already expired). Fixed data `{"email": "<their address>"}`.
+2. Either:
+   - **Google** (works away from home): tell them to open
+     `https://auth.cluster.integratn.tech` and click **Google** (or
+     **IntegratnIO Workspace** for an @integratn.io / @integratn.tech
+     account) with the Google account whose email is in the invite. Their
+     account is created with that email as the username, linked to Google,
+     and they are signed in. A Google account with no matching invite is
+     refused. Blueprint `14-google-invite-enrollment.yaml`.
+   - **Password** (home network only): send the invitation link. The admin
+     page builds it from the host you are on, so change `auth-admin.` to
+     `auth.` first. They pick a username and password (14+ characters, not
+     breached) and enrol TOTP or a passkey.
 3. They start in `media-viewer`. Directory -> Groups -> add them to anything
    else they need (`home-family` for family, `homelab` to run the platform).
 

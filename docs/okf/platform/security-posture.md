@@ -65,12 +65,17 @@ favicon, CSS, a background per flow) from the generated blueprint and assets
 in `hack/authentik-theme/`. Prometheus/Alertmanager/Loki endpoints have **no
 auth** (flagged as future work in the docs).
 
-Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13` in
+Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13`, `14` in
 `authentik-blueprints-configmap.yaml`):
 
-- **Invite-only.** No public sign-up anywhere. Google sign-in only links to an
-  account that already exists (by email); it never creates one. New accounts
-  come from single-use invitations on flow `integratn-invitation`.
+- **Invite-only.** No public sign-up anywhere. New accounts come only from
+  invitations on flow `integratn-invitation`, used one of two ways: the
+  invitation link (username + password + MFA), or a Google button on the
+  sign-in page with the Google account whose email is in the invite's Fixed
+  data (flow `integratn-source-enrollment`, gated by an expression policy
+  because authentik loses the invite token across the Google redirect and its
+  Source stage is enterprise-only). A Google account with no matching invite
+  is refused; an existing account's Google sign-in links to it by email.
 - **MFA required.** The brand signs in through `integratn-authentication`
   (password, then TOTP/WebAuthn, enrolment forced if missing); Google sign-ins
   run `integratn-source-authentication`, which trusts Google's own 2FA (no
