@@ -92,7 +92,13 @@ Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13`, `14` in
   yet. Invited accounts start in `media-viewer`.
 - **Admin UI LAN-only.** `/if/admin` on `auth.` redirects to
   `auth-admin.cluster.integratn.tech`, which only private client IPs may use
-  and which must never be published on a tunnel.
+  (pod range 10.244.0.0/16 and anything with Cloudflare headers refused first,
+  since the cloudflared connectors are pods) and which must never be published
+  on a tunnel.
+- **Superusers sign in at home only.** Google sign-in has no authentik MFA, so
+  a Google sign-in that came through Cloudflare is refused for superusers
+  (deny stage on `integratn-source-authentication`). Policy-gated deny stages
+  fail closed (`failure_result: true`). `auth.` sends HSTS.
 - No bootstrap API token. `akadmin` is to be retired in favour of a named admin
   (see the authentik addon README).
 
