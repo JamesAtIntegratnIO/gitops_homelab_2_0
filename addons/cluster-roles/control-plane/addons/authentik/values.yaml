@@ -48,6 +48,16 @@ global:
       value: "false"
     - name: AUTHENTIK_LOG_LEVEL
       value: "info"
+    # Listen on IPv4, as before 2026.5. Chart 2026.5 stopped setting these and
+    # authentik's own default became [::]; the cluster's pod network is
+    # IPv4-only, so keep the old explicit addresses rather than rely on a
+    # dual-stack bind.
+    - name: AUTHENTIK_LISTEN__HTTP
+      value: "0.0.0.0:9000"
+    - name: AUTHENTIK_LISTEN__HTTPS
+      value: "0.0.0.0:9443"
+    - name: AUTHENTIK_LISTEN__METRICS
+      value: "0.0.0.0:9300"
     # Bootstrap admin account
     - name: AUTHENTIK_BOOTSTRAP_PASSWORD
       valueFrom:
