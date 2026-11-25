@@ -329,10 +329,17 @@ data:
           invalid_response_action: retry
 
       - model: authentik_policies.policybinding
+        # IDENTIFIED BY POLICY ALONE, target in attrs. A binding's `target`
+        # stores the PolicyBindingModel pk, but !Find/!KeyOf on a Flow or a
+        # FlowStageBinding give that model's OWN pk, so with target as an
+        # identifier the lookup never matched the binding the first apply
+        # made: every re-apply tried to create a duplicate ("policy, target,
+        # order must make a unique set") and rolled the whole blueprint back.
+        # This policy is bound only here, so it identifies the binding.
         identifiers:
-          target: !KeyOf password-home-only-binding
           policy: !KeyOf not-home-policy
         attrs:
+          target: !KeyOf password-home-only-binding
           order: 0
           enabled: true
           negate: false
@@ -415,10 +422,12 @@ data:
             return False
 
       - model: authentik_policies.policybinding
+        # Identified by policy alone, target in attrs; see the home-network
+        # binding above for why. integratn-deny-all is bound only here.
         identifiers:
-          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
           policy: !KeyOf deny-all
         attrs:
+          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
           order: 0
           enabled: true
           negate: false
