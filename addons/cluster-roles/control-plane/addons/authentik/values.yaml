@@ -1,8 +1,13 @@
-# Authentik Helm Chart Values (2025.12.x)
+# Authentik Helm Chart Values (2026.5.x)
 # Chart: https://github.com/goauthentik/helm
 # Docs: https://goauthentik.io/docs/
 
 global:
+  # Image ahead of the chart: chart 2026.5.6 (addons.yaml), image 2026.5.9,
+  # which carries the 2026-11-25 security fixes. Move this with every chart
+  # bump; drop it once a chart ships the patched appVersion.
+  image:
+    tag: "2026.5.9"
   # Environment variables for all components (server + worker)
   env:
     - name: AUTHENTIK_SECRET_KEY
