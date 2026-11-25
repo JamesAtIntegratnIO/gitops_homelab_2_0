@@ -742,7 +742,7 @@ projects:
         chart:
           repoURL: https://charts.goauthentik.io
           name: authentik
-          constraint: ">=2026.5.0 <2026.6.0"
+          constraint: ">=2026.8.0 <2026.9.0"
         # Each hop is a one-way database migration on the platform's SSO.
         autoMerge: never
         verify:
