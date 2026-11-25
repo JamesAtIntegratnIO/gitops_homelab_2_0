@@ -506,12 +506,19 @@ authentik:
   # while the 2025.12.4 pods kept serving. Nothing migrated; SSO never went down.
   #
   # The supported path is one major.minor at a time, latest patch of each:
-  #   2025.12.4 -> 2026.2.3 -> 2026.5.6 -> 2026.8.0
+  #   2025.12.4 -> 2026.2.3 -> 2026.5.9 -> 2026.8.7
   # Each hop runs one-way database migrations, so take them deliberately and
   # back the authentik database up first -- not as an unattended Kargo merge.
-  # The Kargo target is constrained to <2026.3.0 so it proposes 2026.2.3 next;
+  # The Kargo target is constrained to the current line (>=2026.5.0 <2026.6.0);
   # widen it a step at a time as each hop lands.
-  defaultVersion: 2026.2.3
+  #
+  # IMAGE NEWER THAN THE CHART (2026-11-25): the 2026.5.9 image fixes that
+  # day's critical advisories (GHSA-hp5v-fgcf-jhrh, GHSA-jw8g-8f5p-9pwm,
+  # GHSA-55mc-jpww-xm3p) but the newest 2026.5 chart is 2026.5.6, so
+  # authentik/values.yaml pins global.image.tag. Move or drop that pin in the
+  # same change as any chart bump here, or the chart and image drift apart.
+  # Pre-upgrade dump: holocron ~/Backups/authentik-pre-2026.5-20261125T1838Z.dump
+  defaultVersion: 2026.5.6
   selector:
     matchExpressions:
       - key: cluster_role

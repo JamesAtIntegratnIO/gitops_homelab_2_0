@@ -1,8 +1,13 @@
-# Authentik Helm Chart Values (2025.12.x)
+# Authentik Helm Chart Values (2026.5.x)
 # Chart: https://github.com/goauthentik/helm
 # Docs: https://goauthentik.io/docs/
 
 global:
+  # Image ahead of the chart: chart 2026.5.6 (addons.yaml), image 2026.5.9,
+  # which carries the 2026-11-25 security fixes. Move this with every chart
+  # bump; drop it once a chart ships the patched appVersion.
+  image:
+    tag: "2026.5.9"
   # Environment variables for all components (server + worker)
   env:
     - name: AUTHENTIK_SECRET_KEY
@@ -43,6 +48,16 @@ global:
       value: "false"
     - name: AUTHENTIK_LOG_LEVEL
       value: "info"
+    # Listen on IPv4, as before 2026.5. Chart 2026.5 stopped setting these and
+    # authentik's own default became [::]; the cluster's pod network is
+    # IPv4-only, so keep the old explicit addresses rather than rely on a
+    # dual-stack bind.
+    - name: AUTHENTIK_LISTEN__HTTP
+      value: "0.0.0.0:9000"
+    - name: AUTHENTIK_LISTEN__HTTPS
+      value: "0.0.0.0:9443"
+    - name: AUTHENTIK_LISTEN__METRICS
+      value: "0.0.0.0:9300"
     # Bootstrap admin account
     - name: AUTHENTIK_BOOTSTRAP_PASSWORD
       valueFrom:
