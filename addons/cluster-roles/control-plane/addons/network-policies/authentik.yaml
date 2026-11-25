@@ -71,6 +71,20 @@ spec:
           port: 9443  # HTTPS
         - protocol: TCP
           port: 9000  # HTTP
+    # From the cloudflared tunnel connectors: auth.integratn.tech, plain HTTP
+    # (TLS ends at Cloudflare's edge; the hop to here is inside the tunnel
+    # and the cluster). The other half is allow-authentik-egress in
+    # cloudflared.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+      ports:
+        - protocol: TCP
+          port: 9000
     # From Prometheus for metrics scraping
     - from:
         - namespaceSelector:

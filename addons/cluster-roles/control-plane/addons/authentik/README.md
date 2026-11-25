@@ -125,7 +125,8 @@ blueprint) -- an application with no binding is open to every account.
    default it is already expired). Fixed data `{"email": "<their address>"}`.
 2. Either:
    - **Google** (works away from home): tell them to open
-     `https://auth.cluster.integratn.tech` and click **Google** (or
+     `https://auth.integratn.tech` (away from home) or
+     `https://auth.cluster.integratn.tech` (on the LAN) and click **Google** (or
      **IntegratnIO Workspace** for an @integratn.io / @integratn.tech
      account) with the Google account whose email is in the invite. Their
      account is created with that email as the username, linked to Google,
