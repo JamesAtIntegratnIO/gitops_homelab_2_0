@@ -2,8 +2,8 @@
 # data plane. With a single replica, losing its node meant MetalLB re-announcing
 # 10.0.4.205 within seconds to a Service with no endpoints, and staying that way
 # for the ~6 minutes it takes to evict, reschedule and start the replacement.
-# Two replicas, one per node. externalTrafficPolicy is already Cluster, so any
-# node can forward to either replica and nothing else has to change.
+# Two replicas, one per node. externalTrafficPolicy is Local (see the service
+# block below), so MetalLB announces the VIP from a node running a replica.
 nginx:
   replicas: 2
   pod:
@@ -36,7 +36,16 @@ nginx:
               priorityClassName: platform-critical
   service:
     loadBalancerIP: 10.0.4.205
-    externalTrafficPolicy: Cluster
+    # Local, not Cluster (2026-11-25). With Cluster, a request that MetalLB
+    # delivered to a node without an NGINX pod was forwarded and SNATed by
+    # Cilium, so NGINX -- and authentik, Grafana, every app's logs and
+    # rate-limits behind it -- saw a 10.244.x.x Cilium address instead of the
+    # client. Local keeps the source address; MetalLB L2 then only announces
+    # the VIP from a node that has a ready NGINX pod, and with two replicas on
+    # two nodes the other takes over when one goes. (vcluster-media's gateway
+    # 10.0.4.201 already runs this way.) authentik's admin hostname
+    # allow-list (authentik-httproute.yaml) relies on it.
+    externalTrafficPolicy: Local
 
 # The control plane is leader-elected (nginxGateway.leaderElection.enable
 # defaults to true), so a second replica is a warm standby rather than a split

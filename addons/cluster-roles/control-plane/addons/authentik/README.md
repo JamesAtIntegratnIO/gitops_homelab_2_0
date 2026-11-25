@@ -9,7 +9,7 @@ Authentik is deployed as a platform-wide identity provider (IdP) for SSO/OIDC au
 - **Cache**: Redis (subchart, NFS-backed PVC)
 - **Configuration**: Blueprints (native YAML) for flows, providers, and policies
 - **Domain**: `auth.cluster.integratn.tech`
-- **Ingress**: Gateway API HTTPRoute via nginx-gateway-fabric
+- **Ingress**: Gateway API HTTPRoutes via nginx-gateway-fabric (`auth.` for sign-in/OIDC, LAN-only `auth-admin.` for the admin interface)
 - **Monitoring**: Prometheus ServiceMonitor + Grafana dashboard
 
 ## Required 1Password Items
@@ -33,11 +33,12 @@ Core Authentik secrets:
 
 ### 2. `authentik-bootstrap-admin` (Password)
 
-Initial admin account:
+Initial admin account (only used on an empty database):
 
-- **username**: Admin username (e.g., `admin`)
 - **password**: Admin password (strong password, 16+ chars)
 - **email**: Admin email address
+
+(The `token` field is no longer read.)
 
 ### 3. `authentik-argocd-oidc` (Password)
 
@@ -68,13 +69,75 @@ there; a loose copy under this directory is applied by nothing.
 - `00-admin-group.yaml`: Superuser admin group
 - `01-argocd-provider.yaml`: OAuth2 provider for ArgoCD
 - `02-grafana-provider.yaml`: OAuth2 provider for Grafana
-- `03-default-authentication-flow.yaml`: Standard login flow
-- `04-google-oauth-source.yaml`: Google as a social login source
+- `03-authentication-flows.yaml`: own sign-in flows (password then required MFA; Google variant), the brand's authentication flow, and a deny-all on the stock `default-authentication-flow`
+- `04-google-oauth-source.yaml`: Google sign-in for existing users only (no enrollment)
 - `05-openwebui-provider.yaml`: OAuth2 provider for Open WebUI
 - `06-qdrant-proxy-provider.yaml`: forward-auth proxy provider for the Qdrant dashboard
 - `07-kargo-provider.yaml`: PKCE public client for Kargo
+- `08*-…-proxy-provider.yaml`, `09-embedded-outpost.yaml`: forward-auth apps and the outpost's provider list
+- `10-hermes-provider.yaml`: PKCE public client for Hermes (authentik Admins only)
+- `11-access-groups.yaml`: groups and the binding that opens each app to them
+- `12-invitation-enrollment.yaml`: the invite-only enrollment flow
+- `13-retire-bootstrap-token.yaml`: deletes the old bootstrap API token
 
 Blueprints are auto-applied on startup. All provider configuration is code-driven; no manual UI configuration required.
+
+## Users, groups and sign-up
+
+**There is no sign-up.** Accounts are created only from invitations; Google
+sign-in only links to an account that already exists (same email). Every
+login needs a second factor (TOTP or a passkey), enrolled on first sign-in.
+
+### Groups
+
+| Group | Opens |
+|---|---|
+| `authentik Admins` | authentik admin (superuser), Hermes, cq; admin role in ArgoCD, Grafana, Kargo, Open WebUI, Mealie |
+| `homelab` | ArgoCD (admin), Kargo (admin), Grafana (Editor), Bosun, Specmarshal, Qdrant, Umami, the landing page, Open WebUI |
+| `media-management` | nothing bound yet: for Sonarr/Radarr/Bazarr/SABnzbd once they sit behind forward-auth |
+| `media-viewer` | nothing bound yet: for Jellyfin once it uses OIDC |
+| `open-webui-users` | Open WebUI only |
+| `mealie-users` | Mealie only (`authentik-blueprints-mealie`) |
+
+A user in no group can sign in to the portal and reach nothing. Every new
+application must get a binding in `11-access-groups.yaml` (or its own
+blueprint) -- an application with no binding is open to every account.
+
+### Adding a user
+
+1. Admin interface (`https://auth-admin.cluster.integratn.tech`) ->
+   Directory -> Invitations -> Create. Flow `integratn-invitation`, single
+   use, expires in a few days. Fixed data may pre-fill
+   `{"email": "...", "username": "..."}`.
+2. Send them the invitation link. They pick a username and password (14+
+   characters, not breached) and enrol TOTP or a passkey.
+3. Directory -> Groups -> add them to the groups they need.
+
+### Admin interface
+
+`/if/admin` on `auth.cluster.integratn.tech` redirects to
+`auth-admin.cluster.integratn.tech`, which only private (LAN/Tailscale)
+addresses can open. Never publish `auth-admin` on a Cloudflare tunnel; only
+`auth.` may ever be public.
+
+### Retiring akadmin
+
+The bootstrap `akadmin` is a shared, guessable name. Replace it with a named
+admin, once, by hand:
+
+1. Create an invitation (above) and enrol your own account through it, with
+   MFA.
+2. Add that account to `authentik Admins`, `homelab` and whatever else you use.
+3. Sign out, sign in as the new account, confirm the admin interface and an
+   app or two work.
+4. Deactivate `akadmin` (Directory -> Users -> akadmin -> Edit -> uncheck
+   Active), and clear its email so Google sign-in can never match it.
+   **Do not** set it an unusable password or delete it: the `initial-setup`
+   flow stays closed only while akadmin has a usable password.
+
+`AUTHENTIK_BOOTSTRAP_PASSWORD`/`EMAIL` stay in values.yaml for the same
+reason (an empty database must not come up with an open setup flow). The
+bootstrap *token* is gone.
 
 ## Service Integration
 
@@ -179,7 +242,7 @@ Grafana dashboard: **Authentik Dashboard** (ID 14837)
 - Pre-commit hooks validate no secrets in promise directories
 - Database credentials rotate in 1Password, ExternalSecret syncs automatically
 - Bootstrap admin credentials should be rotated after initial setup
-- Consider enabling MFA for all admin users
+- MFA is required for every user (`integratn-mfa` stage)
 - Review audit logs regularly: **Events** → **Logs** in Authentik UI
 
 ## References

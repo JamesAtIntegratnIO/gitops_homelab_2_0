@@ -158,97 +158,202 @@ data:
           meta_description: Observability & Monitoring Dashboards
           policy_engine_mode: all
 
-  03-default-authentication-flow.yaml: |
-    # Authentik Blueprint: Default Authentication Flow
-    # Creates a standard authentication flow with username/password
+  03-authentication-flows.yaml: |
+    # Authentik Blueprint: sign-in flows (password + required MFA)
+    #
+    # OWN FLOWS, NOT THE STOCK ONES. This used to edit authentik's stock
+    # `default-authentication-flow` in place. authentik's own blueprint for that
+    # flow re-applies on every upgrade and put its MFA stage back to
+    # `not_configured_action: skip` next to ours (two bindings at order 30, MFA
+    # optional). Flows with our own slugs and stages are never touched by an
+    # upgrade, so what is written here is what runs.
+    #
+    #   integratn-authentication          username/email + password, then MFA,
+    #                                     then login. The brand points here.
+    #   integratn-source-authentication   what a Google sign-in runs once it has
+    #                                     matched an EXISTING user: MFA, then
+    #                                     login. Google never creates users
+    #                                     (04-google-oauth-source.yaml).
+    #
+    # MFA is REQUIRED: a user with no TOTP/WebAuthn device is made to enrol one
+    # before the login completes (`not_configured_action: configure`).
+    #
+    # The stock `default-authentication-flow` is left in place (authentik
+    # recreates it anyway) but bound to a deny-all policy, so nobody can run it
+    # by URL to skip the MFA above.
+    #
+    # There is no enrollment and no recovery on these flows. New accounts come
+    # only from invitations (12-invitation-enrollment.yaml).
     version: 1
     metadata:
-      name: default-authentication-flow
+      name: authentication-flows
       labels:
         blueprints.goauthentik.io/instantiate: "true"
     entries:
-      # Authentication Flow
-      - model: authentik_flows.flow
-        identifiers:
-          slug: default-authentication-flow
-        id: flow
-        attrs:
-          name: Default Authentication Flow
-          title: Welcome to the Platform
-          designation: authentication
-          authentication: require_unauthenticated
-          layout: stacked
-          denied_action: message_continue
-      
-      # Stage 2: Password (must come before identification stage that references it)
       - model: authentik_stages_password.passwordstage
         identifiers:
-          name: default-authentication-password
+          name: integratn-authentication-password
         id: password-stage
         attrs:
+          # Inbuilt only: no app-password (TokenBackend) logins through the
+          # browser flow.
           backends:
             - authentik.core.auth.InbuiltBackend
-            - authentik.core.auth.TokenBackend
           configure_flow: null
           failed_attempts_before_cancel: 5
-      
-      # Stage 1: Identification (username/email)
+
       - model: authentik_stages_identification.identificationstage
         identifiers:
-          name: default-authentication-identification
+          name: integratn-authentication-identification
         id: identification-stage
         attrs:
           user_fields:
             - username
             - email
-          password_stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
+          password_stage: !KeyOf password-stage
           sources:
             - !Find [authentik_sources_oauth.oauthsource, [slug, google]]
-          show_matched_user: true
           show_source_labels: true
-      
-      # Stage 3: User Login
+          # Don't echo back whether an account exists.
+          show_matched_user: false
+          pretend_user_exists: true
+          enrollment_flow: null
+          recovery_flow: null
+          passwordless_flow: null
+
+      - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+        identifiers:
+          name: integratn-mfa
+        id: mfa-stage
+        attrs:
+          device_classes:
+            - static
+            - totp
+            - webauthn
+          # No device yet -> enrol one now, instead of letting the user in.
+          not_configured_action: configure
+          configuration_stages:
+            - !Find [authentik_stages_authenticator_webauthn.authenticatorwebauthnstage, [name, default-authenticator-webauthn-setup]]
+            - !Find [authentik_stages_authenticator_totp.authenticatortotpstage, [name, default-authenticator-totp-setup]]
+          last_auth_threshold: seconds=0
+          webauthn_user_verification: preferred
+
       - model: authentik_stages_user_login.userloginstage
         identifiers:
-          name: default-authentication-login
-        id: user-login-stage
+          name: integratn-authentication-login
+        id: login-stage
         attrs:
           session_duration: seconds=0
           remember_me_offset: seconds=0
-      
-      # Flow Stage Bindings
+
+      # --- integratn-authentication -------------------------------------
+      - model: authentik_flows.flow
+        identifiers:
+          slug: integratn-authentication
+        id: auth-flow
+        attrs:
+          name: IntegratnIO sign-in
+          title: Welcome to the Platform
+          designation: authentication
+          authentication: require_unauthenticated
+          layout: stacked
+          denied_action: message_continue
+          background: /static/dist/assets/images/integratn/bg-ridgeline.svg
+
       - model: authentik_flows.flowstagebinding
         identifiers:
-          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          stage: !Find [authentik_stages_identification.identificationstage, [name, default-authentication-identification]]
+          target: !KeyOf auth-flow
+          stage: !KeyOf identification-stage
           order: 10
         attrs:
           evaluate_on_plan: true
           re_evaluate_policies: false
-          policy_engine_mode: any
           invalid_response_action: retry
-      
+
       - model: authentik_flows.flowstagebinding
         identifiers:
-          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
+          target: !KeyOf auth-flow
+          stage: !KeyOf mfa-stage
           order: 20
         attrs:
           evaluate_on_plan: true
           re_evaluate_policies: false
-          policy_engine_mode: any
           invalid_response_action: retry
-      
+
       - model: authentik_flows.flowstagebinding
         identifiers:
-          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
-          order: 30
+          target: !KeyOf auth-flow
+          stage: !KeyOf login-stage
+          order: 100
         attrs:
           evaluate_on_plan: true
           re_evaluate_policies: false
-          policy_engine_mode: any
           invalid_response_action: retry
+
+      # --- integratn-source-authentication (Google, existing users only) --
+      - model: authentik_flows.flow
+        identifiers:
+          slug: integratn-source-authentication
+        id: source-auth-flow
+        attrs:
+          name: IntegratnIO sign-in (via Google)
+          title: Welcome to the Platform
+          designation: authentication
+          authentication: require_unauthenticated
+          layout: stacked
+          denied_action: message_continue
+          background: /static/dist/assets/images/integratn/bg-ridgeline.svg
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf source-auth-flow
+          stage: !KeyOf mfa-stage
+          order: 20
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf source-auth-flow
+          stage: !KeyOf login-stage
+          order: 100
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+
+      # --- the brand signs in through the flow above ----------------------
+      # Only flow fields; the look is 10-integratn-brand.yaml's.
+      - model: authentik_brands.brand
+        identifiers:
+          default: true
+        state: present
+        attrs:
+          flow_authentication: !KeyOf auth-flow
+          flow_recovery: null
+          flow_unenrollment: null
+
+      # --- close the stock flow -------------------------------------------
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-deny-all
+        id: deny-all
+        attrs:
+          expression: |
+            ak_message("This sign-in path is disabled.")
+            return False
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          policy: !KeyOf deny-all
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
 
   04-google-oauth-source.yaml: |
     # Authentik Blueprint: Google OAuth Source
@@ -315,8 +420,13 @@ data:
           provider_type: google
           consumer_key: !Context google_client_id
           consumer_secret: !Context google_client_secret
-          authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
-          enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
+          # Sign-in for EXISTING users only: MFA, then login
+          # (03-authentication-flows.yaml).
+          authentication_flow: !Find [authentik_flows.flow, [slug, integratn-source-authentication]]
+          # No enrollment: a Google account that matches no user is refused.
+          # Accounts come only from invitations (12-invitation-enrollment.yaml);
+          # once one exists, its Google login links to it by email.
+          enrollment_flow: null
           user_matching_mode: email_link
           enabled: true
           oidc_well_known_url: "https://accounts.google.com/.well-known/openid-configuration"
@@ -388,7 +498,8 @@ data:
           group: Platform Services
           meta_icon: https://raw.githubusercontent.com/open-webui/open-webui/main/static/favicon.png
           meta_description: AI Platform Assistant
-          policy_engine_mode: all
+          # homelab OR open-webui-users (bindings in 11-access-groups.yaml)
+          policy_engine_mode: any
 
   06-qdrant-proxy-provider.yaml: |
     # Authentik Blueprint: Qdrant Dashboard Proxy Provider
@@ -787,3 +898,364 @@ data:
           enabled: true
           negate: false
           timeout: 30
+
+  11-access-groups.yaml: |
+    # Authentik Blueprint: access groups, and which apps each group opens
+    #
+    # DEFAULT DENY. Every application is bound to at least one group; a user in
+    # no group can sign in to the user portal and nothing else. Grant access by
+    # adding the user to a group (Directory -> Groups) -- never by unbinding an
+    # app.
+    #
+    #   authentik Admins   authentik superusers (00-admin-group.yaml). Also the
+    #                      only group for hermes and cq, and an admin role
+    #                      inside ArgoCD / Grafana / Kargo / Open WebUI / Mealie.
+    #   homelab            runs the platform: ArgoCD, Kargo, Grafana, Bosun,
+    #                      Specmarshal, Qdrant, Umami, the landing page, plus
+    #                      Open WebUI. Admin role in ArgoCD and Kargo, Editor in
+    #                      Grafana.
+    #   media-management   Sonarr / Radarr / Bazarr / SABnzbd. Nothing bound yet:
+    #                      those apps are on vcluster-media with their own
+    #                      logins; bind them here when they move to forward-auth.
+    #   media-viewer       Jellyfin and anything request-shaped. Nothing bound
+    #                      yet (Jellyfin has its own login; next step is its SSO
+    #                      plugin against an OIDC provider bound to this group).
+    #   open-webui-users   Open WebUI only. Open WebUI already admits this group
+    #                      (OAUTH_ALLOWED_ROLES) but it never existed in authentik.
+    #   mealie-users       Mealie only (the household); lives in
+    #                      authentik-blueprints-mealie.
+    version: 1
+    metadata:
+      name: access-groups
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_core.group
+        identifiers:
+          name: homelab
+        id: homelab
+        attrs:
+          is_superuser: false
+      - model: authentik_core.group
+        identifiers:
+          name: media-management
+        attrs:
+          is_superuser: false
+      - model: authentik_core.group
+        identifiers:
+          name: media-viewer
+        attrs:
+          is_superuser: false
+      - model: authentik_core.group
+        identifiers:
+          name: open-webui-users
+        id: open-webui-users
+        attrs:
+          is_superuser: false
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, argocd]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, kargo]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, grafana]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, bosun]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, specmarshal]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, qdrant]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, umami]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, homepage]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, open-webui]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      # Open WebUI's policy_engine_mode is `any` (05-openwebui-provider.yaml),
+      # so either group is enough.
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, open-webui]]
+          group: !KeyOf open-webui-users
+        attrs:
+          order: 10
+          enabled: true
+          negate: false
+          timeout: 30
+
+  12-invitation-enrollment.yaml: |
+    # Authentik Blueprint: invite-only enrollment
+    #
+    # THE ONLY WAY AN ACCOUNT IS CREATED. There is no public sign-up: the
+    # sign-in flow has no enrollment link, Google never creates users, and this
+    # flow refuses to start without a valid invitation token.
+    #
+    # To invite someone: Directory -> Invitations -> Create, flow
+    # `integratn-invitation`, single use, an expiry of a few days. Optionally
+    # put {"email": "...", "username": "..."} in Fixed data to pre-fill them.
+    # Send the link it shows. They choose a username and password, must enrol
+    # TOTP or a passkey, and are signed in -- with NO groups, so they can reach
+    # nothing until you add them to one (11-access-groups.yaml).
+    version: 1
+    metadata:
+      name: invitation-enrollment
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_policies_password.passwordpolicy
+        identifiers:
+          name: integratn-password-policy
+        id: password-policy
+        attrs:
+          password_field: password
+          error_message: >-
+            Use at least 14 characters, not a common or previously breached
+            password.
+          check_static_rules: true
+          length_min: 14
+          amount_digits: 0
+          amount_lowercase: 0
+          amount_uppercase: 0
+          amount_symbols: 0
+          check_have_i_been_pwned: true
+          hibp_allowed_count: 0
+          check_zxcvbn: true
+          zxcvbn_score_threshold: 3
+
+      - model: authentik_stages_invitation.invitationstage
+        identifiers:
+          name: integratn-invitation
+        id: invitation-stage
+        attrs:
+          continue_flow_without_invitation: false
+
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-username
+        id: prompt-username
+        attrs:
+          field_key: username
+          label: Username
+          type: username
+          required: true
+          placeholder: Username
+          order: 0
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-name
+        id: prompt-name
+        attrs:
+          field_key: name
+          label: Name
+          type: text
+          required: true
+          placeholder: Name
+          order: 1
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-email
+        id: prompt-email
+        attrs:
+          field_key: email
+          label: Email
+          type: email
+          required: true
+          placeholder: Email
+          order: 2
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-password
+        id: prompt-password
+        attrs:
+          field_key: password
+          label: Password
+          type: password
+          required: true
+          placeholder: Password
+          order: 3
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-password-repeat
+        id: prompt-password-repeat
+        attrs:
+          field_key: password_repeat
+          label: Password (repeat)
+          type: password
+          required: true
+          placeholder: Password (repeat)
+          order: 4
+
+      - model: authentik_stages_prompt.promptstage
+        identifiers:
+          name: integratn-invitation-prompt
+        id: prompt-stage
+        attrs:
+          fields:
+            - !KeyOf prompt-username
+            - !KeyOf prompt-name
+            - !KeyOf prompt-email
+            - !KeyOf prompt-password
+            - !KeyOf prompt-password-repeat
+          validation_policies:
+            - !KeyOf password-policy
+
+      - model: authentik_stages_user_write.userwritestage
+        identifiers:
+          name: integratn-invitation-write
+        id: write-stage
+        attrs:
+          user_creation_mode: always_create
+          create_users_as_inactive: false
+          create_users_group: null
+          user_type: internal
+
+      - model: authentik_flows.flow
+        identifiers:
+          slug: integratn-invitation
+        id: flow
+        attrs:
+          name: IntegratnIO invitation
+          title: Join the platform
+          designation: enrollment
+          authentication: require_unauthenticated
+          layout: stacked
+          denied_action: message_continue
+          background: /static/dist/assets/images/integratn/bg-ridgeline.svg
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf invitation-stage
+          order: 10
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf prompt-stage
+          order: 20
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf write-stage
+          order: 30
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      # MFA enrolment before the first login (03-authentication-flows.yaml).
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !Find [authentik_stages_authenticator_validate.authenticatorvalidatestage, [name, integratn-mfa]]
+          order: 40
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !Find [authentik_stages_user_login.userloginstage, [name, integratn-authentication-login]]
+          order: 100
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+
+  13-retire-bootstrap-token.yaml: |
+    # Authentik Blueprint: delete the bootstrap API token
+    #
+    # AUTHENTIK_BOOTSTRAP_TOKEN created a non-expiring API token owned by
+    # akadmin, `authentik-bootstrap-token`. Nothing in this repo or the cluster
+    # uses it, so the env var is gone from values.yaml and this removes the
+    # token itself. Need API access later? Create a token with an expiry, owned
+    # by a named user, for that one job.
+    version: 1
+    metadata:
+      name: retire-bootstrap-token
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_core.token
+        identifiers:
+          identifier: authentik-bootstrap-token
+        state: absent

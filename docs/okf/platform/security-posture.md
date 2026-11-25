@@ -65,6 +65,26 @@ favicon, CSS, a background per flow) from the generated blueprint and assets
 in `hack/authentik-theme/`. Prometheus/Alertmanager/Loki endpoints have **no
 auth** (flagged as future work in the docs).
 
+Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13` in
+`authentik-blueprints-configmap.yaml`):
+
+- **Invite-only.** No public sign-up anywhere. Google sign-in only links to an
+  account that already exists (by email); it never creates one. New accounts
+  come from single-use invitations on flow `integratn-invitation`.
+- **MFA required.** The brand signs in through `integratn-authentication`
+  (password, then TOTP/WebAuthn, enrolment forced if missing); Google sign-ins
+  run `integratn-source-authentication` (MFA too). The stock
+  `default-authentication-flow` is bound to a deny-all policy.
+- **Default-deny apps.** Every application is bound to a group: `homelab`
+  (ArgoCD, Kargo, Grafana, Bosun, Specmarshal, Qdrant, Umami, landing page,
+  Open WebUI), `open-webui-users`, `mealie-users`, `authentik Admins` (hermes,
+  cq). `media-management` and `media-viewer` exist with nothing bound yet.
+- **Admin UI LAN-only.** `/if/admin` on `auth.` redirects to
+  `auth-admin.cluster.integratn.tech`, which only private client IPs may use
+  and which must never be published on a tunnel.
+- No bootstrap API token. `akadmin` is to be retired in favour of a named admin
+  (see the authentik addon README).
+
 **Secrets**: see [secret management](/platform/secret-management.md) — the
 no-Secrets-in-git chain.
 

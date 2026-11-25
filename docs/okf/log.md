@@ -1,5 +1,9 @@
 # Update Log
 
+## 2026-11-25
+* **Update**: **authentik is invite-only with required MFA.** Review found Google sign-in auto-created active users, nine apps open to any signed-in user, `akadmin` with no MFA (login flow skipped MFA when no device), and a non-expiring bootstrap API token. Now: Google links existing users only; invitations (`integratn-invitation`) are the only way to create an account; own sign-in flows force TOTP/WebAuthn and the stock flow is denied; groups `homelab`, `media-management`, `media-viewer`, `open-webui-users` with every app bound; bootstrap token removed; admin UI moved to LAN-only `auth-admin.cluster.integratn.tech`. authentik was and is LAN-only (not on the Cloudflare tunnel). See [Security posture](platform/security-posture.md).
+* **Fix**: **Real client IPs behind the gateway.** `nginx-gateway-nginx` is `externalTrafficPolicy: Local`; authentik had logged Cilium 10.244.x.x addresses for every login. See [Networking](platform/networking.md).
+
 ## 2026-11-13
 * **Issue → Fix**: **Every vcluster-media app was unreachable for ~3.5 days while all pods showed Running.** schedule-arm64-images (#720) recreated the vcluster gateway data plane onto `talos-pi4-2`; its LoadBalancer is `externalTrafficPolicy: Local` and MetalLB speakers ran only on the amd64 nodes (eno1), so nothing announced 10.0.4.201. Hotfix: temporary PolicyException `vcluster-media/vcluster-media-gateway-stays-amd64` and a pod restart. Fix (James's call): MetalLB speakers now tolerate the arch taint on the Pi 4s (Pi 5 excluded) and the L2Advertisement announces on `end0` too, so Pi-hosted LB backends work. See [Talos nodes](infrastructure/talos-nodes.md).
 
