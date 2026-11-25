@@ -42,6 +42,14 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        # HSTS for the sign-in host (not includeSubDomains: other hosts
+        # under cluster.integratn.tech make their own call).
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: max-age=31536000
       backendRefs:
         - name: authentik-server
           port: 80
@@ -77,13 +85,13 @@ spec:
 #
 # Depends on the gateway seeing the real client IP, which it does since its
 # Service moved to externalTrafficPolicy: Local (nginx-gateway-fabric
-# values.yaml). Before that every client arrived as a 10.244.x.x Cilium address.
+# values.yaml).
 #
-# Pod addresses (10.244.0.0/16) are admitted for now, since in-cluster callers
-# and anything still SNATed arrive from there; that includes cloudflared, so
-# the hostname split above (never publish auth-admin) is what keeps the tunnel
-# out. Once the real-IP change is confirmed live, add `deny 10.244.0.0/16;`
-# above the allows to make this hold even if a tunnel is pointed at it.
+# Pod addresses (10.244.0.0/16) are refused FIRST: the cloudflared connectors
+# are pods, so anything a tunnel ever sends here (a wildcard or catch-all
+# rule) would otherwise pass as "private". Anything carrying Cloudflare's
+# headers is refused too. LAN and Tailscale clients keep their real
+# addresses, so they are unaffected.
 apiVersion: gateway.nginx.org/v1alpha1
 kind: SnippetsFilter
 metadata:
@@ -93,6 +101,9 @@ spec:
   snippets:
     - context: http.server.location
       value: |
+        if ($http_cf_ray) { return 403; }
+        if ($http_cf_connecting_ip) { return 403; }
+        deny 10.244.0.0/16;
         allow 10.0.0.0/8;
         allow 192.168.0.0/16;
         allow 172.16.0.0/12;

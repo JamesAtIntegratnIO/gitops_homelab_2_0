@@ -345,6 +345,9 @@ data:
           enabled: true
           negate: false
           timeout: 30
+          # If the policy itself errors, treat it as "not home": the deny
+          # stage runs. Fail closed.
+          failure_result: true
 
       - model: authentik_flows.flowstagebinding
         identifiers:
@@ -390,6 +393,60 @@ data:
           layout: stacked
           denied_action: message_continue
           background: /static/dist/assets/images/integratn/bg-ridgeline.svg
+
+      # SUPERUSERS DON'T SIGN IN FROM OUTSIDE. Google sign-in has no
+      # authentik MFA, and a superuser session can drive the whole admin API
+      # on auth. (only the /if/admin UI is moved to the LAN-only admin host).
+      # So a Google sign-in that came through Cloudflare (Cf-Ray or
+      # Cf-Connecting-Ip, which the client cannot remove) is refused for any
+      # superuser. Admins sign in at home or over Tailscale. Evaluated when the
+      # stage comes up, against the matched user; fails closed.
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-superuser-via-cloudflare
+        id: superuser-via-cloudflare-policy
+        attrs:
+          expression: |
+            # True (=> deny) for a superuser whose request came through Cloudflare.
+            req = request.http_request
+            if req is None:
+                return True
+            if not (req.headers.get("Cf-Ray") or req.headers.get("Cf-Connecting-Ip")):
+                return False
+            return bool(getattr(request.user, "is_superuser", False))
+
+      - model: authentik_stages_deny.denystage
+        identifiers:
+          name: integratn-superuser-home-only
+        id: superuser-home-only-stage
+        attrs:
+          deny_message: >-
+            Administrator accounts can only sign in on the home network or
+            over Tailscale.
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf source-auth-flow
+          stage: !KeyOf superuser-home-only-stage
+          order: 50
+        id: superuser-home-only-binding
+        attrs:
+          evaluate_on_plan: false
+          re_evaluate_policies: true
+          invalid_response_action: retry
+
+      - model: authentik_policies.policybinding
+        # Identified by policy alone, target in attrs (see the home-network
+        # binding above). This policy is bound only here.
+        identifiers:
+          policy: !KeyOf superuser-via-cloudflare-policy
+        attrs:
+          target: !KeyOf superuser-home-only-binding
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+          failure_result: true
 
       - model: authentik_flows.flowstagebinding
         identifiers:
