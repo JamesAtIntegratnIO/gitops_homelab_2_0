@@ -229,6 +229,7 @@ data:
           password_stage: null
           sources:
             - !Find [authentik_sources_oauth.oauthsource, [slug, google]]
+            - !Find [authentik_sources_oauth.oauthsource, [slug, google-workspace]]
           show_source_labels: true
           # Don't echo back whether an account exists.
           show_matched_user: false
@@ -429,15 +430,29 @@ data:
     # Callback URL to configure in Google Cloud Console:
     #   https://auth.cluster.integratn.tech/source/oauth/callback/google/
     #
-    # and, for Google sign-in on the admin host too:
-    #   https://auth-admin.cluster.integratn.tech/source/oauth/callback/google/
+    #   https://auth.cluster.integratn.tech/source/oauth/callback/google-workspace/
+    # and the same two under https://auth-admin.cluster.integratn.tech/ for
+    # sign-in on the admin host.
     #
-    # Scopes: openid, email, profile only -- non-sensitive, so Google shows no
-    # "Google hasn't verified this app" screen. Until 2026-11-25 this also asked
-    # for cloud-identity.groups.readonly to copy Google Workspace groups into
-    # authentik; nothing used them and that sensitive scope is what put the
-    # unverified-app warning in front of every sign-in. Access is decided by
-    # authentik's own groups (11-access-groups.yaml).
+    # TWO SOURCES, ONE GOOGLE OAUTH CLIENT (James, 2026-11-25).
+    #   google            "Google": openid/email/profile only. Non-sensitive,
+    #                     so Google shows no "hasn't verified this app" screen.
+    #                     For family and anyone else with a Google account.
+    #   google-workspace  "IntegratnIO Workspace": also asks for
+    #                     cloud-identity.groups.readonly and copies the
+    #                     account's Google Workspace groups into authentik.
+    #                     That scope is sensitive, so Google shows its
+    #                     unverified-app screen until the app is verified.
+    # OAuth asks for its scopes BEFORE Google shows the account picker, so the
+    # groups scope cannot be requested only for some accounts within one
+    # button; the choice of button is that switch. The mapping below also only
+    # calls the Cloud Identity API for @integratn.io / @integratn.tech
+    # addresses.
+    #
+    # Prerequisites in Google Cloud Console:
+    #   1. Enable the "Cloud Identity API" at https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com
+    #   2. Add the cloud-identity.groups.readonly scope to the OAuth consent screen
+    #   3. Add the callback URLs above as authorized redirect URIs
     version: 1
     metadata:
       name: google-oauth-source
@@ -447,6 +462,44 @@ data:
       google_client_id: !Env GOOGLE_CLIENT_ID
       google_client_secret: !Env GOOGLE_CLIENT_SECRET
     entries:
+      # Property mapping to sync Google Workspace group memberships
+      - model: authentik_sources_oauth.oauthsourcepropertymapping
+        identifiers:
+          name: "Google Workspace Groups Sync"
+        id: google-groups-mapping
+        attrs:
+          expression: |
+            # Fetch the user's Google Workspace group memberships via Cloud Identity API
+            email = info.get("email", "")
+            access_token = token.get("access_token", "")
+            groups = []
+            # Only IntegratnIO Workspace accounts have groups to read.
+            domain = email.rsplit("@", 1)[-1].lower() if "@" in email else ""
+            if domain in ("integratn.io", "integratn.tech") and access_token:
+                try:
+                    query = f"member_key_id == '{email}'"
+                    response = requests.get(
+                        "https://cloudidentity.googleapis.com/v1/groups/-/memberships:searchDirectGroups",
+                        params={"query": query, "pageSize": 200},
+                        headers={"Authorization": f"Bearer {access_token}"},
+                        timeout=10,
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        for membership in data.get("memberships", []):
+                            name = membership.get("displayName", "")
+                            if name:
+                                groups.append(name)
+                    else:
+                        ak_logger.warning(
+                            "Google Groups API error",
+                            status=response.status_code,
+                            body=response.text[:500],
+                        )
+                except Exception as e:
+                    ak_logger.warning("Google Groups API exception", error=str(e))
+            return {"groups": groups}
+
       # Google OAuth Source
       - model: authentik_sources_oauth.oauthsource
         identifiers:
@@ -468,14 +521,31 @@ data:
           enabled: true
           oidc_well_known_url: "https://accounts.google.com/.well-known/openid-configuration"
           oidc_jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
+          # Basic scopes only (see the header).
           additional_scopes: ""
           user_property_mappings: []
 
-      # The Workspace group-sync mapping the old scope fed; unbound above.
-      - model: authentik_sources_oauth.oauthsourcepropertymapping
+      # IntegratnIO Workspace accounts: the same client, plus the groups scope
+      # and the mapping above. Same flows and matching as `google`, so both
+      # buttons land on the same authentik user.
+      - model: authentik_sources_oauth.oauthsource
         identifiers:
-          name: "Google Workspace Groups Sync"
-        state: absent
+          slug: google-workspace
+        id: google-workspace-source
+        attrs:
+          name: IntegratnIO Workspace
+          provider_type: google
+          consumer_key: !Context google_client_id
+          consumer_secret: !Context google_client_secret
+          authentication_flow: !Find [authentik_flows.flow, [slug, integratn-source-authentication]]
+          enrollment_flow: null
+          user_matching_mode: email_link
+          enabled: true
+          oidc_well_known_url: "https://accounts.google.com/.well-known/openid-configuration"
+          oidc_jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
+          additional_scopes: "https://www.googleapis.com/auth/cloud-identity.groups.readonly"
+          user_property_mappings:
+            - !KeyOf google-groups-mapping
 
   05-openwebui-provider.yaml: |
     # Authentik Blueprint: Open WebUI OAuth2 Provider
