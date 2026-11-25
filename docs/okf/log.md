@@ -1,6 +1,7 @@
 # Update Log
 
 ## 2026-11-25
+* **Update**: **Two Google buttons.** `Google` (source `google`) asks only for name/email, so family see no "hasn't verified this app" screen; `IntegratnIO Workspace` (source `google-workspace`, same OAuth client) keeps the `cloud-identity.groups.readonly` scope and Workspace group sync, now limited to @integratn.io/@integratn.tech. Needs `/source/oauth/callback/google-workspace/` registered on the Google client. See [Security posture](platform/security-posture.md).
 * **Update**: **authentik is invite-only with required MFA.** Review found Google sign-in auto-created active users, nine apps open to any signed-in user, `akadmin` with no MFA (login flow skipped MFA when no device), and a non-expiring bootstrap API token. Now: Google links existing users only; invitations (`integratn-invitation`) are the only way to create an account; own password sign-in flow forces TOTP/WebAuthn (Google sign-in trusts Google's 2FA; password sign-in only from LAN/Tailscale) and the stock flow is denied; groups `homelab`, `media-management`, `media-viewer`, `open-webui-users` with every app bound; bootstrap token removed; admin UI moved to LAN-only `auth-admin.cluster.integratn.tech`. authentik was and is LAN-only (not on the Cloudflare tunnel). See [Security posture](platform/security-posture.md).
 * **Fix**: **Real client IPs behind the gateway.** `nginx-gateway-nginx` is `externalTrafficPolicy: Local`; authentik had logged Cilium 10.244.x.x addresses for every login. See [Networking](platform/networking.md).
 
