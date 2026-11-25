@@ -85,8 +85,10 @@ Blueprints are auto-applied on startup. All provider configuration is code-drive
 ## Users, groups and sign-up
 
 **There is no sign-up.** Accounts are created only from invitations; Google
-sign-in only links to an account that already exists (same email). Every
-login needs a second factor (TOTP or a passkey), enrolled on first sign-in.
+sign-in only links to an account that already exists (same email). Password
+sign-in needs a second factor (TOTP or a passkey), enrolled on first sign-in;
+Google sign-in relies on the Google account's own 2FA instead, so invitees who
+use Google should have 2FA on their Google account.
 
 ### Groups
 
@@ -242,7 +244,7 @@ Grafana dashboard: **Authentik Dashboard** (ID 14837)
 - Pre-commit hooks validate no secrets in promise directories
 - Database credentials rotate in 1Password, ExternalSecret syncs automatically
 - Bootstrap admin credentials should be rotated after initial setup
-- MFA is required for every user (`integratn-mfa` stage)
+- MFA is required for password sign-in (`integratn-mfa` stage); Google sign-in trusts Google's 2FA
 - Review audit logs regularly: **Events** → **Logs** in Authentik UI
 
 ## References

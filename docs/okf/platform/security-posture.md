@@ -73,7 +73,8 @@ Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13` in
   come from single-use invitations on flow `integratn-invitation`.
 - **MFA required.** The brand signs in through `integratn-authentication`
   (password, then TOTP/WebAuthn, enrolment forced if missing); Google sign-ins
-  run `integratn-source-authentication` (MFA too). The stock
+  run `integratn-source-authentication`, which trusts Google's own 2FA (no
+  second prompt, James's call). The stock
   `default-authentication-flow` is bound to a deny-all policy.
 - **Default-deny apps.** Every application is bound to a group: `homelab`
   (ArgoCD, Kargo, Grafana, Bosun, Specmarshal, Qdrant, Umami, landing page,

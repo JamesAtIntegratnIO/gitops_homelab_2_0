@@ -171,12 +171,16 @@ data:
     #   integratn-authentication          username/email + password, then MFA,
     #                                     then login. The brand points here.
     #   integratn-source-authentication   what a Google sign-in runs once it has
-    #                                     matched an EXISTING user: MFA, then
-    #                                     login. Google never creates users
+    #                                     matched an EXISTING user: login only.
+    #                                     Google never creates users
     #                                     (04-google-oauth-source.yaml).
     #
-    # MFA is REQUIRED: a user with no TOTP/WebAuthn device is made to enrol one
-    # before the login completes (`not_configured_action: configure`).
+    # MFA is REQUIRED for password sign-in: a user with no TOTP/WebAuthn device
+    # is made to enrol one before the login completes
+    # (`not_configured_action: configure`). Google sign-in TRUSTS GOOGLE'S 2FA
+    # instead (James, 2026-11-25: one login, not two). Only invited accounts can
+    # sign in with Google, so the exposure is an invitee whose Google account
+    # has no 2FA. Add the MFA binding back to the source flow to change that.
     #
     # The stock `default-authentication-flow` is left in place (authentik
     # recreates it anyway) but bound to a deny-all policy, so nobody can run it
@@ -291,6 +295,7 @@ data:
           invalid_response_action: retry
 
       # --- integratn-source-authentication (Google, existing users only) --
+      # No MFA stage: Google's own 2FA is trusted (see the header).
       - model: authentik_flows.flow
         identifiers:
           slug: integratn-source-authentication
@@ -303,16 +308,6 @@ data:
           layout: stacked
           denied_action: message_continue
           background: /static/dist/assets/images/integratn/bg-ridgeline.svg
-
-      - model: authentik_flows.flowstagebinding
-        identifiers:
-          target: !KeyOf source-auth-flow
-          stage: !KeyOf mfa-stage
-          order: 20
-        attrs:
-          evaluate_on_plan: true
-          re_evaluate_policies: false
-          invalid_response_action: retry
 
       - model: authentik_flows.flowstagebinding
         identifiers:
