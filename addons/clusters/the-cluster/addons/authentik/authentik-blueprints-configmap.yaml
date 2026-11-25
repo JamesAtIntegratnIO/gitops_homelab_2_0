@@ -172,8 +172,9 @@ data:
     #                                     then login. The brand points here.
     #   integratn-source-authentication   what a Google sign-in runs once it has
     #                                     matched an EXISTING user: login only.
-    #                                     Google never creates users
-    #                                     (04-google-oauth-source.yaml).
+    #                                     Google creates a user only for an
+    #                                     invited email
+    #                                     (14-google-invite-enrollment.yaml).
     #
     # MFA is REQUIRED for password sign-in: a user with no TOTP/WebAuthn device
     # is made to enrol one before the login completes
@@ -471,6 +472,16 @@ data:
       google_client_id: !Env GOOGLE_CLIENT_ID
       google_client_secret: !Env GOOGLE_CLIENT_SECRET
     entries:
+      # The sources below !Find the sign-up flow from
+      # 14-google-invite-enrollment.yaml. Blueprints apply in no fixed order,
+      # and a !Find that runs first silently sets enrollment_flow to null, so
+      # apply 14 before this one.
+      - model: authentik_blueprints.metaapplyblueprint
+        attrs:
+          identifiers:
+            name: google-invite-enrollment
+          required: true
+
       # Property mapping to sync Google Workspace group memberships
       - model: authentik_sources_oauth.oauthsourcepropertymapping
         identifiers:
@@ -519,13 +530,14 @@ data:
           provider_type: google
           consumer_key: !Context google_client_id
           consumer_secret: !Context google_client_secret
-          # Sign-in for EXISTING users only; Google's own 2FA is trusted
+          # Sign-in for EXISTING users; Google's own 2FA is trusted
           # (03-authentication-flows.yaml).
           authentication_flow: !Find [authentik_flows.flow, [slug, integratn-source-authentication]]
-          # No enrollment: a Google account that matches no user is refused.
-          # Accounts come only from invitations (12-invitation-enrollment.yaml);
-          # once one exists, its Google login links to it by email.
-          enrollment_flow: null
+          # A Google account that matches no user may only sign up if an
+          # unexpired invitation carries its email in Fixed data
+          # (14-google-invite-enrollment.yaml). Anyone else is refused.
+          # An existing user's Google login links to it by email.
+          enrollment_flow: !Find [authentik_flows.flow, [slug, integratn-source-enrollment]]
           user_matching_mode: email_link
           enabled: true
           oidc_well_known_url: "https://accounts.google.com/.well-known/openid-configuration"
@@ -547,7 +559,8 @@ data:
           consumer_key: !Context google_client_id
           consumer_secret: !Context google_client_secret
           authentication_flow: !Find [authentik_flows.flow, [slug, integratn-source-authentication]]
-          enrollment_flow: null
+          # Invite-gated sign-up, as for `google` above.
+          enrollment_flow: !Find [authentik_flows.flow, [slug, integratn-source-enrollment]]
           user_matching_mode: email_link
           enabled: true
           oidc_well_known_url: "https://accounts.google.com/.well-known/openid-configuration"
@@ -1216,17 +1229,21 @@ data:
   12-invitation-enrollment.yaml: |
     # Authentik Blueprint: invite-only enrollment
     #
-    # THE ONLY WAY AN ACCOUNT IS CREATED. There is no public sign-up: the
-    # sign-in flow has no enrollment link, Google never creates users, and this
-    # flow refuses to start without a valid invitation token.
+    # AN INVITATION IS THE ONLY WAY AN ACCOUNT IS CREATED. There is no public
+    # sign-up: the sign-in flow has no enrollment link, this flow refuses to
+    # start without a valid invitation token, and Google sign-up needs an
+    # invitation naming that Google email (14-google-invite-enrollment.yaml).
     #
     # To invite someone: Directory -> Invitations -> Create, flow
-    # `integratn-invitation`, single use, an expiry of a few days. Optionally
-    # put {"email": "...", "username": "..."} in Fixed data to pre-fill them.
-    # Send the link it shows. They choose a username and password, must enrol
-    # TOTP or a passkey, and are signed in. They start in `media-viewer` only;
-    # add them to more groups (e.g. home-family, homelab) by hand
-    # (11-access-groups.yaml).
+    # `integratn-invitation`, single use, an expiry of a few days, Fixed data
+    # {"email": "<their address>"}. Then EITHER they click a Google button on
+    # the sign-in page with that Google account (account = that email, no
+    # password), OR you send the link the form shows and they choose a
+    # username and password and enrol TOTP or a passkey (password sign-in only
+    # works on the home network). The admin page builds the link from the host
+    # you are on: change auth-admin. to auth. before sending it.
+    # New accounts start in `media-viewer` only; add them to more groups
+    # (e.g. home-family, homelab) by hand (11-access-groups.yaml).
     version: 1
     metadata:
       name: invitation-enrollment
@@ -1419,3 +1436,139 @@ data:
         identifiers:
           identifier: authentik-bootstrap-token
         state: absent
+
+  14-google-invite-enrollment.yaml: |
+    # Authentik Blueprint: Google sign-up, invite-only
+    #
+    # An invited person can create their account by clicking a Google button on
+    # the normal sign-in page instead of opening the invitation link (James,
+    # 2026-11-25). Both Google sources (04-google-oauth-source.yaml) use this
+    # flow as their enrollment_flow, so a Google account that matches NO user
+    # lands here.
+    #
+    # WHY NOT AN INVITATION STAGE: authentik forgets the invite link's ?itoken=
+    # when it hands over to Google (the executor overwrites the saved query on
+    # the OAuth callback), and the Source stage that would carry it is
+    # enterprise-only. So the gate is a policy instead: the flow only runs if an
+    # unexpired invitation on `integratn-invitation` has Fixed data
+    # {"email": "<that Google address>"} (case-insensitive). No such invite:
+    # "No invitation for this Google account", and nothing is created.
+    #
+    # The new account: username = the Google email, name + email from Google,
+    # group media-viewer (same write stage as 12-invitation-enrollment.yaml),
+    # linked to that Google source, signed in. No authentik MFA, as for every
+    # Google sign-in (Google's 2FA is trusted, 03-authentication-flows.yaml).
+    # A single-use invite is deleted once the account exists; a reusable one
+    # stays until it expires.
+    #
+    # Policy bindings are identified by `policy`, never by `target` (see the
+    # GOTCHA in 03-authentication-flows.yaml).
+    version: 1
+    metadata:
+      name: google-invite-enrollment
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-google-has-invite
+        id: has-invite-policy
+        attrs:
+          execution_logging: true
+          expression: |
+            from django.db.models import Q
+            from django.utils.timezone import now
+            from authentik.stages.invitation.models import Invitation
+
+            prompt = context.get("prompt_data") or {}
+            email = (prompt.get("email") or "").strip()
+            if not email:
+                ak_message("Google did not share an email address.")
+                return False
+            invites = Invitation.objects.filter(
+                flow__slug="integratn-invitation",
+                fixed_data__email__iexact=email,
+            ).filter(Q(expiring=False) | Q(expires__gt=now()))
+            if not invites.exists():
+                ak_message("No invitation for this Google account. Ask for one, then try again.")
+                return False
+            # Google sends no username; user_write refuses an empty one.
+            # prompt_data is the plan's own dict, so this sticks.
+            prompt["username"] = email.lower()
+            return True
+
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-google-use-invite
+        id: use-invite-policy
+        attrs:
+          execution_logging: true
+          expression: |
+            # Runs just before login, after the account was written: use up a
+            # single-use invite the way the invitation stage would. Never blocks.
+            from authentik.stages.invitation.models import Invitation
+
+            email = ((context.get("prompt_data") or {}).get("email") or "").strip()
+            if email:
+                try:
+                    Invitation.objects.filter(
+                        flow__slug="integratn-invitation",
+                        fixed_data__email__iexact=email,
+                        single_use=True,
+                    ).delete()
+                except Exception as exc:
+                    # A failure here must not skip the login stage.
+                    ak_logger.warning("could not use up invitation", error=str(exc))
+            return True
+
+      - model: authentik_flows.flow
+        identifiers:
+          slug: integratn-source-enrollment
+        id: flow
+        attrs:
+          name: IntegratnIO sign-up (via Google, invite-only)
+          title: Join the platform
+          designation: enrollment
+          authentication: require_unauthenticated
+          layout: stacked
+          denied_action: message_continue
+          background: /static/dist/assets/images/integratn/bg-ridgeline.svg
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          policy: !KeyOf has-invite-policy
+        attrs:
+          target: !KeyOf flow
+          order: 0
+          enabled: true
+          timeout: 30
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !Find [authentik_stages_user_write.userwritestage, [name, integratn-invitation-write]]
+          order: 30
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !Find [authentik_stages_user_login.userloginstage, [name, integratn-authentication-login]]
+          order: 100
+        id: login-binding
+        attrs:
+          # Policies run when the stage comes up (after the write), not at plan.
+          evaluate_on_plan: false
+          re_evaluate_policies: true
+          invalid_response_action: retry
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          policy: !KeyOf use-invite-policy
+        attrs:
+          target: !KeyOf login-binding
+          order: 0
+          enabled: true
+          timeout: 30
