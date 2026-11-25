@@ -90,6 +90,12 @@ sign-in needs a second factor (TOTP or a passkey), enrolled on first sign-in;
 Google sign-in relies on the Google account's own 2FA instead, so invitees who
 use Google should have 2FA on their Google account.
 
+**Password sign-in works only from the home network** (LAN or Tailscale).
+Requests from anywhere else, or that arrive through Cloudflare (any `Cf-Ray`
+header), stop after the username with "use Sign in with Google". So anyone who
+needs access from outside must have a Google account linked (same email as
+their authentik account).
+
 ### Groups
 
 | Group | Opens |

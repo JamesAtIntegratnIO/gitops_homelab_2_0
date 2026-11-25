@@ -186,6 +186,16 @@ data:
     # recreates it anyway) but bound to a deny-all policy, so nobody can run it
     # by URL to skip the MFA above.
     #
+    # PASSWORD SIGN-IN IS HOME-NETWORK ONLY (James, 2026-11-25). Between the
+    # username and the password, a deny stage stops anyone whose request is
+    # not from a private address, or that came through Cloudflare (a Cf-Ray or
+    # Cf-Connecting-Ip header, which Cloudflare sets and the client cannot
+    # remove). Away from home, sign in with Google. The header check is what
+    # holds behind a Cloudflare tunnel: the tunnel's requests come from a pod
+    # address, and X-Forwarded-For can be forged, but every request through
+    # Cloudflare carries Cf-Ray. Anything else ever put in front of authentik
+    # from outside must be added to this policy.
+    #
     # There is no enrollment and no recovery on these flows. New accounts come
     # only from invitations (12-invitation-enrollment.yaml).
     version: 1
@@ -214,7 +224,9 @@ data:
           user_fields:
             - username
             - email
-          password_stage: !KeyOf password-stage
+          # Password is its own stage (order 30), so the home-network check
+          # (order 20) can stand in front of it.
+          password_stage: null
           sources:
             - !Find [authentik_sources_oauth.oauthsource, [slug, google]]
           show_source_labels: true
@@ -250,6 +262,34 @@ data:
           session_duration: seconds=0
           remember_me_offset: seconds=0
 
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-client-not-home-network
+        id: not-home-policy
+        attrs:
+          expression: |
+            # True (=> deny) unless the request comes straight from the LAN or
+            # Tailscale. See the header of this blueprint.
+            req = request.http_request
+            if req is None:
+                return True
+            if req.headers.get("Cf-Ray") or req.headers.get("Cf-Connecting-Ip"):
+                return True
+            ip = ak_client_ip
+            for net in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"):
+                if ip in ip_network(net):
+                    return False
+            return True
+
+      - model: authentik_stages_deny.denystage
+        identifiers:
+          name: integratn-password-home-only
+        id: password-home-only-stage
+        attrs:
+          deny_message: >-
+            Password sign-in only works on the home network.
+            Use Sign in with Google instead.
+
       # --- integratn-authentication -------------------------------------
       - model: authentik_flows.flow
         identifiers:
@@ -274,11 +314,44 @@ data:
           re_evaluate_policies: false
           invalid_response_action: retry
 
+      # Home-network gate: the deny stage runs only when the policy below
+      # matches (request NOT from the LAN/Tailscale).
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf auth-flow
+          stage: !KeyOf password-home-only-stage
+          order: 20
+        id: password-home-only-binding
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !KeyOf password-home-only-binding
+          policy: !KeyOf not-home-policy
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf auth-flow
+          stage: !KeyOf password-stage
+          order: 30
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+
       - model: authentik_flows.flowstagebinding
         identifiers:
           target: !KeyOf auth-flow
           stage: !KeyOf mfa-stage
-          order: 20
+          order: 40
         attrs:
           evaluate_on_plan: true
           re_evaluate_policies: false

@@ -74,7 +74,10 @@ Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13` in
 - **MFA required.** The brand signs in through `integratn-authentication`
   (password, then TOTP/WebAuthn, enrolment forced if missing); Google sign-ins
   run `integratn-source-authentication`, which trusts Google's own 2FA (no
-  second prompt, James's call). The stock
+  second prompt, James's call). Password sign-in is home-network only: a deny
+  stage before the password refuses non-private client IPs and anything that
+  came through Cloudflare (`Cf-Ray`/`Cf-Connecting-Ip`), so from outside the
+  only way in is Google. The stock
   `default-authentication-flow` is bound to a deny-all policy.
 - **Default-deny apps.** Every application is bound to a group: `homelab`
   (ArgoCD, Kargo, Grafana, Bosun, Specmarshal, Qdrant, Umami, landing page,
