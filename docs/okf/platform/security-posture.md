@@ -99,6 +99,13 @@ Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13`, `14` in
   a Google sign-in that came through Cloudflare is refused for superusers
   (deny stage on `integratn-source-authentication`). Policy-gated deny stages
   fail closed (`failure_result: true`). `auth.` sends HSTS.
+- **Public name `auth.integratn.tech`** (since 2026-11-25): Cloudflare tunnel
+  straight to the `authentik-server` Service, never the LAN gateway, with
+  `/if/admin` and `/api/v3/admin` answering 404 at the edge. Through it only
+  Google sign-in of non-admins and invitation sign-up work (password and
+  superusers are refused on Cloudflare traffic). On the LAN the name stays
+  `auth.cluster.integratn.tech`. Tunnel and DNS: IntegratnIO/infrastructure
+  `sites`.
 - No bootstrap API token. `akadmin` is to be retired in favour of a named admin
   (see the authentik addon README).
 

@@ -5,12 +5,16 @@
 #
 #   auth.cluster.integratn.tech        sign-in, the user portal, OIDC/OAuth2,
 #                                      the forward-auth outpost, the API the
-#                                      portal calls. This is the one that may
-#                                      ever be published (e.g. a Cloudflare
-#                                      tunnel hostname pointing at the gateway).
+#                                      portal calls. LAN name.
 #   auth-admin.cluster.integratn.tech  the admin interface. LAN only: never put
 #                                      it on a tunnel, and the SnippetsFilter
 #                                      below refuses non-private client IPs.
+#
+# The PUBLIC name is auth.integratn.tech, on the Cloudflare tunnel, which goes
+# straight to the authentik-server Service and never through this gateway
+# (IntegratnIO/infrastructure, sites; NetworkPolicies cloudflared.yaml and
+# authentik.yaml). Cloudflare answers 404 there for /if/admin and
+# /api/v3/admin.
 #
 # /if/admin on the first hostname redirects to the second, so the portal's
 # "Admin interface" button still works from the LAN and goes nowhere from
