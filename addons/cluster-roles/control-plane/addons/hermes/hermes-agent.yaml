@@ -183,7 +183,7 @@ data:
         - "*authorized_keys*"
         - "kubectl *"              # the pod has no kube credentials; be explicit anyway
         # A nested `hermes -z` sets HERMES_YOLO_MODE=1, and yolo also skips the
-        # trust: untrusted MCP gate (kubeops, github). These keep the terminal
+        # trust: untrusted MCP gate (githubdelete). These keep the terminal
         # from starting an unapproved run of itself, or rewriting its own
         # approval settings. fnmatch over the lowercased command. Not airtight
         # (a python subprocess is not a shell command): kubeops RBAC is the
@@ -294,14 +294,16 @@ data:
             - "resources_list"
           resources: false
           prompts: false
-      # Operational actions, each approved by James (trust: untrusted; neither
-      # tool declares readOnlyHint): kubernetes-mcp-ops in mcp-system, which
-      # exposes only these two tools and whose RBAC allows only pod delete,
-      # node patch (cordon/uncordon) and Deployment/StatefulSet/DaemonSet
-      # patch (rollout restart). See the cluster-remediate skill.
+      # Operational actions: kubernetes-mcp-ops in mcp-system, which exposes
+      # only these two tools and whose RBAC allows only pod delete, node patch
+      # (cordon/uncordon) and Deployment/StatefulSet/DaemonSet patch (rollout
+      # restart). trust: full since James's decision of 2026-11-25 (approving
+      # each remediation step was busywork). The guards are that RBAC, the
+      # include list below and the rules in the cluster-remediate skill. To
+      # bring the per-call approval back, set trust to "untrusted" again.
       kubeops:
         url: "http://kubernetes-mcp-ops.mcp-system.svc.cluster.local:8080/mcp"
-        trust: "untrusted"
+        trust: "full"
         timeout: 60
         tools:
           include:
@@ -349,14 +351,18 @@ data:
             - "get_application_workload_logs"
           resources: false
           prompts: false
-      # ArgoCD sync, each approved by James (trust: untrusted). argocd-mcp-ops
-      # runs with writes on, but its ArgoCD account `hermes-ops` may only get
-      # and sync (mcp-system/argocd-mcp-ops-deployment.yaml); the reads stay on
-      # the read-only `argocd` server above. Use for an app stuck OutOfSync
-      # that self-heal does not retry, or to re-sync after a fix merges.
+      # ArgoCD sync: argocd-mcp-ops runs with writes on, but its ArgoCD
+      # account `hermes-ops` may only get and sync
+      # (mcp-system/argocd-mcp-ops-deployment.yaml); the reads stay on the
+      # read-only `argocd` server above. trust: full since James's decision of
+      # 2026-11-25 (approving each sync was busywork); that account's
+      # permissions and the include list are the guards. Use for an app stuck
+      # OutOfSync that self-heal does not retry, or to re-sync after a fix
+      # merges. To bring the per-call approval back, set trust to
+      # "untrusted" again.
       argocdops:
         url: "http://argocd-mcp-ops.mcp-system.svc.cluster.local:3000/mcp"
-        trust: "untrusted"
+        trust: "full"
         timeout: 120
         tools:
           include:
