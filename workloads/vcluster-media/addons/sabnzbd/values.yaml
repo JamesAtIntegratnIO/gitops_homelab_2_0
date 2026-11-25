@@ -90,6 +90,61 @@ extraObjects:
         requests:
           storage: 1Gi
       volumeName: sabnzbd-media-pv
+  # Forward-auth: the nginx half of authentik provider `sabnzbd-proxy-provider`
+  # (blueprint 08d-media-proxy-providers.yaml in the host's authentik addon).
+  # Every request to sabnzbd.vcluster-media.integratn.tech except /api becomes
+  # an auth_request subrequest to authentik's embedded outpost; a 401 turns into
+  # a 302 to the sign-in page. The app's own login is off (see the httpRoute
+  # comment below), so this is the only door for the web UI.
+  #
+  # The outpost is reached as authentik-server.nginx-gateway: the host Service
+  # authentik/authentik-server replicated INTO this vcluster
+  # (networking.replicateServices.fromHost in
+  # platform/vclusters/vcluster-media.yaml). The host halves of the network
+  # path are allow-gateway-authentik-egress (network-policies/vcluster-media.yaml)
+  # and the vcluster-media rule in authentik-server-ingress (authentik.yaml).
+  #
+  # One copy per app on purpose: ExtensionRef has no namespace and each app is
+  # its own ArgoCD Application, so a shared object would have one owner.
+  - apiVersion: gateway.nginx.org/v1alpha1
+    kind: SnippetsFilter
+    metadata:
+      name: sabnzbd-forward-auth
+      namespace: media
+    spec:
+      snippets:
+        - context: http.server
+          value: |
+            location /outpost.goauthentik.io/ {
+                proxy_pass          http://authentik-server.nginx-gateway.svc.cluster.local/outpost.goauthentik.io/;
+                proxy_set_header    Host $host;
+                proxy_set_header    X-Original-URL $scheme://$http_host$request_uri;
+                proxy_set_header    X-Real-IP $remote_addr;
+                proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header    X-Forwarded-Proto $scheme;
+                proxy_set_header    Content-Length "";
+                proxy_pass_request_body off;
+            }
+
+            location @goauthentik_proxy_signin {
+                internal;
+                add_header Set-Cookie $auth_cookie;
+                return 302 /outpost.goauthentik.io/start?rd=$request_uri;
+            }
+        - context: http.server.location
+          value: |
+            auth_request        /outpost.goauthentik.io/auth/nginx;
+            error_page          401 = @goauthentik_proxy_signin;
+
+            auth_request_set $auth_cookie $upstream_http_set_cookie;
+            add_header Set-Cookie $auth_cookie;
+
+            auth_request_set $authentik_username $upstream_http_x_authentik_username;
+            auth_request_set $authentik_groups $upstream_http_x_authentik_groups;
+            auth_request_set $authentik_email $upstream_http_x_authentik_email;
+            proxy_set_header X-authentik-username $authentik_username;
+            proxy_set_header X-authentik-groups $authentik_groups;
+            proxy_set_header X-authentik-email $authentik_email;
 deployment:
   securityContext:
     fsGroup: 1000
@@ -205,6 +260,12 @@ service:
       protocol: TCP
 serviceMonitor:
   enabled: true
+# The web UI sits behind authentik forward-auth (sabnzbd-forward-auth above;
+# group media-management). /api is the one path left outside it, for clients
+# that hold the API key (phone apps, scripts): the app still demands the key
+# there and refuses a call without it. Gateway API picks the longest matching
+# prefix, so /api wins over / whatever the rule order. Homepage, arr-mcp and the
+# other in-cluster callers use the synced Service and never pass the gateway.
 httpRoute:
   enabled: true
   parentRefs:
@@ -221,5 +282,18 @@ httpRoute:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: sabnzbd-forward-auth
+    - backendRefs:
+        - name: sabnzbd
+          port: 8080
+      matches:
+        - path:
+            type: PathPrefix
+            value: /api
 certificate:
   enabled: false

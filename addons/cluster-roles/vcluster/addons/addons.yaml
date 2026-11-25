@@ -499,6 +499,14 @@ nginx-gateway-fabric-vcluster:
       jsonPointers:
         - /metadata/annotations
   valuesObject:
+    # SnippetsFilter is how a route gets authentik forward-auth (the
+    # auth_request snippets the host gateway uses too). Off by default in the
+    # chart; with it off NGF ignores every SnippetsFilter and an ExtensionRef to
+    # one makes the route rule return 500. The media apps' filters live in
+    # workloads/vcluster-media/addons/<app>/values.yaml.
+    nginxGateway:
+      snippetsFilters:
+        enable: true
     gateways:
       - name: nginx-gateway
         namespace: nginx-gateway

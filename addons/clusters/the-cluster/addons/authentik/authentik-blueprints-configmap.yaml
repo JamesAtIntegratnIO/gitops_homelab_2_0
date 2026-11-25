@@ -991,6 +991,128 @@ data:
             Landing page for the cluster: health, every service, pod status.
           policy_engine_mode: all
 
+  08d-media-proxy-providers.yaml: |
+    # Authentik Blueprint: Media app proxy providers (vcluster-media)
+    # Forward-auth for the media management UIs on the vcluster-media gateway,
+    # one forward_single provider per host, the same shape as specmarshal's.
+    # Numbered 08d so it sorts before 09-embedded-outpost, whose provider list
+    # `!Find`s them. Access: group media-management (11-access-groups.yaml).
+    #
+    # Each app's own login is OFF (Sonarr/Radarr AuthenticationMethod
+    # External, Bazarr none, SABnzbd no username), so these providers ARE
+    # their access control -- no double login. /api stays outside forward-auth
+    # and is still guarded by each app's API key. The nginx half is the
+    # <app>-forward-auth SnippetsFilter in
+    # workloads/vcluster-media/addons/<app>/values.yaml.
+    #
+    # Left out on purpose: otterwiki, tracearr and the vcluster's ArgoCD have
+    # their own logins (forward-auth would be a second one); Jellyfin and Plex
+    # live on Tower and their TV/phone clients cannot do a browser sign-in.
+    #
+    # external_host must match the HTTPRoute hostname exactly, scheme
+    # included. 12h tokens: these are tabs kept open all day.
+    version: 1
+    metadata:
+      name: media-proxy-providers
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: sonarr-proxy-provider
+        id: sonarr-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://sonarr.vcluster-media.integratn.tech
+          access_token_validity: hours=12
+
+      - model: authentik_core.application
+        identifiers:
+          slug: sonarr
+        attrs:
+          name: Sonarr
+          provider: !KeyOf sonarr-proxy-provider
+          open_in_new_tab: true
+          launch_url: https://sonarr.vcluster-media.integratn.tech
+          group: Media
+          meta_description: >-
+            TV series: search, grab and upgrade.
+          policy_engine_mode: all
+
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: radarr-proxy-provider
+        id: radarr-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://radarr.vcluster-media.integratn.tech
+          access_token_validity: hours=12
+
+      - model: authentik_core.application
+        identifiers:
+          slug: radarr
+        attrs:
+          name: Radarr
+          provider: !KeyOf radarr-proxy-provider
+          open_in_new_tab: true
+          launch_url: https://radarr.vcluster-media.integratn.tech
+          group: Media
+          meta_description: >-
+            Movies: search, grab and upgrade.
+          policy_engine_mode: all
+
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: bazarr-proxy-provider
+        id: bazarr-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://bazarr.vcluster-media.integratn.tech
+          access_token_validity: hours=12
+
+      - model: authentik_core.application
+        identifiers:
+          slug: bazarr
+        attrs:
+          name: Bazarr
+          provider: !KeyOf bazarr-proxy-provider
+          open_in_new_tab: true
+          launch_url: https://bazarr.vcluster-media.integratn.tech
+          group: Media
+          meta_description: >-
+            Subtitles for everything Sonarr and Radarr bring in.
+          policy_engine_mode: all
+
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: sabnzbd-proxy-provider
+        id: sabnzbd-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://sabnzbd.vcluster-media.integratn.tech
+          access_token_validity: hours=12
+
+      - model: authentik_core.application
+        identifiers:
+          slug: sabnzbd
+        attrs:
+          name: SABnzbd
+          provider: !KeyOf sabnzbd-proxy-provider
+          open_in_new_tab: true
+          launch_url: https://sabnzbd.vcluster-media.integratn.tech
+          group: Media
+          meta_description: >-
+            The Usenet downloader the Arrs hand releases to.
+          policy_engine_mode: all
+
   09-embedded-outpost.yaml: |
     # Authentik Blueprint: the embedded outpost's provider list
     #
@@ -1026,6 +1148,10 @@ data:
             - !Find [authentik_providers_proxy.proxyprovider, [name, specmarshal-proxy-provider]]
             - !Find [authentik_providers_proxy.proxyprovider, [name, umami-proxy-provider]]
             - !Find [authentik_providers_proxy.proxyprovider, [name, homepage-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, sonarr-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, radarr-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, bazarr-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, sabnzbd-proxy-provider]]
 
   10-hermes-provider.yaml: |
     # Authentik Blueprint: Hermes Agent OAuth2 Provider (public client, PKCE)
@@ -1105,9 +1231,8 @@ data:
     #                      Specmarshal, Qdrant, Umami, the landing page, plus
     #                      Open WebUI. Admin role in ArgoCD and Kargo, Editor in
     #                      Grafana.
-    #   media-management   Sonarr / Radarr / Bazarr / SABnzbd. Nothing bound yet:
-    #                      those apps are on vcluster-media with their own
-    #                      logins; bind them here when they move to forward-auth.
+    #   media-management   Sonarr / Radarr / Bazarr / SABnzbd on vcluster-media,
+    #                      by forward-auth (08d-media-proxy-providers.yaml).
     #   media-viewer       Jellyfin and anything request-shaped. Nothing bound
     #                      yet (Jellyfin has its own login; next step is its SSO
     #                      plugin against an OIDC provider bound to this group).
@@ -1139,6 +1264,7 @@ data:
       - model: authentik_core.group
         identifiers:
           name: media-management
+        id: media-management
         attrs:
           is_superuser: false
       - model: authentik_core.group
@@ -1279,6 +1405,47 @@ data:
           group: !KeyOf home-family
         attrs:
           order: 20
+          enabled: true
+          negate: false
+          timeout: 30
+
+      # Media management UIs on vcluster-media (08d-media-proxy-providers.yaml).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, sonarr]]
+          group: !KeyOf media-management
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, radarr]]
+          group: !KeyOf media-management
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, bazarr]]
+          group: !KeyOf media-management
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, sabnzbd]]
+          group: !KeyOf media-management
+        attrs:
+          order: 0
           enabled: true
           negate: false
           timeout: 30
