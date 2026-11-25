@@ -106,8 +106,14 @@ their authentik account).
 | `media-viewer` | nothing bound yet: for Jellyfin once it uses OIDC |
 | `open-webui-users` | Open WebUI only |
 | `mealie-users` | Mealie only (`authentik-blueprints-mealie`) |
+| `home-family` | everything `media-viewer`, `open-webui-users` and `mealie-users` open (bound to each app directly, not nested) |
 
-A user in no group can sign in to the portal and reach nothing. Every new
+Invited accounts start in `media-viewer`.
+
+A user in no group can sign in to the portal and reach nothing. Apps see
+only direct group memberships, so `home-family` is bound to each family app
+itself; when you bind an app to `media-viewer`, `open-webui-users` or
+`mealie-users`, bind it to `home-family` too. Every new
 application must get a binding in `11-access-groups.yaml` (or its own
 blueprint) -- an application with no binding is open to every account.
 
@@ -119,7 +125,8 @@ blueprint) -- an application with no binding is open to every account.
    `{"email": "...", "username": "..."}`.
 2. Send them the invitation link. They pick a username and password (14+
    characters, not breached) and enrol TOTP or a passkey.
-3. Directory -> Groups -> add them to the groups they need.
+3. They start in `media-viewer`. Directory -> Groups -> add them to anything
+   else they need (`home-family` for family, `homelab` to run the platform).
 
 ### Admin interface
 

@@ -108,7 +108,7 @@ extraEnvVars:
   - name: OAUTH_ADMIN_ROLES
     value: "authentik Admins"
   - name: OAUTH_ALLOWED_ROLES
-    value: "authentik Admins,homelab,open-webui-users"
+    value: "authentik Admins,homelab,open-webui-users,home-family"
   # Disable local signup — SSO only
   - name: ENABLE_SIGNUP
     value: "false"

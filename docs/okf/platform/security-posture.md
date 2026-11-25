@@ -82,7 +82,9 @@ Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13` in
 - **Default-deny apps.** Every application is bound to a group: `homelab`
   (ArgoCD, Kargo, Grafana, Bosun, Specmarshal, Qdrant, Umami, landing page,
   Open WebUI), `open-webui-users`, `mealie-users`, `authentik Admins` (hermes,
-  cq). `media-management` and `media-viewer` exist with nothing bound yet.
+  cq), `home-family` (bound wherever media-viewer, open-webui-users or
+  mealie-users are). `media-management` and `media-viewer` have no apps bound
+  yet. Invited accounts start in `media-viewer`.
 - **Admin UI LAN-only.** `/if/admin` on `auth.` redirects to
   `auth-admin.cluster.integratn.tech`, which only private client IPs may use
   and which must never be published on a tunnel.

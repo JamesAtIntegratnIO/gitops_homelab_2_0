@@ -990,6 +990,15 @@ data:
     #                      plugin against an OIDC provider bound to this group).
     #   open-webui-users   Open WebUI only. Open WebUI already admits this group
     #                      (OAUTH_ALLOWED_ROLES) but it never existed in authentik.
+    #   home-family        the family bundle: everything media-viewer,
+    #                      open-webui-users and mealie-users open. It is NOT a
+    #                      nested group -- apps read only DIRECT memberships in
+    #                      the `groups` claim -- so every app those three open is
+    #                      ALSO bound to home-family here. When an app is bound
+    #                      to one of the three, bind it to home-family too.
+    #
+    # New accounts from invitations start in media-viewer
+    # (12-invitation-enrollment.yaml).
     #   mealie-users       Mealie only (the household); lives in
     #                      authentik-blueprints-mealie.
     version: 1
@@ -1012,6 +1021,13 @@ data:
       - model: authentik_core.group
         identifiers:
           name: media-viewer
+        id: media-viewer
+        attrs:
+          is_superuser: false
+      - model: authentik_core.group
+        identifiers:
+          name: home-family
+        id: home-family
         attrs:
           is_superuser: false
       - model: authentik_core.group
@@ -1112,13 +1128,34 @@ data:
           timeout: 30
 
       # Open WebUI's policy_engine_mode is `any` (05-openwebui-provider.yaml),
-      # so either group is enough.
+      # so any one of its groups is enough.
       - model: authentik_policies.policybinding
         identifiers:
           target: !Find [authentik_core.application, [slug, open-webui]]
           group: !KeyOf open-webui-users
         attrs:
           order: 10
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, open-webui]]
+          group: !KeyOf home-family
+        attrs:
+          order: 20
+          enabled: true
+          negate: false
+          timeout: 30
+
+      # Mealie (authentik-blueprints-mealie, policy_engine_mode `any`).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, mealie]]
+          group: !KeyOf home-family
+        attrs:
+          order: 20
           enabled: true
           negate: false
           timeout: 30
@@ -1134,8 +1171,9 @@ data:
     # `integratn-invitation`, single use, an expiry of a few days. Optionally
     # put {"email": "...", "username": "..."} in Fixed data to pre-fill them.
     # Send the link it shows. They choose a username and password, must enrol
-    # TOTP or a passkey, and are signed in -- with NO groups, so they can reach
-    # nothing until you add them to one (11-access-groups.yaml).
+    # TOTP or a passkey, and are signed in. They start in `media-viewer` only;
+    # add them to more groups (e.g. home-family, homelab) by hand
+    # (11-access-groups.yaml).
     version: 1
     metadata:
       name: invitation-enrollment
@@ -1246,7 +1284,8 @@ data:
         attrs:
           user_creation_mode: always_create
           create_users_as_inactive: false
-          create_users_group: null
+          # Every invited account starts as a media viewer (James, 2026-11-25).
+          create_users_group: !Find [authentik_core.group, [name, media-viewer]]
           user_type: internal
 
       - model: authentik_flows.flow
