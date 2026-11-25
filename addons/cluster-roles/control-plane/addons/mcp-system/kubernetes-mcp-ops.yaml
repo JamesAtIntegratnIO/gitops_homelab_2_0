@@ -11,8 +11,9 @@
 #      (rollout restart). In the Kargo project namespaces only (addons,
 #      promises, workloads): create/patch Promotions, patch + promote Stages,
 #      patch Warehouses -- the abort, re-verify, refresh and re-promote
-#      remedies. No Secrets, no RBAC, no create/delete of workloads, no
-#      namespaces.
+#      remedies. In namespace kyverno only: patch Jobs. In namespace argocd
+#      only: patch Applications. No Secrets, no RBAC, no create/delete of
+#      workloads, no namespaces.
 #   2. enabled_tools: only pods_delete and resources_create_or_update are
 #      exposed. No exec, no pods_run, no resources_delete, no helm.
 #   3. Hermes calls it with trust: untrusted, and neither tool declares
@@ -25,6 +26,17 @@
 #   restart   {apiVersion: apps/v1, kind: Deployment, metadata: {name, namespace},
 #              spec: {template: {metadata: {annotations:
 #              {kubectl.kubernetes.io/restartedAt: <RFC3339>}}}}}
+#   terminate a stuck ArgoCD operation (what `argocd app terminate-op` does:
+#              the application controller acts on phase Terminating)
+#             {apiVersion: argoproj.io/v1alpha1, kind: Application,
+#              metadata: {name, namespace: argocd},
+#              status: {operationState: {phase: Terminating}}}
+#   fail a stuck Job (a Job whose pod can never start, for example
+#              ImagePullBackOff, never fails by itself and blocks its
+#              CronJob under concurrencyPolicy Forbid; a deadline makes the
+#              Job controller fail it and delete its pods)
+#             {apiVersion: batch/v1, kind: Job, metadata: {name, namespace: kyverno},
+#              spec: {activeDeadlineSeconds: 1}}
 # Config changes still go through git (gitops-fix); ArgoCD self-heal reverts
 # anything else.
 ---
@@ -179,6 +191,76 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: kubernetes-mcp-ops-kargo
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-ops
+    namespace: mcp-system
+---
+# Terminate a stuck ArgoCD operation: patch an Application's status in the
+# argocd namespace. The Application CRD has no status subresource, so a
+# server-side apply of status.operationState.phase reaches it, which is what
+# the ArgoCD API's own terminate call does. The verb cannot be limited to
+# status: `patch` on applications also covers spec, so the guards are the
+# approval prompt and the ApplicationSet controller, which reverts spec drift.
+# Reads (get/list) come from kubernetes-mcp-viewer.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubernetes-mcp-ops-argocd
+  namespace: argocd
+  labels:
+    app: kubernetes-mcp-ops
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubernetes-mcp-ops-argocd
+  namespace: argocd
+  labels:
+    app: kubernetes-mcp-ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kubernetes-mcp-ops-argocd
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-mcp-ops
+    namespace: mcp-system
+---
+# Fail a stuck Job in kyverno: its cleanup and report hooks can wedge on an
+# image that cannot be pulled, and a Job that never finishes blocks its
+# CronJob (concurrencyPolicy Forbid) and the ArgoCD hook waiting on it. Setting
+# spec.activeDeadlineSeconds makes the Job controller fail it and delete its
+# pods, which unblocks the CronJob. The failed Job object stays until the
+# cleanup-failed-jobs ClusterCleanupPolicy removes it, 24h after creation. No
+# delete verb: nothing here removes an object.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kubernetes-mcp-ops-kyverno-jobs
+  namespace: kyverno
+  labels:
+    app: kubernetes-mcp-ops
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kubernetes-mcp-ops-kyverno-jobs
+  namespace: kyverno
+  labels:
+    app: kubernetes-mcp-ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kubernetes-mcp-ops-kyverno-jobs
 subjects:
   - kind: ServiceAccount
     name: kubernetes-mcp-ops
