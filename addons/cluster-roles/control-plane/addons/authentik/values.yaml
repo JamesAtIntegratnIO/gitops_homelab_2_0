@@ -54,11 +54,11 @@ global:
         secretKeyRef:
           name: authentik-bootstrap-admin
           key: email
-    - name: AUTHENTIK_BOOTSTRAP_TOKEN
-      valueFrom:
-        secretKeyRef:
-          name: authentik-bootstrap-admin
-          key: token
+    # No AUTHENTIK_BOOTSTRAP_TOKEN: it minted a non-expiring akadmin API token
+    # that nothing used (removed 2026-11-25; 13-retire-bootstrap-token.yaml
+    # deletes the token). The password/email above stay: on an empty database
+    # they are what keeps the initial-setup flow from being open to whoever
+    # reaches it first.
     # ArgoCD OAuth2 client credentials for blueprint configuration
     - name: ARGOCD_CLIENT_ID
       valueFrom:

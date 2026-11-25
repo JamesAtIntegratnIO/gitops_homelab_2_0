@@ -436,7 +436,7 @@ grafana:
       use_pkce: true
       use_refresh_token: true
       allow_sign_up: true
-      role_attribute_path: contains(groups[*], 'authentik Admins') && 'Admin' || contains(groups[*], 'authentik Users') && 'Editor' || 'Viewer'
+      role_attribute_path: contains(groups[*], 'authentik Admins') && 'Admin' || contains(groups[*], 'homelab') && 'Editor' || 'Viewer'
       allowed_groups:
   # Security hardening — fixes AVD-KSV-0014
   containerSecurityContext:

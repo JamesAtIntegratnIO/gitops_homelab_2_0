@@ -75,6 +75,10 @@ client → Cloudflare DNS (A record → 10.0.4.205)
 
 - **Gateway**: one `Gateway` (`nginx-gateway/nginx-gateway`, class `nginx`)
   with `http` (redirect) and `https` listeners for `*.cluster.integratn.tech`.
+- **Client IPs**: the gateway Service is `externalTrafficPolicy: Local` since
+  2026-11-25, so NGINX and the apps behind it (authentik's login events,
+  rate limits) see the real client address. Under `Cluster` every request
+  arrived SNATed to a 10.244.x.x Cilium address.
 - **TLS**: wildcard Certificate `wildcard-cluster-integratn-tech` from
   ClusterIssuer `letsencrypt-prod` (DNS-01 via Cloudflare API key from
   1Password). cert-manager v1.16.2.
