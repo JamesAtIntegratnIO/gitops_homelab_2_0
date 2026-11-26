@@ -5,7 +5,7 @@ description: The one live tenant vcluster — prod-preset HA control plane with 
 tags: [vcluster, media, tenant]
 resource: https://media.integratn.tech:443
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-01T23:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-25T20:30:00Z }
 stale_after: 2026-12-08
 sources:
   - id: request
@@ -89,6 +89,36 @@ state both ways between Plex owner `boboysdadda` and Jellyfin `root` for Movies
 and TV. Its credentials are the Plex token and Jellyfin key in
 `homepage-secret`. Its egress policy allows Tower on 32400 and 8096, and :443
 for plex.tv. See [JellyPlex-Watched](/addons/jellyplex-watched.md).
+
+# Sign-in on the web UIs
+
+Sonarr, Radarr, Bazarr and SABnzbd sit behind **authentik forward-auth**,
+group `media-management`; each app's own login is off (Sonarr/Radarr
+`AuthenticationMethod: External`, Bazarr none, SABnzbd no username), so there
+is one sign-in. `/api` on each host is left outside forward-auth for API-key
+clients (phone apps, scripts) and is still guarded by the app's API key.
+In-cluster callers (Homepage widgets, arr-mcp, exportarr) use the synced
+Services and never touch the gateway. The pieces:
+
+- `<app>-forward-auth` SnippetsFilter (namespace `media`) in each app's
+  values, referenced by the `/` rule of its HTTPRoute. The vcluster's
+  nginx-gateway-fabric has `nginxGateway.snippetsFilters.enable: true`
+  (`nginx-gateway-fabric-vcluster` in the vcluster cluster-role addons).
+- The outpost is authentik's embedded one on the HOST. The vcluster reaches it
+  as `authentik-server.nginx-gateway.svc.cluster.local`, a Service replicated
+  from host `authentik/authentik-server` by
+  `networking.replicateServices.fromHost` in the ResourceRequest's
+  `helmOverrides` (lists replace in the promise's merge, so `default/kubernetes`
+  is repeated there).
+- Host NetworkPolicies: `allow-gateway-authentik-egress` in
+  `vcluster-media` and the vcluster-media rule of `authentik-server-ingress`.
+- authentik blueprint `08d-media-proxy-providers.yaml` (one `forward_single`
+  provider + application per host), the embedded outpost list (`09`), and the
+  `media-management` bindings (`11`).
+
+Left out on purpose: otterwiki, tracearr and the vcluster's ArgoCD (own
+logins; forward-auth would be a second one), and Jellyfin/Plex (on Tower;
+their TV and phone clients cannot do a browser sign-in).
 
 # Access
 

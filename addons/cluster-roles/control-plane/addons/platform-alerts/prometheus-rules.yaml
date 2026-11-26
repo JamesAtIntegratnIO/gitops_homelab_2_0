@@ -898,4 +898,82 @@ spec:
               {{ $labels.namespace }}/{{ $labels.cronjob }} exists but has no successful run on record after 36h. The
               usual cause is that the datacron NFS export isn't deployed yet (nix_dots_2
               hosts/datacron/hermes-backup.nix).
+        # From Hermes's own log. The agent-log sidecar copies agent.log to
+        # stdout and promtail counts matching lines (promtail/values.yaml,
+        # promtail_custom_hermes_*). A series exists only while lines keep
+        # matching (max_idle_duration), so "> 0" means "seen recently". These
+        # are what the Claude hermes-mechanic skill checks first
+        # (.claude/skills/hermes-mechanic).
+        - alert: HermesErrorBurst
+          expr: |
+            sum(increase(promtail_custom_hermes_error_lines_total{exported_namespace="hermes"}[1h])) > 10
+          for: 5m
+          labels:
+            severity: warning
+            component: hermes
+          annotations:
+            summary: "Hermes Agent logged {{ $value | humanize }} errors in the last hour"
+            description: >-
+              More than 10 ERROR lines in Hermes's agent.log in an hour. Read them in Grafana
+              Explore: `{namespace="hermes", container="agent-log"} |= " ERROR "`. Then run the
+              hermes-mechanic Claude skill, which fixes Hermes through PRs to its config, skills
+              or image.
+        - alert: HermesMcpServerFlapping
+          expr: |
+            sum(promtail_custom_hermes_mcp_keepalive_failed_lines_total{exported_namespace="hermes"}) > 10
+          for: 10m
+          labels:
+            severity: warning
+            component: hermes
+          annotations:
+            summary: "Hermes keeps losing its MCP server sessions"
+            description: >-
+              More than 10 MCP keepalive failures with no 30-minute quiet gap. A single MCP pod
+              replacement causes a few, and Hermes reconnects on its own; this many means a
+              server in mcp-system is restarting or unreachable. Find it with
+              `{namespace="hermes", container="agent-log"} |= "keepalive failed"`, then check that
+              pod with `kubectl --context admin@the-cluster -n mcp-system get pods`.
+        - alert: HermesMcpCircuitOpen
+          expr: |
+            sum(promtail_custom_hermes_mcp_rejected_calls_lines_total{exported_namespace="hermes"}) > 0
+          for: 0m
+          labels:
+            severity: info
+            component: hermes
+          annotations:
+            summary: "Hermes's MCP circuit breaker is refusing calls to a server"
+            description: >-
+              Hermes stopped calling an MCP server after repeated failures. The server is usually
+              reachable, and the app behind it is the problem (on 2026-11-24, arr: Sonarr timed
+              out). Find it with `{namespace="hermes", container="agent-log"} |= "rejected the last"`.
+        - alert: HermesTurnsInterrupted
+          expr: |
+            sum(promtail_custom_hermes_turns_interrupted_lines_total{exported_namespace="hermes"}) > 0
+          for: 0m
+          labels:
+            severity: warning
+            component: hermes
+          annotations:
+            summary: "A Hermes restart cut off running agent turns"
+            description: >-
+              The gateway stopped while turns were still running, and the drain timed out. With
+              agent.restart_drain_timeout at 60 s this should only happen when a turn runs longer
+              than 60 s past the restart. If it repeats, look at what is rolling the pod
+              (Reloader, a liveness failure) with
+              `kubectl --context admin@the-cluster -n hermes get rs`.
+        - alert: HermesSkillWriteDenied
+          expr: |
+            sum(promtail_custom_hermes_skill_write_denied_lines_total{exported_namespace="hermes"}) > 0
+          for: 0m
+          labels:
+            severity: info
+            component: hermes
+          annotations:
+            summary: "Hermes tried to edit one of its read-only git skills"
+            description: >-
+              skill_manage failed on /opt/hermes-skills, which git owns. The lesson Hermes wanted to
+              record is lost unless it goes through the skill-improve PR route. Read the attempt with
+              `{namespace="hermes", container="agent-log"} |= "/opt/hermes-skills"`. If it repeats,
+              the SOUL.md rule is not reaching the background review.
+
 

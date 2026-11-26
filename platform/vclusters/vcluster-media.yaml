@@ -52,6 +52,22 @@ spec:
         # is true; this override was the only thing holding it off.
         metricsServer:
           enabled: true
+      networking:
+        replicateServices:
+          # Lists REPLACE in the promise's deep merge, so the pipeline's own
+          # default (default/kubernetes) has to be repeated here.
+          fromHost:
+            - from: default/kubernetes
+              to: default/kubernetes
+            # authentik's server, for forward-auth on the media apps' routes:
+            # the vcluster's nginx sends each auth_request subrequest to
+            # authentik-server.nginx-gateway.svc.cluster.local (the
+            # SnippetsFilters in workloads/vcluster-media/addons/<app>/). Host
+            # NetworkPolicy halves: allow-gateway-authentik-egress
+            # (network-policies/vcluster-media.yaml) and the vcluster-media
+            # rule in authentik-server-ingress (network-policies/authentik.yaml).
+            - from: authentik/authentik-server
+              to: nginx-gateway/authentik-server
     resources:
       requests:
         # The prod preset reserves 500m per control-plane replica (1.5 CPU across

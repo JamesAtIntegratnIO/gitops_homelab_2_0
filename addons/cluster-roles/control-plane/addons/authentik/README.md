@@ -102,7 +102,7 @@ their authentik account).
 |---|---|
 | `authentik Admins` | authentik admin (superuser), Hermes, cq; admin role in ArgoCD, Grafana, Kargo, Open WebUI, Mealie |
 | `homelab` | ArgoCD (admin), Kargo (admin), Grafana (Editor), Bosun, Specmarshal, Qdrant, Umami, the landing page, Open WebUI |
-| `media-management` | nothing bound yet: for Sonarr/Radarr/Bazarr/SABnzbd once they sit behind forward-auth |
+| `media-management` | Sonarr / Radarr / Bazarr / SABnzbd on vcluster-media, by forward-auth (`08d-media-proxy-providers.yaml`) |
 | `media-viewer` | nothing bound yet: for Jellyfin once it uses OIDC |
 | `open-webui-users` | Open WebUI only |
 | `mealie-users` | Mealie only (`authentik-blueprints-mealie`) |

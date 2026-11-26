@@ -21,6 +21,65 @@ config:
                   config:
                     match_all: true
                     action: inc
+      # Hermes Agent's own log (agent.log, copied to stdout by the agent-log
+      # sidecar in hermes/hermes-agent.yaml). Counters for the platform.hermes
+      # alerts; Hermes has no Prometheus endpoint of its own. Same naming and
+      # exported_* labels as above. Patterns are Hermes v0.23 log strings.
+      - match:
+          selector: '{namespace="hermes", container="agent-log"} |~ "^[0-9-]+ [0-9:,]+ ERROR "'
+          stages:
+            - metrics:
+                hermes_error_lines_total:
+                  type: Counter
+                  description: Hermes Agent log lines at level ERROR
+                  max_idle_duration: 2h
+                  config:
+                    match_all: true
+                    action: inc
+      - match:
+          selector: '{namespace="hermes", container="agent-log"} |~ "keepalive failed"'
+          stages:
+            - metrics:
+                hermes_mcp_keepalive_failed_lines_total:
+                  type: Counter
+                  description: Hermes MCP keepalive failures (server session lost, reconnecting)
+                  max_idle_duration: 30m
+                  config:
+                    match_all: true
+                    action: inc
+      - match:
+          selector: '{namespace="hermes", container="agent-log"} |~ "rejected the last [0-9]+ calls"'
+          stages:
+            - metrics:
+                hermes_mcp_rejected_calls_lines_total:
+                  type: Counter
+                  description: Hermes MCP circuit breaker refusing calls to a server
+                  max_idle_duration: 1h
+                  config:
+                    match_all: true
+                    action: inc
+      - match:
+          selector: '{namespace="hermes", container="agent-log"} |~ "Gateway drain timed out"'
+          stages:
+            - metrics:
+                hermes_turns_interrupted_lines_total:
+                  type: Counter
+                  description: Hermes gateway stopped with agent turns still running
+                  max_idle_duration: 1h
+                  config:
+                    match_all: true
+                    action: inc
+      - match:
+          selector: '{namespace="hermes", container="agent-log"} |~ "Permission denied: .?/opt/hermes-skills"'
+          stages:
+            - metrics:
+                hermes_skill_write_denied_lines_total:
+                  type: Counter
+                  description: Hermes tried to edit a read-only git skill
+                  max_idle_duration: 6h
+                  config:
+                    match_all: true
+                    action: inc
   clients:
     - url: http://loki-gateway.loki.svc.cluster.local/loki/api/v1/push
       external_labels:

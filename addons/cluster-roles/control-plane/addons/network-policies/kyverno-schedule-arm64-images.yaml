@@ -308,11 +308,13 @@ spec:
     - name: allowlist
       expression: >-
         json.unmarshal(resource.Get("v1", "configmaps", "kyverno", "arm64-image-allowlist").data.images)
+    # dyn(): a CEL map literal must have one value type, and this one mixes
+    # strings with a list ("expected type 'string' but found 'list(string)'").
     - name: nodeAffinity
       expression: >-
         {"requiredDuringSchedulingIgnoredDuringExecution": {"nodeSelectorTerms": [
           {"matchExpressions": [
-            {"key": "node.integratn.tech/board", "operator": "NotIn", "values": ["rpi5"]}
+            {"key": dyn("node.integratn.tech/board"), "operator": dyn("NotIn"), "values": dyn(["rpi5"])}
           ]}
         ]}}
     - name: toleration

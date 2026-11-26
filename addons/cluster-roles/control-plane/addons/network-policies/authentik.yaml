@@ -85,6 +85,20 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+    # From vcluster-media's own nginx data plane: forward-auth subrequests for
+    # the media apps (sonarr, radarr, bazarr, sabnzbd). The egress half is
+    # allow-gateway-authentik-egress in vcluster-media.yaml.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vcluster-media
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nginx-gateway-nginx
+              vcluster.loft.sh/managed-by: vcluster-media
+      ports:
+        - protocol: TCP
+          port: 9000
     # From Prometheus for metrics scraping
     - from:
         - namespaceSelector:
