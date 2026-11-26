@@ -1,60 +1,9 @@
-# Kyverno ClusterPolicy: Audit namespaces for default-deny NetworkPolicy
+# Kyverno policy: Audit namespaces for default-deny NetworkPolicy
 # Cannot use Enforce: namespace must exist before its NetworkPolicy can be created,
 # but this policy blocks namespace creation without a pre-existing NetworkPolicy.
 # A companion generate policy auto-creates default-deny for new namespaces.
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
-metadata:
-  name: require-default-deny-netpol
-  annotations:
-    policies.kyverno.io/title: Require Default Deny NetworkPolicy
-    policies.kyverno.io/category: Networking
-    policies.kyverno.io/severity: medium
-    policies.kyverno.io/description: >-
-      Every namespace should have a default-deny NetworkPolicy that blocks
-      all ingress and egress by default. This policy blocks namespace creation
-      if no default-deny NetworkPolicy exists.
-spec:
-  admission: true
-  validationFailureAction: Audit
-  background: true
-  rules:
-    - name: check-default-deny-exists
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Namespace
-      exclude:
-        any:
-          - resources:
-              names:
-                - kube-public
-                - kube-node-lease
-                - kube-system
-                - cilium-secrets
-                - kratix-worker-system
-      context:
-        - name: netpols
-          apiCall:
-            method: GET
-            urlPath: "/apis/networking.k8s.io/v1/namespaces/{{request.object.metadata.name}}/networkpolicies"
-            jmesPath: "items[?metadata.name == 'default-deny-all'] | length(@)"
-      validate:
-        message: >-
-          Namespace {{request.object.metadata.name}} is missing a 'default-deny-all'
-          NetworkPolicy. All namespaces should have a default-deny policy with
-          explicit allowlists for required traffic.
-        deny:
-          conditions:
-            all:
-              - key: "{{ netpols }}"
-                operator: LessThan
-                value: 1
----
-# CEL replacement for the ClusterPolicy above (Kyverno 1.20 no longer runs
-# ClusterPolicy). Same name, same Audit-only behaviour.
+# Kyverno CEL policy (policies.kyverno.io/v1; ClusterPolicy is gone in 1.20).
+# Same name, same Audit-only behaviour.
 # dyn(): on Kyverno 1.19 resource.List() types .items as 'any', which CEL
 # refuses as the range of exists() ("cannot be range of a comprehension").
 apiVersion: policies.kyverno.io/v1

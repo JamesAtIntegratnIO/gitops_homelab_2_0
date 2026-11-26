@@ -1,34 +1,11 @@
-# Kyverno PolicyException: Allow etcd-cert-extractor Job to run privileged
-# This one-shot Job reads Talos etcd TLS certs from /system/secrets/etcd/
-# which is a protected host path requiring privileged access on Talos Linux.
----
-apiVersion: kyverno.io/v2
-kind: PolicyException
-metadata:
-  name: etcd-cert-extractor-privileged
-  namespace: monitoring
-spec:
-  exceptions:
-    - policyName: disallow-privileged-containers
-      ruleNames:
-        - deny-privileged-containers
-        # Kyverno autogen applies the same rule to the Job's pod template
-        - autogen-deny-privileged-containers
-  match:
-    any:
-      - resources:
-          kinds:
-            - Pod
-            - Job
-          namespaces:
-            - monitoring
-          names:
-            - etcd-secret-writer
-            - etcd-secret-writer-*
----
-# The same exception for the CEL ValidatingPolicy of the same name. Kyverno
-# 1.20 stops honouring the kyverno.io/v2 exception above, and the CEL policy
-# is already enforcing on 1.19, so both stay until the legacy policies go.
+# Kyverno PolicyException: allow the etcd-cert-extractor Job to run privileged.
+# This one-shot Job reads Talos etcd TLS certs from /system/secrets/etcd/,
+# a protected host path that needs privileged access on Talos Linux.
+#
+# policies.kyverno.io/v1 exception for the CEL ValidatingPolicy
+# disallow-privileged-containers (the kyverno.io/v2 exception for the old
+# ClusterPolicy went with it in the Kyverno 1.20 migration). Kyverno only honours
+# exceptions in monitoring (features.policyExceptions in the kyverno values).
 # Autogen evaluates the Job itself (name etcd-secret-writer) as well as its
 # Pods (etcd-secret-writer-<suffix>), so one prefix match covers both.
 apiVersion: policies.kyverno.io/v1
