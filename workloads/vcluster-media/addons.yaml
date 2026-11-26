@@ -17,6 +17,11 @@ mediaAppDefaults: &mediaAppDefaults
         - /spec/rules/0/backendRefs/0/group
         - /spec/rules/0/backendRefs/0/kind
         - /spec/rules/0/backendRefs/0/weight
+        # Second rule (/api, left outside forward-auth) on sonarr, radarr,
+        # bazarr and sabnzbd: the same API-server defaults.
+        - /spec/rules/1/backendRefs/0/group
+        - /spec/rules/1/backendRefs/0/kind
+        - /spec/rules/1/backendRefs/0/weight
         - /spec/parentRefs/0/group
         - /spec/parentRefs/0/kind
 
