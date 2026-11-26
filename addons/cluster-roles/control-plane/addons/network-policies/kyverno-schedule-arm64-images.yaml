@@ -255,3 +255,60 @@ spec:
               - key: "{{ request.object.spec.[initContainers[].image || `[]`, containers[].image || `[]`][] | [*].split(@, '@')[0] }}"
                 operator: AnyNotIn
                 value: "{{ parse_json(arm64Images.data.images) }}"
+---
+# CEL replacement for the second (Audit) rule above.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: audit-arm64-images
+  annotations:
+    policies.kyverno.io/title: Audit arm64 pods running non-allowlisted images
+    policies.kyverno.io/category: Scheduling
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Reports any pod that selects kubernetes.io/arch=arm64 by hand while
+      running an image that is not on the arm64-image-allowlist ConfigMap.
+spec:
+  validationActions:
+    - Audit
+  evaluation:
+    admission:
+      enabled: true
+    background:
+      enabled: false
+  autogen:
+    podControllers:
+      controllers: []
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, kyverno,
+                   cilium-secrets, metallb-system, nfs-provisioner,
+                   local-path-storage, trivy-system, hermes, cq]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE]
+        resources: [pods]
+  matchConditions:
+    - name: selects-arm64
+      expression: object.spec.?nodeSelector[?'kubernetes.io/arch'].orValue('') == 'arm64'
+  variables:
+    - name: images
+      expression: >-
+        (object.spec.?initContainers.orValue([]) + object.spec.containers)
+        .map(c, c.image.split('@')[0])
+    - name: allowlist
+      expression: >-
+        json.unmarshal(resource.Get("v1", "configmaps", "kyverno", "arm64-image-allowlist").data.images)
+  validations:
+    - expression: >-
+        variables.images.all(img, variables.allowlist.exists(p,
+          p.endsWith('*') ? img.startsWith(p.substring(0, size(p) - 1)) : img == p))
+      message: >-
+        This pod selects arm64 but runs an image that is not on the
+        arm64-image-allowlist ConfigMap in the kyverno namespace. Check that
+        the image has a linux/arm64 manifest and add it, or drop the nodeSelector.

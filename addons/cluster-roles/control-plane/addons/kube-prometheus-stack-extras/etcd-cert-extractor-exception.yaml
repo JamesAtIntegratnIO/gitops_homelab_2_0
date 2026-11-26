@@ -25,3 +25,23 @@ spec:
           names:
             - etcd-secret-writer
             - etcd-secret-writer-*
+---
+# The same exception for the CEL ValidatingPolicy of the same name. Kyverno
+# 1.20 stops honouring the kyverno.io/v2 exception above, and the CEL policy
+# is already enforcing on 1.19, so both stay until the legacy policies go.
+# Autogen evaluates the Job itself (name etcd-secret-writer) as well as its
+# Pods (etcd-secret-writer-<suffix>), so one prefix match covers both.
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: etcd-cert-extractor-privileged-cel
+  namespace: monitoring
+spec:
+  policyRefs:
+    - name: disallow-privileged-containers
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: etcd-secret-writer-in-monitoring
+      expression: >-
+        object.metadata.?namespace.orValue('') == 'monitoring' &&
+        object.metadata.?name.orValue('').startsWith('etcd-secret-writer')

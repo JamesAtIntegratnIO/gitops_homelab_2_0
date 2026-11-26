@@ -82,3 +82,90 @@ spec:
                       - "metio/*"
                       - "prom/*"
                       - "linuxserver/*"
+---
+# CEL replacement for the ClusterPolicy above (Kyverno 1.20 no longer runs
+# ClusterPolicy). Same list, same Audit-only behaviour. A pattern ending in *
+# matches any image starting with the rest; anything else must match exactly.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: restrict-image-registries
+  annotations:
+    policies.kyverno.io/title: Restrict Image Registries
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/description: >-
+      Audits that every container image comes from an approved registry or
+      Docker Hub organization.
+spec:
+  validationActions:
+    - Audit
+  evaluation:
+    admission:
+      enabled: true
+    background:
+      enabled: true
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, trivy-system]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allowed
+      expression: >-
+        [
+          'docker.io/*',
+          'ghcr.io/*',
+          'quay.io/*',
+          'registry.k8s.io/*',
+          'mirror.gcr.io/*',
+          'ecr-public.aws.com/*',
+          'lscr.io/*',
+          'syntasso-community.docker.reo.dev/*',
+          'us-docker.pkg.dev/*',
+          'registry.integratn.io/*',
+          'alpine:*',
+          'alpine',
+          'node:*',
+          'node',
+          'redis:*',
+          'redis',
+          'busybox:*',
+          'busybox',
+          'memcached:*',
+          'memcached',
+          'python:*',
+          'python',
+          'curlimages/*',
+          'grafana/*',
+          'bitnami/*',
+          'coredns/*',
+          'qdrant/*',
+          'redimp/*',
+          'metio/*',
+          'prom/*',
+          'linuxserver/*'
+        ]
+    - name: images
+      expression: >-
+        (object.spec.?initContainers.orValue([])
+        + object.spec.?ephemeralContainers.orValue([])
+        + object.spec.containers).map(c, c.image)
+    - name: unapproved
+      expression: >-
+        variables.images.filter(img, !variables.allowed.exists(p,
+          p.endsWith('*') ? img.startsWith(p.substring(0, size(p) - 1)) : img == p))
+  validations:
+    - expression: size(variables.unapproved) == 0
+      messageExpression: >-
+        "Image(s) " + variables.unapproved.join(", ") + " are from an unapproved
+        registry. Allowed registries: docker.io, ghcr.io, quay.io,
+        registry.k8s.io, mirror.gcr.io, ecr-public.aws.com, lscr.io,
+        syntasso-community.docker.reo.dev, us-docker.pkg.dev,
+        registry.integratn.io, plus approved Docker Hub organizations."
