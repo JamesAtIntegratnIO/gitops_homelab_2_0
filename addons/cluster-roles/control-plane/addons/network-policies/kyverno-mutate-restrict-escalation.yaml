@@ -1,67 +1,9 @@
-# Kyverno ClusterPolicy: Set allowPrivilegeEscalation=false and drop ALL capabilities
+# Kyverno policy: Set allowPrivilegeEscalation=false and drop ALL capabilities
 # Fixes AVD-KSV-0001 (allowPrivilegeEscalation not false)
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
-metadata:
-  name: mutate-restrict-escalation
-  annotations:
-    policies.kyverno.io/title: Restrict Privilege Escalation
-    policies.kyverno.io/category: Pod Security
-    policies.kyverno.io/severity: medium
-    policies.kyverno.io/subject: Pod
-    policies.kyverno.io/description: >-
-      Mutates containers to set allowPrivilegeEscalation to false and drop ALL
-      capabilities if not already set. This prevents child processes from
-      gaining more privileges than their parent. Excludes namespaces where
-      elevated privileges are operationally required (e.g. metallb-speaker
-      needs NET_RAW+SYS_ADMIN, promtail needs host log access).
-spec:
-  admission: true
-  validationFailureAction: Audit
-  background: false
-  rules:
-    - name: set-no-privilege-escalation
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      exclude:
-        any:
-          - resources:
-              namespaces:
-                - kube-system
-                - metallb-system
-                - promtail
-      mutate:
-        foreach:
-          - list: "request.object.spec.containers"
-            patchStrategicMerge:
-              spec:
-                containers:
-                  - (name): "{{ element.name }}"
-                    securityContext:
-                      +(allowPrivilegeEscalation): false
-                      +(capabilities):
-                        +(drop):
-                          - ALL
-          - list: "request.object.spec.initContainers || []"
-            patchStrategicMerge:
-              spec:
-                initContainers:
-                  - (name): "{{ element.name }}"
-                    securityContext:
-                      +(allowPrivilegeEscalation): false
-                      +(capabilities):
-                        +(drop):
-                          - ALL
----
-# CEL replacement for the ClusterPolicy above (Kyverno 1.20 no longer runs
-# ClusterPolicy). Same add-if-absent semantics as the old +() anchors: only a
-# field the container leaves unset is added, nothing is overridden. CREATE
-# only (a running pod's securityContext is immutable) and Pods only, like
-# mutate-seccomp-default.
+# Kyverno CEL policy (policies.kyverno.io/v1; ClusterPolicy is gone in 1.20).
+# Same add-if-absent semantics as the old +() anchors: only a field the
+# container leaves unset is added, nothing is overridden. CREATE only (a running pod's securityContext is immutable) and
+# Pods only, like mutate-seccomp-default.
 #
 # JSONPatch, not ApplyConfiguration: capabilities.drop is an atomic list, and
 # an apply configuration may not set one ("may not mutate atomic arrays, maps

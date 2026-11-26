@@ -1,54 +1,7 @@
-# Kyverno ClusterPolicy: Inject seccomp RuntimeDefault profile on all pods
+# Kyverno policy: Inject seccomp RuntimeDefault profile on all pods
 # Fixes AVD-KSV-0030 (no seccomp profile) and AVD-KSV-0104 (unconfined seccomp)
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
-metadata:
-  name: mutate-seccomp-default
-  annotations:
-    policies.kyverno.io/title: Add Seccomp RuntimeDefault
-    policies.kyverno.io/category: Pod Security
-    policies.kyverno.io/severity: medium
-    policies.kyverno.io/subject: Pod
-    policies.kyverno.io/description: >-
-      Mutates pods to set seccompProfile.type to RuntimeDefault at the pod level
-      if no seccomp profile is already defined. This is the most permissive
-      named profile and prevents containers from running with unrestricted
-      syscall access (Unconfined).
-spec:
-  admission: true
-  validationFailureAction: Audit
-  background: false
-  rules:
-    - name: add-seccomp-pod-level
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-              # CREATE only. seccompProfile is immutable on a running pod, so
-              # adding it on UPDATE can never succeed: it made every update to a
-              # pod created without one fail, including the Job controller
-              # removing its job-tracking finalizer. Nine Trivy scan pods sat
-              # Terminating from 2026-08-29 for that reason. Every new pod is
-              # still mutated, so this weakens nothing.
-              operations:
-                - CREATE
-      exclude:
-        any:
-          # kube-system: Cilium manages its own security context
-          - resources:
-              namespaces:
-                - kube-system
-      mutate:
-        patchStrategicMerge:
-          spec:
-            securityContext:
-              +(seccompProfile):
-                +(type): RuntimeDefault
----
-# CEL replacement for the ClusterPolicy above (Kyverno 1.20 no longer runs
-# ClusterPolicy). CREATE only, for the same reason (seccompProfile is
+# Kyverno CEL policy (policies.kyverno.io/v1; ClusterPolicy is gone in 1.20).
+# CREATE only, for the same reason (seccompProfile is
 # immutable on a running pod). Pods only: every pod a controller makes is
 # mutated as it is created, so the controllers' templates are left alone.
 apiVersion: policies.kyverno.io/v1
