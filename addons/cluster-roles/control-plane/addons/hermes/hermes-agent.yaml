@@ -116,6 +116,11 @@ metadata:
   namespace: hermes
 data:
   config.yaml: |
+    # Schema version of this file. Without it Hermes treats the copied file
+    # as schema 0 and re-runs every migration (0 -> 52) at each boot. Keep it
+    # equal to the image's DEFAULT_CONFIG["_config_version"] (v0.23.0: 52,
+    # v0.23.4: 54); bump it with the image.
+    _config_version: 52
     model:
       provider: "anthropic"
       default: "claude-sonnet-5-5"
@@ -162,6 +167,13 @@ data:
       # it can wrap up rather than being cut off mid-task. Default is unlimited.
       max_turns: 60
       budget_warning_ratio: 0.8
+      # Seconds an in-flight chat turn may keep running when the gateway
+      # stops (rollout, Reloader, liveness restart). Upstream default 0
+      # interrupts at once: on 2026-11-24 six rollouts in a day, one cut off
+      # 2 running turns ("Gateway drain timed out after 0.0s"). s6's grace
+      # times and the pod's terminationGracePeriodSeconds (Deployment below)
+      # are sized above this, or s6/kubelet SIGKILL the drain.
+      restart_drain_timeout: 60
     # "auto": 1-hour Anthropic cache for human-paced chats (pauses longer than
     # 5 minutes), 5-minute for cron, API and subagents. Default is "5m".
     prompt_caching:
@@ -708,6 +720,7 @@ data:
     - Ted's goofiness is never part of an answer. Commands, paths, versions, numbers and diagnoses are exact. Do not play dumb, fake confidence, soften a warning, or skip a check to stay in character. If something failed, say it failed.
     - The persona lives in chat replies only. Commit messages, PR titles and bodies, code, comments, config, docs, logs, tickets, cq entries and anything else that becomes a record are written in plain professional English with no slang.
     - If the user asks for plain mode, or it is an incident and every word counts, drop the slang and keep the warmth.
+    - Skills under `/opt/hermes-skills/` are owned by git and mounted read-only: never call `skill_manage` on them, it fails with "Permission denied". To change one, follow the `skill-improve` skill (a PR to `skills.yaml` that James merges). Skills in `/opt/data/skills` are yours to edit, but never create one there with the same name as a git skill.
 
     ## How Ted responds (behavior, not catchphrases)
     | Situation | What he does |
@@ -801,6 +814,9 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+      # Above agent.restart_drain_timeout (60 s) and the cron/api floor (30 s),
+      # plus s6's own shutdown; see S6_*_GRACETIME on the hermes container.
+      terminationGracePeriodSeconds: 100
       initContainers:
         - name: config
           image: docker.io/library/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
@@ -825,6 +841,36 @@ spec:
             - name: config
               mountPath: /config
               readOnly: true
+        # Hermes writes its real log to /opt/data/logs/agent.log, not stdout
+        # (stdout had 63 lines in 22 h against ~18,000 in agent.log), so Loki
+        # never saw it. This native sidecar (restartPolicy: Always) copies new
+        # lines to its stdout, where promtail ships them to Loki as
+        # {namespace="hermes", container="agent-log"} and counts the ones the
+        # platform.hermes alerts watch (promtail/values.yaml). -F follows the
+        # file across Hermes's 5 MB rotations. Read-only, as uid 10000, the
+        # owner of /opt/data (mode 0700).
+        - name: agent-log
+          image: docker.io/library/busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+          restartPolicy: Always
+          command: ["tail", "-n", "0", "-F", "/opt/data/logs/agent.log"]
+          securityContext:
+            runAsUser: 10000
+            runAsGroup: 10000
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              memory: 32Mi
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+              readOnly: true
       containers:
         - name: hermes
           image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2-tc1.13.12@sha256:ce7787e5371b657d5f0af99c90cefb7a8bc18d614a3428787211bbb22edaa196
@@ -840,6 +886,14 @@ spec:
               drop: [ALL]
               add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL]
           env:
+            # s6-overlay's shutdown waits only 3 s by default before SIGKILL,
+            # which would cut agent.restart_drain_timeout (60 s) short. 75 s
+            # covers the drain plus cleanup; terminationGracePeriodSeconds
+            # (100) sits above both.
+            - name: S6_SERVICES_GRACETIME
+              value: "75000"
+            - name: S6_KILL_GRACETIME
+              value: "75000"
             - name: API_SERVER_ENABLED
               value: "true"
             - name: API_SERVER_HOST

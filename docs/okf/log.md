@@ -1,5 +1,8 @@
 # Update Log
 
+## 2026-11-26
+* **Fix**: **Hermes findings from a Claude mechanic review** (Claude reading Hermes's agent.log, gateway_state.json, config and skills, after Zack Proser's "mechanic agent" pattern). A restart no longer cuts off running turns: `agent.restart_drain_timeout: 60`, s6 grace times 75 s, `terminationGracePeriodSeconds: 100` (six rollouts on 2026-11-24, one interrupted 2 turns). `_config_version: 52` stops the 0 -> 52 migration at every boot. SOUL.md tells every fork, including the background review, that git skills change by skill-improve PR (9 `skill_manage` Permission denied errors). agent.log reaches Loki through a new `agent-log` sidecar, and promtail counters feed five new `platform.hermes` alerts. See [Hermes Agent](addons/hermes.md).
+
 ## 2026-11-25
 * **Update**: **authentik public at auth.integratn.tech.** Cloudflare tunnel rule straight to authentik-server (not the gateway), admin paths 404 at the edge, proxied CNAME in integratn.tech (IntegratnIO/infrastructure sites); NetworkPolicies cloudflared -> authentik-server:9000. Google OAuth client needs the auth.integratn.tech callback URIs. See [Security posture](platform/security-posture.md).
 * **Update**: **authentik 2026.5.9 -> 2026.8.7** (chart 2026.8.6 + image tag pin). Second hop for the 2026-11-25 advisories; 2026.5.9 verified live first (24 migrations, all 48 blueprints successful, sign-in/forward-auth/Google sign-up plan OK).
