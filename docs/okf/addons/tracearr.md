@@ -4,7 +4,7 @@ title: Tracearr
 description: Plex and Jellyfin watch history and stream monitoring in vcluster-media, with its own TimescaleDB and Redis. Replaces Tautulli, which ran as a Docker container on Tower.
 tags: [media, vcluster-media, plex, jellyfin, tautulli, timescaledb, redis]
 status: stable
-generated: { by: hermes-agent, at: 2026-11-24T23:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T03:40:00Z }
 stale_after: 2027-02-01
 sources:
   - id: values
@@ -89,6 +89,17 @@ chart from another repository's git path.
   (twice the old limit, below upstream's 4 GiB), not a measured need: after the
   change, check the steady-state working set and trim or raise it. The `dshm`
   memory volume (256 MiB) counts towards the container's memory.
+- **After the OOM fix it looped in crash recovery instead (2026-11-24..26).**
+  338 restarts, exit 137 but not OOMKilled. Each start spent its whole budget
+  fsyncing every file in PGDATA over Tower NFS ("syncing data directory
+  (pre-fsync)", then "(fsync)") and was killed by the liveness probe at ~90 s,
+  before WAL replay began, so no attempt made progress. The same loop ran 351
+  times on 2026-11-12. Fix: a `startupProbe` (20 minutes),
+  `recovery_init_sync_method=syncfs` (one syncfs call instead of a per-file
+  walk), and `terminationGracePeriodSeconds: 180` so a shutdown checkpoint is
+  not cut off into the next crash recovery. While the DB is down the app sits
+  in `Init:Error` on its `wait-for-db` init container, and the
+  platform-status-reconciler holds `VClusterNotReady` firing.
 - **Postgres runs as 99:100.** Tower's exports squash every uid to `99:100`
   (`all_squash`, see [storage](../platform/storage.md)), and Postgres refuses a
   data directory owned by anyone but itself. Running as 99 makes the owner
