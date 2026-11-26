@@ -211,12 +211,14 @@ deployment:
       value: info
     RADARR__THEME:
       value: dark
+  # Radarr 6.x already peaked at ~490-510MiB; 7.0.3 (#806) crosses 512Mi
+  # during library refreshes and was OOMKilled 261 times in 10 days.
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
-    limits:
       memory: 512Mi
+    limits:
+      memory: 1Gi
   additionalContainers:
     - name: exportarr
       image: ghcr.io/onedr0p/exportarr:v2.3.0

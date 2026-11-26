@@ -141,7 +141,9 @@ extraObjects:
             app.kubernetes.io/name: tracearr-db
         spec:
           automountServiceAccountToken: false
-          terminationGracePeriodSeconds: 60
+          # A clean shutdown checkpoint over NFS can outlast 60s; a SIGKILL
+          # mid-shutdown is what forces the next start into crash recovery.
+          terminationGracePeriodSeconds: 180
           securityContext:
             runAsUser: 99
             runAsGroup: 100
@@ -180,6 +182,11 @@ extraObjects:
                 - max_wal_size=1GB
                 - -c
                 - checkpoint_completion_target=0.9
+                # Crash recovery otherwise fsyncs every file in PGDATA one by
+                # one over Tower NFS before WAL replay, which took longer than
+                # the liveness budget and looped 338 times (2026-11-24..26).
+                - -c
+                - recovery_init_sync_method=syncfs
               ports:
                 - name: postgresql
                   containerPort: 5432
@@ -198,10 +205,20 @@ extraObjects:
                   value: /home/postgres/pgdata/data
                 - name: TZ
                   value: America/Denver
+              # Crash recovery on NFS can take many minutes. Without a
+              # startupProbe the liveness probe killed every recovery attempt
+              # at ~90s, before WAL replay began (338 restarts, 2026-11-24..26;
+              # 351 on 2026-11-12). Allow 20 minutes to come up; liveness only
+              # starts once Postgres answers.
+              startupProbe:
+                exec:
+                  command: ["pg_isready", "-U", "tracearr", "-h", "127.0.0.1"]
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 120
               livenessProbe:
                 exec:
                   command: ["pg_isready", "-U", "tracearr", "-h", "127.0.0.1"]
-                initialDelaySeconds: 30
                 periodSeconds: 10
                 timeoutSeconds: 5
                 failureThreshold: 6
