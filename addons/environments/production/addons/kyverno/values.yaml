@@ -9,6 +9,18 @@ config:
 # kyverno/readiness-checker `scale-deploy` at the chart's appVersion: pointing
 # it at our kubectl image, as 3.2.x needed, would break the pre-delete hooks.
 
+# PolicyExceptions are off by default in chart 3.9.x (--enablePolicyException
+# =false), and then Kyverno ignores every exception, legacy kyverno.io/v2 and
+# policies.kyverno.io/v1 alike. The etcd-secret-writer Job in monitoring
+# depends on one (kube-prometheus-stack-extras/etcd-cert-extractor-exception
+# .yaml) and has been denied since the 3.9.2 rollout. Exceptions are only
+# honoured in monitoring, so nobody can exempt a workload from another
+# namespace by creating one there.
+features:
+  policyExceptions:
+    enabled: true
+    namespace: monitoring
+
 # The admission controller is the one component whose absence blocks recovery:
 # both resource webhooks are failurePolicy: Fail with a 10s timeout and exclude
 # only kube-system and kyverno itself, so while it is down no pod can be created
