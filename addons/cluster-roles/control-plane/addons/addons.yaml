@@ -518,7 +518,7 @@ authentik:
   # authentik/values.yaml pins global.image.tag. Move or drop that pin in the
   # same change as any chart bump here, or the chart and image drift apart.
   # Pre-upgrade dumps on holocron ~/Backups/authentik-pre-2026.*.dump
-  defaultVersion: 2026.8.6
+  defaultVersion: 2026.8.7
   selector:
     matchExpressions:
       - key: cluster_role
