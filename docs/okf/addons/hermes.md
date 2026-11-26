@@ -61,8 +61,8 @@ sources:
 
 One pod, `hermes-agent` in namespace `hermes`, pinned to `talos-pi5-1` (it
 tolerates the node's arm64 taint). The image is
-`ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2`,
-digest-pinned: the official `nousresearch/hermes-agent:v0.23.0` with the
+`ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.4-stt-cq0.19.2-tc1.13.12`,
+digest-pinned: the official `nousresearch/hermes-agent:v0.23.4` (since 2026-11-26) with the
 `stt-whisper` extra (faster-whisper 1.2.1) installed beside its venv, in `/opt/hermes-stt` (on the venv's `sys.path` through a `.pth` file), pinned from Hermes's
 own `uv.lock`, so speech-to-text runs locally on the Pi's CPU, plus the
 `cq` CLI at `/usr/local/bin/cq` (`images/hermes-agent/`). It runs `gateway run`; with
@@ -483,7 +483,7 @@ v0.21.4, with every key checked against v0.23.0's built-in defaults first.[^opti
   the pod and its network policy are the sandbox.
 - **Ops**: sessions are pruned after 90 days, `/dev/shm` is a 1 Gi memory
   volume for Chromium, and a liveness probe on `/health` restarts a wedged
-  gateway. `config.yaml` carries `_config_version` (52 on v0.23.0), so Hermes
+  gateway. `config.yaml` carries `_config_version` (54 on v0.23.4), so Hermes
   no longer re-runs every migration from schema 0 at each boot; bump it with
   the image.
 - **Restarts drain** (2026-11-26): `agent.restart_drain_timeout: 60` lets a

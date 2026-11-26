@@ -1,12 +1,12 @@
 # Hermes Agent (Nous Research) on the Raspberry Pi 5 worker, talos-pi5-1.
 #
-# Image: our thin derivative of the official v0.23.0 image with local
+# Image: our thin derivative of the official v0.23.4 image with local
 # speech-to-text (faster-whisper in /opt/hermes-stt, on the venv's sys.path via a .pth file), arm64 only:
 # images/hermes-agent/Dockerfile, built by
 # .github/workflows/build-hermes-agent-image.yaml. Digest-pinned. To move
 # Hermes, bump the FROM digest there, let CI publish, then pin the new digest
 # here.
-# Docs: website/docs/user-guide/docker.md in NousResearch/hermes-agent at v0.23.0.
+# Docs: website/docs/user-guide/docker.md in NousResearch/hermes-agent at v0.23.4.
 #
 # How the image runs, and what that requires here:
 #   - ENTRYPOINT is s6-overlay /init. It starts as root, fixes ownership of
@@ -120,7 +120,7 @@ data:
     # as schema 0 and re-runs every migration (0 -> 52) at each boot. Keep it
     # equal to the image's DEFAULT_CONFIG["_config_version"] (v0.23.0: 52,
     # v0.23.4: 54); bump it with the image.
-    _config_version: 52
+    _config_version: 54
     model:
       provider: "anthropic"
       default: "claude-sonnet-5-5"
@@ -873,7 +873,7 @@ spec:
               readOnly: true
       containers:
         - name: hermes
-          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.0-stt-cq0.19.2-tc1.13.12@sha256:ce7787e5371b657d5f0af99c90cefb7a8bc18d614a3428787211bbb22edaa196
+          image: ghcr.io/jamesatintegratnio/gitops_homelab_2_0/hermes-agent:v0.23.4-stt-cq0.19.2-tc1.13.12@sha256:4fe9762b33342b73acb871a8fd6afc58b48b0d7378701f6f0995cab1736d47f2
           args: ["gateway", "run"]
           # s6 /init runs as root to chown /opt/data, then s6-setuidgid drops
           # every service to uid 10000, and s6-svscan signals those processes.
