@@ -166,6 +166,7 @@ modes and the check that catches them, and several ship a script.
 | `gate-triage` | reading or acting on the `addons-gate` verdict and Bosun's report on a PR |
 | `cluster-triage` | a live symptom — zero-byte hangs, lost leases, stale config, write loops, empty metrics |
 | `ship-change` | branch → commit → PR → merge handoff → post-merge verification → OKF update |
+| `hermes-mechanic` | keeping Hermes Agent healthy: the scheduled mechanic review, a `platform.hermes` alert, Hermes answering thin/forgetful, a Hermes skill or MCP server broken, before/after a Hermes upgrade |
 
 ## Working with the OKF bundle
 

@@ -42,6 +42,7 @@ spec:
           'ghcr.io/*',
           'quay.io/*',
           'registry.k8s.io/*',
+          'reg.kyverno.io/*',
           'mirror.gcr.io/*',
           'ecr-public.aws.com/*',
           'lscr.io/*',
@@ -84,6 +85,6 @@ spec:
       messageExpression: >-
         "Image(s) " + variables.unapproved.join(", ") + " are from an unapproved
         registry. Allowed registries: docker.io, ghcr.io, quay.io,
-        registry.k8s.io, mirror.gcr.io, ecr-public.aws.com, lscr.io,
+        registry.k8s.io, reg.kyverno.io, mirror.gcr.io, ecr-public.aws.com, lscr.io,
         syntasso-community.docker.reo.dev, us-docker.pkg.dev,
         registry.integratn.io, plus approved Docker Hub organizations."
