@@ -89,7 +89,7 @@ data:
           open_in_new_tab: true
           launch_url: https://argocd.cluster.integratn.tech
           group: Platform Services
-          meta_icon: https://cncf-branding.netlify.app/img/projects/argo/icon/color/argo-icon-color.png
+          meta_icon: /static/dist/assets/images/apps/argocd.svg
           meta_description: GitOps Continuous Delivery
           policy_engine_mode: all
 
@@ -154,7 +154,7 @@ data:
           open_in_new_tab: true
           launch_url: https://grafana.cluster.integratn.tech
           group: Platform Services
-          meta_icon: https://grafana.com/static/img/menu/grafana2.svg
+          meta_icon: /static/dist/assets/images/apps/grafana.svg
           meta_description: Observability & Monitoring Dashboards
           policy_engine_mode: all
 
@@ -687,7 +687,7 @@ data:
           open_in_new_tab: true
           launch_url: https://chat.cluster.integratn.tech
           group: Platform Services
-          meta_icon: https://raw.githubusercontent.com/open-webui/open-webui/main/static/favicon.png
+          meta_icon: /static/dist/assets/images/apps/open-webui.svg
           meta_description: AI Platform Assistant
           # homelab OR open-webui-users (bindings in 11-access-groups.yaml)
           policy_engine_mode: any
@@ -724,7 +724,7 @@ data:
           open_in_new_tab: true
           launch_url: https://qdrant.cluster.integratn.tech
           group: Platform Services
-          meta_icon: https://qdrant.tech/img/logo.png
+          meta_icon: /static/dist/assets/images/apps/qdrant.svg
           meta_description: Vector Database Dashboard
           policy_engine_mode: all
 
@@ -790,6 +790,7 @@ data:
         identifiers:
           slug: kargo
         attrs:
+          meta_icon: /static/dist/assets/images/apps/kargo.png
           name: Kargo
           provider: !Find [authentik_providers_oauth2.oauth2provider, [name, kargo-provider]]
           open_in_new_tab: true
@@ -858,7 +859,7 @@ data:
           open_in_new_tab: true
           launch_url: https://bosun.cluster.integratn.tech
           group: Platform Services
-          meta_icon: https://bosun.integratn.io/favicon.svg
+          meta_icon: /static/dist/assets/images/apps/bosun.svg
           meta_description: >-
             The crew for Argo and Kargo. A gate that renders what a pull request
             deploys and blocks what breaks, and an agent that repairs what is
@@ -897,6 +898,7 @@ data:
         identifiers:
           slug: specmarshal
         attrs:
+          meta_icon: /static/dist/assets/images/apps/specmarshal.svg
           name: Specmarshal
           provider: !Find [authentik_providers_proxy.proxyprovider, [name, specmarshal-proxy-provider]]
           open_in_new_tab: true
@@ -941,6 +943,7 @@ data:
         identifiers:
           slug: umami
         attrs:
+          meta_icon: /static/dist/assets/images/apps/umami.svg
           name: Umami
           provider: !Find [authentik_providers_proxy.proxyprovider, [name, umami-proxy-provider]]
           open_in_new_tab: true
@@ -982,6 +985,7 @@ data:
         identifiers:
           slug: homepage
         attrs:
+          meta_icon: /static/dist/assets/images/apps/homepage.svg
           name: Homepage
           provider: !Find [authentik_providers_proxy.proxyprovider, [name, homepage-proxy-provider]]
           open_in_new_tab: true
@@ -1032,6 +1036,7 @@ data:
         identifiers:
           slug: sonarr
         attrs:
+          meta_icon: /static/dist/assets/images/apps/sonarr.svg
           name: Sonarr
           provider: !KeyOf sonarr-proxy-provider
           open_in_new_tab: true
@@ -1056,6 +1061,7 @@ data:
         identifiers:
           slug: radarr
         attrs:
+          meta_icon: /static/dist/assets/images/apps/radarr.svg
           name: Radarr
           provider: !KeyOf radarr-proxy-provider
           open_in_new_tab: true
@@ -1080,6 +1086,7 @@ data:
         identifiers:
           slug: bazarr
         attrs:
+          meta_icon: /static/dist/assets/images/apps/bazarr.svg
           name: Bazarr
           provider: !KeyOf bazarr-proxy-provider
           open_in_new_tab: true
@@ -1104,6 +1111,7 @@ data:
         identifiers:
           slug: sabnzbd
         attrs:
+          meta_icon: /static/dist/assets/images/apps/sabnzbd.svg
           name: SABnzbd
           provider: !KeyOf sabnzbd-proxy-provider
           open_in_new_tab: true
@@ -1197,6 +1205,7 @@ data:
           slug: hermes
         id: hermes-app
         attrs:
+          meta_icon: /static/dist/assets/images/apps/hermes.svg
           name: Hermes Agent
           provider: !KeyOf hermes-provider
           open_in_new_tab: true

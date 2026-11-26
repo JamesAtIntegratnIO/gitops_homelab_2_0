@@ -186,9 +186,17 @@ server:
     - name: brand-assets
       configMap:
         name: authentik-brand-assets
+    # Application icons (hack/authentik-app-icons), served as
+    # /static/dist/assets/images/apps/<slug>.<ext> for each app's meta_icon.
+    - name: app-icons
+      configMap:
+        name: authentik-app-icons
   volumeMounts:
     - name: brand-assets
       mountPath: /web/dist/assets/images/integratn
+      readOnly: true
+    - name: app-icons
+      mountPath: /web/dist/assets/images/apps
       readOnly: true
 
   # Security hardening — fixes AVD-KSV-0030 / AVD-KSV-0001
