@@ -158,97 +158,338 @@ data:
           meta_description: Observability & Monitoring Dashboards
           policy_engine_mode: all
 
-  03-default-authentication-flow.yaml: |
-    # Authentik Blueprint: Default Authentication Flow
-    # Creates a standard authentication flow with username/password
+  03-authentication-flows.yaml: |
+    # Authentik Blueprint: sign-in flows (password + required MFA)
+    #
+    # OWN FLOWS, NOT THE STOCK ONES. This used to edit authentik's stock
+    # `default-authentication-flow` in place. authentik's own blueprint for that
+    # flow re-applies on every upgrade and put its MFA stage back to
+    # `not_configured_action: skip` next to ours (two bindings at order 30, MFA
+    # optional). Flows with our own slugs and stages are never touched by an
+    # upgrade, so what is written here is what runs.
+    #
+    #   integratn-authentication          username/email + password, then MFA,
+    #                                     then login. The brand points here.
+    #   integratn-source-authentication   what a Google sign-in runs once it has
+    #                                     matched an EXISTING user: login only.
+    #                                     Google creates a user only for an
+    #                                     invited email
+    #                                     (14-google-invite-enrollment.yaml).
+    #
+    # MFA is REQUIRED for password sign-in: a user with no TOTP/WebAuthn device
+    # is made to enrol one before the login completes
+    # (`not_configured_action: configure`). Google sign-in TRUSTS GOOGLE'S 2FA
+    # instead (James, 2026-11-25: one login, not two). Only invited accounts can
+    # sign in with Google, so the exposure is an invitee whose Google account
+    # has no 2FA. Add the MFA binding back to the source flow to change that.
+    #
+    # The stock `default-authentication-flow` is left in place (authentik
+    # recreates it anyway) but bound to a deny-all policy, so nobody can run it
+    # by URL to skip the MFA above.
+    #
+    # PASSWORD SIGN-IN IS HOME-NETWORK ONLY (James, 2026-11-25). Between the
+    # username and the password, a deny stage stops anyone whose request is
+    # not from a private address, or that came through Cloudflare (a Cf-Ray or
+    # Cf-Connecting-Ip header, which Cloudflare sets and the client cannot
+    # remove). Away from home, sign in with Google. The header check is what
+    # holds behind a Cloudflare tunnel: the tunnel's requests come from a pod
+    # address, and X-Forwarded-For can be forged, but every request through
+    # Cloudflare carries Cf-Ray. Anything else ever put in front of authentik
+    # from outside must be added to this policy.
+    #
+    # There is no enrollment and no recovery on these flows. New accounts come
+    # only from invitations (12-invitation-enrollment.yaml).
     version: 1
     metadata:
-      name: default-authentication-flow
+      name: authentication-flows
       labels:
         blueprints.goauthentik.io/instantiate: "true"
     entries:
-      # Authentication Flow
-      - model: authentik_flows.flow
-        identifiers:
-          slug: default-authentication-flow
-        id: flow
-        attrs:
-          name: Default Authentication Flow
-          title: Welcome to the Platform
-          designation: authentication
-          authentication: require_unauthenticated
-          layout: stacked
-          denied_action: message_continue
-      
-      # Stage 2: Password (must come before identification stage that references it)
       - model: authentik_stages_password.passwordstage
         identifiers:
-          name: default-authentication-password
+          name: integratn-authentication-password
         id: password-stage
         attrs:
+          # Inbuilt only: no app-password (TokenBackend) logins through the
+          # browser flow.
           backends:
             - authentik.core.auth.InbuiltBackend
-            - authentik.core.auth.TokenBackend
           configure_flow: null
           failed_attempts_before_cancel: 5
-      
-      # Stage 1: Identification (username/email)
+
       - model: authentik_stages_identification.identificationstage
         identifiers:
-          name: default-authentication-identification
+          name: integratn-authentication-identification
         id: identification-stage
         attrs:
           user_fields:
             - username
             - email
-          password_stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
+          # Password is its own stage (order 30), so the home-network check
+          # (order 20) can stand in front of it.
+          password_stage: null
           sources:
             - !Find [authentik_sources_oauth.oauthsource, [slug, google]]
-          show_matched_user: true
+            - !Find [authentik_sources_oauth.oauthsource, [slug, google-workspace]]
           show_source_labels: true
-      
-      # Stage 3: User Login
+          # Don't echo back whether an account exists.
+          show_matched_user: false
+          pretend_user_exists: true
+          enrollment_flow: null
+          recovery_flow: null
+          passwordless_flow: null
+
+      - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+        identifiers:
+          name: integratn-mfa
+        id: mfa-stage
+        attrs:
+          device_classes:
+            - static
+            - totp
+            - webauthn
+          # No device yet -> enrol one now, instead of letting the user in.
+          not_configured_action: configure
+          configuration_stages:
+            - !Find [authentik_stages_authenticator_webauthn.authenticatorwebauthnstage, [name, default-authenticator-webauthn-setup]]
+            - !Find [authentik_stages_authenticator_totp.authenticatortotpstage, [name, default-authenticator-totp-setup]]
+          last_auth_threshold: seconds=0
+          webauthn_user_verification: preferred
+
       - model: authentik_stages_user_login.userloginstage
         identifiers:
-          name: default-authentication-login
-        id: user-login-stage
+          name: integratn-authentication-login
+        id: login-stage
         attrs:
           session_duration: seconds=0
           remember_me_offset: seconds=0
-      
-      # Flow Stage Bindings
+
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-client-not-home-network
+        id: not-home-policy
+        attrs:
+          expression: |
+            # True (=> deny) unless the request comes straight from the LAN or
+            # Tailscale. See the header of this blueprint.
+            req = request.http_request
+            if req is None:
+                return True
+            if req.headers.get("Cf-Ray") or req.headers.get("Cf-Connecting-Ip"):
+                return True
+            ip = ak_client_ip
+            for net in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"):
+                if ip in ip_network(net):
+                    return False
+            return True
+
+      - model: authentik_stages_deny.denystage
+        identifiers:
+          name: integratn-password-home-only
+        id: password-home-only-stage
+        attrs:
+          deny_message: >-
+            Password sign-in only works on the home network.
+            Use Sign in with Google instead.
+
+      # --- integratn-authentication -------------------------------------
+      - model: authentik_flows.flow
+        identifiers:
+          slug: integratn-authentication
+        id: auth-flow
+        attrs:
+          name: IntegratnIO sign-in
+          title: Welcome to the Platform
+          designation: authentication
+          authentication: require_unauthenticated
+          layout: stacked
+          denied_action: message_continue
+          background: /static/dist/assets/images/integratn/bg-ridgeline.svg
+
       - model: authentik_flows.flowstagebinding
         identifiers:
-          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          stage: !Find [authentik_stages_identification.identificationstage, [name, default-authentication-identification]]
+          target: !KeyOf auth-flow
+          stage: !KeyOf identification-stage
           order: 10
         attrs:
           evaluate_on_plan: true
           re_evaluate_policies: false
-          policy_engine_mode: any
           invalid_response_action: retry
-      
+
+      # Home-network gate: the deny stage runs only when the policy below
+      # matches (request NOT from the LAN/Tailscale).
       - model: authentik_flows.flowstagebinding
         identifiers:
-          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          stage: !Find [authentik_stages_password.passwordstage, [name, default-authentication-password]]
+          target: !KeyOf auth-flow
+          stage: !KeyOf password-home-only-stage
           order: 20
+        id: password-home-only-binding
         attrs:
           evaluate_on_plan: true
           re_evaluate_policies: false
-          policy_engine_mode: any
           invalid_response_action: retry
-      
+
+      - model: authentik_policies.policybinding
+        # IDENTIFIED BY POLICY ALONE, target in attrs. A binding's `target`
+        # stores the PolicyBindingModel pk, but !Find/!KeyOf on a Flow or a
+        # FlowStageBinding give that model's OWN pk, so with target as an
+        # identifier the lookup never matched the binding the first apply
+        # made: every re-apply tried to create a duplicate ("policy, target,
+        # order must make a unique set") and rolled the whole blueprint back.
+        # This policy is bound only here, so it identifies the binding.
+        identifiers:
+          policy: !KeyOf not-home-policy
+        attrs:
+          target: !KeyOf password-home-only-binding
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+          # If the policy itself errors, treat it as "not home": the deny
+          # stage runs. Fail closed.
+          failure_result: true
+
       - model: authentik_flows.flowstagebinding
         identifiers:
-          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-          stage: !Find [authentik_stages_user_login.userloginstage, [name, default-authentication-login]]
+          target: !KeyOf auth-flow
+          stage: !KeyOf password-stage
           order: 30
         attrs:
           evaluate_on_plan: true
           re_evaluate_policies: false
-          policy_engine_mode: any
           invalid_response_action: retry
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf auth-flow
+          stage: !KeyOf mfa-stage
+          order: 40
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf auth-flow
+          stage: !KeyOf login-stage
+          order: 100
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+
+      # --- integratn-source-authentication (Google, existing users only) --
+      # No MFA stage: Google's own 2FA is trusted (see the header).
+      - model: authentik_flows.flow
+        identifiers:
+          slug: integratn-source-authentication
+        id: source-auth-flow
+        attrs:
+          name: IntegratnIO sign-in (via Google)
+          title: Welcome to the Platform
+          designation: authentication
+          authentication: require_unauthenticated
+          layout: stacked
+          denied_action: message_continue
+          background: /static/dist/assets/images/integratn/bg-ridgeline.svg
+
+      # SUPERUSERS DON'T SIGN IN FROM OUTSIDE. Google sign-in has no
+      # authentik MFA, and a superuser session can drive the whole admin API
+      # on auth. (only the /if/admin UI is moved to the LAN-only admin host).
+      # So a Google sign-in that came through Cloudflare (Cf-Ray or
+      # Cf-Connecting-Ip, which the client cannot remove) is refused for any
+      # superuser. Admins sign in at home or over Tailscale. Evaluated when the
+      # stage comes up, against the matched user; fails closed.
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-superuser-via-cloudflare
+        id: superuser-via-cloudflare-policy
+        attrs:
+          expression: |
+            # True (=> deny) for a superuser whose request came through Cloudflare.
+            req = request.http_request
+            if req is None:
+                return True
+            if not (req.headers.get("Cf-Ray") or req.headers.get("Cf-Connecting-Ip")):
+                return False
+            return bool(getattr(request.user, "is_superuser", False))
+
+      - model: authentik_stages_deny.denystage
+        identifiers:
+          name: integratn-superuser-home-only
+        id: superuser-home-only-stage
+        attrs:
+          deny_message: >-
+            Administrator accounts can only sign in on the home network or
+            over Tailscale.
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf source-auth-flow
+          stage: !KeyOf superuser-home-only-stage
+          order: 50
+        id: superuser-home-only-binding
+        attrs:
+          evaluate_on_plan: false
+          re_evaluate_policies: true
+          invalid_response_action: retry
+
+      - model: authentik_policies.policybinding
+        # Identified by policy alone, target in attrs (see the home-network
+        # binding above). This policy is bound only here.
+        identifiers:
+          policy: !KeyOf superuser-via-cloudflare-policy
+        attrs:
+          target: !KeyOf superuser-home-only-binding
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+          failure_result: true
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf source-auth-flow
+          stage: !KeyOf login-stage
+          order: 100
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+
+      # --- the brand signs in through the flow above ----------------------
+      # Only flow fields; the look is 10-integratn-brand.yaml's.
+      - model: authentik_brands.brand
+        identifiers:
+          default: true
+        state: present
+        attrs:
+          flow_authentication: !KeyOf auth-flow
+          flow_recovery: null
+          flow_unenrollment: null
+
+      # --- close the stock flow -------------------------------------------
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-deny-all
+        id: deny-all
+        attrs:
+          expression: |
+            ak_message("This sign-in path is disabled.")
+            return False
+
+      - model: authentik_policies.policybinding
+        # Identified by policy alone, target in attrs; see the home-network
+        # binding above for why. integratn-deny-all is bound only here.
+        identifiers:
+          policy: !KeyOf deny-all
+        attrs:
+          target: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
 
   04-google-oauth-source.yaml: |
     # Authentik Blueprint: Google OAuth Source
@@ -256,10 +497,29 @@ data:
     # Callback URL to configure in Google Cloud Console:
     #   https://auth.cluster.integratn.tech/source/oauth/callback/google/
     #
+    #   https://auth.cluster.integratn.tech/source/oauth/callback/google-workspace/
+    # and the same two under https://auth-admin.cluster.integratn.tech/ for
+    # sign-in on the admin host.
+    #
+    # TWO SOURCES, ONE GOOGLE OAUTH CLIENT (James, 2026-11-25).
+    #   google            "Google": openid/email/profile only. Non-sensitive,
+    #                     so Google shows no "hasn't verified this app" screen.
+    #                     For family and anyone else with a Google account.
+    #   google-workspace  "IntegratnIO Workspace": also asks for
+    #                     cloud-identity.groups.readonly and copies the
+    #                     account's Google Workspace groups into authentik.
+    #                     That scope is sensitive, so Google shows its
+    #                     unverified-app screen until the app is verified.
+    # OAuth asks for its scopes BEFORE Google shows the account picker, so the
+    # groups scope cannot be requested only for some accounts within one
+    # button; the choice of button is that switch. The mapping below also only
+    # calls the Cloud Identity API for @integratn.io / @integratn.tech
+    # addresses.
+    #
     # Prerequisites in Google Cloud Console:
     #   1. Enable the "Cloud Identity API" at https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com
     #   2. Add the cloud-identity.groups.readonly scope to the OAuth consent screen
-    #   3. Add the callback URL above as an authorized redirect URI
+    #   3. Add the callback URLs above as authorized redirect URIs
     version: 1
     metadata:
       name: google-oauth-source
@@ -269,6 +529,16 @@ data:
       google_client_id: !Env GOOGLE_CLIENT_ID
       google_client_secret: !Env GOOGLE_CLIENT_SECRET
     entries:
+      # The sources below !Find the sign-up flow from
+      # 14-google-invite-enrollment.yaml. Blueprints apply in no fixed order,
+      # and a !Find that runs first silently sets enrollment_flow to null, so
+      # apply 14 before this one.
+      - model: authentik_blueprints.metaapplyblueprint
+        attrs:
+          identifiers:
+            name: google-invite-enrollment
+          required: true
+
       # Property mapping to sync Google Workspace group memberships
       - model: authentik_sources_oauth.oauthsourcepropertymapping
         identifiers:
@@ -280,7 +550,9 @@ data:
             email = info.get("email", "")
             access_token = token.get("access_token", "")
             groups = []
-            if email and access_token:
+            # Only IntegratnIO Workspace accounts have groups to read.
+            domain = email.rsplit("@", 1)[-1].lower() if "@" in email else ""
+            if domain in ("integratn.io", "integratn.tech") and access_token:
                 try:
                     query = f"member_key_id == '{email}'"
                     response = requests.get(
@@ -315,15 +587,44 @@ data:
           provider_type: google
           consumer_key: !Context google_client_id
           consumer_secret: !Context google_client_secret
-          authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
-          enrollment_flow: !Find [authentik_flows.flow, [slug, default-source-enrollment]]
+          # Sign-in for EXISTING users; Google's own 2FA is trusted
+          # (03-authentication-flows.yaml).
+          authentication_flow: !Find [authentik_flows.flow, [slug, integratn-source-authentication]]
+          # A Google account that matches no user may only sign up if an
+          # unexpired invitation carries its email in Fixed data
+          # (14-google-invite-enrollment.yaml). Anyone else is refused.
+          # An existing user's Google login links to it by email.
+          enrollment_flow: !Find [authentik_flows.flow, [slug, integratn-source-enrollment]]
+          user_matching_mode: email_link
+          enabled: true
+          oidc_well_known_url: "https://accounts.google.com/.well-known/openid-configuration"
+          oidc_jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
+          # Basic scopes only (see the header).
+          additional_scopes: ""
+          user_property_mappings: []
+
+      # IntegratnIO Workspace accounts: the same client, plus the groups scope
+      # and the mapping above. Same flows and matching as `google`, so both
+      # buttons land on the same authentik user.
+      - model: authentik_sources_oauth.oauthsource
+        identifiers:
+          slug: google-workspace
+        id: google-workspace-source
+        attrs:
+          name: IntegratnIO Workspace
+          provider_type: google
+          consumer_key: !Context google_client_id
+          consumer_secret: !Context google_client_secret
+          authentication_flow: !Find [authentik_flows.flow, [slug, integratn-source-authentication]]
+          # Invite-gated sign-up, as for `google` above.
+          enrollment_flow: !Find [authentik_flows.flow, [slug, integratn-source-enrollment]]
           user_matching_mode: email_link
           enabled: true
           oidc_well_known_url: "https://accounts.google.com/.well-known/openid-configuration"
           oidc_jwks_url: "https://www.googleapis.com/oauth2/v3/certs"
           additional_scopes: "https://www.googleapis.com/auth/cloud-identity.groups.readonly"
           user_property_mappings:
-            - !Find [authentik_sources_oauth.oauthsourcepropertymapping, [name, "Google Workspace Groups Sync"]]
+            - !KeyOf google-groups-mapping
 
   05-openwebui-provider.yaml: |
     # Authentik Blueprint: Open WebUI OAuth2 Provider
@@ -388,7 +689,8 @@ data:
           group: Platform Services
           meta_icon: https://raw.githubusercontent.com/open-webui/open-webui/main/static/favicon.png
           meta_description: AI Platform Assistant
-          policy_engine_mode: all
+          # homelab OR open-webui-users (bindings in 11-access-groups.yaml)
+          policy_engine_mode: any
 
   06-qdrant-proxy-provider.yaml: |
     # Authentik Blueprint: Qdrant Dashboard Proxy Provider
@@ -689,6 +991,128 @@ data:
             Landing page for the cluster: health, every service, pod status.
           policy_engine_mode: all
 
+  08d-media-proxy-providers.yaml: |
+    # Authentik Blueprint: Media app proxy providers (vcluster-media)
+    # Forward-auth for the media management UIs on the vcluster-media gateway,
+    # one forward_single provider per host, the same shape as specmarshal's.
+    # Numbered 08d so it sorts before 09-embedded-outpost, whose provider list
+    # `!Find`s them. Access: group media-management (11-access-groups.yaml).
+    #
+    # Each app's own login is OFF (Sonarr/Radarr AuthenticationMethod
+    # External, Bazarr none, SABnzbd no username), so these providers ARE
+    # their access control -- no double login. /api stays outside forward-auth
+    # and is still guarded by each app's API key. The nginx half is the
+    # <app>-forward-auth SnippetsFilter in
+    # workloads/vcluster-media/addons/<app>/values.yaml.
+    #
+    # Left out on purpose: otterwiki, tracearr and the vcluster's ArgoCD have
+    # their own logins (forward-auth would be a second one); Jellyfin and Plex
+    # live on Tower and their TV/phone clients cannot do a browser sign-in.
+    #
+    # external_host must match the HTTPRoute hostname exactly, scheme
+    # included. 12h tokens: these are tabs kept open all day.
+    version: 1
+    metadata:
+      name: media-proxy-providers
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: sonarr-proxy-provider
+        id: sonarr-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://sonarr.vcluster-media.integratn.tech
+          access_token_validity: hours=12
+
+      - model: authentik_core.application
+        identifiers:
+          slug: sonarr
+        attrs:
+          name: Sonarr
+          provider: !KeyOf sonarr-proxy-provider
+          open_in_new_tab: true
+          launch_url: https://sonarr.vcluster-media.integratn.tech
+          group: Media
+          meta_description: >-
+            TV series: search, grab and upgrade.
+          policy_engine_mode: all
+
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: radarr-proxy-provider
+        id: radarr-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://radarr.vcluster-media.integratn.tech
+          access_token_validity: hours=12
+
+      - model: authentik_core.application
+        identifiers:
+          slug: radarr
+        attrs:
+          name: Radarr
+          provider: !KeyOf radarr-proxy-provider
+          open_in_new_tab: true
+          launch_url: https://radarr.vcluster-media.integratn.tech
+          group: Media
+          meta_description: >-
+            Movies: search, grab and upgrade.
+          policy_engine_mode: all
+
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: bazarr-proxy-provider
+        id: bazarr-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://bazarr.vcluster-media.integratn.tech
+          access_token_validity: hours=12
+
+      - model: authentik_core.application
+        identifiers:
+          slug: bazarr
+        attrs:
+          name: Bazarr
+          provider: !KeyOf bazarr-proxy-provider
+          open_in_new_tab: true
+          launch_url: https://bazarr.vcluster-media.integratn.tech
+          group: Media
+          meta_description: >-
+            Subtitles for everything Sonarr and Radarr bring in.
+          policy_engine_mode: all
+
+      - model: authentik_providers_proxy.proxyprovider
+        identifiers:
+          name: sabnzbd-proxy-provider
+        id: sabnzbd-proxy-provider
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://sabnzbd.vcluster-media.integratn.tech
+          access_token_validity: hours=12
+
+      - model: authentik_core.application
+        identifiers:
+          slug: sabnzbd
+        attrs:
+          name: SABnzbd
+          provider: !KeyOf sabnzbd-proxy-provider
+          open_in_new_tab: true
+          launch_url: https://sabnzbd.vcluster-media.integratn.tech
+          group: Media
+          meta_description: >-
+            The Usenet downloader the Arrs hand releases to.
+          policy_engine_mode: all
+
   09-embedded-outpost.yaml: |
     # Authentik Blueprint: the embedded outpost's provider list
     #
@@ -724,6 +1148,10 @@ data:
             - !Find [authentik_providers_proxy.proxyprovider, [name, specmarshal-proxy-provider]]
             - !Find [authentik_providers_proxy.proxyprovider, [name, umami-proxy-provider]]
             - !Find [authentik_providers_proxy.proxyprovider, [name, homepage-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, sonarr-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, radarr-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, bazarr-proxy-provider]]
+            - !Find [authentik_providers_proxy.proxyprovider, [name, sabnzbd-proxy-provider]]
 
   10-hermes-provider.yaml: |
     # Authentik Blueprint: Hermes Agent OAuth2 Provider (public client, PKCE)
@@ -786,4 +1214,585 @@ data:
           order: 0
           enabled: true
           negate: false
+          timeout: 30
+
+  11-access-groups.yaml: |
+    # Authentik Blueprint: access groups, and which apps each group opens
+    #
+    # DEFAULT DENY. Every application is bound to at least one group; a user in
+    # no group can sign in to the user portal and nothing else. Grant access by
+    # adding the user to a group (Directory -> Groups) -- never by unbinding an
+    # app.
+    #
+    #   authentik Admins   authentik superusers (00-admin-group.yaml). Also the
+    #                      only group for hermes and cq, and an admin role
+    #                      inside ArgoCD / Grafana / Kargo / Open WebUI / Mealie.
+    #   homelab            runs the platform: ArgoCD, Kargo, Grafana, Bosun,
+    #                      Specmarshal, Qdrant, Umami, the landing page, plus
+    #                      Open WebUI. Admin role in ArgoCD and Kargo, Editor in
+    #                      Grafana.
+    #   media-management   Sonarr / Radarr / Bazarr / SABnzbd on vcluster-media,
+    #                      by forward-auth (08d-media-proxy-providers.yaml).
+    #   media-viewer       Jellyfin and anything request-shaped. Nothing bound
+    #                      yet (Jellyfin has its own login; next step is its SSO
+    #                      plugin against an OIDC provider bound to this group).
+    #   open-webui-users   Open WebUI only. Open WebUI already admits this group
+    #                      (OAUTH_ALLOWED_ROLES) but it never existed in authentik.
+    #   home-family        the family bundle: everything media-viewer,
+    #                      open-webui-users and mealie-users open. It is NOT a
+    #                      nested group -- apps read only DIRECT memberships in
+    #                      the `groups` claim -- so every app those three open is
+    #                      ALSO bound to home-family here. When an app is bound
+    #                      to one of the three, bind it to home-family too.
+    #
+    # New accounts from invitations start in media-viewer
+    # (12-invitation-enrollment.yaml).
+    #   mealie-users       Mealie only (the household); lives in
+    #                      authentik-blueprints-mealie.
+    version: 1
+    metadata:
+      name: access-groups
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_core.group
+        identifiers:
+          name: homelab
+        id: homelab
+        attrs:
+          is_superuser: false
+      - model: authentik_core.group
+        identifiers:
+          name: media-management
+        id: media-management
+        attrs:
+          is_superuser: false
+      - model: authentik_core.group
+        identifiers:
+          name: media-viewer
+        id: media-viewer
+        attrs:
+          is_superuser: false
+      - model: authentik_core.group
+        identifiers:
+          name: home-family
+        id: home-family
+        attrs:
+          is_superuser: false
+      - model: authentik_core.group
+        identifiers:
+          name: open-webui-users
+        id: open-webui-users
+        attrs:
+          is_superuser: false
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, argocd]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, kargo]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, grafana]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, bosun]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, specmarshal]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, qdrant]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, umami]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, homepage]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, open-webui]]
+          group: !KeyOf homelab
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      # Open WebUI's policy_engine_mode is `any` (05-openwebui-provider.yaml),
+      # so any one of its groups is enough.
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, open-webui]]
+          group: !KeyOf open-webui-users
+        attrs:
+          order: 10
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, open-webui]]
+          group: !KeyOf home-family
+        attrs:
+          order: 20
+          enabled: true
+          negate: false
+          timeout: 30
+
+      # Mealie (authentik-blueprints-mealie, policy_engine_mode `any`).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, mealie]]
+          group: !KeyOf home-family
+        attrs:
+          order: 20
+          enabled: true
+          negate: false
+          timeout: 30
+
+      # Media management UIs on vcluster-media (08d-media-proxy-providers.yaml).
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, sonarr]]
+          group: !KeyOf media-management
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, radarr]]
+          group: !KeyOf media-management
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, bazarr]]
+          group: !KeyOf media-management
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          target: !Find [authentik_core.application, [slug, sabnzbd]]
+          group: !KeyOf media-management
+        attrs:
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+
+  12-invitation-enrollment.yaml: |
+    # Authentik Blueprint: invite-only enrollment
+    #
+    # AN INVITATION IS THE ONLY WAY AN ACCOUNT IS CREATED. There is no public
+    # sign-up: the sign-in flow has no enrollment link, this flow refuses to
+    # start without a valid invitation token, and Google sign-up needs an
+    # invitation naming that Google email (14-google-invite-enrollment.yaml).
+    #
+    # To invite someone: Directory -> Invitations -> Create, flow
+    # `integratn-invitation`, single use, an expiry of a few days, Fixed data
+    # {"email": "<their address>"}. Then EITHER they click a Google button on
+    # the sign-in page with that Google account (account = that email, no
+    # password), OR you send the link the form shows and they choose a
+    # username and password and enrol TOTP or a passkey (password sign-in only
+    # works on the home network). The admin page builds the link from the host
+    # you are on: change auth-admin. to auth. before sending it.
+    # New accounts start in `media-viewer` only; add them to more groups
+    # (e.g. home-family, homelab) by hand (11-access-groups.yaml).
+    version: 1
+    metadata:
+      name: invitation-enrollment
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_policies_password.passwordpolicy
+        identifiers:
+          name: integratn-password-policy
+        id: password-policy
+        attrs:
+          password_field: password
+          error_message: >-
+            Use at least 14 characters, not a common or previously breached
+            password.
+          check_static_rules: true
+          length_min: 14
+          amount_digits: 0
+          amount_lowercase: 0
+          amount_uppercase: 0
+          amount_symbols: 0
+          check_have_i_been_pwned: true
+          hibp_allowed_count: 0
+          check_zxcvbn: true
+          zxcvbn_score_threshold: 3
+
+      - model: authentik_stages_invitation.invitationstage
+        identifiers:
+          name: integratn-invitation
+        id: invitation-stage
+        attrs:
+          continue_flow_without_invitation: false
+
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-username
+        id: prompt-username
+        attrs:
+          field_key: username
+          label: Username
+          type: username
+          required: true
+          placeholder: Username
+          order: 0
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-name
+        id: prompt-name
+        attrs:
+          field_key: name
+          label: Name
+          type: text
+          required: true
+          placeholder: Name
+          order: 1
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-email
+        id: prompt-email
+        attrs:
+          field_key: email
+          label: Email
+          type: email
+          required: true
+          placeholder: Email
+          order: 2
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-password
+        id: prompt-password
+        attrs:
+          field_key: password
+          label: Password
+          type: password
+          required: true
+          placeholder: Password
+          order: 3
+      - model: authentik_stages_prompt.prompt
+        identifiers:
+          name: integratn-invitation-password-repeat
+        id: prompt-password-repeat
+        attrs:
+          field_key: password_repeat
+          label: Password (repeat)
+          type: password
+          required: true
+          placeholder: Password (repeat)
+          order: 4
+
+      - model: authentik_stages_prompt.promptstage
+        identifiers:
+          name: integratn-invitation-prompt
+        id: prompt-stage
+        attrs:
+          fields:
+            - !KeyOf prompt-username
+            - !KeyOf prompt-name
+            - !KeyOf prompt-email
+            - !KeyOf prompt-password
+            - !KeyOf prompt-password-repeat
+          validation_policies:
+            - !KeyOf password-policy
+
+      - model: authentik_stages_user_write.userwritestage
+        identifiers:
+          name: integratn-invitation-write
+        id: write-stage
+        attrs:
+          user_creation_mode: always_create
+          create_users_as_inactive: false
+          # Every invited account starts as a media viewer (James, 2026-11-25).
+          create_users_group: !Find [authentik_core.group, [name, media-viewer]]
+          user_type: internal
+
+      - model: authentik_flows.flow
+        identifiers:
+          slug: integratn-invitation
+        id: flow
+        attrs:
+          name: IntegratnIO invitation
+          title: Join the platform
+          designation: enrollment
+          authentication: require_unauthenticated
+          layout: stacked
+          denied_action: message_continue
+          background: /static/dist/assets/images/integratn/bg-ridgeline.svg
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf invitation-stage
+          order: 10
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf prompt-stage
+          order: 20
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !KeyOf write-stage
+          order: 30
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      # MFA enrolment before the first login (03-authentication-flows.yaml).
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !Find [authentik_stages_authenticator_validate.authenticatorvalidatestage, [name, integratn-mfa]]
+          order: 40
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !Find [authentik_stages_user_login.userloginstage, [name, integratn-authentication-login]]
+          order: 100
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+
+  13-retire-bootstrap-token.yaml: |
+    # Authentik Blueprint: delete the bootstrap API token
+    #
+    # AUTHENTIK_BOOTSTRAP_TOKEN created a non-expiring API token owned by
+    # akadmin, `authentik-bootstrap-token`. Nothing in this repo or the cluster
+    # uses it, so the env var is gone from values.yaml and this removes the
+    # token itself. Need API access later? Create a token with an expiry, owned
+    # by a named user, for that one job.
+    version: 1
+    metadata:
+      name: retire-bootstrap-token
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_core.token
+        identifiers:
+          identifier: authentik-bootstrap-token
+        state: absent
+
+  14-google-invite-enrollment.yaml: |
+    # Authentik Blueprint: Google sign-up, invite-only
+    #
+    # An invited person can create their account by clicking a Google button on
+    # the normal sign-in page instead of opening the invitation link (James,
+    # 2026-11-25). Both Google sources (04-google-oauth-source.yaml) use this
+    # flow as their enrollment_flow, so a Google account that matches NO user
+    # lands here.
+    #
+    # WHY NOT AN INVITATION STAGE: authentik forgets the invite link's ?itoken=
+    # when it hands over to Google (the executor overwrites the saved query on
+    # the OAuth callback), and the Source stage that would carry it is
+    # enterprise-only. So the gate is a policy instead: the flow only runs if an
+    # unexpired invitation on `integratn-invitation` has Fixed data
+    # {"email": "<that Google address>"} (case-insensitive). No such invite:
+    # "No invitation for this Google account", and nothing is created.
+    #
+    # The new account: username = the Google email, name + email from Google,
+    # group media-viewer (same write stage as 12-invitation-enrollment.yaml),
+    # linked to that Google source, signed in. No authentik MFA, as for every
+    # Google sign-in (Google's 2FA is trusted, 03-authentication-flows.yaml).
+    # A single-use invite is deleted once the account exists; a reusable one
+    # stays until it expires.
+    #
+    # Policy bindings are identified by `policy`, never by `target` (see the
+    # GOTCHA in 03-authentication-flows.yaml).
+    version: 1
+    metadata:
+      name: google-invite-enrollment
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-google-has-invite
+        id: has-invite-policy
+        attrs:
+          execution_logging: true
+          expression: |
+            from django.db.models import Q
+            from django.utils.timezone import now
+            from authentik.stages.invitation.models import Invitation
+
+            prompt = context.get("prompt_data") or {}
+            email = (prompt.get("email") or "").strip()
+            if not email:
+                ak_message("Google did not share an email address.")
+                return False
+            invites = Invitation.objects.filter(
+                flow__slug="integratn-invitation",
+                fixed_data__email__iexact=email,
+            ).filter(Q(expiring=False) | Q(expires__gt=now()))
+            if not invites.exists():
+                ak_message("No invitation for this Google account. Ask for one, then try again.")
+                return False
+            # Google sends no username; user_write refuses an empty one.
+            # prompt_data is the plan's own dict, so this sticks.
+            prompt["username"] = email.lower()
+            return True
+
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-google-use-invite
+        id: use-invite-policy
+        attrs:
+          execution_logging: true
+          expression: |
+            # Runs just before login, after the account was written: use up a
+            # single-use invite the way the invitation stage would. Never blocks.
+            from authentik.stages.invitation.models import Invitation
+
+            email = ((context.get("prompt_data") or {}).get("email") or "").strip()
+            if email:
+                try:
+                    Invitation.objects.filter(
+                        flow__slug="integratn-invitation",
+                        fixed_data__email__iexact=email,
+                        single_use=True,
+                    ).delete()
+                except Exception as exc:
+                    # A failure here must not skip the login stage.
+                    ak_logger.warning("could not use up invitation", error=str(exc))
+            return True
+
+      - model: authentik_flows.flow
+        identifiers:
+          slug: integratn-source-enrollment
+        id: flow
+        attrs:
+          name: IntegratnIO sign-up (via Google, invite-only)
+          title: Join the platform
+          designation: enrollment
+          authentication: require_unauthenticated
+          layout: stacked
+          denied_action: message_continue
+          background: /static/dist/assets/images/integratn/bg-ridgeline.svg
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          policy: !KeyOf has-invite-policy
+        attrs:
+          target: !KeyOf flow
+          order: 0
+          enabled: true
+          timeout: 30
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !Find [authentik_stages_user_write.userwritestage, [name, integratn-invitation-write]]
+          order: 30
+        attrs:
+          evaluate_on_plan: true
+          re_evaluate_policies: false
+          invalid_response_action: retry
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !KeyOf flow
+          stage: !Find [authentik_stages_user_login.userloginstage, [name, integratn-authentication-login]]
+          order: 100
+        id: login-binding
+        attrs:
+          # Policies run when the stage comes up (after the write), not at plan.
+          evaluate_on_plan: false
+          re_evaluate_policies: true
+          invalid_response_action: retry
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          policy: !KeyOf use-invite-policy
+        attrs:
+          target: !KeyOf login-binding
+          order: 0
+          enabled: true
           timeout: 30

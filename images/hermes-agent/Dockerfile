@@ -53,7 +53,7 @@ FROM ghcr.io/siderolabs/talosctl:v1.13.12@sha256:9c68c786022cfa4da7672c6379e9b21
 
 # The base is pinned by digest; bump it together with the tag in the hermes
 # Deployment's comments (addons/cluster-roles/control-plane/addons/hermes/).
-FROM docker.io/nousresearch/hermes-agent:v0.23.0@sha256:adb7890916de63245523492be8f68f9d2095fecbec4e2a6dab7960381f0fc002
+FROM docker.io/nousresearch/hermes-agent:v0.23.4@sha256:ef0650d523ee1b5ab32c779acabc446d9936869a9932591553688a62bcf0c42f
 
 USER root
 WORKDIR /opt/hermes

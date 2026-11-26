@@ -1,7 +1,19 @@
-# Kyverno ClusterPolicy: Set allowPrivilegeEscalation=false and drop ALL capabilities
+# Kyverno policy: Set allowPrivilegeEscalation=false and drop ALL capabilities
 # Fixes AVD-KSV-0001 (allowPrivilegeEscalation not false)
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+# Kyverno CEL policy (policies.kyverno.io/v1; ClusterPolicy is gone in 1.20).
+# Same add-if-absent semantics as the old +() anchors: only a field the
+# container leaves unset is added, nothing is overridden. CREATE only (a running pod's securityContext is immutable) and
+# Pods only, like mutate-seccomp-default.
+#
+# JSONPatch, not ApplyConfiguration: capabilities.drop is an atomic list, and
+# an apply configuration may not set one ("may not mutate atomic arrays, maps
+# or structs"), which denied every new pod on 2026-11-26 (#899). JSON patch
+# paths need an index, so the policy walks indices 0-15; a pod with more than
+# 16 containers (or init containers) gets the rest unpatched.
+# failurePolicy Ignore: an evaluation error admits the pod unmutated instead
+# of blocking every pod in the cluster.
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
 metadata:
   name: mutate-restrict-escalation
   annotations:
@@ -10,49 +22,65 @@ metadata:
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: Pod
     policies.kyverno.io/description: >-
-      Mutates containers to set allowPrivilegeEscalation to false and drop ALL
-      capabilities if not already set. This prevents child processes from
-      gaining more privileges than their parent. Excludes namespaces where
-      elevated privileges are operationally required (e.g. metallb-speaker
+      Sets allowPrivilegeEscalation to false and drops ALL capabilities on
+      containers and init containers that do not set them. Excludes namespaces
+      where elevated privileges are operationally required (metallb-speaker
       needs NET_RAW+SYS_ADMIN, promtail needs host log access).
 spec:
-  admission: true
-  validationFailureAction: Audit
-  background: false
-  rules:
-    - name: set-no-privilege-escalation
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      exclude:
-        any:
-          - resources:
-              namespaces:
-                - kube-system
-                - metallb-system
-                - promtail
-      mutate:
-        foreach:
-          - list: "request.object.spec.containers"
-            patchStrategicMerge:
-              spec:
-                containers:
-                  - (name): "{{ element.name }}"
-                    securityContext:
-                      +(allowPrivilegeEscalation): false
-                      +(capabilities):
-                        +(drop):
-                          - ALL
-          - list: "request.object.spec.initContainers || []"
-            patchStrategicMerge:
-              spec:
-                initContainers:
-                  - (name): "{{ element.name }}"
-                    securityContext:
-                      +(allowPrivilegeEscalation): false
-                      +(capabilities):
-                        +(drop):
-                          - ALL
+  evaluation:
+    admission:
+      enabled: true
+    mutateExisting:
+      enabled: false
+  failurePolicy: Ignore
+  autogen:
+    podControllers:
+      controllers: []
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, metallb-system, promtail]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE]
+        resources: [pods]
+  variables:
+    - name: containerIdx
+      expression: >-
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].filter(i, i < size(object.spec.containers))
+    - name: initIdx
+      expression: >-
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].filter(i, i < size(object.spec.?initContainers.orValue([])))
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: >-
+          variables.containerIdx.filter(i, !has(object.spec.containers[i].securityContext))
+            .map(i, JSONPatch{op: "add", path: "/spec/containers/" + string(i) + "/securityContext",
+              value: {"allowPrivilegeEscalation": dyn(false), "capabilities": dyn({"drop": ["ALL"]})}}) +
+          variables.containerIdx.filter(i, has(object.spec.containers[i].securityContext) &&
+              !has(object.spec.containers[i].securityContext.allowPrivilegeEscalation))
+            .map(i, JSONPatch{op: "add", path: "/spec/containers/" + string(i) + "/securityContext/allowPrivilegeEscalation", value: false}) +
+          variables.containerIdx.filter(i, has(object.spec.containers[i].securityContext) &&
+              !has(object.spec.containers[i].securityContext.capabilities))
+            .map(i, JSONPatch{op: "add", path: "/spec/containers/" + string(i) + "/securityContext/capabilities", value: {"drop": ["ALL"]}}) +
+          variables.containerIdx.filter(i, has(object.spec.containers[i].securityContext) &&
+              has(object.spec.containers[i].securityContext.capabilities) &&
+              !has(object.spec.containers[i].securityContext.capabilities.drop))
+            .map(i, JSONPatch{op: "add", path: "/spec/containers/" + string(i) + "/securityContext/capabilities/drop", value: ["ALL"]}) +
+          variables.initIdx.filter(i, !has(object.spec.initContainers[i].securityContext))
+            .map(i, JSONPatch{op: "add", path: "/spec/initContainers/" + string(i) + "/securityContext",
+              value: {"allowPrivilegeEscalation": dyn(false), "capabilities": dyn({"drop": ["ALL"]})}}) +
+          variables.initIdx.filter(i, has(object.spec.initContainers[i].securityContext) &&
+              !has(object.spec.initContainers[i].securityContext.allowPrivilegeEscalation))
+            .map(i, JSONPatch{op: "add", path: "/spec/initContainers/" + string(i) + "/securityContext/allowPrivilegeEscalation", value: false}) +
+          variables.initIdx.filter(i, has(object.spec.initContainers[i].securityContext) &&
+              !has(object.spec.initContainers[i].securityContext.capabilities))
+            .map(i, JSONPatch{op: "add", path: "/spec/initContainers/" + string(i) + "/securityContext/capabilities", value: {"drop": ["ALL"]}}) +
+          variables.initIdx.filter(i, has(object.spec.initContainers[i].securityContext) &&
+              has(object.spec.initContainers[i].securityContext.capabilities) &&
+              !has(object.spec.initContainers[i].securityContext.capabilities.drop))
+            .map(i, JSONPatch{op: "add", path: "/spec/initContainers/" + string(i) + "/securityContext/capabilities/drop", value: ["ALL"]})

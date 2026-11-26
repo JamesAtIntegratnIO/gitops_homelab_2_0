@@ -39,6 +39,7 @@ api:
       claims:
         groups:
           - authentik Admins
+          - homelab
   argocd:
     # Deep links from Stages to the Applications they affect.
     urls:

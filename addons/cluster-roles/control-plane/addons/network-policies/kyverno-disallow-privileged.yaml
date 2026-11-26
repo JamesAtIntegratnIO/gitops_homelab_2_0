@@ -1,7 +1,10 @@
-# Kyverno ClusterPolicy: Disallow privileged containers
+# Kyverno policy: Disallow privileged containers
 # Privileged containers have full access to the host — only Cilium needs this.
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+# Kyverno CEL policy (policies.kyverno.io/v1; ClusterPolicy is gone in 1.20).
+# Pod controllers (Deployments, Jobs...) are covered by
+# Kyverno's default autogen, as before.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
 metadata:
   name: disallow-privileged-containers
   annotations:
@@ -9,39 +12,37 @@ metadata:
     policies.kyverno.io/category: Pod Security
     policies.kyverno.io/severity: high
     policies.kyverno.io/description: >-
-      Privileged containers have unrestricted host access including all
-      devices and kernel capabilities. This policy blocks pods with
-      securityContext.privileged set to true.
+      Blocks pods with securityContext.privileged set to true on any container,
+      init container or ephemeral container, outside kube-system (Cilium).
 spec:
-  admission: true
-  validationFailureAction: Enforce
-  background: true
-  rules:
-    - name: deny-privileged-containers
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      exclude:
-        any:
-          # Cilium requires privileged init container for BPF filesystem mount
-          - resources:
-              namespaces:
-                - kube-system
-      validate:
-        message: >-
-          Privileged containers are not allowed. Container {{request.object.spec.containers[].name}}
-          in namespace {{request.namespace}} is running in privileged mode.
-        pattern:
-          spec:
-            =(ephemeralContainers):
-              - =(securityContext):
-                  =(privileged): "false"
-            =(initContainers):
-              - =(securityContext):
-                  =(privileged): "false"
-            containers:
-              - =(securityContext):
-                  =(privileged): "false"
+  validationActions:
+    - Deny
+  evaluation:
+    admission:
+      enabled: true
+    background:
+      enabled: true
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allContainers
+      expression: >-
+        object.spec.containers
+        + object.spec.?initContainers.orValue([])
+        + object.spec.?ephemeralContainers.orValue([])
+  validations:
+    - expression: >-
+        variables.allContainers.all(c, !c.?securityContext.?privileged.orValue(false))
+      messageExpression: >-
+        "Privileged containers are not allowed. Container(s) " +
+        variables.allContainers.filter(c, c.?securityContext.?privileged.orValue(false)).map(c, c.name).join(", ") +
+        " run in privileged mode."

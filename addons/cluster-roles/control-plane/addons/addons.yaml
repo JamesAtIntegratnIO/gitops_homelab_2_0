@@ -506,12 +506,19 @@ authentik:
   # while the 2025.12.4 pods kept serving. Nothing migrated; SSO never went down.
   #
   # The supported path is one major.minor at a time, latest patch of each:
-  #   2025.12.4 -> 2026.2.3 -> 2026.5.6 -> 2026.8.0
+  #   2025.12.4 -> 2026.2.3 -> 2026.5.9 -> 2026.8.7
   # Each hop runs one-way database migrations, so take them deliberately and
   # back the authentik database up first -- not as an unattended Kargo merge.
-  # The Kargo target is constrained to <2026.3.0 so it proposes 2026.2.3 next;
+  # The Kargo target is constrained to the current line (>=2026.8.0 <2026.9.0);
   # widen it a step at a time as each hop lands.
-  defaultVersion: 2026.2.3
+  #
+  # IMAGE NEWER THAN THE CHART (2026-11-25): the 2026.5.9 / 2026.8.7 images fix
+  # that day's critical advisories (GHSA-hp5v-fgcf-jhrh, GHSA-jw8g-8f5p-9pwm,
+  # GHSA-55mc-jpww-xm3p) but the newest charts were 2026.5.6 / 2026.8.6, so
+  # authentik/values.yaml pins global.image.tag. Move or drop that pin in the
+  # same change as any chart bump here, or the chart and image drift apart.
+  # Pre-upgrade dumps on holocron ~/Backups/authentik-pre-2026.*.dump
+  defaultVersion: 2026.8.7
   selector:
     matchExpressions:
       - key: cluster_role
@@ -592,7 +599,7 @@ loki:
   chartName: loki
   project: platform-services
   chartRepository: https://grafana-community.github.io/helm-charts
-  defaultVersion: 21.2.3
+  defaultVersion: 21.6.0
   selector:
     matchExpressions:
       - key: cluster_role
@@ -643,7 +650,7 @@ goldilocks:
   chartName: goldilocks
   project: platform-services
   chartRepository: https://charts.fairwinds.com/stable
-  defaultVersion: 11.2.1
+  defaultVersion: 11.3.1
   selector:
     matchExpressions:
       - key: cluster_role
@@ -809,7 +816,7 @@ open-webui:
   namespace: ai
   chartName: open-webui
   chartRepository: "https://helm.openwebui.com/"
-  defaultVersion: 17.5.0
+  defaultVersion: 18.5.0
   project: platform-services
   selector:
     matchExpressions:
@@ -898,7 +905,7 @@ kargo:
   chartName: kargo
   project: platform-services
   chartRepository: oci://ghcr.io/akuity/kargo-charts/kargo
-  defaultVersion: 1.12.6
+  defaultVersion: 1.12.7
   selectorMatchLabels:
     cluster_role: control-plane
   additionalResources:
@@ -1033,7 +1040,7 @@ bosun:
   # blueprint ConfigMap. Published at bosun.cluster.integratn.tech, behind
   # authentik forward-auth. `web.httpRoute` stays OFF: the chart's route
   # cannot carry the filter that puts authentik in front.
-  defaultVersion: 0.39.1
+  defaultVersion: 0.39.2
   additionalResources:
     type: manifest
     path: addons/cluster-roles/control-plane/addons/bosun

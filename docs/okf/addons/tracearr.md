@@ -4,7 +4,7 @@ title: Tracearr
 description: Plex and Jellyfin watch history and stream monitoring in vcluster-media, with its own TimescaleDB and Redis. Replaces Tautulli, which ran as a Docker container on Tower.
 tags: [media, vcluster-media, plex, jellyfin, tautulli, timescaledb, redis]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-02T23:30:00Z }
+generated: { by: hermes-agent, at: 2026-11-24T23:00:00Z }
 stale_after: 2027-02-01
 sources:
   - id: values
@@ -25,6 +25,9 @@ sources:
   - id: live
     resource: kubectl --context admin@media-cluster -n media (pods, logs, ExternalSecret) and curl from holocron, 2026-11-03
     title: Post-deploy verification
+  - id: oom
+    resource: Hermes read-only checks 2026-11-24 (vcluster-media pod status and logs, Prometheus container_memory_working_set_bytes)
+    title: tracearr-db OOMKilled evidence
 ---
 
 # What it is
@@ -54,7 +57,8 @@ chart from another repository's git path.
   `timescale/timescaledb-ha` pg18 with the `timescaledb` and
   `timescaledb_toolkit` extensions. Tracearr does not run on plain Postgres, so
   the shared Postgres on `10.0.3.1` (datacron, Postgres 18, no Timescale) is not an option.
-  Memory is sized down from upstream's 4 GiB to a 1.5 GiB limit.
+  Memory is sized down from upstream's 4 GiB to a 3 GiB limit (512 MiB request).
+  It was 1.5 GiB at deploy, which was too small: see the OOM gotcha below.
 - **Redis** (`tracearr-redis`): BullMQ job queues and caches. `noeviction` is
   required: eviction silently corrupts the queues. AOF only.
 - **Storage:** one static Retain PV on
@@ -75,6 +79,16 @@ chart from another repository's git path.
 
 # Gotchas
 
+- **`tracearr-db` was OOMKilled in a loop at the 1.5 GiB limit (2026-11-24).**
+  `tracearr-db-0` showed CrashLoopBackOff with 2645 restarts over 19 days; the
+  last terminated state was `OOMKilled`, exit 137, about 65 seconds after the
+  start. The log of the previous run ends after crash recovery and the
+  TimescaleDB launcher start, with no Postgres error. Prometheus
+  `container_memory_working_set_bytes` for the container's previous runs peaked
+  near 1.5 GiB, the limit. The limit is now 3 GiB. That value is a judgement
+  (twice the old limit, below upstream's 4 GiB), not a measured need: after the
+  change, check the steady-state working set and trim or raise it. The `dshm`
+  memory volume (256 MiB) counts towards the container's memory.
 - **Postgres runs as 99:100.** Tower's exports squash every uid to `99:100`
   (`all_squash`, see [storage](../platform/storage.md)), and Postgres refuses a
   data directory owned by anyone but itself. Running as 99 makes the owner

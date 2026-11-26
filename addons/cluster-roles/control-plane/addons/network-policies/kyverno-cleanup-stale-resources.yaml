@@ -11,9 +11,12 @@
 #
 # The cleanup controller needs the delete permissions granted in
 # kyverno-cleanup-rbac.yaml; Kyverno validates that when the policy is admitted.
----
-apiVersion: kyverno.io/v2
-kind: ClusterCleanupPolicy
+#
+# DeletingPolicy (policies.kyverno.io/v1) since the Kyverno 1.20 migration;
+# same names, schedules and conditions as the ClusterCleanupPolicies they
+# replaced.
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
 metadata:
   name: cleanup-suspended-pipeline-jobs
   annotations:
@@ -26,25 +29,26 @@ metadata:
       Jobs, so suspended ones accumulate and keep the request's Reconciled
       condition Failing. Anything still suspended after 24h is finished with.
 spec:
-  match:
-    any:
-      - resources:
-          kinds:
-            - Job
-          namespaces:
-            - platform-requests
-  conditions:
-    all:
-      - key: "{{ target.spec.suspend || `false` }}"
-        operator: Equals
-        value: true
-      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
-        operator: GreaterThan
-        value: 24h
   schedule: "17 * * * *"
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values: [platform-requests]
+    resourceRules:
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: ["*"]
+        resources: [jobs]
+  conditions:
+    - name: suspended
+      expression: object.spec.?suspend.orValue(false) == true
+    - name: older-than-24h
+      expression: time.now() - timestamp(object.metadata.creationTimestamp) > duration("24h")
 ---
-apiVersion: kyverno.io/v2
-kind: ClusterCleanupPolicy
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
 metadata:
   name: cleanup-failed-jobs
   annotations:
@@ -52,33 +56,30 @@ metadata:
     policies.kyverno.io/title: Delete long-failed Jobs
     policies.kyverno.io/subject: Job
     policies.kyverno.io/description: >-
-      A Job still marked failed 24h later has exhausted its backoffLimit and will
-      never retry on its own. Deleting it lets the owner -- a CronJob, the Trivy
-      operator, or Kratix -- create a fresh one, which is exactly the manual fix
-      in docs/kratix-troubleshooting.md and the one that recovered Trivy.
-      Failures stay visible through the existing alert rules; this only stops a
-      dead Job from blocking its successor.
+      A Job still marked failed 24h later has exhausted its backoffLimit and
+      will never retry on its own. Deleting it lets the owner -- a CronJob, the
+      Trivy operator, or Kratix -- create a fresh one, which is exactly the
+      manual fix in docs/kratix-troubleshooting.md and the one that recovered
+      Trivy. Failures stay visible through the existing alert rules; this only
+      stops a dead Job from blocking its successor.
 spec:
-  match:
-    any:
-      - resources:
-          kinds:
-            - Job
-  conditions:
-    all:
-      - key: "{{ target.status.failed || `0` }}"
-        operator: GreaterThan
-        value: 0
-      - key: "{{ target.status.active || `0` }}"
-        operator: Equals
-        value: 0
-      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
-        operator: GreaterThan
-        value: 24h
   schedule: "23 * * * *"
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: ["*"]
+        resources: [jobs]
+  conditions:
+    - name: failed
+      expression: object.?status.?failed.orValue(0) > 0
+    - name: inactive
+      expression: object.?status.?active.orValue(0) == 0
+    - name: older-than-24h
+      expression: time.now() - timestamp(object.metadata.creationTimestamp) > duration("24h")
 ---
-apiVersion: kyverno.io/v2
-kind: ClusterCleanupPolicy
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
 metadata:
   name: cleanup-failed-pods
   annotations:
@@ -91,23 +92,21 @@ metadata:
       reached. They accumulate after a node loss and make `kubectl get pods -A`
       unreadable exactly when it matters most.
 spec:
-  match:
-    any:
-      - resources:
-          kinds:
-            - Pod
-  conditions:
-    all:
-      - key: "{{ target.status.phase }}"
-        operator: Equals
-        value: Failed
-      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
-        operator: GreaterThan
-        value: 24h
   schedule: "41 * * * *"
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: ["*"]
+        resources: [pods]
+  conditions:
+    - name: failed
+      expression: object.?status.?phase.orValue('') == 'Failed'
+    - name: older-than-24h
+      expression: time.now() - timestamp(object.metadata.creationTimestamp) > duration("24h")
 ---
-apiVersion: kyverno.io/v2
-kind: ClusterCleanupPolicy
+apiVersion: policies.kyverno.io/v1
+kind: DeletingPolicy
 metadata:
   name: cleanup-pods-stuck-creating-container
   annotations:
@@ -124,32 +123,30 @@ metadata:
       2026-10-08 that was Prometheus for 21h and the Kratix controller for 18
       days. Nothing else acts on this state: the descheduler protects pods with
       PVCs and a container that never starts accumulates no restarts, and
-      cleanup-failed-pods only matches phase Failed.
-      Only pods with an owner are touched, so something recreates each one
-      (vcluster-synced pods are owned by the vcluster Service and are recreated
-      through the syncer). If the cause is not a stale mount -- a missing
-      Secret, or the NFS server still down -- the replacement fails the same way
-      and PodStuckCreatingContainer in platform-alerts pages; that alert counts
-      by namespace and container precisely so this policy's churn cannot reset
-      it.
+      cleanup-failed-pods only matches phase Failed. Only pods with an owner are
+      touched, so something recreates each one (vcluster-synced pods are owned
+      by the vcluster Service and are recreated through the syncer). If the
+      cause is not a stale mount -- a missing Secret, or the NFS server still
+      down -- the replacement fails the same way and PodStuckCreatingContainer
+      in platform-alerts pages; that alert counts by namespace and container
+      precisely so this policy's churn cannot reset it.
 spec:
-  match:
-    any:
-      - resources:
-          kinds:
-            - Pod
-  conditions:
-    all:
-      - key: "{{ length(target.metadata.ownerReferences || `[]`) }}"
-        operator: GreaterThan
-        value: 0
-      - key: "{{ [target.status.initContainerStatuses[].state.waiting.reason, target.status.containerStatuses[].state.waiting.reason][] | [?@ == 'CreateContainerError' || @ == 'CreateContainerConfigError'] | length(@) }}"
-        operator: GreaterThan
-        value: 0
-      # A floor, not a measure of how long it has been stuck (the waiting state
-      # carries no timestamp): it keeps the policy off a pod that is seconds old
-      # and merely waiting for its Secret to sync.
-      - key: "{{ time_since('', '{{ target.metadata.creationTimestamp }}', '') }}"
-        operator: GreaterThan
-        value: 15m
   schedule: "*/15 * * * *"
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: ["*"]
+        resources: [pods]
+  conditions:
+    - name: has-owner
+      expression: size(object.metadata.?ownerReferences.orValue([])) > 0
+    - name: stuck-creating
+      expression: >-
+        (object.?status.?initContainerStatuses.orValue([])
+         + object.?status.?containerStatuses.orValue([]))
+        .exists(s, s.?state.?waiting.?reason.orValue('') in
+          ['CreateContainerError', 'CreateContainerConfigError'])
+    # A floor, not a measure of how long it has been stuck.
+    - name: older-than-15m
+      expression: time.now() - timestamp(object.metadata.creationTimestamp) > duration("15m")

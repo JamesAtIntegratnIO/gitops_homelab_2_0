@@ -278,6 +278,8 @@ configs:
       
       # Map Authentik Admins group to ArgoCD admin role
       g, authentik Admins, role:admin
+      # The homelab access group (authentik 11-access-groups.yaml)
+      g, homelab, role:admin
 
 dex:
   enabled: false

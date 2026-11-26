@@ -4,7 +4,7 @@ argocd-vcluster:
   namespace: argocd
   releaseName: argo-cd
   project: platform
-  defaultVersion: 10.12.1
+  defaultVersion: 10.15.0
   chartRepository: "https://argoproj.github.io/argo-helm"
   selector:
     matchExpressions:
@@ -190,7 +190,7 @@ external-dns-vcluster:
   chartName: external-dns
   project: platform-services
   chartRepository: https://kubernetes-sigs.github.io/external-dns
-  defaultVersion: 1.23.0
+  defaultVersion: 1.24.0
   selector:
     matchExpressions:
       - key: enable_external_dns
@@ -230,7 +230,7 @@ kube-prometheus-stack-agent:
   chartName: kube-prometheus-stack
   project: platform-services
   chartRepository: https://prometheus-community.github.io/helm-charts
-  defaultVersion: 92.22.0
+  defaultVersion: 93.11.0
   valuesFolderName: kube-prometheus-stack-agent
   selector:
     matchExpressions:
@@ -474,7 +474,7 @@ nginx-gateway-fabric-vcluster:
   chartName: nginx-gateway-fabric
   project: platform-services
   chartRepository: oci://ghcr.io/nginx/charts/nginx-gateway-fabric
-  defaultVersion: 2.8.1
+  defaultVersion: 2.9.1
   annotationsApp:
     argocd.argoproj.io/sync-wave: "10"
   selector:
@@ -499,6 +499,14 @@ nginx-gateway-fabric-vcluster:
       jsonPointers:
         - /metadata/annotations
   valuesObject:
+    # SnippetsFilter is how a route gets authentik forward-auth (the
+    # auth_request snippets the host gateway uses too). Off by default in the
+    # chart; with it off NGF ignores every SnippetsFilter and an ExtensionRef to
+    # one makes the route rule return 500. The media apps' filters live in
+    # workloads/vcluster-media/addons/<app>/values.yaml.
+    nginxGateway:
+      snippetsFilters:
+        enable: true
     gateways:
       - name: nginx-gateway
         namespace: nginx-gateway

@@ -1,7 +1,11 @@
-# Kyverno ClusterPolicy: Inject seccomp RuntimeDefault profile on all pods
+# Kyverno policy: Inject seccomp RuntimeDefault profile on all pods
 # Fixes AVD-KSV-0030 (no seccomp profile) and AVD-KSV-0104 (unconfined seccomp)
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+# Kyverno CEL policy (policies.kyverno.io/v1; ClusterPolicy is gone in 1.20).
+# CREATE only, for the same reason (seccompProfile is
+# immutable on a running pod). Pods only: every pod a controller makes is
+# mutated as it is created, so the controllers' templates are left alone.
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
 metadata:
   name: mutate-seccomp-default
   annotations:
@@ -10,39 +14,41 @@ metadata:
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: Pod
     policies.kyverno.io/description: >-
-      Mutates pods to set seccompProfile.type to RuntimeDefault at the pod level
-      if no seccomp profile is already defined. This is the most permissive
-      named profile and prevents containers from running with unrestricted
-      syscall access (Unconfined).
+      Sets the pod-level seccompProfile to RuntimeDefault when the pod sets no
+      seccomp profile of its own.
 spec:
-  admission: true
-  validationFailureAction: Audit
-  background: false
-  rules:
-    - name: add-seccomp-pod-level
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-              # CREATE only. seccompProfile is immutable on a running pod, so
-              # adding it on UPDATE can never succeed: it made every update to a
-              # pod created without one fail, including the Job controller
-              # removing its job-tracking finalizer. Nine Trivy scan pods sat
-              # Terminating from 2026-08-29 for that reason. Every new pod is
-              # still mutated, so this weakens nothing.
-              operations:
-                - CREATE
-      exclude:
-        any:
-          # kube-system: Cilium manages its own security context
-          - resources:
-              namespaces:
-                - kube-system
-      mutate:
-        patchStrategicMerge:
-          spec:
-            securityContext:
-              +(seccompProfile):
-                +(type): RuntimeDefault
+  evaluation:
+    admission:
+      enabled: true
+    mutateExisting:
+      enabled: false
+  autogen:
+    podControllers:
+      controllers: []
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE]
+        resources: [pods]
+  matchConditions:
+    - name: no-seccomp-profile
+      expression: "!has(object.spec.securityContext) || !has(object.spec.securityContext.seccompProfile)"
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: >-
+          Object{
+            spec: Object.spec{
+              securityContext: Object.spec.securityContext{
+                seccompProfile: Object.spec.securityContext.seccompProfile{
+                  type: "RuntimeDefault"
+                }
+              }
+            }
+          }

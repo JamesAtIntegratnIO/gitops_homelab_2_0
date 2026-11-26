@@ -1,8 +1,11 @@
-# Kyverno ClusterPolicy: Restrict image registries (Audit mode)
+# Kyverno policy: Restrict image registries (Audit mode)
 # Audit-only — reports violations without blocking, allowing discovery of
 # any unexpected registries before switching to Enforce.
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+# Kyverno CEL policy (policies.kyverno.io/v1; ClusterPolicy is gone in 1.20).
+# Same list, same Audit-only behaviour. A pattern ending in *
+# matches any image starting with the rest; anything else must match exactly.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
 metadata:
   name: restrict-image-registries
   annotations:
@@ -10,75 +13,77 @@ metadata:
     policies.kyverno.io/category: Supply Chain Security
     policies.kyverno.io/severity: medium
     policies.kyverno.io/description: >-
-      Only images from approved registries should be deployed to the cluster.
-      This policy audits container images to ensure they come from known,
-      trusted sources.
+      Audits that every container image comes from an approved registry or
+      Docker Hub organization.
 spec:
-  admission: true
-  validationFailureAction: Audit
-  background: true
-  rules:
-    - name: validate-registries
-      skipBackgroundRequests: true
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-      exclude:
-        any:
-          - resources:
-              namespaces:
-                - kube-system
-                - kube-public
-                - kube-node-lease
-                - trivy-system  # scan pods use dynamic image refs
-      validate:
-        message: >-
-          Image '{{request.object.spec.containers[].image}}' is from an unapproved
-          registry. Allowed registries: docker.io, ghcr.io, quay.io,
-          registry.k8s.io, mirror.gcr.io, ecr-public.aws.com, lscr.io,
-          syntasso-community.docker.reo.dev, us-docker.pkg.dev,
-          registry.integratn.io, plus approved Docker Hub organizations.
-        foreach:
-          - list: "request.object.spec.[initContainers, ephemeralContainers, containers][]"
-            deny:
-              conditions:
-                all:
-                  - key: "{{ element.image }}"
-                    operator: AnyNotIn
-                    value:
-                      # Fully-qualified registries
-                      - "docker.io/*"
-                      - "ghcr.io/*"
-                      - "quay.io/*"
-                      - "registry.k8s.io/*"
-                      - "mirror.gcr.io/*"
-                      - "ecr-public.aws.com/*"
-                      - "lscr.io/*"
-                      - "syntasso-community.docker.reo.dev/*"
-                      - "us-docker.pkg.dev/*"  # Google Artifact Registry (Fairwinds/Goldilocks)
-                      - "registry.integratn.io/*"  # Specmarshal's licensed registry (orchestrator and sandbox images)
-                      # Docker Hub shorthand — library images (no org prefix)
-                      - "alpine:*"
-                      - "alpine"
-                      - "node:*"
-                      - "node"
-                      - "redis:*"
-                      - "redis"
-                      - "busybox:*"
-                      - "busybox"
-                      - "memcached:*"
-                      - "memcached"
-                      - "python:*"
-                      - "python"
-                      - "curlimages/*"
-                      # Docker Hub shorthand — approved organizations
-                      - "grafana/*"
-                      - "bitnami/*"
-                      - "coredns/*"
-                      - "qdrant/*"
-                      - "redimp/*"
-                      - "metio/*"
-                      - "prom/*"
-                      - "linuxserver/*"
+  validationActions:
+    - Audit
+  evaluation:
+    admission:
+      enabled: true
+    background:
+      enabled: true
+  matchConstraints:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: [kube-system, kube-public, kube-node-lease, trivy-system]
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  variables:
+    - name: allowed
+      expression: >-
+        [
+          'docker.io/*',
+          'ghcr.io/*',
+          'quay.io/*',
+          'registry.k8s.io/*',
+          'mirror.gcr.io/*',
+          'ecr-public.aws.com/*',
+          'lscr.io/*',
+          'syntasso-community.docker.reo.dev/*',
+          'us-docker.pkg.dev/*',
+          'registry.integratn.io/*',
+          'alpine:*',
+          'alpine',
+          'node:*',
+          'node',
+          'redis:*',
+          'redis',
+          'busybox:*',
+          'busybox',
+          'memcached:*',
+          'memcached',
+          'python:*',
+          'python',
+          'curlimages/*',
+          'grafana/*',
+          'bitnami/*',
+          'coredns/*',
+          'qdrant/*',
+          'redimp/*',
+          'metio/*',
+          'prom/*',
+          'linuxserver/*'
+        ]
+    - name: images
+      expression: >-
+        (object.spec.?initContainers.orValue([])
+        + object.spec.?ephemeralContainers.orValue([])
+        + object.spec.containers).map(c, c.image)
+    - name: unapproved
+      expression: >-
+        variables.images.filter(img, !variables.allowed.exists(p,
+          p.endsWith('*') ? img.startsWith(p.substring(0, size(p) - 1)) : img == p))
+  validations:
+    - expression: size(variables.unapproved) == 0
+      messageExpression: >-
+        "Image(s) " + variables.unapproved.join(", ") + " are from an unapproved
+        registry. Allowed registries: docker.io, ghcr.io, quay.io,
+        registry.k8s.io, mirror.gcr.io, ecr-public.aws.com, lscr.io,
+        syntasso-community.docker.reo.dev, us-docker.pkg.dev,
+        registry.integratn.io, plus approved Docker Hub organizations."

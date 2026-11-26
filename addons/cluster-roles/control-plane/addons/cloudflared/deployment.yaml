@@ -7,8 +7,11 @@
 # REMOTELY MANAGED: the tunnel, its ingress rules and its DNS record are
 # OpenTofu in IntegratnIO/infrastructure, not here. This pod only runs
 # `tunnel run` with the token that stack outputs (externalsecret.yaml). Today
-# the rules are: edge.integratn.io, path `^/(c\.js|api/c)$` ->
-# http://umami.umami.svc.cluster.local:3000, everything else http_status:404.
+# the rules are: edge.integratn.io and stats.integratn.io ->
+# http://umami.umami.svc.cluster.local:3000 (stats behind Cloudflare Access);
+# auth.integratn.tech -> http://authentik-server.authentik.svc.cluster.local:80
+# with /if/admin and /api/v3/admin answering 404 at the edge; everything else
+# http_status:404.
 # Adding a hostname is a change in that repo AND a NetworkPolicy egress rule
 # here (network-policies/cloudflared.yaml) -- the pod can reach nothing else.
 #
@@ -64,7 +67,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: cloudflared
-          image: docker.io/cloudflare/cloudflared:2026.11.0@sha256:b94b96edf2c9c4360f8879c8580cfaa99077f19c849ec595ca2f711b27d4f344
+          image: docker.io/cloudflare/cloudflared:2026.11.2@sha256:55c7e3e8d89d5e8d20b75a82f3602cbf98e06db406e73e282073cfdc5a9a3af6
           # ENTRYPOINT is `cloudflared --no-autoupdate` and CMD is `version`;
           # `args` replaces CMD only, so the image never updates itself and the
           # version stays the pinned one.

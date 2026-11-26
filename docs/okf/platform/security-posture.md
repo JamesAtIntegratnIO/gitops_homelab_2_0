@@ -65,6 +65,50 @@ favicon, CSS, a background per flow) from the generated blueprint and assets
 in `hack/authentik-theme/`. Prometheus/Alertmanager/Loki endpoints have **no
 auth** (flagged as future work in the docs).
 
+Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13`, `14` in
+`authentik-blueprints-configmap.yaml`):
+
+- **Invite-only.** No public sign-up anywhere. New accounts come only from
+  invitations on flow `integratn-invitation`, used one of two ways: the
+  invitation link (username + password + MFA), or a Google button on the
+  sign-in page with the Google account whose email is in the invite's Fixed
+  data (flow `integratn-source-enrollment`, gated by an expression policy
+  because authentik loses the invite token across the Google redirect and its
+  Source stage is enterprise-only). A Google account with no matching invite
+  is refused; an existing account's Google sign-in links to it by email.
+- **MFA required.** The brand signs in through `integratn-authentication`
+  (password, then TOTP/WebAuthn, enrolment forced if missing); Google sign-ins
+  run `integratn-source-authentication`, which trusts Google's own 2FA (no
+  second prompt, James's call). Password sign-in is home-network only: a deny
+  stage before the password refuses non-private client IPs and anything that
+  came through Cloudflare (`Cf-Ray`/`Cf-Connecting-Ip`), so from outside the
+  only way in is Google. The stock
+  `default-authentication-flow` is bound to a deny-all policy.
+- **Default-deny apps.** Every application is bound to a group: `homelab`
+  (ArgoCD, Kargo, Grafana, Bosun, Specmarshal, Qdrant, Umami, landing page,
+  Open WebUI), `open-webui-users`, `mealie-users`, `authentik Admins` (hermes,
+  cq), `home-family` (bound wherever media-viewer, open-webui-users or
+  mealie-users are). `media-management` and `media-viewer` have no apps bound
+  yet. Invited accounts start in `media-viewer`.
+- **Admin UI LAN-only.** `/if/admin` on `auth.` redirects to
+  `auth-admin.cluster.integratn.tech`, which only private client IPs may use
+  (pod range 10.244.0.0/16 and anything with Cloudflare headers refused first,
+  since the cloudflared connectors are pods) and which must never be published
+  on a tunnel.
+- **Superusers sign in at home only.** Google sign-in has no authentik MFA, so
+  a Google sign-in that came through Cloudflare is refused for superusers
+  (deny stage on `integratn-source-authentication`). Policy-gated deny stages
+  fail closed (`failure_result: true`). `auth.` sends HSTS.
+- **Public name `auth.integratn.tech`** (since 2026-11-25): Cloudflare tunnel
+  straight to the `authentik-server` Service, never the LAN gateway, with
+  `/if/admin` and `/api/v3/admin` answering 404 at the edge. Through it only
+  Google sign-in of non-admins and invitation sign-up work (password and
+  superusers are refused on Cloudflare traffic). On the LAN the name stays
+  `auth.cluster.integratn.tech`. Tunnel and DNS: IntegratnIO/infrastructure
+  `sites`.
+- No bootstrap API token. `akadmin` is to be retired in favour of a named admin
+  (see the authentik addon README).
+
 **Secrets**: see [secret management](/platform/secret-management.md) — the
 no-Secrets-in-git chain.
 

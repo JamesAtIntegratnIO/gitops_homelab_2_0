@@ -1,5 +1,25 @@
 ---
-# HTTPRoute for Authentik UI and API
+# HTTPRoutes for authentik.
+#
+# TWO HOSTNAMES, SPLIT ON PURPOSE.
+#
+#   auth.cluster.integratn.tech        sign-in, the user portal, OIDC/OAuth2,
+#                                      the forward-auth outpost, the API the
+#                                      portal calls. LAN name.
+#   auth-admin.cluster.integratn.tech  the admin interface. LAN only: never put
+#                                      it on a tunnel, and the SnippetsFilter
+#                                      below refuses non-private client IPs.
+#
+# The PUBLIC name is auth.integratn.tech, on the Cloudflare tunnel, which goes
+# straight to the authentik-server Service and never through this gateway
+# (IntegratnIO/infrastructure, sites; NetworkPolicies cloudflared.yaml and
+# authentik.yaml). Cloudflare answers 404 there for /if/admin and
+# /api/v3/admin.
+#
+# /if/admin on the first hostname redirects to the second, so the portal's
+# "Admin interface" button still works from the LAN and goes nowhere from
+# outside. The admin UI's API calls go to /api/v3 on whichever host it is
+# served from; those endpoints need a superuser session either way.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -16,7 +36,80 @@ spec:
     - matches:
         - path:
             type: PathPrefix
+            value: /if/admin
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: auth-admin.cluster.integratn.tech
+            statusCode: 302
+    - matches:
+        - path:
+            type: PathPrefix
             value: /
+      filters:
+        # HSTS for the sign-in host (not includeSubDomains: other hosts
+        # under cluster.integratn.tech make their own call).
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: max-age=31536000
       backendRefs:
         - name: authentik-server
           port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: authentik-admin
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: https
+  hostnames:
+    - auth-admin.cluster.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: authentik-admin-lan-only
+      backendRefs:
+        - name: authentik-server
+          port: 80
+---
+# Private client addresses only, for the admin hostname.
+#
+# Depends on the gateway seeing the real client IP, which it does since its
+# Service moved to externalTrafficPolicy: Local (nginx-gateway-fabric
+# values.yaml).
+#
+# Pod addresses (10.244.0.0/16) are refused FIRST: the cloudflared connectors
+# are pods, so anything a tunnel ever sends here (a wildcard or catch-all
+# rule) would otherwise pass as "private". Anything carrying Cloudflare's
+# headers is refused too. LAN and Tailscale clients keep their real
+# addresses, so they are unaffected.
+apiVersion: gateway.nginx.org/v1alpha1
+kind: SnippetsFilter
+metadata:
+  name: authentik-admin-lan-only
+  namespace: authentik
+spec:
+  snippets:
+    - context: http.server.location
+      value: |
+        if ($http_cf_ray) { return 403; }
+        if ($http_cf_connecting_ip) { return 403; }
+        deny 10.244.0.0/16;
+        allow 10.0.0.0/8;
+        allow 192.168.0.0/16;
+        allow 172.16.0.0/12;
+        allow 100.64.0.0/10;
+        deny all;
