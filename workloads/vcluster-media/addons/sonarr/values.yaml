@@ -321,8 +321,13 @@ service:
       protocol: TCP
 serviceMonitor:
   enabled: false
-# The web UI sits behind authentik forward-auth (sonarr-forward-auth above;
-# group media-management). /api is the one path left outside it, for clients
+# DETACHED 2026-11-26: the sonarr-forward-auth filter is not referenced until
+# the vcluster has the replicated authentik-server Service. Referencing it
+# before then makes every nginx reload fail (host not found in upstream) and
+# the route answer 500. Re-attach by adding back to the / rule:
+#   filters: [{type: ExtensionRef, extensionRef: {group: gateway.nginx.org,
+#              kind: SnippetsFilter, name: sonarr-forward-auth}}]
+# Intended: the web UI behind authentik forward-auth (group media-management). /api is the one path left outside it, for clients
 # that hold the API key (phone apps, scripts): the app still demands the key
 # there and refuses a call without it. Gateway API picks the longest matching
 # prefix, so /api wins over / whatever the rule order. Homepage, arr-mcp and the
@@ -343,12 +348,6 @@ httpRoute:
         - path:
             type: PathPrefix
             value: /
-      filters:
-        - type: ExtensionRef
-          extensionRef:
-            group: gateway.nginx.org
-            kind: SnippetsFilter
-            name: sonarr-forward-auth
     - backendRefs:
         - name: sonarr
           port: 8989
