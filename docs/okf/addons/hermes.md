@@ -4,7 +4,7 @@ title: Hermes Agent
 description: Nous Research's Hermes Agent running as a service on the-cluster's Raspberry Pi 5 worker, on the Anthropic API, with its state on local NVMe.
 tags: [ai, agent, hermes, raspberry-pi, arm64]
 status: draft
-generated: { by: hermes-agent, at: 2026-11-24T22:35:00Z }
+generated: { by: claude-code, at: 2026-11-26T02:30:00Z }
 stale_after: 2027-02-22
 sources:
   - id: manifests
@@ -49,6 +49,12 @@ sources:
   - id: image
     resource: ../../../images/hermes-agent/Dockerfile
     title: Hermes derived image Dockerfile
+  - id: promtail
+    resource: ../../../addons/cluster-roles/control-plane/addons/promtail/values.yaml
+    title: promtail pipeline (promtail_custom_hermes_* counters)
+  - id: alerts
+    resource: ../../../addons/cluster-roles/control-plane/addons/platform-alerts/prometheus-rules.yaml
+    title: platform.hermes alert rules
 ---
 
 # What runs
@@ -465,11 +471,32 @@ v0.21.4, with every key checked against v0.23.0's built-in defaults first.[^opti
   the pod and its network policy are the sandbox.
 - **Ops**: sessions are pruned after 90 days, `/dev/shm` is a 1 Gi memory
   volume for Chromium, and a liveness probe on `/health` restarts a wedged
-  gateway.
+  gateway. `config.yaml` carries `_config_version` (52 on v0.23.0), so Hermes
+  no longer re-runs every migration from schema 0 at each boot; bump it with
+  the image.
+- **Restarts drain** (2026-11-26): `agent.restart_drain_timeout: 60` lets a
+  running turn finish for up to 60 s when the pod stops. The upstream default
+  0 interrupted turns at once (2 cut off by one of six rollouts on
+  2026-11-24). s6-overlay's shutdown waits only 3 s by default, so
+  `S6_SERVICES_GRACETIME`/`S6_KILL_GRACETIME` are 75 s and the pod's
+  `terminationGracePeriodSeconds` is 100.
+- **Logs**: Hermes logs to `/opt/data/logs/agent.log` (5 MB x 3 rotations,
+  about 8 days), not stdout. The native sidecar `agent-log` (busybox
+  `tail -F`, read-only, uid 10000) copies it to stdout, so it is in Loki as
+  `{namespace="hermes", container="agent-log"}`.
 - **Monitoring**: Hermes has no Prometheus endpoint; its gateway-health export
   is OTLP push only and is not wired up. Alert `HermesGatewayDown` (platform
-  alerts, group `platform.hermes`) uses kube-state-metrics instead. There is no
-  cron-health signal without OTLP.
+  alerts, group `platform.hermes`) uses kube-state-metrics instead. promtail
+  counts five kinds of agent.log line (`promtail_custom_hermes_*`: ERROR lines,
+  MCP keepalive failures, the MCP circuit breaker, turns cut off by a restart,
+  and `skill_manage` writes refused on the git skills) for
+  `HermesErrorBurst`, `HermesMcpServerFlapping`, `HermesMcpCircuitOpen`,
+  `HermesTurnsInterrupted` and `HermesSkillWriteDenied`. There is no
+  cron-health signal without OTLP (and no Hermes cron jobs exist).
+- **Git skills are read-only** to `skill_manage`, and its background review
+  fork does not load `skill-improve`, so on 2026-11-24/25 it tried 9 times to
+  patch git skills and hit `Permission denied`. SOUL.md, which every fork
+  reads, now carries the rule: git skills change only by a skill-improve PR.
 - **Not used**: `security.tirith_fail_open` does not exist in v0.23.0.
   Delegation and cron stay on the main model.
 
