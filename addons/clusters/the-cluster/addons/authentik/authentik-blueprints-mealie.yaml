@@ -113,6 +113,7 @@ data:
           slug: mealie
         id: mealie-app
         attrs:
+          meta_icon: /static/dist/assets/images/apps/mealie.svg
           name: Mealie
           provider: !KeyOf mealie-provider
           open_in_new_tab: true

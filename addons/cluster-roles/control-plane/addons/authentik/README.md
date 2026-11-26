@@ -75,6 +75,7 @@ there; a loose copy under this directory is applied by nothing.
 - `06-qdrant-proxy-provider.yaml`: forward-auth proxy provider for the Qdrant dashboard
 - `07-kargo-provider.yaml`: PKCE public client for Kargo
 - `08*-…-proxy-provider.yaml`, `09-embedded-outpost.yaml`: forward-auth apps and the outpost's provider list
+- App icons: every application's `meta_icon` points at `/static/dist/assets/images/apps/<slug>.<ext>`, from ConfigMap `authentik-app-icons` built by `hack/authentik-app-icons/build.sh`. A new app needs an icon there too.
 - `10-hermes-provider.yaml`: PKCE public client for Hermes (authentik Admins only)
 - `11-access-groups.yaml`: groups and the binding that opens each app to them
 - `12-invitation-enrollment.yaml`: the invite-only enrollment flow
