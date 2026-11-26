@@ -1,5 +1,8 @@
 # Update Log
 
+## 2026-11-26
+* **Update**: **Claude is Hermes's mechanic.** New repo skill `hermes-mechanic` (runbook + read-only `collect.sh`): read Hermes's logs, state, config and skills from outside and fix Hermes by PR, never the cluster directly. Run weekly by a scheduled Claude task and on `platform.hermes` alerts. See [Hermes Agent](addons/hermes.md).
+
 ## 2026-11-25
 * **Update**: **authentik public at auth.integratn.tech.** Cloudflare tunnel rule straight to authentik-server (not the gateway), admin paths 404 at the edge, proxied CNAME in integratn.tech (IntegratnIO/infrastructure sites); NetworkPolicies cloudflared -> authentik-server:9000. Google OAuth client needs the auth.integratn.tech callback URIs. See [Security posture](platform/security-posture.md).
 * **Update**: **authentik 2026.5.9 -> 2026.8.7** (chart 2026.8.6 + image tag pin). Second hop for the 2026-11-25 advisories; 2026.5.9 verified live first (24 migrations, all 48 blueprints successful, sign-in/forward-auth/Google sign-up plan OK).

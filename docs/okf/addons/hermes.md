@@ -436,6 +436,18 @@ included), a multi-arch image and `readOnlyHint` on every read tool.[^arr-mcp][^
 [^arr-mcp-upstream]: bardesss/arr-mcp v1.73.0
 [^image]: Hermes derived image Dockerfile
 
+# Mechanic (Claude)
+
+Claude is Hermes's mechanic (2026-11-26, after Zack Proser's "mechanic
+agent" pattern): Hermes cannot see its own buffers, defaults and broken
+skills, so Claude reads them from outside and fixes Hermes by PR. The repo
+skill `.claude/skills/hermes-mechanic` holds the runbook and a read-only
+`collect.sh` (pods, rollouts, `gateway_state.json`, an `agent.log` digest,
+state.db, settings against upstream defaults, `hermes doctor --live`). It
+needs cluster access, so it runs on holocron. A scheduled Claude task runs
+it weekly; `platform.hermes` alerts are the other trigger. Cluster problems
+stay Hermes's job: the mechanic fixes Hermes, not the cluster.
+
 # Tuning
 
 Applied 2026-11-07 from the third-party optimization guide, which targets
