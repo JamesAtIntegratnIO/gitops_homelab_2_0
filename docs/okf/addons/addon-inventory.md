@@ -39,7 +39,7 @@ Layer key: **env** = environments/production, **cp** = cluster-roles/control-pla
 | metallb + metallb-config | metallb-system | @ 0.16.1 + manifests | L2 LB pool 10.0.4.200-253 |
 | gateway-api-crds | kube-system | manifest from kubernetes-sigs/gateway-api @ v1.6.3 | Gateway API CRDs |
 | nginx-gateway-fabric | nginx-gateway | OCI @ 2.6.7 (+tc: wildcard cert, CF secret, ReferenceGrant) | [Gateway](/platform/networking.md) |
-| kyverno | kyverno | @ 3.2.8 | [Policy engine](/platform/security-posture.md) |
+| kyverno | kyverno | @ 3.10.0 | [Policy engine](/platform/security-posture.md) |
 | cilium | kube-system | @ 1.17.3 | CNI + Hubble |
 
 Disabled at this layer (AWS-era leftovers): iam-chart, ack-eks, ack-acm,

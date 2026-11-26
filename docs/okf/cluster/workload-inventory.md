@@ -34,7 +34,7 @@ All workloads were Ready at snapshot time except where noted.[^live-workloads]
 | `monitoring` | prometheus (STS), alertmanager (STS), grafana, kube-state-metrics, prometheus-operator, node-exporter DS, matrix-alertmanager-receiver |
 | `loki` | loki (STS), loki-gateway, chunks-cache + results-cache (STS), loki-canary DS |
 | `promtail` | promtail DS |
-| `kyverno` | admission, background, cleanup, reports controllers + 4 cleanup CronJobs (*/10m) |
+| `kyverno` | admission, background, cleanup, reports controllers (the 4 cleanup CronJobs went with chart 3.3+; gone since 2026-11-26) |
 | `trivy-system` | trivy-operator, trivy-operator-explorer (+ 13 stuck scan Jobs and 9 `Failed` Pods from 2026-08-28 — see [known issues](/cluster/known-issues.md)) |
 | `goldilocks` | controller, dashboard, vpa-recommender |
 | `authentik` | server ×2, worker, redis |
@@ -49,7 +49,7 @@ All workloads were Ready at snapshot time except where noted.[^live-workloads]
 
 - ~55 ArgoCD Applications, ~47 ApplicationSets, 5 AppProjects (+1 default)
 - 7 Kratix promises, 7 Works, 1 Destination
-- ~130 NetworkPolicies + 29 CiliumNetworkPolicies, 7 Kyverno ClusterPolicies
+- ~130 NetworkPolicies + 29 CiliumNetworkPolicies, 7 Kyverno ClusterPolicies at the time (replaced by CEL policy types on 2026-11-26, see [security posture](/platform/security-posture.md))
 - 40 PrometheusRules, 34 ServiceMonitors, ~30 Grafana dashboards
 - 24 ExternalSecrets (all Ready), 1 ClusterSecretStore
 - 23 PVs on NFS, 2 StorageClasses

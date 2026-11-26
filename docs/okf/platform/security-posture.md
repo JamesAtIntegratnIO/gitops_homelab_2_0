@@ -4,9 +4,12 @@ title: Security posture
 description: Defense-in-depth as actually deployed — Talos hardening, enforced Cilium/NetworkPolicies, Kyverno policies, Trivy scanning, Authentik SSO, VPA governance.
 tags: [security, kyverno, cilium, network-policy, trivy, authentik]
 status: stable
-generated: { by: claude-code/claude-opus-5, at: 2026-09-01T00:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T02:00:00Z }
 stale_after: 2027-02-20
 sources:
+  - id: live-kyverno-1126
+    resource: kubectl get validatingpolicies,mutatingpolicies,generatingpolicies,deletingpolicies,policyexceptions -A on the-cluster, 2026-11-26
+    title: Live Kyverno CEL policy state after the 1.20 migration
   - id: live-sec
     resource: kubectl get clusterpolicies,netpol,cnp -A on the-cluster, 2026-08-20
     title: Live policy state
@@ -33,17 +36,43 @@ the `network-policies` manifest addon. CNPs handle what vanilla netpol can't:
 `allow-kube-api` per namespace (`toEntities: kube-apiserver`), metrics-server
 from apiserver, vcluster LB SNAT.[^live-sec]
 
-**Admission (Kyverno v1.12.6)** — 7 ClusterPolicies:
+**Admission (Kyverno v1.20, chart 3.10.0, since 2026-11-26)** — CEL policy
+types (`policies.kyverno.io/v1`) only. Kyverno 1.20 no longer executes
+`ClusterPolicy`, `ClusterCleanupPolicy` or the `kyverno.io` PolicyException,
+so every policy was migrated (#894, #902, #907) before the bump (#788).
+Files: `addons/cluster-roles/control-plane/addons/network-policies/kyverno-*.yaml`.
 
-| Policy | Mode |
-|---|---|
-| `disallow-default-namespace` | **Enforce** |
-| `disallow-privileged-containers` | **Enforce** |
-| `generate-default-deny-netpol` | Audit + generate (creates default-deny per namespace) |
-| `require-default-deny-netpol` | Audit |
-| `restrict-image-registries` | Audit (discovery mode) |
-| `mutate-restrict-escalation` | mutate (drops capabilities — the reason root-requiring images fail; see [http-service](/promises/http-service.md)) |
-| `mutate-seccomp-default` | mutate |
+| Policy | Kind | Mode |
+|---|---|---|
+| `disallow-default-namespace` | ValidatingPolicy | **Deny** (Kratix pipeline pods/Jobs exempt) |
+| `disallow-privileged-containers` | ValidatingPolicy | **Deny** (kube-system excluded) |
+| `restrict-pushsecret` | ValidatingPolicy | **Deny** |
+| `require-default-deny-netpol` | ValidatingPolicy | Audit |
+| `restrict-image-registries` | ValidatingPolicy | Audit (discovery mode) |
+| `audit-arm64-images` | ValidatingPolicy | Audit |
+| `generate-default-deny-netpol` | GeneratingPolicy | generate + synchronize, `orphanDownstreamOnPolicyDelete` (creates and owns `default-deny-all` in every namespace) |
+| `mutate-restrict-escalation` | MutatingPolicy | mutate, JSONPatch, `failurePolicy: Ignore` (drops capabilities — the reason root-requiring images fail; see [http-service](/promises/http-service.md)) |
+| `mutate-seccomp-default` | MutatingPolicy | mutate |
+| `schedule-arm64-images` | MutatingPolicy | mutate, `failurePolicy: Ignore` |
+| 4 cleanup policies | DeletingPolicy | hourly / 15-min schedules |
+
+PolicyExceptions are enabled but **only honoured in `monitoring`**
+(`features.policyExceptions` in the kyverno values; the chart's default is
+off, which silently ignores every exception). The one exception is
+`etcd-cert-extractor-privileged-cel` for the etcd-secret-writer Job.
+
+Writing CEL policies here — what bit us on 2026-11-26 (see
+[known issues](/cluster/known-issues.md)):
+
+- Dry-run every new or changed policy server-side first
+  (`kubectl apply --dry-run=server`). Kyverno's `validate-policy.kyverno.svc`
+  webhook compiles it and rejects CEL errors. That does **not** run a mutation.
+- A MutatingPolicy `ApplyConfiguration` may not set an atomic list
+  (`capabilities.drop`, …): it fails at runtime, per pod. Use JSONPatch.
+- CEL map literals need one value type: wrap mixed values in `dyn()`.
+  On 1.19, `resource.List(...).items` is typed `any`; wrap the call in `dyn()`
+  before `exists()`.
+- Give mutations `failurePolicy: Ignore` unless failing closed is the point.
 
 Plus `mutate-ns-vpa-auto-mode`, which labels new namespaces for VPA.
 
