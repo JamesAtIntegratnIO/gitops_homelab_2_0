@@ -8,7 +8,12 @@ import (
 
 // buildNetworkPolicies generates the complete set of host-cluster network policies
 // for a vcluster namespace. This includes:
-//   - Generic baseline policies (default-deny, DNS, kube-api, intra-namespace, external)
+//   - Generic baseline policies (DNS, kube-api, intra-namespace, external)
+//
+// No default-deny-all here: Kyverno's generate-default-deny-netpol generates
+// and owns it in every namespace, vcluster namespaces included, and rejects
+// updates from anyone else. Rendering it too left the kratix state sync
+// failing on that one object (and so not delivering anything after it).
 //   - Cilium-specific policies (kube-apiserver entity, Talos node-local DNS)
 //   - Optional NFS egress (if enableNFS is true)
 //   - Custom extra egress rules (e.g., PostgreSQL)
@@ -19,7 +24,6 @@ func buildNetworkPolicies(config *VClusterConfig) []u.Resource {
 
 	// --- Generic baseline policies (every vcluster gets these) ---
 	policies = append(policies,
-		buildDefaultDenyPolicy(config),
 		buildDNSEgressPolicy(config),
 		buildKubeAPIPolicy(config),
 		buildCorednsHostDNSPolicy(config),
@@ -52,24 +56,6 @@ func netpolicyLabels(config *VClusterConfig, name string) map[string]string {
 }
 
 // --- Generic baseline policies ---
-
-// buildDefaultDenyPolicy creates the default-deny-all policy.
-func buildDefaultDenyPolicy(config *VClusterConfig) u.Resource {
-	return u.Resource{
-		APIVersion: "networking.k8s.io/v1",
-		Kind:       "NetworkPolicy",
-		Metadata: u.ResourceMeta(
-			"default-deny-all",
-			config.TargetNamespace,
-			netpolicyLabels(config, "default-deny-all"),
-			nil,
-		),
-		Spec: map[string]interface{}{
-			"podSelector": map[string]interface{}{},
-			"policyTypes": []string{"Ingress", "Egress"},
-		},
-	}
-}
 
 // buildDNSEgressPolicy allows egress to kube-system CoreDNS on port 53.
 func buildDNSEgressPolicy(config *VClusterConfig) u.Resource {
