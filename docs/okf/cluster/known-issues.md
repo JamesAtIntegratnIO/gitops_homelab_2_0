@@ -4,7 +4,7 @@ title: Known issues & drift (snapshot 2026-08-20)
 description: Everything found during a deep repo + live-cluster review that is broken, orphaned, cosmetic, or where docs/code disagree — with evidence.
 tags: [known-issues, drift, findings, snapshot]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-03T00:20:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T02:00:00Z }
 stale_after: 2026-11-29
 sources:
   - id: live-cluster
@@ -1210,7 +1210,17 @@ digest: it reports containerd's local image-config ID, a different digest
 entirely. `status.containerStatuses[].imageID` is the one that carries the
 pulled reference.)
 
-## kyverno 3.2.8 → 3.9.0 (PR #41) — seven minors under a `failurePolicy: Fail` webhook
+## ~~kyverno 3.2.8 → 3.9.0 (PR #41) — seven minors under a `failurePolicy: Fail` webhook~~ (resolved)
+
+**Resolved 2026-11-24..26.** 3.9.2 landed as #847, with the removed values
+dropped. The old chart's hook then ran before the chart bump reached
+ArgoCD, using the dropped bitnami/kubectl image, and both kyverno apps hung
+"waiting for completion of hook" until the operations were terminated.
+Lesson: never drop a hook's image override in the same commit as the chart
+bump. Then 3.10.0 (Kyverno 1.20, #788) landed after every policy moved to
+the CEL types — see the next entry and
+[security posture](../platform/security-posture.md).
+
 
 Chart 3.9.0 is Kyverno **v1.19.0**, from v1.12.6. Three separate problems:
 
@@ -1227,6 +1237,38 @@ Chart 3.9.0 is Kyverno **v1.19.0**, from v1.12.6. Three separate problems:
   every namespace's `default-deny-all`. The admission controller's webhooks are
   `failurePolicy: Fail` and exclude only `kube-system` and `kyverno`, so while
   it is unhealthy **no pod can be created anywhere else**.
+
+## ~~New pods denied cluster-wide by a CEL MutatingPolicy (2026-11-26, ~00:47–01:25Z)~~ (fixed)
+
+#894 added CEL twins of every Kyverno policy next to the legacy ones. Nothing
+tested them first: the kyverno CLI wasn't available, and a server dry-run
+had not been tried.
+
+- `mutate-restrict-escalation` used an `ApplyConfiguration` that sets
+  `securityContext.capabilities.drop`. That's an atomic list, which apply
+  configurations may not mutate, so **every new pod** outside the excluded
+  namespaces got "invalid ApplyConfiguration: may not mutate atomic arrays,
+  maps or structs". The mpol webhook fails closed. trivy scans,
+  descheduler, kargo GC and Kratix pipeline Jobs failed, and replacement
+  authentik pods would have too. Running pods were unaffected.
+- Two other twins failed Kyverno's compile check:
+  - `resource.List().items` is typed `any`
+  - a map literal had mixed value types
+  The `network-policies-the-cluster` sync kept retrying its original revision.
+  ArgoCD never re-renders newer commits for an in-flight operation, so
+  #899 (pulling the three policies) only applied once the operation was
+  terminated (`status.operationState.phase: Terminating`, run on James's OK).
+- Fix: #899 pulled them. #902 brought them back with JSONPatch,
+  `failurePolicy: Ignore` and `dyn()`. Each was verified with a server
+  dry-run, which goes through `validate-policy.kyverno.svc`, before merge.
+- Found alongside: chart 3.9.x ships `--enablePolicyException=false`, so the
+  etcd-secret-writer Job's exception had been ignored since the 3.9.2
+  rollout. #901 enables exceptions, limited to `monitoring`.
+- Also found alongside: the vcluster-orchestrator-v2 promise rendered its
+  own `default-deny-all`, which the Kyverno generator owns and protects. The
+  kratix state sync had failed on it since 2026-11-02, blocking later
+  deliveries such as the media forward-auth Service. #909 stopped the promise
+  rendering it.
 
 ## ~~loki chart 6.49.0 → 7.3.0 (PR #44) — wrong chart now~~ (resolved)
 

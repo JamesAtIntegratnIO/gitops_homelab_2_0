@@ -115,10 +115,17 @@ Addon value files resolve `environments/{env}` → `cluster-roles/{role}` →
   `cluster_role` exclusion and therefore target every production cluster,
   vclusters included. After any addon change, render both bootstraps and diff
   which clusters each app targets — do not reason from the addon definition alone.
-- **The Kyverno `generate-default-deny-netpol` ClusterPolicy owns every
-  namespace's `default-deny-all` NetworkPolicy** with `synchronize: true`.
-  Deleting or replacing it without `generateExisting: true` in the desired state
-  cascade-deletes every default-deny with nothing to regenerate them.
+- **The Kyverno `generate-default-deny-netpol` GeneratingPolicy owns every
+  namespace's `default-deny-all` NetworkPolicy** with `synchronize` on. It has
+  `orphanDownstreamOnPolicyDelete` and `generateExisting` on; drop either and
+  deleting or replacing the policy can cascade-delete every default-deny with
+  nothing to regenerate them. Nothing else may render `default-deny-all`.
+- **Kyverno 1.20 runs CEL policy types only** (`policies.kyverno.io`). Before
+  merging a new or changed policy, `kubectl apply --dry-run=server` it: that
+  compiles it in Kyverno's policy webhook. It does not run a mutation, and a
+  broken MutatingPolicy denied every new pod on 2026-11-26 — use JSONPatch for
+  atomic lists, `dyn()` for mixed-type maps, `failurePolicy: Ignore` on
+  mutations. See [security posture](docs/okf/platform/security-posture.md).
 - **etcd is I/O-starved.** All three nodes put `/var/lib/etcd` on the same disk
   as the OS and containerd. Leader-elected controllers drop their leases
   (`leaderelection lost`) for no local reason. Suspect this before you suspect

@@ -40,7 +40,7 @@ The configure pipeline renders a Namespace directly, then delegates through
 Notably, the Stakater values explicitly disable ~20 chart sub-features
 (httpRoute, ingress, externalSecret, networkPolicy, autoscaling, pdb…) because
 those concerns are owned by the sub-promises. Default-deny is deliberately
-*not* emitted — the Kyverno `generate-default-deny-netpol` ClusterPolicy
+*not* emitted — the Kyverno `generate-default-deny-netpol` GeneratingPolicy
 creates it per-namespace (see [security posture](/platform/security-posture.md)).
 
 Status gives `phase: Configured` and the final `url`.

@@ -31,7 +31,7 @@ and they fail independently.
 | Scheduling | `platform-critical` / `platform-batch` PriorityClasses; topology spread on gateway + Kyverno admission; 60s failover tolerations — per-workload on the recovery-path addons and, since 2026-08-22, the apiserver default for every new host pod (vcluster-synced pods still get 300s from the vcluster's own apiserver) | capacity shortfall, slow rescheduling |
 | Disruption | PodDisruptionBudgets on every component running ≥2 replicas, CoreDNS and the vcluster-media etcd included | drains and rolling updates |
 | GitOps | ArgoCD `selfHeal` + `prune` + [finite retry](/cluster/known-issues.md) on the rendered Applications, and a page when one stops converging; 60s reconciliation; `kratix-state-reconciler` | config drift, manual edits, failed syncs |
-| Hygiene | Kyverno `ClusterCleanupPolicy` for suspended Jobs, long-failed Jobs, terminal Pods; descheduler every 30m | leftovers that look like failure, post-recovery imbalance, restart loops |
+| Hygiene | Kyverno `DeletingPolicy` (was `ClusterCleanupPolicy` until 2026-11-26) for suspended Jobs, long-failed Jobs, terminal Pods; descheduler every 30m | leftovers that look like failure, post-recovery imbalance, restart loops |
 | Observability | see [observability](/platform/observability.md) | detection |
 | Recovery | nightly etcd snapshots of both clusters to the Unraid share — see [backups](/platform/backups.md) | etcd loss, tenant corruption, the rebuild losing PV bindings |
 

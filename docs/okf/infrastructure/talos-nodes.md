@@ -177,7 +177,7 @@ and loki-canary tolerate it too. On 2026-11-08 `talos-pi5-1` was running
 hermes (namespace `hermes`), cq-server (`cq`) and arr-mcp (`mcp-system`).[^arm64-image-check]
 James's intent is that the Pi 5 is for hermes and cq.
 
-**By a Kyverno ClusterPolicy, `schedule-arm64-images`.** For a pod in any
+**By a Kyverno MutatingPolicy, `schedule-arm64-images`** (a ClusterPolicy until 2026-11-26; the audit half is now the ValidatingPolicy `audit-arm64-images`). For a pod in any
 namespace except a protected set (kube-system, kube-public, kube-node-lease,
 kyverno, cilium-secrets, metallb-system, nfs-provisioner, local-path-storage,
 trivy-system, hermes, cq), if every init and regular container image (digest
