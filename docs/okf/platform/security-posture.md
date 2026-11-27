@@ -135,6 +135,18 @@ Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13`, `14` in
   superusers are refused on Cloudflare traffic). On the LAN the name stays
   `auth.cluster.integratn.tech`. Tunnel and DNS: IntegratnIO/infrastructure
   `sites`.
+- **Sonarr and Radarr away from home** (PR open 2026-11-27, not live until
+  this repo's change merges AND IntegratnIO/infrastructure `sites` is
+  applied): `sonarr.integratn.tech` / `radarr.integratn.tech` through the
+  tunnel, straight to the apps' synced Services (never the vcluster gateway,
+  whose LAN rule leaves `/api` open to key holders). Cloudflare Access (free
+  plan) in front, signing in with authentik as OIDC (client `cloudflare-access`,
+  blueprint `authentik-blueprints-cloudflare-access`), `media-management` only,
+  checked by authentik's binding AND the Access policy's `groups` claim;
+  cloudflared re-checks the Access token. Paths that return the apps' API keys,
+  backups, logs, restart/shutdown and other systems' credentials answer 404 at
+  the edge. Bazarr and SABnzbd stay LAN-only (Bazarr's UI loads its full
+  settings, keys and provider passwords included).
 - No bootstrap API token. `akadmin` is to be retired in favour of a named admin
   (see the authentik addon README).
 

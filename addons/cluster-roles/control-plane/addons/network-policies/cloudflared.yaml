@@ -136,3 +136,53 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+---
+# The media apps away from home: sonarr.integratn.tech and radarr.integratn.tech
+# (IntegratnIO/infrastructure, sites) go straight to the apps' synced Services
+# in vcluster-media (sonarr-x-media-x-vcluster-media :8989,
+# radarr-x-media-x-vcluster-media :7878), never to the vcluster's gateway, so
+# the tunnel cannot reach the LAN routes that leave /api open to key holders.
+# Every request that gets here has passed Cloudflare Access (authentik sign-in,
+# group media-management) and cloudflared's own check of the Access token, and
+# the paths that hand out API keys, backups and logs answer 404 at the edge.
+# Selected by pod and target port: the synced pods keep the app's labels. The
+# other half is allow-cloudflared-ingress in vcluster-media.yaml.
+#
+# Bazarr and SABnzbd are NOT here on purpose: Bazarr's UI loads
+# /api/system/settings on every page, which returns the Sonarr/Radarr API keys
+# and the subtitle providers' passwords in clear, and SABnzbd's UI is mostly
+# its config (Usenet server logins, API and NZB keys).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-media-apps-egress
+  namespace: cloudflared
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vcluster-media
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: sonarr
+              vcluster.loft.sh/managed-by: vcluster-media
+      ports:
+        - protocol: TCP
+          port: 8989
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: vcluster-media
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: radarr
+              vcluster.loft.sh/managed-by: vcluster-media
+      ports:
+        - protocol: TCP
+          port: 7878

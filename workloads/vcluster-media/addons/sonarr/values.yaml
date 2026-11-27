@@ -327,6 +327,10 @@ serviceMonitor:
 # there and refuses a call without it. Gateway API picks the longest matching
 # prefix, so /api wins over / whatever the rule order. Homepage, arr-mcp and the
 # other in-cluster callers use the synced Service and never pass the gateway.
+# Away from home, sonarr.integratn.tech is the Cloudflare Tunnel straight to the
+# synced Service, behind Cloudflare Access (authentik sign-in) with key, backup
+# and log paths blocked at the edge; it never uses this route, so the open /api
+# rule here is LAN-only (cloudflared/README.md).
 httpRoute:
   enabled: true
   parentRefs:

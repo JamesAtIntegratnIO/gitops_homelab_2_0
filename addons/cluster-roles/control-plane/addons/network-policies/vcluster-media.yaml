@@ -165,3 +165,37 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+---
+# Sonarr and Radarr away from home, through the Cloudflare Tunnel
+# (sonarr.integratn.tech, radarr.integratn.tech; Cloudflare Access with
+# authentik sign-in in front). Only these two apps; Bazarr and SABnzbd stay
+# LAN-only (why: allow-media-apps-egress in cloudflared.yaml, the other half).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cloudflared-ingress
+  namespace: vcluster-media
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [sonarr, radarr]
+      - key: vcluster.loft.sh/managed-by
+        operator: In
+        values: [vcluster-media]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudflared
+      ports:
+        - protocol: TCP
+          port: 8989
+        - protocol: TCP
+          port: 7878

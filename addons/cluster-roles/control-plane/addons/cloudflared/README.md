@@ -12,7 +12,40 @@ Today the tunnel carries one hostname and two paths, for Umami
 | Public hostname | Path | Origin |
 |---|---|---|
 | `edge.integratn.io` | `^/(c\.js|api/c)$` | `http://umami.umami.svc.cluster.local:3000` |
+| `sonarr.integratn.tech` | everything but the blocked paths below; Cloudflare Access (authentik) first | `http://sonarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:8989` |
+| `radarr.integratn.tech` | same | `http://radarr-x-media-x-vcluster-media.vcluster-media.svc.cluster.local:7878` |
 | (anything else) | | `http_status:404` |
+
+(The table predates `stats.integratn.io` and `auth.integratn.tech`; the
+authoritative list is `cloudflare_zero_trust_tunnel_cloudflared_config` in
+IntegratnIO/infrastructure `sites/main.tf`.)
+
+### Sonarr and Radarr away from home
+
+Cloudflare Access stands in front of both hosts and signs people in with
+authentik (OIDC client `cloudflare-access`, blueprint
+`authentik-blueprints-cloudflare-access`, group `media-management`). A request
+without an Access session never reaches the homelab, and cloudflared checks the
+Access token again before it passes a request on. The tunnel goes straight to
+the apps' synced Services, not the vcluster gateway, so the LAN rule that
+leaves `/api` open to API-key holders does not apply: from outside, `/api`
+works only inside a signed-in browser session, which is how the UI calls it.
+
+Paths that answer 404 at Cloudflare's edge (case-insensitive, any number of
+slashes, plus any `.`/`..` segment): the app's own settings that hold its API
+key (`/api/v*/config/host`, `/api/v*/settings/general`), backups
+(`/api/v*/system/backup`, `/backup/`), restart/shutdown, updates, log files
+(`/api/v*/log/file`, `/logfile/`, `/updatelogfile/`), and the connections that
+hold other systems' credentials (indexers, download clients, notifications,
+metadata, and import-list edits). Library work -- browsing, adding, searching,
+grabbing, the queue, history, calendar, wanted, manual import, renames -- is
+untouched. Phone apps that use the API key do not work from outside, on
+purpose.
+
+Bazarr and SABnzbd stay LAN-only: Bazarr's UI loads `/api/system/settings` on
+every page, which returns the Sonarr/Radarr keys and the subtitle providers'
+passwords in clear, and SABnzbd's UI is mostly its config (Usenet logins, API
+and NZB keys).
 
 `/mcp`, the dashboard, the login and Umami's API are not on that list, so they
 are not public. The paths are reached by the sites' Cloudflare Pages Functions,
@@ -25,8 +58,9 @@ which proxy `/c.js` and `/api/c` on each site to edge.integratn.io.
 
 The namespace and its NetworkPolicies are in
 [`network-policies/cloudflared.yaml`](../network-policies/cloudflared.yaml):
-DNS, Cloudflare's edge on 7844 (UDP and TCP) and 443, and `umami:3000`. No
-ingress at all.
+DNS, Cloudflare's edge on 7844 (UDP and TCP) and 443, `umami:3000`,
+`authentik-server:9000`, and Sonarr `:8989` / Radarr `:7878` in vcluster-media.
+No ingress at all.
 
 ## Why remotely managed
 

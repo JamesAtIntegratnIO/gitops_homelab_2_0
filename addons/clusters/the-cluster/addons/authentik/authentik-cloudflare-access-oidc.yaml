@@ -1,0 +1,107 @@
+# Cloudflare Access's OIDC client credentials. Access signs people in to the
+# media apps on sonarr.integratn.tech and radarr.integratn.tech through
+# authentik (blueprint authentik-blueprints-cloudflare-access.yaml; the Access
+# side is OpenTofu in IntegratnIO/infrastructure, sites).
+#
+# Creates the 1Password item `generated-cloudflare-access-oidc` (vault homelab)
+# ONCE, with a random client secret nobody sees, the same way Mealie's is made
+# (mealie/oidc-generated-secret.yaml; policy network-policies/
+# kyverno-restrict-pushsecret.yaml). Asked for by James on 2026-11-27 as part
+# of putting the media apps on Cloudflare.
+#
+# Item `generated-cloudflare-access-oidc`, fields by label:
+#   client-id      the fixed string "cloudflare-access" (not secret)
+#   client-secret  64 random letters and digits, no symbols
+#
+# Read back by:
+#   authentik  the ExternalSecret below -> env CLOUDFLARE_ACCESS_CLIENT_* in
+#              authentik/values.yaml -> the blueprint's context
+#   OpenTofu   TF_VAR_authentik_oidc_client_secret at apply time
+#              (infrastructure/sites/README.md)
+#
+# FIRST ROLLOUT: authentik reads env once, at start, and Reloader only acts on
+# a Secret whose value CHANGES. If authentik's pods started before the Secret
+# below existed, restart them once:
+#   kubectl --context admin@the-cluster -n authentik rollout restart deploy/authentik-server deploy/authentik-worker
+# Until then the blueprint's entries are skipped (their `conditions`), so
+# nothing half-configured is created.
+#
+# Create-only: updatePolicy IfNotExists never overwrites a field and
+# deletionPolicy None never deletes the item. Rotating it is done in 1Password
+# by hand; then Reloader rolls authentik, and the new secret has to be applied
+# to Cloudflare with tofu as well.
+#
+# The PushSecret states template.engineVersion, template.mergePolicy and each
+# data entry's conversionStrategy, though they are the CRD defaults, so ArgoCD
+# does not show it OutOfSync (see Mealie's).
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: generated-cloudflare-access-oidc
+  namespace: authentik
+spec:
+  length: 64
+  digits: 20
+  symbols: 0
+  noUpper: false
+  allowRepeat: true
+---
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: generated-cloudflare-access-oidc
+  namespace: authentik
+spec:
+  refreshInterval: 1h
+  updatePolicy: IfNotExists
+  deletionPolicy: None
+  secretStoreRefs:
+    - name: onepassword-store
+      kind: ClusterSecretStore
+  selector:
+    generatorRef:
+      apiVersion: generators.external-secrets.io/v1alpha1
+      kind: Password
+      name: generated-cloudflare-access-oidc
+  template:
+    engineVersion: v2
+    mergePolicy: Replace
+    data:
+      client-id: "cloudflare-access"
+      client-secret: "{{ .password }}"
+  data:
+    - conversionStrategy: None
+      match:
+        secretKey: client-id
+        remoteRef:
+          remoteKey: generated-cloudflare-access-oidc
+          property: client-id
+    - conversionStrategy: None
+      match:
+        secretKey: client-secret
+        remoteRef:
+          remoteKey: generated-cloudflare-access-oidc
+          property: client-secret
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: authentik-cloudflare-access-oidc
+  namespace: authentik
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: onepassword-store
+    kind: ClusterSecretStore
+  target:
+    name: authentik-cloudflare-access-oidc
+    creationPolicy: Owner
+  data:
+    - secretKey: client-id
+      remoteRef:
+        key: generated-cloudflare-access-oidc
+        property: client-id
+    - secretKey: client-secret
+      remoteRef:
+        key: generated-cloudflare-access-oidc
+        property: client-secret

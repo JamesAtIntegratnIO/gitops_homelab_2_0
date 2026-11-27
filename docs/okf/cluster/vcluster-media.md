@@ -116,6 +116,15 @@ Services and never touch the gateway. The pieces:
   provider + application per host), the embedded outpost list (`09`), and the
   `media-management` bindings (`11`).
 
+Away from home (PR 2026-11-27): `sonarr.integratn.tech` and
+`radarr.integratn.tech` come through the Cloudflare Tunnel straight to the
+synced Services, behind Cloudflare Access signing in with authentik
+(`media-management`), with key/backup/log paths 404 at the edge. That path
+never touches this gateway or its open `/api` rule. Host NetworkPolicies:
+`allow-cloudflared-ingress` (vcluster-media) and `allow-media-apps-egress`
+(cloudflared). Bazarr and SABnzbd are LAN-only. Details:
+`addons/cluster-roles/control-plane/addons/cloudflared/README.md`.
+
 Left out on purpose: otterwiki, tracearr and the vcluster's ArgoCD (own
 logins; forward-auth would be a second one), and Jellyfin/Plex (on Tower;
 their TV and phone clients cannot do a browser sign-in).

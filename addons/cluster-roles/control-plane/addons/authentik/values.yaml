@@ -123,6 +123,22 @@ global:
           name: authentik-mealie-oidc
           key: client-secret
           optional: true
+    # Cloudflare Access's OIDC client (authentik-blueprints-cloudflare-access):
+    # Access signs people in to the media apps on *.integratn.tech through
+    # authentik. Optional like Mealie's: until the generated 1Password item
+    # exists the blueprint's entries are skipped, and SSO still starts.
+    - name: CLOUDFLARE_ACCESS_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-cloudflare-access-oidc
+          key: client-id
+          optional: true
+    - name: CLOUDFLARE_ACCESS_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-cloudflare-access-oidc
+          key: client-secret
+          optional: true
     # Google OAuth credentials for social login source
     - name: GOOGLE_CLIENT_ID
       valueFrom:
@@ -134,6 +150,13 @@ global:
         secretKeyRef:
           name: authentik-google-oauth
           key: client-secret
+
+  # Env above is read once, at start. Reloader rolls server and worker when
+  # this Secret's value CHANGES (a rotation). It does not act on the Secret
+  # being created, so the first time it appears the pods need one rollout
+  # restart if they started before it (see authentik-cloudflare-access-oidc.yaml).
+  deploymentAnnotations:
+    secret.reloader.stakater.com/reload: "authentik-cloudflare-access-oidc"
 
   # Affinity preset (new format for 2025.x chart)
   affinity:
@@ -172,6 +195,8 @@ blueprints:
     - authentik-blueprints-brand
     # Mealie's OAuth2 provider, application and groups
     - authentik-blueprints-mealie
+    # Cloudflare Access's OIDC client, for the media apps on *.integratn.tech
+    - authentik-blueprints-cloudflare-access
   secrets: []
 
 # Server (API/Frontend) configuration
