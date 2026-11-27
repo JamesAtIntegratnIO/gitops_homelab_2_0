@@ -163,7 +163,8 @@ spec:
 #   2. Only through Cloudflare: Cf-Ray must be present.
 #   3. US ONLY (James, 2026-11-27): Cf-Ipcountry, which Cloudflare sets from
 #      the client address and overwrites if a client sends it. XX (unknown)
-#      and T1 (Tor) are refused with everything else. To allow a country,
+#      and T1 (Tor) are refused with everything else. Except the OAuth
+#      back-channel paths (same exception as the Cloudflare rule). To allow a country,
 #      add its ISO code here AND to allowed_countries in the infrastructure
 #      repo.
 #   4. The admin interface and admin API are 404, as at Cloudflare.
@@ -178,5 +179,12 @@ spec:
       value: |
         if ($realip_remote_addr !~ "^10\.244\.") { return 403; }
         if ($http_cf_ray = "") { return 403; }
-        if ($http_cf_ipcountry !~ "^(US)$") { return 403; }
+        set $edge_geo_ok 0;
+        if ($http_cf_ipcountry ~ "^(US)$") { set $edge_geo_ok 1; }
+        # OAuth back-channel (token, userinfo, JWKS): relying parties such as
+        # Cloudflare Access call these from their own servers, in whatever
+        # country. They need a client secret or token, or are public keys.
+        if ($uri ~ "^/application/o/(token|userinfo)/$") { set $edge_geo_ok 1; }
+        if ($uri ~ "^/application/o/[^/]+/jwks/$") { set $edge_geo_ok 1; }
+        if ($edge_geo_ok = 0) { return 403; }
         if ($uri ~ "^/(if/admin|api/v3/admin)(/|$)") { return 404; }
