@@ -4,7 +4,7 @@ title: Security posture
 description: Defense-in-depth as actually deployed — Talos hardening, enforced Cilium/NetworkPolicies, Kyverno policies, Trivy scanning, Authentik SSO, VPA governance.
 tags: [security, kyverno, cilium, network-policy, trivy, authentik]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T02:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-27T18:00:00Z }
 stale_after: 2027-02-20
 sources:
   - id: live-kyverno-1126
@@ -135,6 +135,19 @@ Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13`, `14` in
   superusers are refused on Cloudflare traffic). On the LAN the name stays
   `auth.cluster.integratn.tech`. Tunnel and DNS: IntegratnIO/infrastructure
   `sites`.
+- **Edge protection for auth.integratn.tech** (PRs pending 2026-11-27, here
+  and IntegratnIO/infrastructure). Free Cloudflare plan only. The tunnel now
+  goes through nginx-gateway (listener `tunnel`, plain HTTP in-cluster), not
+  straight to authentik. Layers: (1) Cloudflare WAF custom rules: non-US
+  countries blocked, and anything in the account IP list `crowdsec_bans`
+  blocked; (2) the gateway: `rewriteClientIP` (XForwardedFor, recursive,
+  trusts only 10.244.0.0/16) makes `$remote_addr` the real client, and the
+  route's SnippetsFilter refuses non-pod peers, requests without Cf-Ray and
+  `Cf-Ipcountry` other than US, and 404s the admin paths; (3) CrowdSec
+  (addon `crowdsec`) reads the gateway access log from Loki and bans; its
+  `ban-sync` Deployment mirrors local bans into the Cloudflare list (the
+  Worker bouncer needs a paid Workers plan in practice). LAPI state is an
+  emptyDir. Allowed countries: US only (James); change both repos together.
 - No bootstrap API token. `akadmin` is to be retired in favour of a named admin
   (see the authentik addon README).
 

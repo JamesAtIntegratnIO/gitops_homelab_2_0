@@ -34,6 +34,25 @@ nginx:
           template:
             spec:
               priorityClassName: platform-critical
+  # REAL CLIENT IP FOR TUNNEL TRAFFIC (2026-11-27). auth.integratn.tech comes
+  # from Cloudflare through the cloudflared pods to the `tunnel` listener
+  # below, so the TCP peer is a pod and the client is in X-Forwarded-For
+  # ("<whatever the client sent>, <real IP Cloudflare appended>"). Trusting
+  # only the pod network and walking the header from the right
+  # (setIPRecursively) makes $remote_addr the address Cloudflare saw: the
+  # rightmost untrusted entry, which the client cannot write. LAN clients
+  # connect from LAN addresses, which are not trusted, so their own
+  # X-Forwarded-For is ignored and $remote_addr stays the peer. The original
+  # peer is still $realip_remote_addr (used by the authentik snippets).
+  # CrowdSec reads these access logs, so this is what makes its bans land on
+  # real addresses.
+  config:
+    rewriteClientIP:
+      mode: XForwardedFor
+      setIPRecursively: true
+      trustedAddresses:
+        - type: CIDR
+          value: 10.244.0.0/16
   service:
     loadBalancerIP: 10.0.4.205
     # Local, not Cluster (2026-11-25). With Cluster, a request that MetalLB
@@ -118,3 +137,18 @@ gateways:
           allowedRoutes:
             namespaces:
               from: All
+        # The Cloudflare tunnel's way in (2026-11-27): cloudflared sends
+        # auth.integratn.tech here as plain HTTP inside the cluster (TLS ends
+        # at Cloudflare). Only authentik's namespace may attach routes, and its
+        # route refuses anything not from a pod (authentik-httproute.yaml), so
+        # this name on the LAN VIP gets a 403.
+        - name: tunnel
+          port: 80
+          protocol: HTTP
+          hostname: auth.integratn.tech
+          allowedRoutes:
+            namespaces:
+              from: Selector
+              selector:
+                matchLabels:
+                  kubernetes.io/metadata.name: authentik

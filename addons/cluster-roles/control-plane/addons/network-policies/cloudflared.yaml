@@ -136,3 +136,33 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
+---
+# auth.integratn.tech through the gateway (since 2026-11-27): the tunnel's
+# authentik rule names
+# http://nginx-gateway-nginx.nginx-gateway.svc.cluster.local:80, the data
+# plane's port 80 (listener `tunnel`). The gateway admits port 80 from anyone
+# (allow-nginx-dataplane in nginx-gateway.yaml), so this is the only half
+# needed. allow-authentik-egress above is the old direct path; remove it once
+# the infrastructure apply has moved the tunnel rule here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nginx-gateway-egress
+  namespace: cloudflared
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: nginx-gateway
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nginx-gateway-nginx
+      ports:
+        - protocol: TCP
+          port: 80

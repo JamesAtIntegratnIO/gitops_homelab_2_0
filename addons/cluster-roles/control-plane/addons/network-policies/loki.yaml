@@ -76,6 +76,20 @@ spec:
           port: 80
         - protocol: TCP
           port: 8080
+    # CrowdSec's agent reads nginx-gateway's access log (crowdsec.yaml)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: crowdsec
+          podSelector:
+            matchLabels:
+              k8s-app: crowdsec
+              type: agent
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8080
     # nginx-gateway for external UI
     - from:
         - namespaceSelector:

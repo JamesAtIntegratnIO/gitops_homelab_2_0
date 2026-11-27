@@ -1,0 +1,179 @@
+# crowdsec: CrowdSec LAPI, its agent and ban-sync (addons `crowdsec`,
+# crowdsec/values.yaml and crowdsec-extras/). Starts from the default-deny
+# Kyverno generates.
+#
+#   agent    -> loki-gateway (reads nginx-gateway's access log), LAPI :8080,
+#               the internet :443 (CrowdSec hub, for collections at start)
+#   lapi     <- agent, ban-sync :8080; -> the internet :443 (CrowdSec's
+#               central API: community blocklist, signals)
+#   ban-sync -> LAPI :8080, the internet :443 (api.cloudflare.com)
+#   monitoring -> agent, lapi :6060 (metrics)
+#
+# "The internet" is 0.0.0.0/0 minus every private range, so none of these
+# rules is a way into the LAN or the cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crowdsec
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: crowdsec
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internet-https-egress
+  namespace: crowdsec
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lapi
+  namespace: crowdsec
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: crowdsec
+      type: lapi
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              k8s-app: crowdsec
+              type: agent
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ban-sync
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lapi-egress
+  namespace: crowdsec
+spec:
+  podSelector:
+    matchExpressions:
+      - key: type
+        operator: In
+        values: [agent]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              k8s-app: crowdsec
+              type: lapi
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ban-sync-lapi-egress
+  namespace: crowdsec
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ban-sync
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              k8s-app: crowdsec
+              type: lapi
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# Agent -> Loki gateway (Service port 80, pod port 8080; the other half is
+# in loki.yaml).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-agent-loki-egress
+  namespace: crowdsec
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: crowdsec
+      type: agent
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: loki
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: gateway
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-metrics-scrape
+  namespace: crowdsec
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: crowdsec
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 6060

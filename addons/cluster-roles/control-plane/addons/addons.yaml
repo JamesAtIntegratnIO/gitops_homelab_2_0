@@ -1431,3 +1431,39 @@ kargo-projects:
       # The Kargo CRDs arrive with the kargo app above; do not fail the
       # dry-run while they are still missing on a fresh cluster.
       - SkipDryRunOnMissingResource=true
+
+# CrowdSec: bans addresses that misbehave against the public edge
+# (auth.integratn.tech, through the Cloudflare tunnel and nginx-gateway).
+# Agent reads the gateway's access log from Loki; LAPI keeps the decisions;
+# ban-sync (crowdsec-extras) pushes bans to a Cloudflare IP list that a WAF
+# rule blocks (IntegratnIO/infrastructure, sites). Namespace and
+# NetworkPolicies in network-policies/crowdsec.yaml. Control-plane only.
+crowdsec:
+  enabled: true
+  namespace: crowdsec
+  releaseName: crowdsec
+  chartName: crowdsec
+  project: platform-services
+  chartRepository: https://crowdsecurity.github.io/helm-charts
+  defaultVersion: 0.24.3
+  selectorMatchLabels:
+    cluster_role: control-plane
+  additionalResources:
+    type: manifest
+    path: addons/cluster-roles/control-plane/addons/crowdsec-extras
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

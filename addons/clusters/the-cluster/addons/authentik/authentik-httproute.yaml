@@ -10,11 +10,13 @@
 #                                      it on a tunnel, and the SnippetsFilter
 #                                      below refuses non-private client IPs.
 #
-# The PUBLIC name is auth.integratn.tech, on the Cloudflare tunnel, which goes
-# straight to the authentik-server Service and never through this gateway
-# (IntegratnIO/infrastructure, sites; NetworkPolicies cloudflared.yaml and
-# authentik.yaml). Cloudflare answers 404 there for /if/admin and
-# /api/v3/admin.
+# The PUBLIC name is auth.integratn.tech, on the Cloudflare tunnel
+# (IntegratnIO/infrastructure, sites). Since 2026-11-27 the tunnel sends it to
+# this gateway's `tunnel` listener (plain HTTP, port 80), not straight to
+# authentik, so it gets the gateway's real-client-IP handling, its access log
+# (which CrowdSec reads) and the country check below. Cloudflare already
+# answers 404 for /if/admin and /api/v3/admin and blocks other countries
+# and CrowdSec-banned addresses; the route below does the same again.
 #
 # /if/admin on the first hostname redirects to the second, so the portal's
 # "Admin interface" button still works from the LAN and goes nowhere from
@@ -107,9 +109,74 @@ spec:
       value: |
         if ($http_cf_ray) { return 403; }
         if ($http_cf_connecting_ip) { return 403; }
+        # The ORIGINAL peer. Since the gateway trusts X-Forwarded-For from
+        # pods (rewriteClientIP), a pod could claim a LAN address in that
+        # header; refuse pods by their real address before `allow` sees the
+        # rewritten one.
+        if ($realip_remote_addr ~ "^10\.244\.") { return 403; }
         deny 10.244.0.0/16;
         allow 10.0.0.0/8;
         allow 192.168.0.0/16;
         allow 172.16.0.0/12;
         allow 100.64.0.0/10;
         deny all;
+---
+# auth.integratn.tech, from the Cloudflare tunnel only.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: authentik-public
+  namespace: authentik
+spec:
+  parentRefs:
+    - name: nginx-gateway
+      namespace: nginx-gateway
+      sectionName: tunnel
+  hostnames:
+    - auth.integratn.tech
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: ExtensionRef
+          extensionRef:
+            group: gateway.nginx.org
+            kind: SnippetsFilter
+            name: authentik-public-edge
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: max-age=31536000
+      backendRefs:
+        - name: authentik-server
+          port: 80
+---
+# The gateway's half of the edge checks for auth.integratn.tech. Cloudflare
+# does the same first (IntegratnIO/infrastructure, sites: WAF custom rules);
+# this is the second lock, should a Cloudflare rule ever be dropped.
+#
+#   1. Only the tunnel: the ORIGINAL peer must be a pod (cloudflared). Anyone
+#      on the LAN asking the VIP for this name gets 403.
+#   2. Only through Cloudflare: Cf-Ray must be present.
+#   3. US ONLY (James, 2026-11-27): Cf-Ipcountry, which Cloudflare sets from
+#      the client address and overwrites if a client sends it. XX (unknown)
+#      and T1 (Tor) are refused with everything else. To allow a country,
+#      add its ISO code here AND to allowed_countries in the infrastructure
+#      repo.
+#   4. The admin interface and admin API are 404, as at Cloudflare.
+apiVersion: gateway.nginx.org/v1alpha1
+kind: SnippetsFilter
+metadata:
+  name: authentik-public-edge
+  namespace: authentik
+spec:
+  snippets:
+    - context: http.server.location
+      value: |
+        if ($realip_remote_addr !~ "^10\.244\.") { return 403; }
+        if ($http_cf_ray = "") { return 403; }
+        if ($http_cf_ipcountry !~ "^(US)$") { return 403; }
+        if ($uri ~ "^/(if/admin|api/v3/admin)(/|$)") { return 404; }

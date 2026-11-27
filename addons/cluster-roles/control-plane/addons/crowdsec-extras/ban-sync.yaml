@@ -1,0 +1,221 @@
+# ban-sync: CrowdSec's bans -> the Cloudflare IP list `crowdsec_bans`, which
+# a WAF custom rule on integratn.tech blocks at the edge
+# (IntegratnIO/infrastructure, sites). A bouncer of our own because the free
+# Cloudflare plan rules out CrowdSec's Worker bouncer (KV writes capped at
+# 1,000/day, Worker routes fail closed with error 1027 once the daily request
+# allowance runs out) and the old list-based bouncer is retired. A free
+# account gets one IP list of up to 10,000 items, which this fills.
+#
+# Every minute: all active decisions from LAPI (as bouncer `cloudflare`), bans
+# on IPs/ranges from this cluster's own detections and `cscli` (not the
+# community blocklist, which is larger than the list allows), then the list's
+# items are replaced if they differ. IPv6 addresses become their /64 (the list
+# takes no single IPv6 address). Private addresses never get here: CrowdSec's
+# default whitelist ignores them.
+#
+# Python standard library only, on the official python image, so there is
+# nothing to build. Credentials: crowdsec-lapi (bouncer key, generated in
+# cluster) and crowdsec-cloudflare (1Password item cloudflare-crowdsec-sync).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ban-sync
+  namespace: crowdsec
+data:
+  ban-sync.py: |
+    """CrowdSec decisions -> one Cloudflare IP list (free plan).
+
+    Every INTERVAL seconds: read all active decisions from the CrowdSec LAPI as a
+    bouncer, keep bans on IPs and ranges from the allowed origins, and if that set
+    differs from the Cloudflare list's items, replace the list's items with it.
+    A WAF custom rule (IntegratnIO/infrastructure, sites) blocks `ip.src in
+    $<list>`. Standard library only.
+    """
+
+    import ipaddress
+    import json
+    import os
+    import sys
+    import time
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    LAPI_URL = os.environ["LAPI_URL"].rstrip("/")
+    BOUNCER_KEY = os.environ["BOUNCER_KEY"]
+    CF_TOKEN = os.environ["CF_API_TOKEN"]
+    CF_ACCOUNT = os.environ["CF_ACCOUNT_ID"]
+    LIST_NAME = os.environ.get("CF_LIST_NAME", "crowdsec_bans")
+    ORIGINS = {o.strip() for o in os.environ.get("ORIGINS", "crowdsec,cscli").split(",") if o.strip()}
+    INTERVAL = int(os.environ.get("INTERVAL", "60"))
+    # Free plan: 10,000 items across all lists. Stay under it.
+    MAX_ITEMS = int(os.environ.get("MAX_ITEMS", "9000"))
+    CF_API = "https://api.cloudflare.com/client/v4"
+
+
+    def log(msg, **kw):
+        print(json.dumps({"msg": msg, **kw}), flush=True)
+
+
+    def http(method, url, headers, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url, data=data, method=method, headers=headers)
+        if data is not None:
+            req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read()
+            return json.loads(raw) if raw else None
+
+
+    def cf(method, path, body=None):
+        out = http(method, CF_API + path, {"Authorization": f"Bearer {CF_TOKEN}"}, body)
+        if not out or not out.get("success"):
+            raise RuntimeError(f"cloudflare {method} {path}: {out and out.get('errors')}")
+        return out
+
+
+    def to_cf_item(value):
+        """Cloudflare IP lists take IPv4 addresses/CIDRs and IPv6 CIDRs of /4../64
+        (no single IPv6 address), so an IPv6 address becomes its /64."""
+        net = ipaddress.ip_network(value, strict=False)
+        if net.version == 6 and net.prefixlen > 64:
+            net = net.supernet(new_prefix=64)
+        if net.version == 4 and net.prefixlen == 32:
+            return str(net.network_address)
+        return str(net)
+
+
+    def wanted():
+        out = http("GET", f"{LAPI_URL}/v1/decisions/stream?startup=true",
+                   {"X-Api-Key": BOUNCER_KEY}) or {}
+        items = set()
+        for d in out.get("new") or []:
+            if d.get("type") != "ban" or d.get("origin") not in ORIGINS:
+                continue
+            if (d.get("scope") or "").lower() not in ("ip", "range"):
+                continue
+            try:
+                items.add(to_cf_item(d["value"]))
+            except ValueError:
+                log("skipping unparsable decision", value=d.get("value"))
+        if len(items) > MAX_ITEMS:
+            log("too many bans, truncating", count=len(items), max=MAX_ITEMS)
+            items = set(sorted(items)[:MAX_ITEMS])
+        return items
+
+
+    def find_list():
+        for lst in cf("GET", f"/accounts/{CF_ACCOUNT}/rules/lists")["result"]:
+            if lst["name"] == LIST_NAME:
+                return lst["id"]
+        raise RuntimeError(f"no Cloudflare list named {LIST_NAME}")
+
+
+    def current(list_id):
+        items, cursor = set(), None
+        while True:
+            q = "?per_page=500" + (f"&cursor={urllib.parse.quote(cursor)}" if cursor else "")
+            out = cf("GET", f"/accounts/{CF_ACCOUNT}/rules/lists/{list_id}/items{q}")
+            items.update(i["ip"] for i in out["result"] if "ip" in i)
+            cursor = ((out.get("result_info") or {}).get("cursors") or {}).get("after")
+            if not cursor:
+                return items
+
+
+    def main():
+        list_id = None
+        while True:
+            try:
+                list_id = list_id or find_list()
+                want, have = wanted(), current(list_id)
+                if want != have:
+                    # PUT replaces every item; an empty body clears the list.
+                    cf("PUT", f"/accounts/{CF_ACCOUNT}/rules/lists/{list_id}/items",
+                       [{"ip": ip, "comment": "crowdsec"} for ip in sorted(want)])
+                    log("synced", items=len(want), added=len(want - have), removed=len(have - want))
+                else:
+                    log("in sync", items=len(want))
+            except (urllib.error.URLError, RuntimeError, KeyError, ValueError) as exc:
+                log("sync failed", error=str(exc))
+                list_id = None
+            time.sleep(INTERVAL)
+
+
+    if __name__ == "__main__":
+        sys.exit(main())
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ban-sync
+  namespace: crowdsec
+  labels:
+    app.kubernetes.io/name: ban-sync
+  annotations:
+    # Restart when either Secret changes.
+    secret.reloader.stakater.com/reload: "crowdsec-lapi,crowdsec-cloudflare"
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ban-sync
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ban-sync
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ban-sync
+          image: mirror.gcr.io/library/python:3.13-alpine3.22@sha256:e81548ac35b07a3bd4805f275107592ef458b1e893c0e04d45aedaa19416cca5
+          command: ["python3", "-I", "/app/ban-sync.py"]
+          env:
+            - name: LAPI_URL
+              value: http://crowdsec-service.crowdsec.svc.cluster.local:8080
+            - name: BOUNCER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: crowdsec-lapi
+                  key: bouncerKeyCloudflare
+            - name: CF_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: crowdsec-cloudflare
+                  key: token
+            # The IntegratnIO Cloudflare account (public; same value as
+            # var.account_id in IntegratnIO/infrastructure sites).
+            - name: CF_ACCOUNT_ID
+              value: 48c3b529371f46df78fd25553d626906
+            - name: CF_LIST_NAME
+              value: crowdsec_bans
+            - name: ORIGINS
+              value: crowdsec,cscli
+          resources:
+            requests:
+              cpu: 5m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: script
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: ban-sync
