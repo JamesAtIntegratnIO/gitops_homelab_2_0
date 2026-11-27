@@ -4,7 +4,7 @@ title: Security posture
 description: Defense-in-depth as actually deployed — Talos hardening, enforced Cilium/NetworkPolicies, Kyverno policies, Trivy scanning, Authentik SSO, VPA governance.
 tags: [security, kyverno, cilium, network-policy, trivy, authentik]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-26T02:00:00Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-27T17:30:00Z }
 stale_after: 2027-02-20
 sources:
   - id: live-kyverno-1126
@@ -135,6 +135,19 @@ Access model (since 2026-11-25, blueprints `03`, `11`, `12`, `13`, `14` in
   superusers are refused on Cloudflare traffic). On the LAN the name stays
   `auth.cluster.integratn.tech`. Tunnel and DNS: IntegratnIO/infrastructure
   `sites`.
+- **Reputation gates** (blueprint `15-reputation-gates`, PR pending
+  2026-11-27): on `integratn-authentication`, before identification, a
+  Turnstile CAPTCHA when the client IP's reputation is <= -3 (anyone) and a
+  deny when it is <= -10 **and** the request is not from the home network
+  (LAN is never denied). Reputation Policies pass at or BELOW the threshold,
+  so they are bound un-negated; each (IP, username) row is clamped to -5..+5
+  and expires 24h after first write. IP only, never username (would let
+  anyone lock out a named user). Turnstile keys from 1Password
+  `authentik-turnstile`; without them the CAPTCHA is skipped.
+  `AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS` is the pod network only. Known
+  limit: through Cloudflare the client IP is the leftmost X-Forwarded-For
+  entry, which the client can forge, so the public-side gate is evadable and
+  a forged LAN address can at most force a CAPTCHA.
 - No bootstrap API token. `akadmin` is to be retired in favour of a named admin
   (see the authentik addon README).
 
