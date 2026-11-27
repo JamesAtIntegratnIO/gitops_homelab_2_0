@@ -80,6 +80,8 @@ there; a loose copy under this directory is applied by nothing.
 - `11-access-groups.yaml`: groups and the binding that opens each app to them
 - `12-invitation-enrollment.yaml`: the invite-only enrollment flow
 - `13-retire-bootstrap-token.yaml`: deletes the old bootstrap API token
+- `14-google-invite-enrollment.yaml`: Google sign-up for invited emails only
+- `15-reputation-gates.yaml`: CAPTCHA after repeated failures from an IP, hard deny for off-network IPs (see below)
 
 Blueprints are auto-applied on startup. All provider configuration is code-driven; no manual UI configuration required.
 
@@ -139,6 +141,27 @@ blueprint) -- an application with no binding is open to every account.
      breached) and enrol TOTP or a passkey.
 3. They start in `media-viewer`. Directory -> Groups -> add them to anything
    else they need (`home-family` for family, `homelab` to run the platform).
+
+### Failed sign-ins: CAPTCHA, then deny
+
+Blueprint `15-reputation-gates.yaml`. authentik scores each (client IP,
+username) pair: -1 per failed identification or password, +1 per successful
+login, clamped to -5..+5, forgotten 24h after the first failure.
+
+- Score of the client IP <= **-3**: a Cloudflare Turnstile CAPTCHA before the
+  sign-in page, for anyone (LAN included).
+- Score <= **-10** and **not** on the home network: "Too many failed sign-in
+  attempts", for up to a day. LAN and Tailscale are never denied.
+
+To let someone back in sooner: admin -> Directory -> Reputation scores, delete
+their IP's rows.
+
+The CAPTCHA needs 1Password item `authentik-turnstile` with fields
+`site-key` and `secret-key` (Cloudflare dashboard -> Turnstile -> add widget,
+mode Managed, hostnames `auth.integratn.tech` and
+`auth.cluster.integratn.tech`), then a restart of `authentik-server` and
+`authentik-worker`. Without the item the CAPTCHA is simply not used; the deny
+still works.
 
 ### Admin interface
 

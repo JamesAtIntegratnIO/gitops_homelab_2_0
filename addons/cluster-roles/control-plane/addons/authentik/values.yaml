@@ -58,6 +58,15 @@ global:
       value: "0.0.0.0:9443"
     - name: AUTHENTIK_LISTEN__METRICS
       value: "0.0.0.0:9300"
+    # Who may set X-Forwarded-For. authentik's default trusts loopback and
+    # every private range; only pods ever connect to authentik-server (it is
+    # a ClusterIP behind NetworkPolicy): nginx-gateway for the LAN names,
+    # cloudflared for auth.integratn.tech. So trust the pod network only.
+    # The client IP authentik then uses is the LEFTMOST X-Forwarded-For
+    # entry, which a client can still write through Cloudflare; see
+    # 15-reputation-gates.yaml for why that cannot deny the LAN.
+    - name: AUTHENTIK_LISTEN__TRUSTED_PROXY_CIDRS
+      value: "127.0.0.0/8,10.244.0.0/16"
     # Bootstrap admin account
     - name: AUTHENTIK_BOOTSTRAP_PASSWORD
       valueFrom:
@@ -122,6 +131,22 @@ global:
         secretKeyRef:
           name: authentik-mealie-oidc
           key: client-secret
+          optional: true
+    # Cloudflare Turnstile keys for the reputation CAPTCHA
+    # (15-reputation-gates.yaml, ExternalSecret authentik-turnstile).
+    # `optional: true` like Mealie's: without the 1Password item the CAPTCHA
+    # entries are skipped and authentik still starts.
+    - name: TURNSTILE_SITE_KEY
+      valueFrom:
+        secretKeyRef:
+          name: authentik-turnstile
+          key: site-key
+          optional: true
+    - name: TURNSTILE_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: authentik-turnstile
+          key: secret-key
           optional: true
     # Google OAuth credentials for social login source
     - name: GOOGLE_CLIENT_ID

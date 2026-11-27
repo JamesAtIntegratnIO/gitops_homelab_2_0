@@ -1805,3 +1805,205 @@ data:
           order: 0
           enabled: true
           timeout: 30
+
+  15-reputation-gates.yaml: |
+    # Authentik Blueprint: reputation gates on integratn-authentication
+    #
+    # A client that keeps failing sign-in first gets a CAPTCHA (Cloudflare
+    # Turnstile), then, if it is NOT on the home network, a hard deny.
+    #
+    # HOW REPUTATION WORKS (authentik 2026.8, checked against the source):
+    # - Every failed identification (unknown username/email) and every failed
+    #   password scores -1 on the row (client IP, username); every successful
+    #   login +1. Each row is clamped to the tenant limits, -5..+5 by default
+    #   (System > Settings > Reputation lower/upper limit).
+    # - A row expires 24h after it was first written (reputation.expiry), so
+    #   a blocked client recovers on its own within a day. To clear one now:
+    #   admin -> Directory -> Reputation scores -> delete the row.
+    # - A Reputation Policy PASSES when the summed score is AT OR BELOW its
+    #   threshold, i.e. it is True for the bad actor. So it is bound to the
+    #   CAPTCHA and deny stage bindings WITHOUT negate. (A common write-up
+    #   says to negate both. That inverts them: everyone with a clean record
+    #   gets the deny stage, i.e. nobody can sign in.)
+    # - check_ip only, not check_username. Anyone can fail sign-in as "james"
+    #   from anywhere; scoring the username would let them lock James out.
+    #
+    # THRESHOLDS
+    #   CAPTCHA  score <= -3  anyone, LAN included: about 3 failures from
+    #                          that IP.
+    #   DENY     score <= -10 only off the home network. One username's row
+    #                          stops at -5, so this needs failures against
+    #                          two or more usernames from the same IP, i.e.
+    #                          spraying. (Off the home network the password
+    #                          stage is already refused by
+    #                          integratn-password-home-only, so the only
+    #                          failures there are unknown usernames.)
+    #
+    # THE LAN IS NEVER DENIED. The deny binding needs BOTH its policies
+    # (policy_engine_mode: all): low reputation AND not the home network
+    # (same test as integratn-client-not-home-network in
+    # 03-authentication-flows.yaml: Cloudflare headers or a non-private
+    # address). This matters because the client IP behind the Cloudflare
+    # tunnel is the LEFTMOST X-Forwarded-For entry, which the client can
+    # write: someone outside can make failures count against a LAN address
+    # (James's desktop, say). The worst that does is make that machine solve
+    # a CAPTCHA; it can never deny it.
+    #
+    # Both stages sit BEFORE identification (orders 5 and 8) so they cover
+    # the page as a whole: a denied client does not get the Google buttons
+    # either. Policies are evaluated when the stage comes up
+    # (evaluate_on_plan false, re_evaluate_policies true). With BOTH false
+    # authentik runs the stage unconditionally, i.e. the deny for everyone.
+    # Within one flow run the password stage retries in place, so the
+    # CAPTCHA appears on the next page load (or after its 5-try cancel).
+    #
+    # TURNSTILE KEYS come from 1Password item `authentik-turnstile` (fields
+    # site-key, secret-key) via ExternalSecret authentik-turnstile ->
+    # env TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY (optional, values.yaml).
+    # Without them every CAPTCHA entry below is skipped (conditions), so a
+    # missing item leaves the deny gate working and never puts a broken
+    # widget in front of sign-in. The widget's hostnames must include
+    # auth.integratn.tech and auth.cluster.integratn.tech.
+    version: 1
+    metadata:
+      name: reputation-gates
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # The flow and the home-network gate come from 03.
+      - model: authentik_blueprints.metaapplyblueprint
+        attrs:
+          identifiers:
+            name: authentication-flows
+          required: true
+
+      # --- deny: score <= -10 and off the home network ------------------
+      - model: authentik_policies_reputation.reputationpolicy
+        identifiers:
+          name: integratn-reputation-deny
+        id: rep-deny-policy
+        attrs:
+          check_ip: true
+          check_username: false
+          threshold: -10
+
+      - model: authentik_policies_expression.expressionpolicy
+        identifiers:
+          name: integratn-reputation-deny-not-home
+        id: rep-deny-not-home-policy
+        attrs:
+          expression: |
+            # True unless the request comes straight from the LAN or
+            # Tailscale. Same test as integratn-client-not-home-network
+            # (03-authentication-flows.yaml); keep the two in step.
+            req = request.http_request
+            if req is None:
+                return True
+            if req.headers.get("Cf-Ray") or req.headers.get("Cf-Connecting-Ip"):
+                return True
+            ip = ak_client_ip
+            for net in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"):
+                if ip in ip_network(net):
+                    return False
+            return True
+
+      - model: authentik_stages_deny.denystage
+        identifiers:
+          name: integratn-reputation-deny
+        id: rep-deny-stage
+        attrs:
+          deny_message: >-
+            Too many failed sign-in attempts from your network.
+            Try again tomorrow.
+
+      - model: authentik_flows.flowstagebinding
+        identifiers:
+          target: !Find [authentik_flows.flow, [slug, integratn-authentication]]
+          stage: !KeyOf rep-deny-stage
+          order: 5
+        id: rep-deny-binding
+        attrs:
+          evaluate_on_plan: false
+          re_evaluate_policies: true
+          # BOTH policies must pass: low reputation AND not home.
+          policy_engine_mode: all
+          invalid_response_action: retry
+
+      # Identified by policy alone, target in attrs: see the GOTCHA on the
+      # home-network binding in 03-authentication-flows.yaml. Each policy
+      # here is bound only once.
+      - model: authentik_policies.policybinding
+        identifiers:
+          policy: !KeyOf rep-deny-policy
+        attrs:
+          target: !KeyOf rep-deny-binding
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+          # A broken reputation lookup must not deny anyone.
+          failure_result: false
+
+      - model: authentik_policies.policybinding
+        identifiers:
+          policy: !KeyOf rep-deny-not-home-policy
+        attrs:
+          target: !KeyOf rep-deny-binding
+          order: 10
+          enabled: true
+          negate: false
+          timeout: 30
+          failure_result: true
+
+      # --- CAPTCHA: score <= -3, anyone -----------------------------------
+      - model: authentik_policies_reputation.reputationpolicy
+        identifiers:
+          name: integratn-reputation-captcha
+        id: rep-captcha-policy
+        attrs:
+          check_ip: true
+          check_username: false
+          threshold: -3
+
+      - model: authentik_stages_captcha.captchastage
+        conditions:
+          - !Env [TURNSTILE_SITE_KEY, false]
+          - !Env [TURNSTILE_SECRET_KEY, false]
+        identifiers:
+          name: integratn-reputation-captcha
+        id: rep-captcha-stage
+        attrs:
+          public_key: !Env [TURNSTILE_SITE_KEY, ""]
+          private_key: !Env [TURNSTILE_SECRET_KEY, ""]
+          js_url: https://challenges.cloudflare.com/turnstile/v0/api.js
+          api_url: https://challenges.cloudflare.com/turnstile/v0/siteverify
+          # Turnstile has no score; "interactive" renders its widget.
+          interactive: true
+
+      - model: authentik_flows.flowstagebinding
+        conditions:
+          - !Env [TURNSTILE_SITE_KEY, false]
+          - !Env [TURNSTILE_SECRET_KEY, false]
+        identifiers:
+          target: !Find [authentik_flows.flow, [slug, integratn-authentication]]
+          stage: !KeyOf rep-captcha-stage
+          order: 8
+        id: rep-captcha-binding
+        attrs:
+          evaluate_on_plan: false
+          re_evaluate_policies: true
+          invalid_response_action: retry
+
+      - model: authentik_policies.policybinding
+        conditions:
+          - !Env [TURNSTILE_SITE_KEY, false]
+          - !Env [TURNSTILE_SECRET_KEY, false]
+        identifiers:
+          policy: !KeyOf rep-captcha-policy
+        attrs:
+          target: !KeyOf rep-captcha-binding
+          order: 0
+          enabled: true
+          negate: false
+          timeout: 30
+          failure_result: false
